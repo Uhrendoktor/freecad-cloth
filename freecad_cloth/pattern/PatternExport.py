@@ -802,26 +802,12 @@ def export_pattern_piece(
     piece_id = str(getattr(piece, "PieceId", ""))
     if normalized_format == "pdf":
         from freecad_cloth.pattern.PatternPdfExport import (
+            PdfExportOptions,
             to_pdf,
             validate_pdf_export,
         )  # ruff: ignore[PLC0415]
 
-        content = to_pdf(
-            pattern,
-            curve_samples,
-            units,
-            derived,
-            piece_id,
-            seam_ids,
-            allowance,
-            paper_size=paper_size,
-            margin_mm=margin_mm,
-            overlap_mm=overlap_mm,
-        )
-        Path(str(path)).write_bytes(content)
-        return validate_pdf_export(
-            pattern,
-            content,
+        options = PdfExportOptions(
             curve_samples=curve_samples,
             units=units,
             derived=derived,
@@ -832,6 +818,9 @@ def export_pattern_piece(
             margin_mm=margin_mm,
             overlap_mm=overlap_mm,
         )
+        content = to_pdf(pattern, options)
+        Path(str(path)).write_bytes(content)
+        return validate_pdf_export(pattern, content, options)
 
     content = (
         to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)

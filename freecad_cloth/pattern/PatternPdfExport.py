@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
+from dataclasses import dataclass
 from math import ceil, cos, isfinite, radians, sin
 from typing import TYPE_CHECKING
 
@@ -29,6 +30,33 @@ _PAPER_SIZES_MM: dict[str, tuple[float, float]] = {
     "A4": (210.0, 297.0),
     "Letter": (215.9, 279.4),
 }
+
+
+@dataclass(frozen=True, slots=True)
+class PdfExportOptions:
+    """Rendering options shared by PDF generation and deterministic validation.
+
+    Attributes:
+        curve_samples: Number of samples used to resolve curved sewing edges.
+        units: Canonical input units; currently only millimetres are accepted.
+        derived: Optional derived cut boundary, notches, and construction marks.
+        piece_id: Stable identifier embedded in the export metadata.
+        seam_ids: Stable seam identifiers embedded in export metadata.
+        seam_allowance: Cut-boundary allowance in millimetres.
+        paper_size: Physical sheet size (A4 or Letter).
+        margin_mm: Minimum printable margin on each sheet.
+        overlap_mm: Registration overlap between adjacent tiles.
+    """
+
+    curve_samples: int = 32
+    units: str = "mm"
+    derived: DerivedPattern | None = None
+    piece_id: str = ""
+    seam_ids: tuple[str, ...] = ()
+    seam_allowance: float = 0.0
+    paper_size: str = "A4"
+    margin_mm: float = 10.0
+    overlap_mm: float = 10.0
 
 
 def _number(value: float) -> str:
@@ -158,23 +186,34 @@ def from_pdf_metadata(pdf: bytes) -> dict[str, object]:
 
 def to_pdf(
     pattern: ParametricPattern,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
+    options: PdfExportOptions | None = None,
 ) -> bytes:
     """Create a multi-page, actual-size vector PDF with registration and calibration marks.
 
     Pages are ordered from top-left across each row. The printable geometry is clipped
     to each tile; neighboring pages share registration crosses in their overlap. Every
     page carries a 25 mm calibration square and print-at-100-percent instructions.
+
+    Args:
+        pattern: Authoritative sewing-boundary geometry.
+        options: Shared immutable PDF rendering and validation settings.
+
+    Returns:
+        Deterministic PDF 1.4 bytes containing tiled pattern geometry and metadata.
+
+    Raises:
+        ValueError: If units, paper layout, allowance, or derived geometry is invalid.
     """
+    settings = PdfExportOptions() if options is None else options
+    curve_samples = settings.curve_samples
+    units = settings.units
+    derived = settings.derived
+    piece_id = settings.piece_id
+    seam_ids = settings.seam_ids
+    seam_allowance = settings.seam_allowance
+    paper_size = settings.paper_size
+    margin_mm = settings.margin_mm
+    overlap_mm = settings.overlap_mm
     normalized_units = _validate_units(units)
     if curve_samples < 2:
         msg = "curve_samples must be at least 2"
@@ -447,30 +486,22 @@ def to_pdf(
 def validate_pdf_export(
     pattern: ParametricPattern,
     exported: bytes,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
+    options: PdfExportOptions | None = None,
 ) -> dict[str, object]:
-    """Validate the PDF against a deterministic rerender from authoritative geometry."""
-    expected = to_pdf(
-        pattern,
-        curve_samples,
-        units,
-        derived,
-        piece_id,
-        seam_ids,
-        seam_allowance,
-        paper_size=paper_size,
-        margin_mm=margin_mm,
-        overlap_mm=overlap_mm,
-    )
+    """Validate the PDF against a deterministic rerender with identical options.
+
+    Args:
+        pattern: Authoritative sewing-boundary geometry.
+        exported: PDF bytes being checked.
+        options: The render settings that produced the supplied document.
+
+    Returns:
+        A successful PDF validation result and its decoded metadata.
+
+    Raises:
+        ValueError: If the PDF differs from the authoritative deterministic output.
+    """
+    expected = to_pdf(pattern, options)
     if exported != expected:
         msg = "PDF does not match the deterministic authoritative pattern output"
         raise ValueError(msg)

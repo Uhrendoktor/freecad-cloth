@@ -29,6 +29,7 @@ from freecad_cloth.pattern.PatternExport import (
     validate_svg_export,
 )
 from freecad_cloth.pattern.PatternPdfExport import (
+    PdfExportOptions,
     from_pdf_metadata,
     to_pdf,
     validate_pdf_export,
@@ -410,10 +411,12 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     derived = add_notches(derived, [Notch("right-notch", "right", 0.5, depth=3.0)])
     first = to_pdf(
         pattern,
-        derived=derived,
-        piece_id="front",
-        seam_ids=("front-back",),
-        seam_allowance=5.0,
+        PdfExportOptions(
+            derived=derived,
+            piece_id="front",
+            seam_ids=("front-back",),
+            seam_allowance=5.0,
+        ),
     )
     second = to_pdf(
         pattern,
@@ -441,21 +444,35 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
         validate_pdf_export(
             pattern,
             first,
-            derived=derived,
-            piece_id="front",
-            seam_ids=("front-back",),
-            seam_allowance=5.0,
+            PdfExportOptions(
+                derived=derived,
+                piece_id="front",
+                seam_ids=("front-back",),
+                seam_allowance=5.0,
+            ),
         )["valid"]
         is True
     )
     with TestCase().assertRaisesRegex(ValueError, "deterministic authoritative"):
-        validate_pdf_export(pattern, first + b"tampered")
+        validate_pdf_export(
+            pattern,
+            first + b"tampered",
+            PdfExportOptions(
+                derived=derived,
+                piece_id="front",
+                seam_ids=("front-back",),
+                seam_allowance=5.0,
+            ),
+        )
 
 
 def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
     pattern = rectangle(500.0, 400.0)
     derived = derive_cut_boundary(pattern, 5.0)
-    pdf = to_pdf(pattern, derived=derived, piece_id="long-panel", seam_allowance=5.0)
+    pdf = to_pdf(
+        pattern,
+        PdfExportOptions(derived=derived, piece_id="long-panel", seam_allowance=5.0),
+    )
     metadata = from_pdf_metadata(pdf)
     assert metadata["tile_columns"] == 3
     assert metadata["tile_rows"] == 2
@@ -471,15 +488,15 @@ def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
 
 def test_pdf_letter_page_size_and_layout_validation() -> None:
     pattern = rectangle(100.0, 60.0)
-    letter_pdf = to_pdf(pattern, paper_size="Letter")
+    letter_pdf = to_pdf(pattern, PdfExportOptions(paper_size="Letter"))
     assert b"/MediaBox [0 0 612 792]" in letter_pdf
     assert from_pdf_metadata(letter_pdf)["paper_size"] == "Letter"
     with TestCase().assertRaisesRegex(ValueError, "paper_size"):
-        to_pdf(pattern, paper_size="Legal")
+        to_pdf(pattern, PdfExportOptions(paper_size="Legal"))
     with TestCase().assertRaisesRegex(ValueError, "overlap"):
-        to_pdf(pattern, overlap_mm=1000.0)
+        to_pdf(pattern, PdfExportOptions(overlap_mm=1000.0))
     with TestCase().assertRaisesRegex(ValueError, "overlap"):
-        to_pdf(pattern, overlap_mm=0.0)
+        to_pdf(pattern, PdfExportOptions(overlap_mm=0.0))
 
 
 def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Path) -> None:
