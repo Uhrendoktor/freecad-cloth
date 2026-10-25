@@ -13,11 +13,15 @@ import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from numbers import Real
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from types import ModuleType
+
+Point3 = tuple[float, float, float]
+Triangle3 = tuple[int, int, int]
 
 LADDER_STITCH_SAMPLES = 8
 LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
@@ -46,16 +50,15 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
     if gui is None:
         import FreeCADGui as gui
 
-    qt_widgets = None
     if application is None:
         try:
-            from PySide import QtWidgets as qt_widgets
+            from PySide import QtWidgets
         except ImportError:
-            from PySide2 import QtWidgets as qt_widgets
+            from PySide2 import QtWidgets
 
     gui.updateGui()
     if application is None:
-        application = qt_widgets.QApplication.instance()
+        application = QtWidgets.QApplication.instance()
     if application is not None:
         application.processEvents()
 
@@ -165,13 +168,25 @@ def connected_components(vertices, triangles):
     return len({find(i) for i in range(len(vertices))})
 
 
-def nearest_surface_observation(garment_points, surface):
-    """Return the exact nearest target vertex distance and corresponding world point."""
+def nearest_surface_observation(
+    garment_points: Sequence[Point3],
+    surface: object | None,
+) -> tuple[float | None, Point3 | None]:
+    """Return the nearest target vertex and distance using the shared spatial index.
+
+    Args:
+        garment_points: Garment points in the target's coordinate frame.
+        surface: Collision-surface-like object exposing vertex coordinates.
+
+    Returns:
+        The minimum distance and nearest target vertex, or (None, None) for absent data.
+    """
     if not garment_points or surface is None:
         return None, None
-    vertices = tuple(getattr(surface, "vertices", ()) or ())
-    if not vertices:
+    raw_vertices = tuple(getattr(surface, "vertices", ()) or ())
+    if not raw_vertices:
         return None, None
+    vertices = cast("tuple[Point3, ...]", raw_vertices)
     from freecad_cloth.common.MeshValidation import nearest_target_observation
 
     return nearest_target_observation(garment_points, vertices)
@@ -217,16 +232,21 @@ def inside_outside(points, source):
         return "unknown"
     raw_vertices, raw_faces = topology
     vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
-    if not vertices or not triangles:
+    if not vertices or not raw_faces:
         return "unknown"
     try:
         import numpy as np
         import trimesh
 
+        face_array = np.asarray(raw_faces, dtype=np.int64)
+        if face_array.ndim != 2 or face_array.shape[1] != 3:
+            return "unknown"
+        triangles: tuple[Triangle3, ...] = tuple(
+            (int(face[0]), int(face[1]), int(face[2])) for face in face_array
+        )
         target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(triangles, dtype=int),
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=face_array,
             process=False,
         )
         if not target_mesh.is_watertight:
@@ -780,14 +800,12 @@ def build_ladder_case_record(
         A schema-compatible case record preserving solver settings and measured evidence.
     """
     final = checkpoints[-1]
-    maximum_penetration = max(
-        (
-            float(checkpoint["penetration_mm"])
-            for checkpoint in checkpoints
-            if checkpoint["penetration_mm"] is not None
-        ),
-        default=0.0,
-    )
+    penetration_values = []
+    for checkpoint in checkpoints:
+        penetration = checkpoint["penetration_mm"]
+        if isinstance(penetration, Real) and not isinstance(penetration, bool):
+            penetration_values.append(float(penetration))
+    maximum_penetration = max(penetration_values, default=0.0)
     seam_pairs_by_id = getattr(runtime.base, "seam_stitch_pairs")
     seam_pairs = [
         [int(left), int(right)]
@@ -843,10 +861,13 @@ def build_ladder_case_record(
         "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
         "first_contact_step": next(
             (
-                int(cast(int, checkpoint["step"]))
+                int(checkpoint["step"])
                 for checkpoint in checkpoints
-                if checkpoint["target_clearance_mm"] is not None
+                if isinstance(checkpoint["target_clearance_mm"], Real)
+                and not isinstance(checkpoint["target_clearance_mm"], bool)
                 and float(checkpoint["target_clearance_mm"]) < 0.0
+                and isinstance(checkpoint["step"], int)
+                and not isinstance(checkpoint["step"], bool)
             ),
             None,
         ),
@@ -1138,11 +1159,14 @@ def surface_signed_clearance(
             if not callable(Trimesh):
                 msg = "trimesh.Trimesh is unavailable"
                 raise ImportError(msg)
+            nearest = getattr(proximity_mesh, "nearest", None)
+            on_surface = getattr(nearest, "on_surface", None)
+            if not callable(on_surface):
+                msg = "Trimesh nearest-surface query is unavailable"
+                raise ImportError(msg)
             if points:
                 mark("before-trimesh-nearest")
-                _, distances, _ = proximity_mesh.nearest.on_surface(
-                    np.asarray(points, dtype=np.float64)
-                )
+                _, distances, _ = on_surface(np.asarray(points, dtype=np.float64))
                 mark("after-trimesh-nearest")
                 unsigned = float(np.min(distances)) if len(distances) else float("inf")
         except (ImportError, RuntimeError, TypeError, ValueError) as exc:

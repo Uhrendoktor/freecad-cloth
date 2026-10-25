@@ -54,12 +54,14 @@ class _AvatarViewObject(Protocol):
         ShapeColor: RGB fill color assigned to the mannequin mesh.
         LineColor: RGB edge color assigned to the mannequin mesh.
         LineWidth: Width of the visible mesh edges.
+        Visibility: Whether the mannequin mesh is visible in the 3D view.
     """
 
     DisplayMode: str
     ShapeColor: tuple[float, float, float]
     LineColor: tuple[float, float, float]
     LineWidth: float
+    Visibility: bool
 
 
 class _AvatarFeatureView(Protocol):

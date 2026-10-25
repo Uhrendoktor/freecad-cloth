@@ -6,6 +6,7 @@ from hypothesis import strategies as st
 from freecad_cloth.common.MeshValidation import (
     nearest_surface_clearance,
     nearest_target_clearance,
+    nearest_target_observation,
     validate_mesh,
 )
 
@@ -95,6 +96,16 @@ def test_large_vertex_clearance_returns_exact_nearest_distance():
     garment = tuple((float(index), 5.0, 0.0) for index in range(48))
     target = tuple((float(index), 0.0, 0.0) for index in range(48))
     assert nearest_target_clearance(garment, target) == pytest.approx(5.0, rel=0.0, abs=1e-9)
+
+
+
+def test_nearest_target_observation_returns_the_target_vertex_at_minimum_distance() -> None:
+    """Return a spatial-index nearest target coordinate alongside its distance."""
+    garment = ((2.0, 3.0, 4.0), (10.0, 10.0, 10.0))
+    target = ((2.0, 0.0, 4.0), (10.0, 7.0, 10.0), (100.0, 100.0, 100.0))
+    distance, point = nearest_target_observation(garment, target)
+    assert distance == pytest.approx(3.0, rel=0.0, abs=1e-9)
+    assert point == (2.0, 0.0, 4.0)
 
 
 def test_trimesh_surface_clearance_is_optional():

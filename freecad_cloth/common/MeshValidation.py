@@ -198,14 +198,21 @@ def validate_mesh(
     )
 
 
-def nearest_target_clearance(
+def nearest_target_observation(
     garment_vertices: Sequence[Point3],
     target_vertices: Sequence[Point3],
-) -> float:
-    """Return the minimum Euclidean distance between two validated 3D vertex sets.
+) -> tuple[float, Point3]:
+    """Return the nearest target vertex and its exact distance to the garment.
 
-    SciPy's exact KDTree query is the single production implementation. Coordinates
-    are validated before indexing, and an unrepresentable result fails closed.
+    Args:
+        garment_vertices: Garment points expressed in the target's coordinate frame.
+        target_vertices: Target mesh vertex coordinates.
+
+    Returns:
+        The minimum Euclidean distance and the target vertex at that minimum.
+
+    Raises:
+        ValueError: If either point set is empty or the query produces a non-finite distance.
     """
     garment = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
     target = validate_points3d(cast("Iterable[Iterable[Real]]", target_vertices))
@@ -214,14 +221,37 @@ def nearest_target_clearance(
         raise ValueError(msg)
 
     try:
-        distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
-        clearance = float(np.min(distances))
-    except (OverflowError, ValueError, RuntimeError) as exc:
-        msg = "could not calculate finite nearest vertex clearance"
+        distances, target_indices = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
+        garment_index = int(np.argmin(distances))
+        target_index = int(target_indices[garment_index])
+        clearance = float(distances[garment_index])
+        target_point = target[target_index]
+    except (IndexError, OverflowError, ValueError, RuntimeError) as exc:
+        msg = "could not calculate finite nearest vertex observation"
         raise ValueError(msg) from exc
     if not isfinite(clearance):
         msg = "computed vertex clearance must be finite"
         raise ValueError(msg)
+    return clearance, (float(target_point[0]), float(target_point[1]), float(target_point[2]))
+
+
+def nearest_target_clearance(
+    garment_vertices: Sequence[Point3],
+    target_vertices: Sequence[Point3],
+) -> float:
+    """Return the minimum Euclidean distance between two validated 3D vertex sets.
+
+    Args:
+        garment_vertices: Garment points in the target's coordinate frame.
+        target_vertices: Target mesh points.
+
+    Returns:
+        The exact minimum vertex-to-vertex clearance in millimetres.
+
+    Raises:
+        ValueError: If either point set is empty or the query result is non-finite.
+    """
+    clearance, _target_point = nearest_target_observation(garment_vertices, target_vertices)
     return clearance
 
 
