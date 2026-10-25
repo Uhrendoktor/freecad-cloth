@@ -5,8 +5,10 @@ from __future__ import annotations
 
 import base64
 import json
-from pydantic.dataclasses import dataclass
 from math import ceil, cos, isfinite, radians, sin
+
+import numpy as np
+from pydantic.dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
@@ -271,13 +273,14 @@ def to_pdf(
     if not bound_points:
         msg = "pattern has no geometry to export"
         raise ValueError(msg)
-    if any(not isfinite(value) for point in bound_points for value in point):
+    bound_coordinates = np.asarray(bound_points, dtype=np.float64)
+    if not bool(np.isfinite(bound_coordinates).all()):
         msg = "pattern contains non-finite geometry"
         raise ValueError(msg)
-    min_x = min(point[0] for point in bound_points)
-    max_x = max(point[0] for point in bound_points)
-    min_y = min(point[1] for point in bound_points)
-    max_y = max(point[1] for point in bound_points)
+    minimums = np.min(bound_coordinates, axis=0)
+    maximums = np.max(bound_coordinates, axis=0)
+    min_x, min_y = float(minimums[0]), float(minimums[1])
+    max_x, max_y = float(maximums[0]), float(maximums[1])
     extent_width = max_x - min_x
     extent_height = max_y - min_y
     if extent_width <= 0.0 or extent_height <= 0.0:

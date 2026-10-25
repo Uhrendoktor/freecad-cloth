@@ -70,8 +70,8 @@ def bootstrap_ladder(
         ladder_name: Stable artifact prefix, either "avatar" or "cube".
 
     Returns:
-        Repository root, helper directory, output directory, log path, trace
-        handle, logging callback, FreeCAD application module, GUI module, and Part.
+        A typed bundle with the output directory, trace callback, and imported
+        FreeCAD application, GUI, and Part modules.
 
     Raises:
         ImportError: If FreeCAD or its GUI/Part modules cannot be imported.

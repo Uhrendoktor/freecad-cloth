@@ -257,7 +257,7 @@ def _run_ladder_case(case_id):
             ),
             default=0.0,
         )
-        seam_world_spans = [entry for entry in measurements.seam_pre]
+        seam_world_spans = measurements.seam_pre
         record = {
             "case_id": case_id,
             "predecessor_case_id": None,

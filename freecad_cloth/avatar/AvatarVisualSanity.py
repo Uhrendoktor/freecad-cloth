@@ -8,8 +8,8 @@ reference target before a garment simulation is evaluated.
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence
+import math
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -108,8 +108,12 @@ def inspect_avatar_mesh(
             msg = f"avatar height {height:.3f} differs from expected {expected_height:.3f}"
             raise AvatarVisualSanityError(msg)
 
+    lateral_limit = float(max_lateral_height_ratio)
+    if not math.isfinite(lateral_limit) or lateral_limit <= 0.0:
+        msg = "maximum lateral-height ratio must be finite and positive"
+        raise AvatarVisualSanityError(msg)
     ratio = width / height
-    if ratio > float(max_lateral_height_ratio):
+    if ratio > lateral_limit:
         msg = f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
         raise AvatarVisualSanityError(msg)
-    return AvatarVisualSanity(height, width, depth, len(triangles), ratio)
+    return AvatarVisualSanity(height, width, depth, len(faces), ratio)
