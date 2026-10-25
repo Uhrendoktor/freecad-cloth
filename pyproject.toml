@@ -106,6 +106,7 @@ ignore = [
 "tests/freecad_*.py" = ["PLC0415"]
 "tests/support/pbd_contact_helpers.py" = ["PLC0415"]
 "tests/test_avatar_fitting.py" = ["PLC0415"]
+"tests/test_workbench_contract.py" = ["PLC0415"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
