@@ -57,9 +57,12 @@ def test_package_workbench_initializers_are_import_safe_and_unique() -> None:
 
 
 def test_simulation_workbench_registers_drape_and_simulation_surfaces() -> None:
-    """Keep the core drape and simulation commands registered on the workbench."""
-    cls = importlib.import_module("freecad_cloth.simulation.workbench").ClothSimulationWorkbench
-    workbench = cls()
+    """Keep core commands registered; import locally to isolate this startup contract."""
+    from freecad_cloth.simulation.workbench import (
+        ClothSimulationWorkbench,  # noqa: PLC0415
+    )
+
+    workbench = ClothSimulationWorkbench()
     workbench.Initialize()
     required_commands = (
         "ClothSimulation_CreateDrape",

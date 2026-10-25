@@ -590,21 +590,6 @@ def _smoothstep(a: float, b: float, x: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
-def _axis_bounds(vertices: Sequence[Point], axis: int) -> tuple[float, float]:
-    """Return coordinate-axis bounds using a vectorized NumPy reduction.
-
-    Args:
-        vertices: Three-dimensional mesh coordinates.
-        axis: Coordinate axis whose minimum and maximum are required.
-
-    Returns:
-        The minimum and maximum values along the requested axis.
-    """
-    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
-    values = coordinates[:, axis]
-    return float(np.min(values)), float(np.max(values))
-
-
 def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
