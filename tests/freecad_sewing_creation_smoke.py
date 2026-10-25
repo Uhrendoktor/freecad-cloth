@@ -398,6 +398,7 @@ def wait_for_task_close() -> None:
         failure_type=AssertionError,
     )
 
+
 def select_edges(*items):
     Gui.Selection.clearSelection()
     for obj, edge in items:

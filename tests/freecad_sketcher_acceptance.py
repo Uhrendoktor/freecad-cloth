@@ -53,6 +53,7 @@ def _wait_for_task_close() -> None:
         failure_type=RuntimeError,
     )
 
+
 def _activate(name, commands):
     Gui.activateWorkbench(name)
     _events()

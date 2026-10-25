@@ -52,6 +52,7 @@ from pbd_contact_helpers import positions_tuple as _positions_tuple
 from pbd_contact_helpers import screenshot as _screenshot
 from pbd_contact_helpers import seam_geometry as _seam_geometry
 from pbd_contact_helpers import inspect_pbd_runtime as _inspect_pbd_runtime
+from pbd_contact_helpers import LadderCheckpointCapture as _LadderCheckpointCapture
 
 _progress = make_progress_logger(OUT / "progress.log")
 _shutdown_gui = make_shutdown_gui(_progress)
@@ -262,21 +263,22 @@ def _run_ladder_case(case_id):
         if view is None:
             msg = f"{case_id} has no active FreeCAD view"
             raise RuntimeError(msg)
+        capture = _LadderCheckpointCapture(
+            scene=scene,
+            document=doc,
+            view=view,
+            case_id=case_id,
+            boot=_boot,
+            process_events=_events,
+            orient_view=view.viewAxonometric,
+            reveal_objects=lambda: None,
+            capture_image=_screenshot,
+        )
         images = {}
         checkpoints = []
         for step in CHECKPOINTS:
-            _boot(f"checkpoint-before-recompute case={case_id} step={step}")
-            scene.Steps = int(step)
-            doc.recompute()
-            _boot(f"checkpoint-after-recompute case={case_id} step={step}")
-            _events()
             image = OUT / "cube-ladder" / case_id / ("step-%03d.png" % int(step))
-            image.parent.mkdir(parents=True, exist_ok=True)
-            view.viewAxonometric()
-            _events()
-            _boot(f"checkpoint-before-screenshot case={case_id} step={step}")
-            _screenshot(view, image)
-            _boot(f"checkpoint-after-screenshot case={case_id} step={step}")
+            capture.capture(step, image)
             positions = _positions_tuple(base.backend)
             checkpoints.append(
                 _checkpoint_record(

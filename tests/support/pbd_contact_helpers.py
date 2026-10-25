@@ -8,6 +8,7 @@ create documents, start timers, or open output files during import.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple, Protocol, TYPE_CHECKING
 
@@ -428,6 +429,41 @@ def inspect_pbd_runtime(
         source_shape,
     )
 
+
+
+@dataclass(frozen=True, slots=True)
+class LadderCheckpointCapture:
+    """Capture a diagnostic checkpoint with injected FreeCAD view behavior."""
+
+    scene: object
+    document: object
+    view: object
+    case_id: str
+    boot: Callable[[str], None]
+    process_events: Callable[[], None]
+    orient_view: Callable[[], None]
+    reveal_objects: Callable[[], None]
+    capture_image: Callable[[object, Path], None]
+
+    def capture(self, step: int, image: Path) -> None:
+        """Recompute the requested step and persist its screenshot.
+
+        Args:
+            step: Solver step count to apply before capturing evidence.
+            image: Destination path for the checkpoint image.
+        """
+        self.boot(f"checkpoint-before-recompute case={self.case_id} step={step}")
+        setattr(self.scene, "Steps", int(step))
+        getattr(self.document, "recompute")()
+        self.boot(f"checkpoint-after-recompute case={self.case_id} step={step}")
+        self.process_events()
+        image.parent.mkdir(parents=True, exist_ok=True)
+        self.orient_view()
+        self.process_events()
+        self.reveal_objects()
+        self.boot(f"checkpoint-before-screenshot case={self.case_id} step={step}")
+        self.capture_image(self.view, image)
+        self.boot(f"checkpoint-after-screenshot case={self.case_id} step={step}")
 
 def configure_diagnostic_cube_target(
     doc: object,
