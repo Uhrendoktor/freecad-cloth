@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
+from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -232,97 +234,12 @@ def _piece_mesh(piece, start_height, piece_ir=None):
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
 
-    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
-    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
-    if not segment_ids:
-        msg = "pattern mesh semantic boundary provenance is missing"
-        raise ValueError(msg)
-    if len(segment_ids) != len(boundary):
-        msg = "pattern mesh boundary provenance length does not match boundary vertices"
-        raise ValueError(msg)
-
-    edge_pairs = {}
-    for index, segment_id in enumerate(segment_ids):
-        raw_key = str(segment_id)
-        base = next(
-            (
-                str(boundary_ir.id)
-                for boundary_ir in piece_ir.boundaries
-                if raw_key == str(boundary_ir.id)
-                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
-            ),
-            None,
-        )
-        if base is None:
-            msg = "pattern mesh boundary provenance contains an unknown semantic edge"
-            raise ValueError(msg)
-        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
-        edge_pairs.setdefault(base, []).append(pair)
-
-    by_id = {}
-    mesh_vertices = tuple(mesh.vertices)
-    for boundary_ir in piece_ir.boundaries:
-        edge_id = str(boundary_ir.id)
-        pairs = edge_pairs.get(edge_id)
-        if not pairs:
-            msg = f"pattern mesh has no boundary provenance for semantic edge {edge_id}"
-            raise ValueError(msg)
-        vertex_indices = {vertex for pair in pairs for vertex in pair}
-        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
-        ordered = tuple(
-            sorted(
-                vertex_indices,
-                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
-            )
-        )
-        if len(ordered) < 2:
-            msg = f"pattern mesh semantic edge {edge_id} has too few boundary vertices"
-            raise ValueError(msg)
-        actual_pairs = {frozenset(pair) for pair in pairs}
-        ordered_pairs = {
-            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
-        }
-        if ordered_pairs != actual_pairs:
-            msg = f"pattern mesh semantic edge {edge_id} boundary chain is disconnected"
-            raise ValueError(msg)
-        by_id[edge_id] = ordered
-
+    chains = semantic_boundary_chains(mesh, piece_ir, source_name="pattern mesh")
     return (
         vertices,
         mesh.triangles,
-        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
+        chains,
     )
-
-
-def _polyline_parameter(point, polyline):
-    if len(polyline) < 2:
-        return 0.0
-    total = 0.0
-    spans = []
-    for start, end in zip(polyline, polyline[1:], strict=False):
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        length = (dx * dx + dy * dy) ** 0.5
-        spans.append((total, start, end, length))
-        total += length
-    if total <= 1e-12:
-        return 0.0
-    best = None
-    for offset, start, end, length in spans:
-        if length <= 1e-12:
-            continue
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        t = (
-            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
-        ) / (length * length)
-        t = max(0.0, min(1.0, t))
-        px = float(start[0]) + t * dx
-        py = float(start[1]) + t * dy
-        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
-        candidate = (distance, offset + t * length)
-        best = candidate if best is None or candidate < best else best
-    return best[1] / total if best else 0.0
 
 
 def _mesh_constraints(positions, triangles):

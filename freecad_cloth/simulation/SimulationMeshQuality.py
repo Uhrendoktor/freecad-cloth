@@ -1,12 +1,12 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Simulation mesh density delegated to the Triangle constrained-Delaunay library."""
 
-from collections.abc import Sequence
 from math import hypot
 from typing import TypeAlias
 
 from freecad_cloth.common.ValidationModels import SimulationMeshQualityInput
 from freecad_cloth.pattern.PatternIR import PieceIR
+from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 
 MeshVertex: TypeAlias = tuple[float, float, float]
 MeshTriangle: TypeAlias = tuple[int, int, int]
@@ -54,52 +54,11 @@ def quality_piece_mesh(
             point = placement.multVec(App.Vector(x, y, float(start_height)))
             positions.append((float(point.x), float(point.y), float(point.z)))
 
-    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
-    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
-    if not segment_ids:
-        msg = "quality mesh boundary provenance is missing"
-        raise ValueError(msg)
-    if len(segment_ids) != len(boundary):
-        msg = "quality mesh boundary provenance length does not match boundary vertices"
-        raise ValueError(msg)
-
-    edge_pairs = {}
-    for index, segment_id in enumerate(segment_ids):
-        raw_key = str(segment_id)
-        base = next(
-            (
-                str(boundary_ir.id)
-                for boundary_ir in piece_ir.boundaries
-                if raw_key == str(boundary_ir.id)
-                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
-            ),
-            None,
-        )
-        if base is None:
-            msg = "quality mesh boundary provenance contains an unknown semantic edge"
-            raise ValueError(msg)
-        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
-        edge_pairs.setdefault(base, []).append(pair)
-
-    by_id = {}
     mesh_vertices = tuple(mesh.vertices)
-    for boundary_ir in piece_ir.boundaries:
+    chains = semantic_boundary_chains(mesh, piece_ir, source_name="quality mesh")
+    for boundary_ir, ordered in zip(piece_ir.boundaries, chains, strict=True):
         edge_id = str(boundary_ir.id)
-        pairs = edge_pairs.get(edge_id)
-        if not pairs:
-            msg = f"quality mesh has no boundary provenance for semantic edge {edge_id}"
-            raise ValueError(msg)
-        vertex_indices = {vertex for pair in pairs for vertex in pair}
-        authored = tuple(tuple(point[:2]) for point in boundary_ir.samples)
-        ordered = tuple(
-            sorted(
-                vertex_indices,
-                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], authored),
-            )
-        )
-        if len(ordered) < 2:
-            msg = f"quality mesh semantic edge {edge_id} has too few boundary vertices"
-            raise ValueError(msg)
+        authored = tuple((float(point[0]), float(point[1])) for point in boundary_ir.samples)
         endpoint_tolerance = 1e-7 * max(1.0, boundary_ir.length)
         first = mesh_vertices[ordered[0]]
         last = mesh_vertices[ordered[-1]]
@@ -122,14 +81,6 @@ def quality_piece_mesh(
             msg = f"quality mesh semantic edge {edge_id} does not end at its authored vertex"
             raise ValueError(msg)
 
-        actual_pairs = {frozenset(pair) for pair in pairs}
-        ordered_pairs = {
-            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
-        }
-        if ordered_pairs != actual_pairs:
-            msg = f"quality mesh semantic edge {edge_id} boundary chain is disconnected"
-            raise ValueError(msg)
-
         for left, right in zip(ordered, ordered[1:], strict=False):
             span = hypot(
                 float(mesh_vertices[left][0]) - float(mesh_vertices[right][0]),
@@ -138,41 +89,9 @@ def quality_piece_mesh(
             if span > float(spacing) + endpoint_tolerance:
                 msg = f"quality mesh semantic edge {edge_id} exceeds requested boundary spacing"
                 raise ValueError(msg)
-        by_id[edge_id] = ordered
 
     return (
         positions,
         tuple(mesh.triangles),
-        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
+        chains,
     )
-
-
-def _polyline_parameter(point: Sequence[float], polyline: Sequence[Sequence[float]]) -> float:
-    if len(polyline) < 2:
-        return 0.0
-    total = 0.0
-    spans = []
-    for start, end in zip(polyline, polyline[1:], strict=False):
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        length = (dx * dx + dy * dy) ** 0.5
-        spans.append((total, start, end, length))
-        total += length
-    if total <= 1e-12:
-        return 0.0
-    best = None
-    for offset, start, end, length in spans:
-        if length <= 1e-12:
-            continue
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        t = (
-            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
-        ) / (length * length)
-        t = max(0.0, min(1.0, t))
-        px = float(start[0]) + t * dx
-        py = float(start[1]) + t * dy
-        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
-        candidate = (distance, offset + t * length)
-        best = candidate if best is None or candidate < best else best
-    return best[1] / total if best else 0.0
