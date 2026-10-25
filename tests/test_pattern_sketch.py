@@ -167,8 +167,6 @@ def test_parameterized_outline_provides_native_sketch_seed_metadata():
     assert piece.id == "front"
 
 
-
-
 def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints() -> None:
     assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
     assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))
