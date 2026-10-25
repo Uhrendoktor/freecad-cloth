@@ -1014,8 +1014,7 @@ def _section_circumference(
         edges = following_points - point_array
         perimeter = float(np.sum(np.linalg.norm(edges, axis=1), dtype=np.float64))
         twice_area = np.sum(
-            point_array[:, 0] * following_points[:, 1]
-            - following_points[:, 0] * point_array[:, 1],
+            point_array[:, 0] * following_points[:, 1] - following_points[:, 0] * point_array[:, 1],
             dtype=np.float64,
         )
         area = abs(float(twice_area)) * 0.5
