@@ -12,6 +12,8 @@ import json
 import math
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 if TYPE_CHECKING:
@@ -298,7 +300,7 @@ def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
 
 def build_bone_transforms(
     source_vertices: tuple[Vector, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     fit_point: Callable[[Vector], Vector],
     rotations: Iterable[JointRotation],
     rotation_pivots: Mapping[str, Vector] | None = None,
@@ -342,7 +344,7 @@ def build_bone_transforms(
 def apply_weighted_fk(
     source_vertices: tuple[Vector, ...],
     rest_vertices: tuple[Vector, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     weights: Mapping[str, tuple[tuple[int, float], ...]],
     fit_point: Callable[[Vector], Vector],
     rotations: Iterable[JointRotation],

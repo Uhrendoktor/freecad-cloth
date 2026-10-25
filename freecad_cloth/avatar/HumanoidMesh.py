@@ -17,7 +17,7 @@ import os
 import tempfile
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, TypedDict, cast
+from typing import TYPE_CHECKING, Self, cast
 from urllib.request import Request, urlopen
 
 from pydantic import StrictInt
@@ -31,6 +31,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     resolve_target,
     target_directory,
 )
+from freecad_cloth.avatar.SkeletonTypes import BoneData, SkeletonData
 from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
@@ -77,20 +78,6 @@ if TYPE_CHECKING:
 
 Point = tuple[float, float, float]
 Triangle = tuple[int, int, int]
-
-
-class BoneData(TypedDict):
-    """Minimal authored bone fields used by the avatar fitting pipeline."""
-
-    head: str
-    tail: str
-
-
-class SkeletonData(TypedDict):
-    """Authored MakeHuman joint index lists and their referencing bones."""
-
-    bones: dict[str, BoneData]
-    joints: dict[str, list[int]]
 
 
 class HumanoidMeshError(RuntimeError):

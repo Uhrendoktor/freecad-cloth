@@ -12,16 +12,21 @@ from freecad_cloth.avatar.AnnyAvatarBackend import (
     build_avatar_rig_vertices,
     build_avatar_shape_mesh,
 )
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landmarks
+from freecad_cloth.avatar.AvatarModel import (
+    DEFAULT_POSE_ARM_ANGLES,
+    AvatarParameters,
+    Landmark,
+    _landmarks,
+)
 from freecad_cloth.avatar.HumanoidMesh import (
     HumanoidMeshError,
     MeshData,
-    SkeletonData,
     _bone_source_endpoints,
     _load_source_vertices,
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 from freecad_cloth.avatar.SkeletonPose import (
     AffineTransform,
     JointRotation,
@@ -167,9 +172,17 @@ def _arm_pose_configuration(
         shoulder, _ = _bone_source_endpoints(source_vertices, skeleton, bone_name, mapper=mapper)
         wrist, _ = _bone_source_endpoints(source_vertices, skeleton, wrist_bone, mapper=mapper)
         side = -1.0 if shoulder[0] < 0.0 else 1.0
-        desired = float(
-            parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle
+        desired_angle = (
+            parameters.pose.left_arm_angle
+            if side < 0.0
+            else parameters.pose.right_arm_angle
         )
+        if desired_angle is None:
+            desired_angle = DEFAULT_POSE_ARM_ANGLES.get(
+                parameters.pose.preset,
+                DEFAULT_POSE_ARM_ANGLES["standing"],
+            )
+        desired = float(desired_angle)
         radial = max(1e-9, side * (wrist[0] - shoulder[0]))
         downward = max(0.0, shoulder[2] - wrist[2])
         rest_angle = math.degrees(math.atan2(downward, radial))
