@@ -34,8 +34,11 @@ def test_rejects_empty_mesh() -> None:
 
 def test_rejects_invalid_triangle_indices() -> None:
     """Reject triangles that refer to vertices outside the input array."""
+    vertices = ((0, 0, 0), (1, 0, 0), (0, 1, 1))
     with pytest.raises(AvatarVisualSanityError, match="invalid triangle index"):
-        inspect_avatar_mesh(((0, 0, 0), (1, 0, 0), (0, 1, 1)), ((0, 1, 3),))
+        inspect_avatar_mesh(vertices, ((0, 1, 3),))
+    with pytest.raises(AvatarVisualSanityError, match="invalid triangle index"):
+        inspect_avatar_mesh(vertices, ((0, 1, 1.5),))
 
 
 def test_rejects_unrealistically_wide_avatar() -> None:
@@ -69,3 +72,7 @@ def test_rejects_wrong_height() -> None:
     triangles = ((0, 1, 2), (0, 2, 3))
     with pytest.raises(AvatarVisualSanityError, match="differs from expected"):
         inspect_avatar_mesh(vertices, triangles, expected_height=1750)
+    with pytest.raises(AvatarVisualSanityError, match="expected avatar height"):
+        inspect_avatar_mesh(vertices, triangles, expected_height=float("nan"))
+    with pytest.raises(AvatarVisualSanityError, match="lateral-height ratio"):
+        inspect_avatar_mesh(vertices, triangles, max_lateral_height_ratio=float("inf"))

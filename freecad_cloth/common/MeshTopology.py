@@ -7,7 +7,7 @@ import numpy as np
 
 
 def triangle_indices_are_valid(
-    triangles: Sequence[Sequence[int]],
+    triangles: Sequence[Sequence[object]],
     vertex_count: int,
 ) -> bool:
     """Return whether triangle connectivity is valid for the available vertices.
