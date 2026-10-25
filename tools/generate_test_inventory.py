@@ -69,7 +69,7 @@ def _case_entries() -> list[str]:
         for function in _test_functions(source):
             goal = _test_goal(function)
             useful = (
-                f"Makes {function.name!r} independently discoverable for regression triage "
+                f"Makes `{function.name}` independently discoverable for regression triage "
                 "and helps reviewers identify duplicate or obsolete cases."
             )
             entries.append(
