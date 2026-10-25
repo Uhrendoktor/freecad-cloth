@@ -357,9 +357,7 @@ def main():
         scene.FabricTransparency = 12
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        top, pin_span = opposite_top_edge_vertices(
-            mesh_positions, boundary, 0.75 * blanket_width
-        )
+        top, pin_span = opposite_top_edge_vertices(mesh_positions, boundary, 0.75 * blanket_width)
         scene.PinSelection = [str(int(index)) for index in top]
         log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 
