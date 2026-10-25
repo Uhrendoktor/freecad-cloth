@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Protocol, TYPE_CHECKING
+from typing import NamedTuple, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from types import ModuleType
     from collections.abc import Callable
+    from types import ModuleType
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -338,6 +338,95 @@ def target_signature(target):
         "collision_vertices_authored": int(getattr(target, "CollisionVertexCount", 0)),
     }
 
+
+
+class PBDRuntimeSnapshot(NamedTuple):
+    """Validated state shared by avatar and cube diagnostic ladders."""
+
+    base: object
+    collision_surface: object
+    solver_triangles: int
+    positions: tuple[tuple[float, ...], ...]
+    panel_triangles: tuple[tuple[int, ...], ...]
+    target_signature: dict[str, object]
+    source_shape: object | None
+
+
+def inspect_pbd_runtime(
+    scene: object,
+    source_object: object,
+    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    case_id: str,
+    require_source_shape: bool,
+) -> PBDRuntimeSnapshot:
+    """Validate common native PBD state before diagnostic measurement.
+
+    Args:
+        scene: Production simulation scene built by the case fixture.
+        source_object: Avatar or collision cube used as the target source.
+        positions_converter: Adapter that copies native backend positions.
+        case_id: Stable diagnostic identifier for contextual error messages.
+        require_source_shape: Whether a missing or null source shape is fatal.
+
+    Returns:
+        Validated backend, collision surface, particle positions, panel topology,
+        target signature, and source shape for subsequent diagnostics.
+
+    Raises:
+        RuntimeError: If the PBD backend, collision triangles, or required
+            source shape is missing or invalid.
+    """
+    proxy = getattr(scene, "Proxy", None)
+    restore_base = getattr(proxy, "_base_or_restore", None)
+    if not callable(restore_base):
+        msg = f"{case_id} does not expose a production simulation proxy"
+        raise RuntimeError(msg)
+    base = restore_base()
+    backend = getattr(base, "backend", None)
+    if backend is None:
+        msg = f"{case_id} did not build a PositionBasedDynamics backend"
+        raise RuntimeError(msg)
+    collision_surface = getattr(
+        backend,
+        "solver_collision_surface",
+        getattr(base, "collision_surface", None),
+    )
+    if collision_surface is None:
+        msg = f"{case_id} did not expose a collision surface"
+        raise RuntimeError(msg)
+    solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
+    if solver_triangles <= 0:
+        msg = f"{case_id} has no solver collision triangles"
+        raise RuntimeError(msg)
+
+    positions = positions_converter(backend)
+    panel_triangles = tuple(
+        triangle
+        for triangles in getattr(base, "panel_triangles", {}).values()
+        for triangle in triangles
+    )
+    signature = target_signature(getattr(scene, "DrapeTarget", None))
+    source_shape = getattr(source_object, "Shape", None)
+    if require_source_shape:
+        if source_shape is None or source_shape.isNull():
+            msg = f"{case_id} cube source shape is invalid"
+            raise RuntimeError(msg)
+    elif source_shape is not None:
+        try:
+            if source_shape.isNull():
+                source_shape = None
+        except (AttributeError, TypeError, ValueError):
+            source_shape = None
+
+    return PBDRuntimeSnapshot(
+        base,
+        collision_surface,
+        solver_triangles,
+        positions,
+        panel_triangles,
+        signature,
+        source_shape,
+    )
 
 def screenshot(view, path):
     """Capture a fixed-size diagnostic PNG and reject missing or empty artifacts."""

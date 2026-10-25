@@ -50,7 +50,7 @@ from pbd_contact_helpers import nearest_surface_distance as _nearest_surface_dis
 from pbd_contact_helpers import positions_tuple as _positions_tuple
 from pbd_contact_helpers import screenshot as _screenshot
 from pbd_contact_helpers import seam_geometry as _seam_geometry
-from pbd_contact_helpers import target_signature as _target_signature
+from pbd_contact_helpers import inspect_pbd_runtime as _inspect_pbd_runtime
 
 _progress = make_progress_logger(OUT / "progress.log")
 _shutdown_gui = make_shutdown_gui(_progress)
@@ -216,33 +216,20 @@ def _run_ladder_case(case_id):
         scene.Steps = 0
         doc.recompute()
 
-        base = scene.Proxy._base_or_restore()
-        if base.backend is None:
-            msg = f"{case_id} did not build a PositionBasedDynamics backend"
-            raise RuntimeError(msg)
-        collision_surface = getattr(
-            base.backend,
-            "solver_collision_surface",
-            getattr(base, "collision_surface", None),
+        runtime = _inspect_pbd_runtime(
+            scene=scene,
+            source_object=cube,
+            positions_converter=_positions_tuple,
+            case_id=case_id,
+            require_source_shape=True,
         )
-        if collision_surface is None:
-            msg = f"{case_id} did not expose a collision surface"
-            raise RuntimeError(msg)
-        solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
-        if solver_triangles <= 0:
-            msg = f"{case_id} has no solver collision triangles"
-            raise RuntimeError(msg)
-        positions = _positions_tuple(base.backend)
-        panel_triangles = tuple(
-            triangle
-            for panel_triangles in base.panel_triangles.values()
-            for triangle in panel_triangles
-        )
-        target_sig = _target_signature(scene.DrapeTarget)
-        source_shape = getattr(cube, "Shape", None)
-        if source_shape is None or source_shape.isNull():
-            msg = f"{case_id} cube source shape is invalid"
-            raise RuntimeError(msg)
+        base = runtime.base
+        collision_surface = runtime.collision_surface
+        solver_triangles = runtime.solver_triangles
+        positions = runtime.positions
+        panel_triangles = runtime.panel_triangles
+        target_sig = runtime.target_signature
+        source_shape = runtime.source_shape
 
         seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
         proximity_mesh = None
