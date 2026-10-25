@@ -395,7 +395,7 @@ def _apply_front_breast_fullness(
         -0.5 * ((chest[:, 0, None] - np.asarray((-72.0, 72.0))) / 58.0) ** 2
     ).max(axis=1)
     points[chest_mask, 1] += 62.0 * strength * front_weight * vertical_weight * lateral_weight
-    return tuple(tuple(float(value) for value in point) for point in points)
+    return tuple((float(point[0]), float(point[1]), float(point[2])) for point in points)
 
 
 def _canonicalize_anny_vertices(

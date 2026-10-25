@@ -2,7 +2,6 @@
 """Neutral solver-facing collision-surface value objects."""
 
 from collections.abc import Iterable
-from numbers import Real
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -48,7 +47,7 @@ class CollisionSurface:
 
 
 def surface_from_triangles(
-    vertices: Iterable[Iterable[Real]],
+    vertices: Iterable[Iterable[float]],
     triangles: Iterable[Iterable[int]],
     region: str = "body",
     thickness: float = 0.0,

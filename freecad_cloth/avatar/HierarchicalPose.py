@@ -16,6 +16,7 @@ from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, _landma
 from freecad_cloth.avatar.HumanoidMesh import (
     HumanoidMeshError,
     MeshData,
+    SkeletonData,
     _bone_source_endpoints,
     _load_source_vertices,
     load_makehuman_skeleton,
@@ -48,7 +49,7 @@ def _identity_point(point: Point) -> Point:
 def _make_anny_rig_mapper(
     source_vertices: tuple[Point, ...],
     rig_vertices: tuple[Point, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
 ) -> Mapper:
     """Build a point mapper from the source rig to fitted Anny coordinates.
 
@@ -142,7 +143,7 @@ LANDMARK_BONES = {
 def _arm_pose_configuration(
     parameters: AvatarParameters,
     source_vertices: tuple[Point, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     mapper: Mapper,
 ) -> tuple[tuple[JointRotation, ...], dict[str, Point]]:
     """Compute baseline arm rotations and their pivots in fitted skeleton space.
@@ -188,7 +189,7 @@ def _arm_pose_configuration(
 def _effective_pose_configuration(
     parameters: AvatarParameters,
     source_vertices: tuple[Point, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     mapper: Mapper,
 ) -> tuple[
     tuple[JointRotation, ...],
@@ -223,7 +224,7 @@ def pose_world_state(
     parameters: AvatarParameters,
 ) -> tuple[
     tuple[Point, ...],
-    dict,
+    SkeletonData,
     Mapper,
     dict[str, AffineTransform],
 ]:
