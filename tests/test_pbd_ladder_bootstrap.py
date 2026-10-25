@@ -15,7 +15,6 @@ def _application(gui_up: bool) -> ModuleType:
     return app
 
 
-
 def test_dispatch_runs_main_script_directly() -> None:
     """Run a normal Python entrypoint directly without scheduling it."""
     trace: list[str] = []
