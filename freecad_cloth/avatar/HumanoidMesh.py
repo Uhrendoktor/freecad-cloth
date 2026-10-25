@@ -109,6 +109,8 @@ class MeshData:
             msg = "humanoid mesh is empty"
             raise HumanoidMeshError(msg)
 
+        vertices: np.ndarray | None = None
+        valid_vertices = False
         try:
             vertices = np.asarray(self.vertices, dtype=np.float64)
             valid_vertices = vertices.shape == (len(self.vertices), 3) and bool(
@@ -116,7 +118,7 @@ class MeshData:
             )
         except (TypeError, ValueError, OverflowError):
             valid_vertices = False
-        if not valid_vertices:
+        if vertices is None or not valid_vertices:
             msg = "humanoid mesh contains invalid vertex coordinates"
             raise HumanoidMeshError(msg)
 
@@ -1049,10 +1051,13 @@ def _make_source_fitted_mapper(
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
-    ymin, ymax = _axis_bounds(body, 1)
+    body_coordinates = np.asarray(body, dtype=np.float64).reshape((-1, 3))
+    body_minimums = np.min(body_coordinates, axis=0)
+    body_maximums = np.max(body_coordinates, axis=0)
+    ymin, ymax = float(body_minimums[1]), float(body_maximums[1])
     y_span = max(1e-9, ymax - ymin)
-    x_min, x_max = _axis_bounds(body, 0)
-    depth_min, depth_max = _axis_bounds(body, 2)
+    x_min, x_max = float(body_minimums[0]), float(body_maximums[0])
+    depth_min, depth_max = float(body_minimums[2]), float(body_maximums[2])
     source_width = max(1e-9, x_max - x_min)
     source_depth = max(1e-9, depth_max - depth_min)
 
