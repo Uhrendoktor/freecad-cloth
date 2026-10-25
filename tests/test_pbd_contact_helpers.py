@@ -9,7 +9,13 @@ import pytest
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from tests.support.assertions import require
-from tests.support.pbd_contact_helpers import events, nearest_surface_distance
+from tests.support.pbd_contact_helpers import (
+    append_optional_ladder_piece,
+    configure_ladder_scene,
+    events,
+    nearest_surface_distance,
+    position_bounds,
+)
 
 PBD_COLLISION_AXIS_COUNT = 3
 PBD_COLLISION_MIN_CELLS = 16
@@ -90,3 +96,51 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
         condition=empty_resolution == [PBD_COLLISION_MIN_CELLS] * PBD_COLLISION_AXIS_COUNT,
         message="empty collision surfaces must retain the minimum grid resolution.",
     )
+
+
+def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coherent() -> None:
+    """Configure common cloth state and add a second panel only for two-piece cases."""
+    left = object()
+    right = object()
+    pieces = [left]
+    seams: list[tuple[object, object]] = []
+    append_optional_ladder_piece(
+        spec={"piece_count": 2, "seam_mode": "large"},
+        pieces=pieces,
+        create_right_piece=lambda: right,
+        add_seam=lambda first, second: seams.append((first, second)),
+    )
+    scene = SimpleNamespace()
+    configure_ladder_scene(scene, pieces, {"pin_mode": "hem"})
+    require(
+        condition=pieces == [left, right] and seams == [(left, right)],
+        message="the shared ladder helper must add a right panel and seam only as requested",
+    )
+    require(
+        condition=scene.ClothPieces is pieces
+        and scene.SeamSelection == []
+        and scene.PinMode == "hem"
+        and scene.PinSelection == []
+        and scene.StitchSamples == 8
+        and scene.Steps == 0,
+        message="the shared ladder helper must initialize common scene controls consistently",
+    )
+
+
+def test_position_bounds_uses_vectorized_axis_reductions() -> None:
+    """Compute all six particle bounds from one coordinate array."""
+    actual = position_bounds(((-2.0, 1.0, 5.0), (4.0, -3.0, 9.0)))
+    require(
+        condition=actual
+        == {
+            "x_min": -2.0,
+            "x_max": 4.0,
+            "y_min": -3.0,
+            "y_max": 1.0,
+            "z_min": 5.0,
+            "z_max": 9.0,
+        },
+        message="axis bounds must match the full particle coordinate set",
+    )
+    with pytest.raises(ValueError, match="empty PBD position set"):
+        position_bounds(())

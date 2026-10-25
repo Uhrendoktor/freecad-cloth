@@ -7,11 +7,13 @@ import sys
 import traceback
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
+
+from support.freecad_bootstrap import prepare_repository_root
+
+ROOT = prepare_repository_root(__file__)
 
 from support.freecad_mesh_geometry import opposite_top_edge_vertices
 
