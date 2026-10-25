@@ -329,6 +329,7 @@ def _run_ladder_case(case_id):
         if view is None:
             msg = f"{case_id} has no active FreeCAD view"
             raise RuntimeError(msg)
+
         def reveal_avatar() -> None:
             avatar.ViewObject.Visibility = True
             for panel in getattr(scene, "DrapePanels", ()):
