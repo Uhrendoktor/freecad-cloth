@@ -22,14 +22,16 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 from freecad_cloth.pattern.PatternExport import (
     export_pattern_piece,
     from_dxf_metadata,
-    from_pdf_metadata,
     from_svg_metadata,
     to_dxf,
-    to_pdf,
     to_svg,
     validate_export,
-    validate_pdf_export,
     validate_svg_export,
+)
+from freecad_cloth.pattern.PatternPdfExport import (
+    from_pdf_metadata,
+    to_pdf,
+    validate_pdf_export,
 )
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
