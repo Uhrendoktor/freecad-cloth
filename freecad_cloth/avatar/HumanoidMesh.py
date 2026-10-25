@@ -962,7 +962,7 @@ def _section_circumference(
         second_key = (round(second[0] * 10000), round(second[1] * 10000))
         if first_key == second_key:
             continue
-        edge = tuple(sorted((first_key, second_key)))
+        edge = (min(first_key, second_key), max(first_key, second_key))
         if edge in segment_seen:
             continue
         segment_seen.add(edge)
@@ -1303,15 +1303,27 @@ def fit_makehuman_mesh(
         "sewing": 55.0,
         "sitting": 25.0,
     }.get(pose.preset, 12.0)
+    left_pose_angle = pose.left_arm_angle
+    right_pose_angle = pose.right_arm_angle
+    if left_pose_angle is None or right_pose_angle is None:
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_POSE_ARM_ANGLES
+
+        default_pose_angle = DEFAULT_POSE_ARM_ANGLES.get(
+            pose.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
+        )
+        if left_pose_angle is None:
+            left_pose_angle = default_pose_angle
+        if right_pose_angle is None:
+            right_pose_angle = default_pose_angle
     left_angle = (
         default_angle
-        if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0
-        else float(pose.left_arm_angle)
+        if pose.preset != "standing" and left_pose_angle == 12.0
+        else float(left_pose_angle)
     )
     right_angle = (
         default_angle
-        if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0
-        else float(pose.right_arm_angle)
+        if pose.preset != "standing" and right_pose_angle == 12.0
+        else float(right_pose_angle)
     )
     posed = []
     for index, (x, y, z) in enumerate(fitted):
