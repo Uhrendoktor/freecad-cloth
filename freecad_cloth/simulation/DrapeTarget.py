@@ -42,7 +42,6 @@ def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-
 def target_status(target):
     """Return a deterministic user-facing state for a persistent DrapeTarget."""
     if target is None:

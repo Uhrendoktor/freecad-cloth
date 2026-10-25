@@ -501,6 +501,7 @@ class LadderCheckpointCapture:
         self.capture_image(self.view, image)
         self.boot(f"checkpoint-after-screenshot case={self.case_id} step={step}")
 
+
 def configure_diagnostic_cube_target(
     doc: object,
     scene: object,
@@ -540,6 +541,7 @@ def configure_diagnostic_cube_target(
     cube.ViewObject.Visibility = True
     getattr(doc, "recompute")()
     return cube
+
 
 def screenshot(view, path):
     """Capture a fixed-size diagnostic PNG and reject missing or empty artifacts."""
@@ -700,6 +702,7 @@ class LadderCaseMeasurements(NamedTuple):
     signed_before: float | None
     unsigned_before: float | None
     bounds: dict[str, float]
+
 
 def capture_ladder_checkpoints(
     *,
@@ -995,8 +998,6 @@ def write_ladder_manifest(
     progress(f"{target}-ladder: manifest-written")
     print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
     return 0
-
-
 
 
 def append_optional_ladder_piece(
