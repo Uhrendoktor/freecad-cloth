@@ -85,7 +85,6 @@ def inspect_avatar_mesh(
     if not triangle_indices_are_valid(triangles, vertex_count):
         msg = "avatar mesh contains an invalid triangle index or connectivity"
         raise AvatarVisualSanityError(msg)
-    faces = np.asarray(triangles, dtype=np.intp)
 
     minimums = np.min(coordinates, axis=0)
     maximums = np.max(coordinates, axis=0)
@@ -124,4 +123,4 @@ def inspect_avatar_mesh(
     if ratio > lateral_limit:
         msg = f"avatar lateral span {width:.3f} is too large for height {height:.3f}"
         raise AvatarVisualSanityError(msg)
-    return AvatarVisualSanity(height, width, depth, len(faces), ratio)
+    return AvatarVisualSanity(height, width, depth, len(triangles), ratio)

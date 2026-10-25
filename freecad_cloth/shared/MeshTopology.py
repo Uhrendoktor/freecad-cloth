@@ -6,6 +6,7 @@ from functools import lru_cache
 
 import numpy as np
 
+
 def triangle_indices_are_valid(
     triangles: Sequence[Sequence[object]],
     vertex_count: int,
@@ -36,7 +37,6 @@ def triangle_indices_are_valid(
         )
     except (TypeError, ValueError, OverflowError, IndexError):
         return False
-
 
 
 @lru_cache(maxsize=8)
