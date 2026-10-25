@@ -93,26 +93,40 @@ def _fallback_surface_area(areas: NDArray[np.float64]) -> float:
 
 
 def _fallback_components(triangles: Sequence[Triangle]) -> int:
-    """Count edge-connected face components using SciPy's sparse graph algorithm."""
-    if not triangles:
+    """Count edge-connected face components using SciPy's sparse graph algorithm.
+
+    Args:
+        triangles: Validated triangle vertex indices.
+
+    Returns:
+        The number of edge-connected face components.
+    """
+    faces = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    face_count = len(faces)
+    if face_count == 0:
         return 0
-    first_face_by_edge: dict[tuple[int, int], int] = {}
-    rows: list[int] = []
-    columns: list[int] = []
-    for face_index, (a, b, c) in enumerate(triangles):
-        for left, right in ((a, b), (b, c), (c, a)):
-            edge = (min(left, right), max(left, right))
-            previous_face = first_face_by_edge.get(edge)
-            if previous_face is None:
-                first_face_by_edge[edge] = face_index
-            else:
-                rows.extend((previous_face, face_index))
-                columns.extend((face_index, previous_face))
-    if not rows:
-        return len(triangles)
+
+    edges = np.concatenate(
+        (faces[:, (0, 1)], faces[:, (1, 2)], faces[:, (2, 0)]),
+        axis=0,
+    )
+    edges.sort(axis=1)
+    owners = np.tile(np.arange(face_count, dtype=np.intp), 3)
+    order = np.lexsort((owners, edges[:, 1], edges[:, 0]))
+    sorted_edges = edges[order]
+    sorted_owners = owners[order]
+    shared_edge = np.all(sorted_edges[1:] == sorted_edges[:-1], axis=1)
+    connected_pair = shared_edge & (sorted_owners[1:] != sorted_owners[:-1])
+    rows = sorted_owners[:-1][connected_pair]
+    columns = sorted_owners[1:][connected_pair]
+    if not rows.size:
+        return int(face_count)
+
+    row_indices = np.concatenate((rows, columns))
+    column_indices = np.concatenate((columns, rows))
     adjacency = coo_matrix(
-        (np.ones(len(rows), dtype=np.uint8), (rows, columns)),
-        shape=(len(triangles), len(triangles)),
+        (np.ones(len(row_indices), dtype=np.uint8), (row_indices, column_indices)),
+        shape=(face_count, face_count),
     ).tocsr()
     count, _ = connected_components(adjacency, directed=False, return_labels=True)
     return int(count)
@@ -132,11 +146,13 @@ def validate_mesh(
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
     triangle_areas = _triangle_areas(vertices, triangles)
-    degenerate = sum(
-        1
-        for triangle, area in zip(triangles, triangle_areas, strict=True)
-        if len(set(triangle)) < 3 or area == 0.0
+    faces = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    unique_vertices = (
+        (faces[:, 0] != faces[:, 1])
+        & (faces[:, 1] != faces[:, 2])
+        & (faces[:, 2] != faces[:, 0])
     )
+    degenerate = int(np.count_nonzero(~unique_vertices | (triangle_areas == 0.0)))
 
     if prefer_trimesh:
         try:
@@ -201,7 +217,7 @@ def nearest_target_clearance(
 
     try:
         distances, _ = KDTree(target).query(garment, k=1, eps=0.0, workers=1)
-        clearance = min(float(value) for value in distances)
+        clearance = float(np.min(distances))
     except (OverflowError, ValueError, RuntimeError) as exc:
         msg = "could not calculate finite nearest vertex clearance"
         raise ValueError(msg) from exc

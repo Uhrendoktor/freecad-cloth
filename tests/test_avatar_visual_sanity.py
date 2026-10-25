@@ -41,6 +41,14 @@ class AvatarVisualSanityTests(unittest.TestCase):
         with self.assertRaises(AvatarVisualSanityError):
             inspect_avatar_mesh(vertices, triangles, expected_height=1750)
 
+
+    def test_rejects_non_finite_vertex_coordinates(self):
+        """Reject NaN and infinity before computing avatar bounds."""
+        vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 1.0), (0.0, float("nan"), 2.0))
+        triangles = ((0, 1, 2),)
+        with self.assertRaises(AvatarVisualSanityError):
+            inspect_avatar_mesh(vertices, triangles)
+
     def test_rejects_wrong_height(self):
         vertices = ((-100, -50, 0), (100, 50, 1700), (-110, 45, 800), (110, -45, 800))
         triangles = ((0, 1, 2), (0, 2, 3))

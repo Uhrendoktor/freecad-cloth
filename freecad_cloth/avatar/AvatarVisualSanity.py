@@ -9,7 +9,9 @@ reference target before a garment simulation is evaluated.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
@@ -33,34 +35,67 @@ class AvatarVisualSanity:
         return "Valid"
 
 
-def inspect_avatar_mesh(vertices, triangles, *, expected_height=None, max_lateral_height_ratio=0.9):
-    """Return machine-checkable bounds/scale facts for an avatar mesh.
+def inspect_avatar_mesh(
+    vertices: Sequence[Sequence[float]],
+    triangles: Sequence[Sequence[int]],
+    *,
+    expected_height: float | None = None,
+    max_lateral_height_ratio: float = 0.9,
+) -> AvatarVisualSanity:
+    """Return machine-checkable bounds and scale facts for an avatar mesh.
 
     FreeCAD cloth geometry is Z-up, so Z is the authoritative body-height
-    axis. The two horizontal spans are treated as width/depth independently;
-    this prevents an oversized lateral axis from being mistaken for height.
-    ``max_lateral_height_ratio`` rejects edge-on/collapsed captures where the
-    widest horizontal span is implausibly close to the body height.
+    axis. The horizontal coordinate spans independently describe width and
+    depth; the lateral-height ratio rejects edge-on or collapsed meshes.
+
+    Args:
+        vertices: Vertex coordinates in FreeCAD's X, Y, Z coordinate order.
+        triangles: Triangle vertex indices into the supplied vertex array.
+        expected_height: Optional expected Z extent in millimetres.
+        max_lateral_height_ratio: Maximum permitted width-to-height ratio.
+
+    Returns:
+        Validated bounds and mesh summary values.
+
+    Raises:
+        AvatarVisualSanityError: If coordinates, topology, or scale are invalid.
     """
-    if not vertices or not triangles:
+    if len(vertices) == 0 or len(triangles) == 0:
         msg = "avatar mesh is empty"
         raise AvatarVisualSanityError(msg)
-    if any(len(point) != 3 for point in vertices):
+    try:
+        coordinates = np.asarray(vertices, dtype=np.float64)
+    except (OverflowError, TypeError, ValueError) as exc:
+        msg = "avatar vertices must be finite 3D coordinates"
+        raise AvatarVisualSanityError(msg) from exc
+    if coordinates.ndim != 2 or coordinates.shape[1] != 3:
         msg = "avatar vertices must be 3D coordinates"
         raise AvatarVisualSanityError(msg)
-    vertex_count = len(vertices)
-    if any(
-        len(tri) != 3 or any(int(index) < 0 or int(index) >= vertex_count for index in tri)
-        for tri in triangles
+    if not bool(np.isfinite(coordinates).all()):
+        msg = "avatar vertices must contain only finite coordinates"
+        raise AvatarVisualSanityError(msg)
+    try:
+        faces = np.asarray(triangles, dtype=np.intp)
+    except (OverflowError, TypeError, ValueError) as exc:
+        msg = "avatar mesh contains an invalid triangle index"
+        raise AvatarVisualSanityError(msg) from exc
+    vertex_count = len(coordinates)
+    if (
+        faces.ndim != 2
+        or faces.shape[1] != 3
+        or bool(np.any(faces < 0))
+        or bool(np.any(faces >= vertex_count))
     ):
         msg = "avatar mesh contains an invalid triangle index"
         raise AvatarVisualSanityError(msg)
 
-    mins = tuple(min(float(point[axis]) for point in vertices) for axis in range(3))
-    maxs = tuple(max(float(point[axis]) for point in vertices) for axis in range(3))
-    spans = tuple(maxs[axis] - mins[axis] for axis in range(3))
-    height = spans[2]
-    width, depth = max(spans[0], spans[1]), min(spans[0], spans[1])
+    minimums = np.min(coordinates, axis=0)
+    maximums = np.max(coordinates, axis=0)
+    spans = maximums - minimums
+    height = float(spans[2])
+    width, depth = max(float(spans[0]), float(spans[1])), min(
+        float(spans[0]), float(spans[1])
+    )
     if not math.isfinite(height) or height <= 0.0:
         msg = "avatar Z bounds do not contain a positive height"
         raise AvatarVisualSanityError(msg)

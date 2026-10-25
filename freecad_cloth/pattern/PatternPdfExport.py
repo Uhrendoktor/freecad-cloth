@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import base64
 import json
-from dataclasses import dataclass
+from pydantic.dataclasses import dataclass
 from math import ceil, cos, isfinite, radians, sin
 from typing import TYPE_CHECKING
 
