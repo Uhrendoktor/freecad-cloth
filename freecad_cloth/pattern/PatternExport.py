@@ -261,21 +261,71 @@ def _sampled_sewing(pattern, curve_samples):
     return points
 
 
-def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0):
-    data = {"version": 1, "units": units, "edge_ids": [s.id for s in pattern.segments]}
-    if piece_id:
-        data["piece_id"] = str(piece_id)
-    seam_ids = tuple(str(value) for value in seam_ids if str(value))
-    if seam_ids:
-        data["seam_ids"] = list(dict.fromkeys(seam_ids))
-    # Keep the v1 legacy payload byte-for-byte compatible unless the caller
-    # opts into the semantic export contract with a piece or seam identity.
-    if derived is not None and (piece_id or seam_ids):
-        data["scale"] = 1.0
-        data["seam_allowance_mm"] = float(seam_allowance)
-        data["notch_ids"] = [str(value.id) for value in derived.notches]
-        data["mark_ids"] = [str(value.id) for value in derived.marks]
+def _metadata(
+    pattern,
+    units: str,
+    piece_id: str = "",
+    seam_ids=(),
+    derived: DerivedPattern | None = None,
+    seam_allowance: float = 0.0,
+) -> dict[str, object]:
+    """Build complete current-schema metadata for the authoritative pattern.
+
+    Args:
+        pattern: Authoritative parametric sewing boundary to serialize.
+        units: Validated physical unit label for the export.
+        piece_id: Persistent document identity of the source piece, if available.
+        seam_ids: Stable identities of sewing relationships associated with the piece.
+        derived: Optional cut boundary and construction-mark model.
+        seam_allowance: Persisted seam allowance in millimetres.
+
+    Returns:
+        Version-2 metadata including empty identity and mark collections.
+    """
+    normalized_seams = tuple(dict.fromkeys(str(value) for value in seam_ids if str(value)))
+    return {
+        "version": 2,
+        "units": units,
+        "edge_ids": [str(segment.id) for segment in pattern.segments],
+        "piece_id": str(piece_id or ""),
+        "seam_ids": list(normalized_seams),
+        "scale": 1.0,
+        "seam_allowance_mm": float(seam_allowance),
+        "notch_ids": [str(value.id) for value in derived.notches] if derived is not None else [],
+        "mark_ids": [str(value.id) for value in derived.marks] if derived is not None else [],
+    }
+
+
+def _validate_metadata(data: object) -> dict[str, object]:
+    """Validate the current semantic metadata schema for every export format.
+
+    Args:
+        data: Decoded metadata payload embedded in SVG, DXF, or PDF.
+
+    Returns:
+        Validated version-2 metadata.
+
+    Raises:
+        ValueError: If a required field is absent or has an unsupported value.
+    """
+    list_fields = ("edge_ids", "seam_ids", "notch_ids", "mark_ids")
+    if (
+        not isinstance(data, dict)
+        or data.get("version") != 2
+        or data.get("units") != "mm"
+        or data.get("scale") != 1.0
+        or not isinstance(data.get("piece_id"), str)
+        or not isinstance(data.get("seam_allowance_mm"), (int, float))
+        or isinstance(data.get("seam_allowance_mm"), bool)
+        or any(not isinstance(data.get(name), list) for name in list_fields)
+        or not data.get("edge_ids")
+        or any(not isinstance(value, str) for name in list_fields for value in data[name])
+        or not all(data["edge_ids"])
+    ):
+        msg = "unsupported or incomplete cloth-pattern metadata"
+        raise ValueError(msg)
     return data
+
 
 
 def to_svg(
@@ -504,22 +554,43 @@ def validate_pdf_export(
     )
 
 
-def from_dxf_metadata(dxf: str) -> dict:
-    """Provide the public from dxf metadata operation."""
+def from_dxf_metadata(dxf: str) -> dict[str, object]:
+    """Read and validate canonical semantic metadata embedded in a DXF.
+
+    Args:
+        dxf: Complete DXF document emitted by the Cloth exporter.
+
+    Returns:
+        Validated version-2 pattern, seam, scale, and mark metadata.
+
+    Raises:
+        ValueError: If the DXF lacks a valid canonical metadata payload.
+    """
     marker = "$COMMENT\n1\n"
     if marker not in dxf:
         msg = "DXF does not contain cloth-pattern metadata"
         raise ValueError(msg)
     payload = dxf.split(marker, 1)[1].split("\n0\nENDSEC", 1)[0].strip()
-    data = json.loads(payload)
-    if data.get("version") != 1 or not data.get("edge_ids"):
-        msg = "unsupported or incomplete cloth-pattern metadata"
-        raise ValueError(msg)
-    return data
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        msg = "DXF contains invalid cloth-pattern metadata"
+        raise ValueError(msg) from exc
+    return _validate_metadata(data)
 
 
-def from_svg_metadata(svg: str) -> dict:
-    """Read the semantic metadata embedded by :func:`to_svg`."""
+def from_svg_metadata(svg: str) -> dict[str, object]:
+    """Read and validate canonical semantic metadata embedded in an SVG.
+
+    Args:
+        svg: Complete SVG XML document emitted by the Cloth exporter.
+
+    Returns:
+        Validated version-2 pattern, seam, scale, and mark metadata.
+
+    Raises:
+        ValueError: If the SVG lacks well-formed canonical metadata.
+    """
     try:
         root = ElementTree.fromstring(svg)
     except ElementTree.ParseError as exc:
@@ -534,10 +605,8 @@ def from_svg_metadata(svg: str) -> dict:
     except json.JSONDecodeError as exc:
         msg = "SVG contains invalid cloth-pattern metadata"
         raise ValueError(msg) from exc
-    if data.get("version") != 1 or not data.get("edge_ids"):
-        msg = "unsupported or incomplete cloth-pattern metadata"
-        raise ValueError(msg)
-    return data
+    return _validate_metadata(data)
+
 
 
 def validate_export(
@@ -687,62 +756,62 @@ def _piece_construction_marks(piece, pattern):
 
 
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
-    """Build a deterministic derived export pattern from the authoritative piece."""
+    """Build a deterministic export model only from native Sketcher geometry.
+
+    Args:
+        piece: FreeCAD PatternPiece object with a linked authoritative Sketch.
+        curve_samples: Number of samples used to discretize native curves.
+
+    Returns:
+        Semantic polyline segments generated from the current PatternIR boundary.
+
+    Raises:
+        ValueError: If the piece lacks Sketcher authority or its native boundary is invalid.
+    """
     if getattr(piece, "PatternType", "") != "PatternPiece":
         msg = "selected object is not a Cloth PatternPiece"
         raise ValueError(msg)
     if curve_samples < 2:
         msg = "curve_samples must be at least 2"
         raise ValueError(msg)
-    sketch = getattr(piece, "Sketch", None)
-    if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
-        if sketch is None:
-            msg = "Sketch-authoritative pattern piece has no native Sketcher source"
-            raise ValueError(msg)
-        from freecad_cloth.pattern.PatternIR import PatternIR
-        from freecad_cloth.pattern.PatternModel import PatternPiece
-        from freecad_cloth.sewing.SeamGraph import SeamGraph
-
-        model = PatternPiece(
-            str(getattr(piece, "Label", piece.Name)),
-            [
-                (0.0, 0.0),
-                (float(piece.Width), 0.0),
-                (float(piece.Width), float(piece.Height)),
-                (0.0, float(piece.Height)),
-            ],
-            seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
-            grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-            id=str(getattr(piece, "PieceId", "")),
-        )
-        graph = SeamGraph()
-        graph.add_piece(model)
-        ir = PatternIR.from_sketches(graph, {model.id: sketch}, curve_samples=curve_samples)
-        return ParametricPattern(
-            [
-                PolylineSegment(edge.id, tuple((float(x), float(y)) for x, y, _z in edge.samples))
-                for edge in ir.piece(model.id).boundaries
-            ]
-        )
-    try:
-        import ast
-
-        raw = getattr(piece, "SewingOutline", "") or getattr(piece, "DraftingBoundary", "")
-        points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(raw))]
-    except (ValueError, SyntaxError, TypeError, IndexError, AttributeError) as exc:
-        msg = "pattern piece has no valid authoritative 2D boundary"
-        raise ValueError(msg) from exc
-    if len(points) < 3:
-        msg = "pattern piece boundary needs at least three points"
+    if str(getattr(piece, "GeometryAuthority", "")).strip() != "Sketcher":
+        msg = "pattern piece must declare native Sketcher as its geometry authority"
         raise ValueError(msg)
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None:
+        msg = "Sketcher-authoritative pattern piece has no linked native sketch"
+        raise ValueError(msg)
+
+    from freecad_cloth.pattern.PatternIR import PatternIR
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.sewing.SeamGraph import SeamGraph
+
+    model = PatternPiece(
+        str(getattr(piece, "Label", getattr(piece, "Name", "PatternPiece"))),
+        [
+            (0.0, 0.0),
+            (float(piece.Width), 0.0),
+            (float(piece.Width), float(piece.Height)),
+            (0.0, float(piece.Height)),
+        ],
+        seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
+        grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
+        id=str(getattr(piece, "PieceId", "")),
+    )
+    graph = SeamGraph()
+    graph.add_piece(model)
+    piece_ir = PatternIR.from_sketches(
+        graph,
+        {model.id: sketch},
+        curve_samples=curve_samples,
+    ).piece(model.id)
     return ParametricPattern(
         [
-            LineSegment(
-                "%s:edge:%d" % (getattr(piece, "PieceId", "piece"), index),
-                point,
-                points[(index + 1) % len(points)],
+            PolylineSegment(
+                edge.id,
+                tuple((float(x), float(y)) for x, y, _z in edge.samples),
             )
-            for index, point in enumerate(points)
+            for edge in piece_ir.boundaries
         ]
     )
 

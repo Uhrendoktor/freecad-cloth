@@ -12,6 +12,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, Pattern
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
     _metadata,
+    _validate_metadata,
     _sampled_sewing,
     _validate_units,
 )
@@ -152,15 +153,7 @@ def from_pdf_metadata(pdf: bytes) -> dict[str, object]:
     except (ValueError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         msg = "PDF contains invalid cloth-pattern metadata"
         raise ValueError(msg) from exc
-    if (
-        metadata.get("version") != 1
-        or metadata.get("units") != "mm"
-        or metadata.get("scale") != 1.0
-        or not metadata.get("edge_ids")
-    ):
-        msg = "PDF contains unsupported or incomplete cloth-pattern metadata"
-        raise ValueError(msg)
-    return metadata
+    return _validate_metadata(metadata)
 
 
 def to_pdf(

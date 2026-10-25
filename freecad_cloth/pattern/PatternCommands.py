@@ -1,10 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Pattern workbench.
 
-Native FreeCAD Sketcher is the normal pattern authoring/editor path. The
-legacy polygon drafting helper remains importable only for explicit migration
-and compatibility with older documents; it is intentionally not registered as
-a normal workbench command.
+Native FreeCAD Sketcher is the sole pattern authoring and editing authority.
+Pattern creation, semantic seams, mesh derivation, and export resolve from the
+linked sketch rather than maintaining a competing outline editor.
 """
 
 import ast

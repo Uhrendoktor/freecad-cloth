@@ -1,7 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+"""Contract tests for canonical export metadata and native Sketcher boundaries."""
+
 import re
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import TestCase
 from xml.etree import ElementTree
 
@@ -60,6 +63,73 @@ def _derived(pattern):
     )
 
 
+def _native_sketch(
+    piece_id: str,
+    outline: tuple[tuple[float, float], ...],
+) -> SimpleNamespace:
+    """Build a line-only Sketcher test double with persistent semantic IDs.
+
+    Args:
+        piece_id: Stable identity used to name native boundary edges.
+        outline: Connected, closed 2D polygon vertices.
+
+    Returns:
+        Sketch-like object consumable by PatternIR without importing FreeCAD.
+    """
+    class Point:
+        """Coordinate value exposed by a native Sketcher endpoint."""
+
+        def __init__(self, x: float, y: float) -> None:
+            """Store a coordinate in millimetres.
+
+            Args:
+                x: Horizontal coordinate.
+                y: Vertical coordinate.
+            """
+            self.x, self.y, self.z = float(x), float(y), 0.0
+
+    class LineSegment:
+        """Native line item recognized by PatternIR's Sketcher adapter."""
+
+        def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+            """Store the start and end points of a sketch geometry item.
+
+            Args:
+                start: Initial 2D coordinate.
+                end: Terminal 2D coordinate.
+            """
+            self.StartPoint = Point(*start)
+            self.EndPoint = Point(*end)
+
+    geometry = tuple(
+        LineSegment(start, outline[(index + 1) % len(outline)])
+        for index, start in enumerate(outline)
+    )
+    return SimpleNamespace(
+        Geometry=geometry,
+        SemanticEdgeIds=tuple(f"{piece_id}:edge:{index}" for index in range(len(geometry))),
+        getConstruction=lambda _index: False,
+    )
+
+
+def _native_piece(piece: object) -> object:
+    """Attach a native rectangular Sketcher boundary to an export test fixture.
+
+    Args:
+        piece: Test object exposing PieceId, Width, and Height.
+
+    Returns:
+        The same test object with Sketcher as its geometry authority.
+    """
+    width, height = float(piece.Width), float(piece.Height)
+    piece.GeometryAuthority = "Sketcher"
+    piece.Sketch = _native_sketch(
+        str(piece.PieceId),
+        ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height)),
+    )
+    return piece
+
+
 def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     pattern = _curved_pattern()
     derived = _derived(pattern)
@@ -98,7 +168,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     assert not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter())
     assert 'data-mark-id="grain-1"' in svg
     assert from_svg_metadata(svg) == {
-        "version": 1,
+        "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
@@ -117,7 +187,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
         seam_ids=("seam-neck", "seam-side"),
     )
     assert from_dxf_metadata(dxf) == {
-        "version": 1,
+        "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
         "piece_id": "bodice-front",
@@ -131,12 +201,19 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics():
     assert "10\n102.000000\n20\n30.000000" in cut_section
 
 
-def test_legacy_export_metadata_remains_compatible():
-    dxf = to_dxf(_curved_pattern())
-    assert from_dxf_metadata(dxf) == {
-        "version": 1,
+def test_standalone_export_uses_complete_current_metadata_schema() -> None:
+    """Emit the complete schema even when standalone geometry has no document ID."""
+    metadata = from_dxf_metadata(to_dxf(_curved_pattern()))
+    assert metadata == {
+        "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
+        "piece_id": "",
+        "seam_ids": [],
+        "scale": 1.0,
+        "seam_allowance_mm": 0.0,
+        "notch_ids": [],
+        "mark_ids": [],
     }
 
 
@@ -412,14 +489,11 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
         Height = 60.0
         SeamAllowance = 5.0
         GrainlineAngle = 90.0
-        GeometryAuthority = ""
-        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
-        DraftingBoundary = SewingOutline
 
     class Document:
         Objects = ()
 
-    piece = Piece()
+    piece = _native_piece(Piece())
     piece.Document = Document()
     piece.Document.Objects = (piece,)
     path = tmp_path / "front.pdf"
@@ -476,9 +550,6 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         Height = 60.0
         SeamAllowance = 5.0
         GrainlineAngle = 90.0
-        GeometryAuthority = ""
-        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
-        DraftingBoundary = SewingOutline
 
     class Seam:
         SeamId = "front-back"
@@ -489,10 +560,10 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
     class Document:
         Objects = ()
 
-    piece = Piece()
+    piece = _native_piece(Piece())
     piece.Document = Document()
     piece.Document.Objects = (piece, Seam())
-    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.Sketch.SemanticEdgeIds)
 
     for fmt, metadata_reader in (
         ("svg", from_svg_metadata),
@@ -516,7 +587,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path):
         assert metadata["seam_allowance_mm"] == 5.0
         assert metadata["mark_ids"] == ["piece-front:grainline"]
 
-    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.SewingOutline)
+    assert before == (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.Sketch.SemanticEdgeIds)
 
 
 def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
@@ -529,9 +600,6 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
         Height = 60.0
         SeamAllowance = 0.0
         GrainlineAngle = 0.0
-        GeometryAuthority = ""
-        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
-        DraftingBoundary = SewingOutline
 
     class Seam:
         SeamId = "front-back"
@@ -542,7 +610,7 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path):
     class Document:
         Objects = ()
 
-    piece = Piece()
+    piece = _native_piece(Piece())
     piece.Document = Document()
     piece.Document.Objects = (piece, Seam())
     with TestCase().assertRaisesRegex(ValueError, "cannot export pattern piece"):
@@ -580,9 +648,6 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
         Height = 60.0
         SeamAllowance = 5.0
         GrainlineAngle = 0.0
-        GeometryAuthority = ""
-        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
-        DraftingBoundary = SewingOutline
 
     class Mark:
         def __init__(self, name, mark_type, text="", length=40.0):
@@ -600,7 +665,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path)
     class Document:
         Objects = ()
 
-    piece = Piece()
+    piece = _native_piece(Piece())
     notch = Mark("notch-front", "Notch")
     grainline = Mark("grain-front", "Grainline", length=36.0)
     internal = Mark("mark-front", "InternalMark", text="Internal mark")
@@ -652,9 +717,6 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path):
         Height = 60.0
         SeamAllowance = 0.0
         GrainlineAngle = 0.0
-        GeometryAuthority = ""
-        SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)])
-        DraftingBoundary = SewingOutline
 
     class Mark:
         PatternMarkId = "mark-front"
@@ -670,7 +732,7 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path):
     class Document:
         Objects = ()
 
-    piece = Piece()
+    piece = _native_piece(Piece())
     mark = Mark()
     piece.Document = Document()
     piece.Document.Objects = (piece, mark)
