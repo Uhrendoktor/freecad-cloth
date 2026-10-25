@@ -35,7 +35,7 @@ Historical internal paths are migrated at callers. A compatibility surface requi
 
 ## Naming and compatibility
 
-Within `freecad_cloth/`, follow the existing module naming convention for the owning package; do not add alternate-name or `*_compat.py` modules merely to preserve pre-release internal paths. Rename an internal module and update its callers atomically. Tests and standalone tools use the conventional `test_*.py` and snake_case names, while production domain modules retain their established package naming. A compatibility layer is appropriate only for an explicitly promised external API with a documented removal policy.
+Production domain modules use the established PascalCase filenames (for example, `AvatarModel.py` and `PatternGeometry.py`). Package entry points and infrastructure modules use their conventional lowercase names (`__init__.py`, `bootstrap.py`, `gui.py`, and `workbench.py`); tests and standalone tools use `test_*.py` and snake_case names. Do not add alternate-name shims or `*_compat.py` files to preserve unpromised pre-release internal paths: rename callers atomically. Keep a compatibility layer only for an explicitly promised external API with a documented removal policy.
 
 ## Loader layouts
 

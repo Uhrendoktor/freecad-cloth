@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 import pytest
 
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_collision_resolution,
     _pbd_collision_voxel_mm,
@@ -64,11 +65,13 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
         message="GUI refresh must precede Qt event processing exactly once",
     )
 
+
 def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -> None:
     """Preserve bounded per-axis grid sizing while calculating spans in NumPy."""
 
-    surface = SimpleNamespace(
-        vertices=((-10.0, 1.0, 2.0), (10.0, 51.0, 4.0)),
+    surface = CollisionSurface(
+        vertices=((-10.0, 1.0, 2.0), (10.0, 51.0, 4.0), (0.0, 20.0, 3.0)),
+        triangles=((0, 1, 2),),
     )
     voxel_mm = _pbd_collision_voxel_mm()
     expected = [
@@ -80,6 +83,6 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
         message="collision-grid resolution must reflect each axis span and stay within bounds.",
     )
     require(
-        condition=_pbd_collision_resolution(SimpleNamespace(vertices=())) == [16, 16, 16],
+        condition=_pbd_collision_resolution(CollisionSurface(vertices=(), triangles=())) == [16, 16, 16],
         message="empty collision surfaces must retain the minimum grid resolution.",
     )
