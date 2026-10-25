@@ -4,6 +4,7 @@
 import pytest
 
 from freecad_cloth.avatar.AvatarFitting import BoundingVolume, PiecePlacement
+from tests.support.assertions import require
 
 
 @pytest.mark.parametrize(
@@ -50,3 +51,19 @@ def test_bounding_volume_rejects_invalid_coordinate_counts(
         match=r"^bounding volume center and size require three coordinates$",
     ):
         BoundingVolume.from_string(serialized_volume)
+
+
+def test_valid_fitting_records_round_trip() -> None:
+    """Preserve valid placement and bounding-volume records through serialization."""
+    placement = PiecePlacement("front", (1.5, -2.0, 3.25), 90.0)
+    restored_placement = PiecePlacement.from_string(placement.to_string())
+    require(
+        condition=restored_placement == placement,
+        message="A valid placement must survive serialization and parsing.",
+    )
+    volume = BoundingVolume("torso", (1.0, 2.0, 3.0), (4.0, 5.0, 6.0))
+    restored_volume = BoundingVolume.from_string(volume.to_string())
+    require(
+        condition=restored_volume == volume,
+        message="A valid bounding volume must survive serialization and parsing.",
+    )

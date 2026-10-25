@@ -297,10 +297,7 @@ class BoundingVolume:
         if not self.name.strip():
             msg = "bounding volume name must not be empty"
             raise ValueError(msg)
-        if (
-            len(self.center) != _COORDINATE_COUNT
-            or len(self.size) != _COORDINATE_COUNT
-        ):
+        if len(self.center) != _COORDINATE_COUNT or len(self.size) != _COORDINATE_COUNT:
             msg = "bounding volume center and size require three coordinates"
             raise ValueError(msg)
         if any(float(v) <= 0.0 for v in self.size):
