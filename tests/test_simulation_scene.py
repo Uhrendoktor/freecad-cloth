@@ -35,6 +35,30 @@ def _simulation_signature() -> Callable[[object, list[object]], object]:
     )
 
 
+def _signature_target() -> SimpleNamespace:
+    """Build a stable target fixture for rebuild-signature contract tests.
+
+    Returns:
+        A target with a fixed source identity, placement and collision settings.
+    """
+    source = SimpleNamespace(
+        Name="Body",
+        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
+        Placement=SimpleNamespace(
+            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            Rotation=SimpleNamespace(
+                Angle=0.0,
+                Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0),
+            ),
+        ),
+    )
+    return SimpleNamespace(
+        SourceObject=source,
+        CollisionDeflection=1.0,
+        CollisionThickness=0.0,
+    )
+
+
 def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins() -> None:
     """Verify automatic, explicit and disabled pin modes resolve distinctly."""
     legacy = SimpleNamespace(PinSelection=[])
@@ -67,22 +91,7 @@ def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins() ->
 
 def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection() -> None:
     """Verify rebuild signatures track pin modes but ignore disabled selections."""
-    source = SimpleNamespace(
-        Name="Body",
-        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
-        Placement=SimpleNamespace(
-            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
-            Rotation=SimpleNamespace(
-                Angle=0.0,
-                Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0),
-            ),
-        ),
-    )
-    target = SimpleNamespace(
-        SourceObject=source,
-        CollisionDeflection=1.0,
-        CollisionThickness=0.0,
-    )
+    target = _signature_target()
     base = {"DrapeTarget": target, "StitchSamples": 8, "Document": SimpleNamespace(Objects=[])}
     automatic = SimpleNamespace(**base, PinMode="Automatic", PinSelection=[])
     explicit = SimpleNamespace(**base, PinMode="Explicit", PinSelection=["1", "2"])
@@ -106,15 +115,7 @@ def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection() 
 
 def test_pin_selection_is_part_of_rebuild_signature() -> None:
     """Verify a changed explicit pin selection invalidates the rebuild signature."""
-    source = SimpleNamespace(
-        Name="Body",
-        Shape=SimpleNamespace(isNull=lambda: False, hashCode=lambda: 123),
-        Placement=SimpleNamespace(
-            Base=SimpleNamespace(x=0.0, y=0.0, z=0.0),
-            Rotation=SimpleNamespace(Angle=0.0, Axis=SimpleNamespace(x=0.0, y=0.0, z=1.0)),
-        ),
-    )
-    target = SimpleNamespace(SourceObject=source, CollisionDeflection=1.0, CollisionThickness=0.0)
+    target = _signature_target()
     scene_a = SimpleNamespace(
         DrapeTarget=target,
         PinSelection=["1", "2"],

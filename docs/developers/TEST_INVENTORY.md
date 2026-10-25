@@ -160,12 +160,11 @@ This inventory has one entry per test module or standalone FreeCAD acceptance sc
 
 ## Shared test support (not independently executed tests)
 
-- `tests/support/freecad_mesh_geometry.py` — **Goal:** Share vectorized top-edge pin selection across FreeCAD visual and simulation acceptance scripts. **Why useful:** Keeps boundary-index mapping and opposite-corner checks consistent instead of maintaining duplicate geometric logic.
-
 - `tests/support/__init__.py` — **Goal:** Provide the init fixture/helper used by multiple tests. **Why useful:** Avoids duplicated setup and keeps host input/geometry behavior consistent across acceptance cases.
 - `tests/support/assertions.py` — **Goal:** Shared test assertion, substring, and non-None helpers. **Why useful:** Keeps test failure reporting consistent and avoids duplicating one-line require implementations.
 - `tests/support/freecad_arc_geometry.py` — **Goal:** Provide the freecad arc geometry fixture/helper used by multiple tests. **Why useful:** Avoids duplicated setup and keeps host input/geometry behavior consistent across acceptance cases.
 - `tests/support/freecad_input.py` — **Goal:** Provide the freecad input fixture/helper used by multiple tests. **Why useful:** Avoids duplicated setup and keeps host input/geometry behavior consistent across acceptance cases.
+- `tests/support/freecad_mesh_geometry.py` — **Goal:** Share vectorized top-edge pin selection across FreeCAD visual and simulation acceptance scripts. **Why useful:** Keeps boundary-index mapping and opposite-corner checks consistent instead of maintaining duplicate geometric logic.
 - `tests/support/pbd_contact_helpers.py` — **Goal:** Reusable setup and inspection helpers for native PBD contact tests. **Why useful:** Prevents contact scenarios from copying solver fixtures and keeps diagnostics comparable.
 
 ## Individual test cases

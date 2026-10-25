@@ -32,6 +32,7 @@ from tests.support.freecad_input import (
     _qt_modules,
     click_widget,
     focus_main_window,
+    wait_for_task_dialog_close as wait_for_task_dialog_close_common,
 )
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
@@ -389,22 +390,13 @@ def save_seam_overlay_options_evidence(filename):
         process_events()
 
 
-def wait_for_task_close():
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtWidgets
-    for _ in range(80):
-        active = Gui.Control.activeDialog()
-        if active is None or not bool(active):
-            return
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(0, loop.quit)
-        loop.exec()
-        QtWidgets.QApplication.processEvents()
-    msg = "task dialog did not close after the requested Commit/Cancel action"
-    raise AssertionError(msg)
-
+def wait_for_task_close() -> None:
+    """Require the staged sewing task to close after the requested user action."""
+    wait_for_task_dialog_close_common(
+        Gui,
+        "task dialog did not close after the requested Commit/Cancel action",
+        failure_type=AssertionError,
+    )
 
 def select_edges(*items):
     Gui.Selection.clearSelection()

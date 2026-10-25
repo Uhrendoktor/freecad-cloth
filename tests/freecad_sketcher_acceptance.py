@@ -10,6 +10,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from support.freecad_input import wait_for_task_dialog_close as wait_for_task_dialog_close_common
 
 print("stage=script-loaded", flush=True)
 import FreeCAD as App
@@ -40,22 +45,13 @@ def _close_task():
         _events()
 
 
-def _wait_for_task_close():
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtWidgets
-    for _ in range(80):
-        active = Gui.Control.activeDialog()
-        if active is None or not bool(active):
-            return
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(0, loop.quit)
-        loop.exec()
-        QtWidgets.QApplication.processEvents()
-    msg = "task dialog did not close after staged sewing Commit/Cancel"
-    raise RuntimeError(msg)
-
+def _wait_for_task_close() -> None:
+    """Require Sketcher or sewing task panels to close after staged actions."""
+    wait_for_task_dialog_close_common(
+        Gui,
+        "task dialog did not close after staged sewing Commit/Cancel",
+        failure_type=RuntimeError,
+    )
 
 def _activate(name, commands):
     Gui.activateWorkbench(name)
