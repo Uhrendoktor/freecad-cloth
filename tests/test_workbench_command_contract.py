@@ -80,6 +80,22 @@ def test_command_ids_exist_and_are_unique() -> None:
             seen.update(commands)
 
 
+
+def test_command_handlers_match_declared_command_ids() -> None:
+    """Require every declared avatar/fitting command to have one dispatch handler."""
+    for module_name, handler_name in (
+        ("freecad_cloth.avatar.AvatarCommands", "_HANDLERS"),
+        ("freecad_cloth.avatar.FittingCommands", "_COMMAND_HANDLERS"),
+    ):
+        module = importlib.import_module(module_name)
+        handlers = getattr(module, handler_name)
+        commands = set(module.COMMANDS)
+        require(
+            condition=commands == set(handlers),
+            message=f"{module_name} command IDs must match their dispatch handlers exactly",
+        )
+
+
 def test_init_gui_is_bootstrap_only() -> None:
     """Verify the legacy GUI entry point delegates registration to the bootstrap."""
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
