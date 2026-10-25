@@ -13,10 +13,9 @@ import math
 from typing import TYPE_CHECKING, NotRequired, TypedDict
 
 import numpy as np
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.SkeletonTypes import SkeletonData
-
-from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
