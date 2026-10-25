@@ -6,6 +6,7 @@ from pathlib import Path
 
 from freecad_cloth.avatar.HumanoidMesh import (
     _arm_pose_weight,
+    _estimate_rest_arm_angles,
     load_makehuman_arm_weights,
 )
 
@@ -21,6 +22,27 @@ class AvatarArmPoseTests(unittest.TestCase):
         self.assertEqual(_arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0), 0.0)
         self.assertEqual(_arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0), 1.0)
         self.assertAlmostEqual(_arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35), 0.35)
+
+
+    def test_rest_angle_estimator_vectorizes_geometry_and_respects_weights(self) -> None:
+        """Estimate mirrored rest angles and ignore vertices with no arm influence."""
+        vertices = (
+            (-150.0, 0.0, 600.0),
+            (-200.0, 0.0, 700.0),
+            (150.0, 0.0, 600.0),
+            (200.0, 0.0, 700.0),
+            (0.0, 0.0, 900.0),
+        )
+        pivots = {-1.0: -100.0, 1.0: 100.0}
+        angles = _estimate_rest_arm_angles(vertices, pivots, 760.0, 1000.0)
+        self.assertGreater(angles[-1.0], 0.0)
+        self.assertAlmostEqual(angles[-1.0], angles[1.0])
+
+        zero_weights = ((0.0,) * len(vertices), (0.0,) * len(vertices))
+        weighted_angles = _estimate_rest_arm_angles(
+            vertices, pivots, 760.0, 1000.0, zero_weights
+        )
+        self.assertEqual(weighted_angles, {-1.0: 0.0, 1.0: 0.0})
 
     def test_makehuman_arm_weights_sum_only_arm_chain_bones(self):
         payload = {

@@ -514,12 +514,8 @@ def _joint_point(
         msg = "MakeHuman skeleton references missing joint vertices"
         raise HumanoidMeshError(msg)
     fitted = [mapper(point) for point in points] if mapper is not None else points
-    count = float(len(fitted))
-    return (
-        sum(point[0] for point in fitted) / count,
-        sum(point[1] for point in fitted) / count,
-        sum(point[2] for point in fitted) / count,
-    )
+    mean = np.mean(np.asarray(fitted, dtype=np.float64), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def _bone_source_endpoints(
@@ -595,15 +591,31 @@ def _smoothstep(a: float, b: float, x: float) -> float:
 
 
 def _axis_bounds(vertices: Sequence[Point], axis: int) -> tuple[float, float]:
-    values = [v[axis] for v in vertices]
-    return min(values), max(values)
+    """Return coordinate-axis bounds using a vectorized NumPy reduction.
+
+    Args:
+        vertices: Three-dimensional mesh coordinates.
+        axis: Coordinate axis whose minimum and maximum are required.
+
+    Returns:
+        The minimum and maximum values along the requested axis.
+    """
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    values = coordinates[:, axis]
+    return float(np.min(values)), float(np.max(values))
 
 
 def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
     """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
-    ymin, ymax = _axis_bounds(vertices, 1)
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    heights = coordinates[:, 1]
+    ymin = float(np.min(heights))
+    ymax = float(np.max(heights))
     span = max(1e-9, ymax - ymin)
-    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
+    mapped = np.column_stack(
+        (coordinates[:, 0], coordinates[:, 2], (heights - ymin) / span)
+    )
+    return [(float(x), float(y), float(z)) for x, y, z in mapped]
 
 
 def _reoriented_triangles(triangles: Sequence[Triangle]) -> tuple[Triangle, ...]:
@@ -713,18 +725,23 @@ def _estimate_shoulder_pivots(
     vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
 ) -> dict[float, float]:
     """Infer the shoulder rotation pivots from the fitted body surface."""
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    x_coordinates = coordinates[:, 0]
+    height_ratios = coordinates[:, 2] / max(1.0, height_mm)
     pivots = {}
     for side in (-1.0, 1.0):
-        lateral = sorted(
-            side * x
-            for x, _y, z in vertices
-            if side * x >= shoulder_half * 0.55 and 0.68 <= z / max(1.0, height_mm) <= 0.82
+        side_coordinates = side * x_coordinates
+        selection = (
+            (side_coordinates >= shoulder_half * 0.55)
+            & (height_ratios >= 0.68)
+            & (height_ratios <= 0.82)
         )
-        if not lateral:
+        lateral = np.sort(side_coordinates[selection])
+        if not lateral.size:
             pivots[side] = side * shoulder_half
             continue
-        count = max(1, int(math.ceil(len(lateral) * 0.15)))
-        medial = sum(lateral[:count]) / float(count)
+        count = max(1, int(np.ceil(lateral.size * 0.15)))
+        medial = float(np.mean(lateral[:count], dtype=np.float64))
         medial = max(shoulder_half * 0.70, min(shoulder_half * 0.99, medial))
         pivots[side] = side * medial
     return pivots
@@ -738,33 +755,36 @@ def _estimate_rest_arm_angles(
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> dict[float, float]:
     """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    x_coordinates = coordinates[:, 0]
+    z_coordinates = coordinates[:, 2]
+    height_ratios = z_coordinates / max(1.0, height_mm)
     result = {}
     for side_index, side in enumerate((-1.0, 1.0)):
         pivot_x = shoulder_pivots.get(side, side * 0.0)
-        weights = None if arm_weights is None else arm_weights[side_index]
-        samples = []
-        for index, (x, _y, z) in enumerate(vertices):
-            if side * x <= side * pivot_x * 1.05:
-                continue
-            if not 0.50 <= z / max(1.0, height_mm) <= 0.78:
-                continue
-            influence = 1.0 if weights is None else weights[index]
-            if influence <= 0.05:
-                continue
-            samples.append((x, z, influence))
-        if not samples:
+        if arm_weights is None:
+            influences = np.ones(len(coordinates), dtype=np.float64)
+        else:
+            influences = np.asarray(arm_weights[side_index], dtype=np.float64)
+            if influences.shape != (len(coordinates),):
+                msg = "MakeHuman arm weights must match the fitted vertex count"
+                raise HumanoidMeshError(msg)
+        selected = (
+            (side * x_coordinates > side * pivot_x * 1.05)
+            & (height_ratios >= 0.50)
+            & (height_ratios <= 0.78)
+            & (influences > 0.05)
+        )
+        if not bool(np.any(selected)):
             result[side] = 0.0
             continue
-        weighted_x = 0.0
-        weighted_z = 0.0
-        total = 0.0
-        for x, z, influence in samples:
-            weight = influence * max(0.1, side * (x - pivot_x))
-            weighted_x += x * weight
-            weighted_z += z * weight
-            total += weight
-        center_x = weighted_x / total
-        center_z = weighted_z / total
+        sample_x = x_coordinates[selected]
+        sample_z = z_coordinates[selected]
+        lever_arms = np.maximum(0.1, side * (sample_x - pivot_x))
+        weight_factors = influences[selected] * lever_arms
+        total = float(np.sum(weight_factors, dtype=np.float64))
+        center_x = float(np.dot(sample_x, weight_factors) / total)
+        center_z = float(np.dot(sample_z, weight_factors) / total)
         radial_x = max(1e-6, side * (center_x - pivot_x))
         downward = max(0.0, shoulder_z - center_z)
         result[side] = math.degrees(math.atan2(downward, radial_x))
