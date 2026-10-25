@@ -68,7 +68,6 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
 
 def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -> None:
     """Preserve bounded per-axis grid sizing while calculating spans in NumPy."""
-
     surface = CollisionSurface(
         vertices=((-10.0, 1.0, 2.0), (10.0, 51.0, 4.0), (0.0, 20.0, 3.0)),
         triangles=((0, 1, 2),),

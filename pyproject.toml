@@ -105,7 +105,9 @@ ignore = [
 "freecad_cloth/pattern/PatternMesh.py" = ["PLC0415"]
 "tests/freecad_*.py" = ["PLC0415"]
 "tests/support/pbd_contact_helpers.py" = ["PLC0415"]
+"tests/test_avatar_arm_pose.py" = ["PLC2701"]
 "tests/test_avatar_fitting.py" = ["PLC0415"]
+"tests/test_pbd_contact_helpers.py" = ["PLC2701"]
 "tests/test_workbench_contract.py" = ["PLC0415"]
 
 [tool.ruff.lint.pydocstyle]
