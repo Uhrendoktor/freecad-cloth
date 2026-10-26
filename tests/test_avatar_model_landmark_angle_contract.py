@@ -114,9 +114,6 @@ def test_explicit_arm_angles_change_generated_wrist_landmarks() -> None:
     baseline = AvatarParameters(pose=Pose("sewing"))
     posed = AvatarParameters(pose=Pose("sewing", -41.0, 16.0))
     require(
-        condition=(
-            _generated_wrist_positions(baseline)
-            != _generated_wrist_positions(posed)
-        ),
+        condition=(_generated_wrist_positions(baseline) != _generated_wrist_positions(posed)),
         message="Explicit sewing angles must alter generated wrist landmarks.",
     )

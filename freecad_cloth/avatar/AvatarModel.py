@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable
 from dataclasses import field
 from importlib import import_module
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -23,6 +22,9 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_to_json,
     normalize_joint_rotations,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 DEFAULT_MEASUREMENTS = {
     "height": 1750.0,
@@ -115,9 +117,7 @@ class Pose:
     VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
-        """Resolve omitted arm angles and canonicalize the joint-rotation tuple.
-
-        """
+        """Resolve omitted arm angles and canonicalize the joint-rotation tuple."""
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
@@ -189,9 +189,7 @@ class AvatarParameters:
     mass_target_kg: float | None = None
 
     def __post_init__(self) -> None:
-        """Normalize numeric fields and validate the complete avatar state.
-
-        """
+        """Normalize numeric fields and validate the complete avatar state."""
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
