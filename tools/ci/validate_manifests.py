@@ -437,7 +437,7 @@ def _validate_tunic_end_to_end() -> None:
             raise SystemExit(msg)
 
 
-def _validate_tunic(require_canonical_e2e: bool, /) -> None:
+def _validate_tunic(*, require_canonical_e2e: bool) -> None:
     """Validate tunic evidence with either the canonical or production audit contract.
 
     Args:
@@ -476,12 +476,12 @@ def _validate_tunic(require_canonical_e2e: bool, /) -> None:
 
 def validate_tunic() -> None:
     """Validate the strict canonical tunic evidence."""
-    _validate_tunic(True)
+    _validate_tunic(require_canonical_e2e=True)
 
 
 def validate_tunic_production() -> None:
     """Validate production tunic evidence without canonical garment E2E artifacts."""
-    _validate_tunic(False)
+    _validate_tunic(require_canonical_e2e=False)
 
 
 def validate_blanket() -> None:
