@@ -120,9 +120,7 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     )
     require(
         condition=(
-            len(
-                validate_acceptance.REQUIRED_SCREENSHOTS["simulation-quality"]
-            )
+            len(validate_acceptance.REQUIRED_SCREENSHOTS["simulation-quality"])
             == EXPECTED_SIMULATION_SCREENSHOTS
         ),
         message="canonical CI contract",

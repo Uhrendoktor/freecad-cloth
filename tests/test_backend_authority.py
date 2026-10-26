@@ -43,9 +43,9 @@ def test_backend_boundary_is_small_and_solver_neutral() -> None:
 
 def test_pbd_is_the_only_runtime_backend_implementation() -> None:
     """Keep the interface independent from the sole production PBD implementation."""
-    backend_source = (
-        ROOT / "freecad_cloth" / "simulation" / "cloth_backend.py"
-    ).read_text(encoding="utf-8")
+    backend_source = (ROOT / "freecad_cloth" / "simulation" / "cloth_backend.py").read_text(
+        encoding="utf-8"
+    )
     pbd_source = (
         ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
     ).read_text(encoding="utf-8")
