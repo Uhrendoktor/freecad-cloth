@@ -134,22 +134,23 @@ def test_gender_and_breast_controls_persist_and_change_geometry() -> None:
 
 
 @pytest.mark.parametrize(
-    ("gender", "breast_size"),
+    ("gender", "breast_size", "match"),
     [
-        (-0.01, 0.0),
-        (1.01, 0.0),
-        (0.5, -0.01),
-        (0.5, 1.01),
+        (-0.01, 0.0, "gender blend must be"),
+        (1.01, 0.0, "gender blend must be"),
+        (0.5, -0.01, "breast size must be"),
+        (0.5, 1.01, "breast size must be"),
     ],
 )
-def test_invalid_shape_values_are_rejected(gender: float, breast_size: float) -> None:
+def test_invalid_shape_values_are_rejected(gender: float, breast_size: float, match: str) -> None:
     """Reject body-shape controls outside their normalized ranges.
 
     Args:
         gender: Gender blend value to validate.
         breast_size: Breast-size value to validate.
+        match: Expected validation-message fragment.
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=match):
         AvatarParameters(gender=gender, breast_size=breast_size)
 
 
@@ -186,22 +187,23 @@ def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> N
 
 
 @pytest.mark.parametrize(
-    ("phenotype_overrides", "local_change_overrides", "mass_target_kg"),
+    ("phenotype_overrides", "local_change_overrides", "mass_target_kg", "match"),
     [
-        ({"age": -0.01}, {}, None),
-        ({"age": 1.01}, {}, None),
-        ({}, {"waist-shape": -1.01}, None),
-        ({}, {"waist-shape": 1.01}, None),
-        ({"gender": 0.1}, {}, None),
-        ({}, {"breast-volume-vert-up": 0.5}, None),
-        ({}, {}, 24.9),
-        ({}, {}, 250.1),
+        ({"age": -0.01}, {}, None, "Anny phenotype override"),
+        ({"age": 1.01}, {}, None, "Anny phenotype override"),
+        ({}, {"waist-shape": -1.01}, None, "Anny local morph override"),
+        ({}, {"waist-shape": 1.01}, None, "Anny local morph override"),
+        ({"gender": 0.1}, {}, None, "gender and cupsize"),
+        ({}, {"breast-volume-vert-up": 0.5}, None, "breast fullness"),
+        ({}, {}, 24.9, "target body mass"),
+        ({}, {}, 250.1, "target body mass"),
     ],
 )
 def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls(
     phenotype_overrides: dict[str, float],
     local_change_overrides: dict[str, float],
     mass_target_kg: float | None,
+    match: str,
 ) -> None:
     """Reject out-of-range advanced overrides and conflicts with primary controls.
 
@@ -209,8 +211,9 @@ def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_con
         phenotype_overrides: Phenotype values to validate.
         local_change_overrides: Local morphology values to validate.
         mass_target_kg: Optional mass target to validate.
+        match: Expected validation-message fragment.
     """
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=match):
         AvatarParameters(
             phenotype_overrides=phenotype_overrides,
             local_change_overrides=local_change_overrides,

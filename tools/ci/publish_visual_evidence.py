@@ -430,7 +430,7 @@ def main() -> int:
         / "cloth-screenshot-publish"
     )
     _clone_screenshot_repository(args.repository, worktree)
-    branch = _checkout_screenshot_branch(worktree)
+    _checkout_screenshot_branch(worktree)
     metadata = visual_evidence.ProvenanceMetadata(
         source_sha=args.source_sha,
         run_id=args.run_id,

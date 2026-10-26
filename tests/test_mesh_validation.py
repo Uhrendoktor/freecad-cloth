@@ -15,6 +15,16 @@ from freecad_cloth.common.MeshValidation import (
 )
 from tests.support.assertions import require
 
+SQUARE_VERTEX_COUNT = 4
+SQUARE_FACE_COUNT = 2
+CONNECTED_COMPONENT_COUNT = 1
+DISCONNECTED_COMPONENT_COUNT = 2
+NO_DEGENERATE_FACES = 0
+ONE_DEGENERATE_FACE = 1
+SQUARE_SURFACE_AREA = 100.0
+RIGHT_TRIANGLE_SURFACE_AREA = 6.0
+ZERO_SURFACE_AREA = 0.0
+
 type Point3 = tuple[float, float, float]
 type Triangle = tuple[int, int, int]
 type MeshFixture = tuple[tuple[Point3, ...], tuple[Triangle, ...]]
@@ -40,18 +50,27 @@ def test_validation_fallback_is_deterministic() -> None:
     """Validate the stable summary returned by the mesh fallback path."""
     vertices, triangles = square_mesh()
     result = validate_mesh(vertices, triangles, prefer_trimesh=False)
-    require(condition=result.vertices == 4, message="fallback should count four vertices")
-    require(condition=result.faces == 2, message="fallback should count two faces")
-    require(condition=result.components == 1, message="connected square should be one component")
+    require(
+        condition=result.vertices == SQUARE_VERTEX_COUNT,
+        message="fallback should count four vertices",
+    )
+    require(condition=result.faces == SQUARE_FACE_COUNT, message="fallback should count two faces")
+    require(
+        condition=result.components == CONNECTED_COMPONENT_COUNT,
+        message="connected square should be one component",
+    )
     require(
         condition=result.bounds == (0.0, 10.0, 0.0, 10.0, 0.0, 0.0),
         message="fallback should preserve the square bounds",
     )
     require(
-        condition=result.surface_area == 100.0,
+        condition=result.surface_area == pytest.approx(SQUARE_SURFACE_AREA, rel=0.0, abs=1e-12),
         message="fallback should calculate the square area",
     )
-    require(condition=result.degenerate_faces == 0, message="square faces are non-degenerate")
+    require(
+        condition=result.degenerate_faces == NO_DEGENERATE_FACES,
+        message="square faces are non-degenerate",
+    )
     require(condition=result.watertight is None, message="fallback does not compute watertightness")
 
 
@@ -67,7 +86,10 @@ def test_validation_fallback_counts_disconnected_components() -> None:
     )
     triangles = ((0, 1, 2), (3, 4, 5))
     result = validate_mesh(vertices, triangles, prefer_trimesh=False)
-    require(condition=result.components == 2, message="two detached triangles are two components")
+    require(
+        condition=result.components == DISCONNECTED_COMPONENT_COUNT,
+        message="two detached triangles are two components",
+    )
 
 
 def test_fallback_surface_area_uses_triangle_geometry() -> None:
@@ -75,7 +97,9 @@ def test_fallback_surface_area_uses_triangle_geometry() -> None:
     vertices = ((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (0.0, 4.0, 0.0))
     result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
     require(
-        condition=result.surface_area == 6.0,
+        condition=result.surface_area == pytest.approx(
+            RIGHT_TRIANGLE_SURFACE_AREA, rel=0.0, abs=1e-12
+        ),
         message="right-triangle area should equal half the base-height product",
     )
 
@@ -94,8 +118,9 @@ def test_fallback_surface_area_obeys_base_height_identity(width: float, height: 
     vertices = ((0.0, 0.0, 0.0), (width, 0.0, 0.0), (0.0, height, 0.0))
     result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
     require(
-        condition=result.surface_area
-        == pytest.approx(width * height / 2.0, rel=1e-12, abs=1e-12),
+        condition=result.surface_area == pytest.approx(
+            width * height / 2.0, rel=1e-12, abs=1e-12
+        ),
         message="triangle area should follow the base-height identity",
     )
 
@@ -105,8 +130,12 @@ def test_degenerate_faces_include_distinct_collinear_vertices() -> None:
     vertices = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0))
     result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
     require(
-        condition=result.degenerate_faces == 1,
+        condition=result.degenerate_faces == ONE_DEGENERATE_FACE,
         message="collinear triangle should be degenerate",
+    )
+    require(
+        condition=result.surface_area == pytest.approx(ZERO_SURFACE_AREA, rel=0.0, abs=1e-12),
+        message="collinear triangle should have zero area",
     )
 
 
@@ -175,7 +204,10 @@ def test_degenerate_face_is_reported_without_trimesh() -> None:
         ((0, 1, 1),),
         prefer_trimesh=False,
     )
-    require(condition=result.degenerate_faces == 1, message="repeated-vertex face is degenerate")
+    require(
+        condition=result.degenerate_faces == ONE_DEGENERATE_FACE,
+        message="repeated-vertex face is degenerate",
+    )
 
 
 @settings(max_examples=40, deadline=None)
