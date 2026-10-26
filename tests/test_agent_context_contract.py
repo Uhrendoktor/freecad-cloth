@@ -50,7 +50,8 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
     architecture = (ROOT / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
     require(
-        condition="persisted FreeCAD Seam object is the document-level source of truth" in architecture,
+        condition="persisted FreeCAD Seam object is the document-level source of truth"
+        in architecture,
         message="architecture documentation must identify the persisted Seam as document authority.",
     )
     require(

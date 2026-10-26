@@ -275,9 +275,7 @@ def analyze_mesh(
         if pressures is not None
         else np.zeros(len(face_indices), dtype=np.float64)
     )
-    all_values = np.concatenate(
-        (strain_values, stress_values, fit_values, pressure_values)
-    )
+    all_values = np.concatenate((strain_values, stress_values, fit_values, pressure_values))
     strain = tuple(float(value) for value in strain_values)
     stress = tuple(float(value) for value in stress_values)
     fit = tuple(float(value) for value in fit_values)

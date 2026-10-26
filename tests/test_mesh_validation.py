@@ -53,6 +53,8 @@ def test_fallback_surface_area_uses_triangle_geometry():
     width=st.floats(min_value=1e-3, max_value=1e6, allow_nan=False, allow_infinity=False),
     height=st.floats(min_value=1e-3, max_value=1e6, allow_nan=False, allow_infinity=False),
 )
+
+
 def test_fallback_surface_area_obeys_base_height_identity(width: float, height: float) -> None:
     """Vectorized triangle area matches the right-triangle base-height identity."""
     vertices = ((0.0, 0.0, 0.0), (width, 0.0, 0.0), (0.0, height, 0.0))
@@ -98,7 +100,6 @@ def test_large_vertex_clearance_returns_exact_nearest_distance():
     assert nearest_target_clearance(garment, target) == pytest.approx(5.0, rel=0.0, abs=1e-9)
 
 
-
 def test_nearest_target_observation_returns_the_target_vertex_at_minimum_distance() -> None:
     """Return a spatial-index nearest target coordinate alongside its distance."""
     garment = ((2.0, 3.0, 4.0), (10.0, 10.0, 10.0))
@@ -129,6 +130,8 @@ def test_degenerate_face_is_reported_without_trimesh():
 
 @settings(max_examples=40, deadline=None)
 @given(scale=st.floats(min_value=1e-4, max_value=1e4, allow_nan=False, allow_infinity=False))
+
+
 def test_triangle_surface_area_scales_quadratically(scale: float) -> None:
     """Uniformly scaling a mesh by s multiplies triangle area by s squared."""
     vertices = ((0.0, 0.0, 0.0), (3.0 * scale, 0.0, 0.0), (0.0, 4.0 * scale, 0.0))

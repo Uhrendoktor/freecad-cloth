@@ -57,9 +57,7 @@ def test_default_avatar_is_valid_and_deterministic() -> None:
 def test_measurement_change_changes_geometry_without_mutating_source() -> None:
     """Keep source parameters stable while a chest-measurement edit changes geometry."""
     params = AvatarParameters()
-    wider = params.with_measurements(
-        chest=params.measurement("chest") + _MEASUREMENT_CHANGE_MM
-    )
+    wider = params.with_measurements(chest=params.measurement("chest") + _MEASUREMENT_CHANGE_MM)
     require(
         condition=math.isclose(
             params.measurement("chest"),
@@ -87,9 +85,7 @@ def test_measurement_change_changes_geometry_without_mutating_source() -> None:
 def test_hip_circumference_does_not_change_leg_stance_landmarks() -> None:
     """Preserve the leg stance when only hip circumference changes."""
     params = AvatarParameters()
-    wider_hip = params.with_measurements(
-        hip=params.measurement("hip") + _HIP_CHANGE_MM
-    )
+    wider_hip = params.with_measurements(hip=params.measurement("hip") + _HIP_CHANGE_MM)
     baseline_landmarks = {item.name: item.position for item in generate_mesh(params)[2]}
     wider_landmarks = {item.name: item.position for item in generate_mesh(wider_hip)[2]}
     for name in ("knee_left", "knee_right", "ankle_left", "ankle_right"):

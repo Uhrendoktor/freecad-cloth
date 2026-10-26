@@ -74,6 +74,8 @@ def test_joint_rotations_round_trip_is_deterministic():
         json.dumps({"schema_version": 1, "units": "rad", "joints": {}}),
     ),
 )
+
+
 def test_joint_rotation_parser_rejects_unversioned_payloads(payload):
     """Reject empty, unversioned, raw-map, and wrong-unit pose JSON."""
     with pytest.raises((ValueError, TypeError)):
@@ -174,6 +176,7 @@ def test_controllable_joint_order_is_stable():
     assert len(CONTROLLABLE_BONES) == 18
     assert joint_rotation_map((JointRotation("head", z=15.0),))["head"].z == 15.0
 
+
 def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() -> None:
     """Preserve duplicate-weight accumulation, normalization, and untouched vertices."""
     source = (
@@ -203,4 +206,3 @@ def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() ->
     assert posed[0] == pytest.approx(source[0])
     assert posed[1] == pytest.approx((0.5, 0.5, 0.0))
     assert posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0))
-

@@ -273,6 +273,7 @@ def _opposite_top_edge_pins(piece, panel_indices) -> tuple[tuple[int, int], floa
     top_indices, span_mm = opposite_top_edge_vertices(mesh_positions, boundary, 0.75 * BLANKET_SIZE)
     return tuple(int(panel_indices[index]) for index in top_indices), span_mm
 
+
 def _nearest_pin_indices(panel_indices, positions, targets):
     available = list(panel_indices)
     result = []

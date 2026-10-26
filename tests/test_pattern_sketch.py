@@ -171,6 +171,7 @@ def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constrai
     assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
     assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))
 
+
 if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()

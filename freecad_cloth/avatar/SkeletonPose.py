@@ -400,7 +400,5 @@ def apply_weighted_fk(
     normalize = total_weights > 1.0 + 1e-6
     blend = (total_weights > 1e-12) & ~normalize
     posed[normalize] = accumulated[normalize] / total_weights[normalize, None]
-    posed[blend] = accumulated[blend] + (
-        1.0 - total_weights[blend, None]
-    ) * rest[blend]
+    posed[blend] = accumulated[blend] + (1.0 - total_weights[blend, None]) * rest[blend]
     return tuple((float(point[0]), float(point[1]), float(point[2])) for point in posed)

@@ -731,9 +731,7 @@ def capture_ladder_checkpoints(
     target_name: str,
     case_id: str,
     runtime: PBDRuntimeSnapshot,
-    record_checkpoint: Callable[
-        [int, str, tuple[tuple[float, ...], ...]], dict[str, object]
-    ],
+    record_checkpoint: Callable[[int, str, tuple[tuple[float, ...], ...]], dict[str, object]],
     progress: Callable[[str], None],
 ) -> tuple[dict[int, str], list[dict[str, object]]]:
     """Capture the shared checkpoint schedule and collect target-specific measurements.
@@ -808,9 +806,7 @@ def build_ladder_case_record(
     maximum_penetration = max(penetration_values, default=0.0)
     seam_pairs_by_id = getattr(runtime.base, "seam_stitch_pairs")
     seam_pairs = [
-        [int(left), int(right)]
-        for pairs in seam_pairs_by_id.values()
-        for left, right in pairs
+        [int(left), int(right)] for pairs in seam_pairs_by_id.values() for left, right in pairs
     ]
     seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
     case_record: dict[str, object] = {
@@ -901,10 +897,7 @@ def structural_ladder_checks(
     Returns:
         Validation results and the first failing rung, if any.
     """
-    by_id = {
-        str(cast("Mapping[str, object]", record["case"])["id"]): record
-        for record in records
-    }
+    by_id = {str(cast("Mapping[str, object]", record["case"])["id"]): record for record in records}
     checks: list[dict[str, object]] = []
     for case_id, rung in ordered_cases:
         record = by_id[case_id]

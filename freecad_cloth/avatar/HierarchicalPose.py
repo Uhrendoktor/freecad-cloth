@@ -172,11 +172,7 @@ def _arm_pose_configuration(
         shoulder, _ = _bone_source_endpoints(source_vertices, skeleton, bone_name, mapper=mapper)
         wrist, _ = _bone_source_endpoints(source_vertices, skeleton, wrist_bone, mapper=mapper)
         side = -1.0 if shoulder[0] < 0.0 else 1.0
-        desired_angle = (
-            parameters.pose.left_arm_angle
-            if side < 0.0
-            else parameters.pose.right_arm_angle
-        )
+        desired_angle = (parameters.pose.left_arm_angle if side < 0.0 else parameters.pose.right_arm_angle)
         if desired_angle is None:
             desired_angle = DEFAULT_POSE_ARM_ANGLES.get(
                 parameters.pose.preset,

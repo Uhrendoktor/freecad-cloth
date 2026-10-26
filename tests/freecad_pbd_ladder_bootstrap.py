@@ -142,4 +142,3 @@ def dispatch_ladder_entrypoint(
         boot("freecad-hosted-entrypoint")
         boot("entrypoint:schedule-main")
         schedule(callback)
-
