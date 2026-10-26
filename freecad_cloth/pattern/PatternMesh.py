@@ -16,9 +16,11 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import LineString
 from shapely.geometry import Point as ShapelyPoint
 
-from freecad_cloth.common.MeshTopology import triangle_indices_are_valid
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
+
+
+TRIANGLE_VERTEX_COUNT = 3
 
 
 @pydantic_dataclass(frozen=True)
@@ -53,7 +55,12 @@ class TriangleMesh:
             raise ValueError(msg)
         vertex_count = len(vertices)
 
-        valid_triangles = triangle_indices_are_valid(self.triangles, vertex_count)
+        valid_triangles = all(
+            len(triangle) == TRIANGLE_VERTEX_COUNT
+            and all(type(index) is int and 0 <= index < vertex_count for index in triangle)
+            and len(set(triangle)) == TRIANGLE_VERTEX_COUNT
+            for triangle in self.triangles
+        )
         if not valid_triangles:
             msg = "invalid triangle index"
             raise ValueError(msg)
