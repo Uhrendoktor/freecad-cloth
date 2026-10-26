@@ -77,9 +77,7 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "python_validation.py" in block
-        ),
+        condition="python_validation.py" in block,
         message="canonical CI contract",
     )
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
@@ -634,10 +632,8 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     )
     require(
         condition=(
-            (
-                "python3 tools/ci/validate_realtime_benchmark.py "
-                "artifacts/freecad-realtime/metrics.json" in workflow
-            )
+            "python3 tools/ci/validate_realtime_benchmark.py "
+            "artifacts/freecad-realtime/metrics.json" in workflow
         ),
         message="canonical CI contract",
     )

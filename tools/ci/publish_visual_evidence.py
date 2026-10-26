@@ -406,7 +406,6 @@ def main() -> int:
 
     Returns:
         Process status indicating that the visual evidence inventory was published and verified.
-
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -418,7 +417,10 @@ def main() -> int:
     source_root = Path.cwd()
     expected = documented_assets(source_root)
     _build_documentation_gifs()
-    worktree = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "cloth-screenshot-publish"
+    worktree = (
+        Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
+        / "cloth-screenshot-publish"
+    )
     _clone_screenshot_repository(args.repository, worktree)
     _checkout_screenshot_branch(worktree)
     metadata = visual_evidence.ProvenanceMetadata(

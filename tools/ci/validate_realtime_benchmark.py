@@ -289,11 +289,11 @@ def validate_metrics(payload: object) -> list[str]:
 def main() -> int:
     """Read and independently validate a saved realtime metric artifact.
 
-    Raises:
-        SystemExit: Raised when the metrics file cannot be read or decoded.
-
     Returns:
         Process status indicating whether the realtime metrics are acceptable.
+
+    Raises:
+        SystemExit: Raised when the metrics file cannot be read or decoded.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metrics", type=Path, help="path to metrics.json produced by FreeCAD")
