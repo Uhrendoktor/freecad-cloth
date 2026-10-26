@@ -22,6 +22,7 @@ from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 from tests.support.assertions import require
 
+
 def _load_internal_callable(module_name: str, attribute_name: str) -> object:
     """Load a test-only internal callable by its module and attribute name.
 
@@ -48,6 +49,7 @@ DISTANCE_FLOOR_MM = 0.0
 ENDPOINT_DISTANCE_TOLERANCE_MM = 1e-8
 ORIENTATION_DISTANCE_TOLERANCE_MM = 1e-8
 MINIMUM_SEAM_STITCH_COUNT = 2
+SUBNORMAL_DISTANCE_MM = 1e-291
 SUBNORMAL_SEGMENT_LENGTH_MM = 3.858376809264568e-291
 SMALL_COORDINATE_MM = 6.269632363395404e-257
 SUBNORMAL_ENDPOINT_MM = 1.6724306261326825e-169
@@ -59,7 +61,7 @@ DISTANCE_EXAMPLES = (
     ((3.0, 4.0), (0.0, 0.0), (0.0, 0.0), 5.0),
     ((1.0, 1.0), (2.0, 0.0), (0.0, 0.0), 1.0),
     ((0.0, 0.0), (1.0, SMALL_COORDINATE_MM), (1.0, 0.0), 1.0),
-    ((1e-291, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), 1e-291),
+    ((SUBNORMAL_DISTANCE_MM, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), SUBNORMAL_DISTANCE_MM),
     ((0.0, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), 0.0),
 )
 PROPERTY_COORDINATE_STRATEGY = st.floats(
@@ -387,7 +389,8 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
     expected_vertices = (0, 1, 2, 3, 5, 6, 7)
     expected_faces = ((0, 1, 2), (0, 2, 3), (4, 5, 6), (3, 2, 0))
 
-    vertex_indices, faces = INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles)
+    result = INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles)
+    vertex_indices, faces = result
 
     require(
         condition=vertex_indices == expected_vertices,
@@ -398,6 +401,6 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
         message="Topology compaction must consistently remap every triangle index.",
     )
     require(
-        condition=indexed_mesh_topology_for_test(triangles) is (vertex_indices, faces),
+        condition=INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles) is result,
         message="Repeated topology input must reuse its cached compact mapping.",
     )
