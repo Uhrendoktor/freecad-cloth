@@ -62,20 +62,37 @@ PROPERTY_COORDINATES = st.tuples(
     PROPERTY_COORDINATE_STRATEGY,
 )
 
-pattern_mesh_module = importlib.import_module("freecad_cloth.pattern.PatternMesh")
-simulation_objects_module = importlib.import_module("freecad_cloth.simulation.SimulationObjects")
-edge_segment_ids_for_test = cast(
-    "Callable[[ParametricPattern, Sequence[Point]], list[str]]",
-    getattr(pattern_mesh_module, "_edge_segment_ids"),
+EDGE_SEGMENT_IDS_FOR_TEST = cast(
+    Callable[[ParametricPattern, Sequence[Point]], list[str]],
+    _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_edge_segment_ids"),
 )
-point_to_segment_distance_for_test = cast(
-    "Callable[[Point, Point, Point], float]",
-    getattr(pattern_mesh_module, "_point_to_segment_distance"),
+POINT_TO_SEGMENT_DISTANCE_FOR_TEST = cast(
+    Callable[[Point, Point, Point], float],
+    _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_point_to_segment_distance"),
 )
-indexed_mesh_topology_for_test = cast(
-    "Callable[[tuple[tuple[int, int, int], ...]], tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]]",
-    getattr(simulation_objects_module, "_indexed_mesh_topology"),
+INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
+    Callable[
+        [tuple[tuple[int, int, int], ...]],
+        tuple[tuple[int, ...], tuple[tuple[int, ...], ...]],
+    ],
+    _load_internal_callable(
+        "freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"
+    ),
 )
+
+
+def _load_internal_callable(module_name: str, attribute_name: str) -> object:
+    """Load a test-only internal callable by its module and attribute name.
+
+    Args:
+        module_name: Dotted import path of the module under test.
+        attribute_name: Internal callable attribute to retrieve.
+
+    Returns:
+        The requested module attribute.
+    """
+    module = importlib.import_module(module_name)
+    return getattr(module, attribute_name)
 
 
 def test_rectangle_mesh_area_and_topology() -> None:
@@ -239,7 +256,7 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments(
         end: Second endpoint of the candidate segment.
         expected_distance: Expected Euclidean point-to-segment distance.
     """
-    actual = point_to_segment_distance_for_test(point, start, end)
+    actual = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, start, end)
 
     require(
         condition=actual == pytest.approx(expected_distance, rel=1e-12, abs=0.0),
@@ -351,7 +368,7 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> N
         ]
     )
     CountedCurve.calls = 0
-    result = edge_segment_ids_for_test(pattern, outline)
+    result = EDGE_SEGMENT_IDS_FOR_TEST(pattern, outline)
 
     require(
         condition=len(result) == len(outline),
@@ -369,7 +386,7 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
     expected_vertices = (0, 1, 2, 3, 5, 6, 7)
     expected_faces = ((0, 1, 2), (0, 2, 3), (4, 5, 6), (3, 2, 0))
 
-    vertex_indices, faces = indexed_mesh_topology_for_test(triangles)
+    vertex_indices, faces = INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles)
 
     require(
         condition=vertex_indices == expected_vertices,
