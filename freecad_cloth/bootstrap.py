@@ -2,7 +2,6 @@
 """Shared FreeCAD startup for the classic and namespaced loaders."""
 
 from importlib import import_module
-from importlib import import_module
 from pathlib import Path
 
 

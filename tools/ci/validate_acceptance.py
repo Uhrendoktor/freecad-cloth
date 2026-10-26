@@ -179,9 +179,6 @@ def main() -> int:
 
     Returns:
         Process status indicating whether the selected acceptance evidence is valid.
-
-    Raises:
-        SystemExit: If required screenshots, animation frames, GIFs, or log markers are missing.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("case", choices=sorted((*CASES, *LOG_CASES)))

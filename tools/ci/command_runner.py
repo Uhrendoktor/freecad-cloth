@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -127,7 +127,7 @@ async def _run_async(
         if deadline is None:
             stdout, stderr = await process.communicate(input_bytes)
         else:
-            async with asyncio.timeout(deadline):
+            async with asyncio.timeout(cast(float, deadline)):
                 stdout, stderr = await process.communicate(input_bytes)
     except TimeoutError as exc:
         process.kill()

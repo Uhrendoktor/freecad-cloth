@@ -82,33 +82,23 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     )
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
     require(
-        condition=(
-            '"tools.ci.pytest_collection_contract"' in runner
-        ),
+        condition=('"tools.ci.pytest_collection_contract"' in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "CLOTH_EXPECTED_TEST_MODULES" in runner
-        ),
+        condition=("CLOTH_EXPECTED_TEST_MODULES" in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "check_test_collection.py" not in runner
-        ),
+        condition=("check_test_collection.py" not in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "matrix.group != 'gui'" in block
-        ),
+        condition=("matrix.group != 'gui'" in block),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "test-args: gui" in block
-        ),
+        condition=("test-args: gui" in block),
         message="canonical CI contract",
     )
 

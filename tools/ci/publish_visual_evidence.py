@@ -418,8 +418,7 @@ def main() -> int:
     expected = documented_assets(source_root)
     _build_documentation_gifs()
     worktree = (
-        Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
-        / "cloth-screenshot-publish"
+        Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "cloth-screenshot-publish"
     )
     _clone_screenshot_repository(args.repository, worktree)
     _checkout_screenshot_branch(worktree)
