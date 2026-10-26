@@ -10,10 +10,9 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable
 from dataclasses import field
 from importlib import import_module
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -23,6 +22,9 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_to_json,
     normalize_joint_rotations,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 DEFAULT_MEASUREMENTS = {
     "height": 1750.0,
@@ -115,11 +117,7 @@ class Pose:
     VALID_PRESETS = ("t_pose", "standing", "sewing", "sitting")
 
     def __post_init__(self) -> None:
-        """Resolve omitted arm angles and canonicalize the joint-rotation tuple.
-
-        Raises:
-            ValueError: If the supplied joint rotations are invalid.
-        """
+        """Resolve omitted arm angles and canonicalize the joint-rotation tuple."""
         default_angle = DEFAULT_POSE_ARM_ANGLES.get(
             self.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
@@ -191,12 +189,7 @@ class AvatarParameters:
     mass_target_kg: float | None = None
 
     def __post_init__(self) -> None:
-        """Normalize numeric fields and validate the complete avatar state.
-
-        Raises:
-            TypeError: If the pose value has the wrong type.
-            ValueError: If measurements, controls, overrides, or pose values are invalid.
-        """
+        """Normalize numeric fields and validate the complete avatar state."""
         values = dict(DEFAULT_MEASUREMENTS)
         values.update({str(k): float(v) for k, v in self.measurements.items()})
         object.__setattr__(self, "measurements", values)
@@ -346,8 +339,6 @@ class AvatarParameters:
         Returns:
             A new avatar parameter record with the updates applied.
 
-        Raises:
-            ValueError: If any updated measurement violates the schema.
         """
         values = dict(self.measurements)
         values.update({str(k): float(v) for k, v in changes.items()})
@@ -517,9 +508,7 @@ def _resolve_landmark_arm_angle(preset: str, angle_value: float | None) -> float
     Returns:
         A numeric arm angle in degrees.
     """
-    resolved_angle = (
-        DEFAULT_POSE_ARM_ANGLES[preset] if angle_value is None else angle_value
-    )
+    resolved_angle = DEFAULT_POSE_ARM_ANGLES[preset] if angle_value is None else angle_value
     if preset != "standing" and math.isclose(
         resolved_angle,
         _LANDMARK_ARM_DEFAULTS["t_pose"],
@@ -619,14 +608,12 @@ def generate_mesh(params: AvatarParameters) -> AvatarMesh:
     Returns:
         Mesh vertices, triangle indices, and semantic landmarks in millimetres.
 
-    Raises:
-        ValueError: If the avatar parameters violate their validation contract.
     """
     params.validate()
     # Import lazily to avoid the AvatarModel <-> HierarchicalPose module cycle.
     pipeline = import_module("freecad_cloth.avatar.HierarchicalPose")
     builder = cast(
-        Callable[[AvatarParameters], AvatarMesh],
-        getattr(pipeline, "generate_hierarchical_mesh"),
+        "Callable[[AvatarParameters], AvatarMesh]",
+        pipeline.generate_hierarchical_mesh,
     )
     return builder(params)
