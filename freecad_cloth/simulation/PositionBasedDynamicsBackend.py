@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import sys
 from copy import deepcopy
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
@@ -25,7 +26,7 @@ from freecad_cloth.common.ValidationModels import (
     validate_finite_number,
 )
 from freecad_cloth.shared.Collision import CollisionSurface
-from freecad_cloth.simulation.ClothBackend import ClothSimulationBackend
+from freecad_cloth.simulation.cloth_backend import ClothSimulationBackend
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 if TYPE_CHECKING:
@@ -38,6 +39,16 @@ _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
+
+def _emit_diagnostic(message: str) -> None:
+    """Write one diagnostic line and flush it for CI log consumers.
+
+    Args:
+        message: Structured status line emitted by the PBD adapter.
+    """
+    sys.stdout.write(f"{message}\\n")
+    sys.stdout.flush()
+
 
 
 FloatArray: TypeAlias = npt.NDArray[np.float64]
@@ -472,7 +483,9 @@ def _pbd_collision_voxel_mm(environ: Mapping[str, str] | None = None) -> float:
 def _pbd_collision_effective_tolerance_mm(
     surface: CollisionSurface,
 ) -> float:
-    """Compute collision tolerance large enough for configured tolerance, cloth thickness, and voxel margin.
+    """Compute a suitable collision tolerance for the native SDF.
+
+    The value covers configured tolerance, cloth thickness, and voxel margin.
 
     Args:
         surface: The collision surface whose thickness contributes to the tolerance.
@@ -597,7 +610,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "mesh",
     ) -> None:
-        """Initialize the native PBD simulation from a cloth model, constraints, and optional collision surface.
+        """Initialize the native PBD model, constraints, and optional collision surface.
 
         Args:
             system: The initial cloth particle and material state.
@@ -662,10 +675,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._source_collision_surface = collision_surface
         self._collision_surface = collision_surface
         if collision_surface is not None:
-            print(
+            _emit_diagnostic(
                 "cloth-pbd-collision-mesh "
-                f"source_triangles={len(collision_surface.triangles)} solver_triangles={len(collision_surface.triangles)}",
-                flush=True,
+                f"source_triangles={len(collision_surface.triangles)} "
+                f"solver_triangles={len(collision_surface.triangles)}"
             )
         self._collision_mode = collision_mode
         self._collision_sdf: object | None = None
@@ -744,14 +757,13 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._collision_voxel_mm = collision_voxel_mm
         self._collision_configured_tolerance_mm = configured_tolerance_mm
         self._collision_effective_tolerance_mm = effective_tolerance_mm
-        print(
+        _emit_diagnostic(
             "cloth-pbd-collision-config "
             f"target_thickness_mm={float(collision_surface.thickness):.2f} "
             f"configured_tolerance_mm={configured_tolerance_mm:.2f} "
             f"voxel_mm={collision_voxel_mm:.2f} "
             f"effective_tolerance_mm={effective_tolerance_mm:.2f} "
-            f"resolution={list(self._collision_sdf_resolution)}",
-            flush=True,
+            f"resolution={list(self._collision_sdf_resolution)}"
         )
         # The position-level projection pass is required for high-detail avatar
         # meshes where native PBD contact resolution leaves residual penetration.
@@ -768,31 +780,29 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     clearance_mm=effective_tolerance_mm,
                     candidate_count=projector_candidate_count,
                 )
-                print(
+                _emit_diagnostic(
                     "cloth-pbd-position-projection ready "
                     f"clearance_mm={effective_tolerance_mm:.2f} "
-                    f"candidate_triangles={min(projector_candidate_count, len(collision_surface.triangles))}",
-                    flush=True,
+                    "candidate_triangles="
+                    f"{min(projector_candidate_count, len(collision_surface.triangles))}"
                 )
             except ValueError as exc:
                 # An open or inconsistently oriented target still uses the native
                 # collision path; signed position projection requires a closed mesh.
-                print(f"cloth-pbd-position-projection disabled reason={exc}", flush=True)
+                _emit_diagnostic(f"cloth-pbd-position-projection disabled reason={exc}")
 
         cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
         global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
         if self._collision_sdf is None and cache_key == _PBD_COLLISION_SDF_CACHE_KEY:
             self._collision_sdf = _PBD_COLLISION_SDF_CACHE
-            print(
+            _emit_diagnostic(
                 "cloth-pbd-collision-sdf cache-hit "
-                f"source_triangles={len(faces)} resolution={resolution}",
-                flush=True,
+                f"source_triangles={len(faces)} resolution={resolution}"
             )
         elif self._collision_sdf is None:
-            print(
+            _emit_diagnostic(
                 "cloth-pbd-collision-sdf build "
-                f"source_triangles={len(faces)} resolution={resolution}",
-                flush=True,
+                f"source_triangles={len(faces)} resolution={resolution}"
             )
             self._collision_sdf = self._pbd.CubicSDFCollisionDetection.generateSDF(
                 vertex_data,
@@ -805,10 +815,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _PBD_COLLISION_SDF_CACHE_KEY = cache_key
             _PBD_COLLISION_SDF_CACHE = self._collision_sdf
         else:
-            print(
+            _emit_diagnostic(
                 "cloth-pbd-collision-sdf reuse "
-                f"source_triangles={len(faces)} resolution={resolution}",
-                flush=True,
+                f"source_triangles={len(faces)} resolution={resolution}"
             )
 
         if self._collision_sdf is None:
@@ -828,7 +837,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         collision_detection.setTolerance(effective_tolerance_mm / _MM)
 
     def _build(self) -> None:
-        """Rebuild native particles, constraints, pins, and collision state from the saved input model.
+        """Rebuild the saved native particle, constraint, pin, and collision state.
 
         Raises:
             RuntimeError: Raised when native PBD changes the cloth particle ordering.
@@ -1066,7 +1075,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Read native positions once and validate the same snapshot for publication.
 
         Returns:
-            The display-space particle positions and a flag indicating all coordinates are finite and bounded.
+            Display-space particle positions and whether all coordinates are finite and bounded.
         """
         vertices = np.asarray(self._model.getParticles().getVertices(), dtype=np.float64)
         if vertices.size == 0:
