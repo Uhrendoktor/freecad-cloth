@@ -444,7 +444,7 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
         require_canonical_e2e: Whether canonical garment end-to-end evidence is required.
 
     Raises:
-        SystemExit: If required images, logs, metrics, collision settings, or acceptance markers fail.
+        SystemExit: If required evidence or acceptance checks fail.
     """
     generated = Path("docs/images/generated")
     progress = generated / "gui-progress.log"
