@@ -154,10 +154,11 @@ async def _start_display(
         Process handles for the Xvfb server and Openbox window manager.
 
     Raises:
+        OSError: If the X display runtime directory or log files cannot be accessed.
         RuntimeError: If the display server does not become ready in five seconds.
     """
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or RUNTIME_DIRECTORY)
-    runtime.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(runtime.mkdir, parents=True, exist_ok=True)
     xvfb_executable = _require_executable("Xvfb")
     openbox_executable = _require_executable("openbox")
     xdpyinfo_executable = _require_executable("xdpyinfo")
@@ -274,9 +275,7 @@ def _build_command(source: Path, test_script: Path, test_args: str) -> list[str]
     command = ["/opt/freecad/AppRun"]
     if os.environ.get("CLOTH_CI_STAGE_WORKBENCH", "").lower() == TRUE_ENV_VALUE:
         _stage_workbench(source)
-        command.extend(
-            ["-M", str(WORKBENCH_STAGE_ROOT), "-P", str(WORKBENCH_STAGE_PATH)]
-        )
+        command.extend(["-M", str(WORKBENCH_STAGE_ROOT), "-P", str(WORKBENCH_STAGE_PATH)])
     command.append(str(test_script))
     if test_args:
         command.extend(shlex.split(test_args))
@@ -332,12 +331,16 @@ async def _run_application(
             return_code = PROCESS_TIMEOUT_EXIT_CODE
 
         output = output_bytes.decode("utf-8", errors="replace")
-        log_file.parent.mkdir(parents=True, exist_ok=True)
+        await asyncio.to_thread(log_file.parent.mkdir, parents=True, exist_ok=True)
         existing_log = ""
-        if log_file.is_file():
-            existing_log = log_file.read_text(encoding="utf-8", errors="replace")
+        if await asyncio.to_thread(log_file.is_file):
+            existing_log = await asyncio.to_thread(
+                log_file.read_text,
+                encoding="utf-8",
+                errors="replace",
+            )
         if not existing_log.strip():
-            log_file.write_text(output, encoding="utf-8")
+            await asyncio.to_thread(log_file.write_text, output, encoding="utf-8")
         sys.stdout.write(output)
         if timed_out:
             diagnostic = log_file.with_name("runtime-diagnostics.log")
@@ -352,8 +355,10 @@ async def _run_application(
             diagnostic = log_file.with_name("runtime-diagnostics.log")
             _write_diagnostics(diagnostic, return_code, timed_out=False)
             sys.stdout.write(
-                f"freecad-run-failure=exit-{return_code} "
-                f"log={log_file} diagnostics={diagnostic}\n"
+                (
+                    f"freecad-run-failure=exit-{return_code} "
+                    f"log={log_file} diagnostics={diagnostic}\n"
+                )
             )
             sys.stdout.flush()
         return return_code

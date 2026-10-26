@@ -10,15 +10,15 @@ from __future__ import annotations
 
 import argparse
 import ast
+from dataclasses import dataclass, field
 import hashlib
 import html
 import json
 import math
 import os
+from pathlib import Path
 import re
 import sys
-from dataclasses import dataclass, field
-from pathlib import Path
 from typing import cast
 
 
@@ -727,9 +727,7 @@ def _derive_stage_states(
     return {
         "mannequin_pose": pose_state,
         "pattern_construction": (
-            "captured"
-            if assessment.topology_records or screenshots.pattern
-            else "not_observed"
+            "captured" if assessment.topology_records or screenshots.pattern else "not_observed"
         ),
         "pattern_topology": pattern_state,
         "derived_pattern_representation": derived_state,
@@ -853,9 +851,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
             "cloth-sewing.png" in parsed.screenshot_states
             and (output_root / "cloth-sewing.png").is_file()
         ),
-        drape=any(
-            name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states
-        ),
+        drape=any(name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states),
     )
     stage_states = _derive_stage_states(parsed, assessment, screenshots)
     issues = _build_issues(assessment.invalid_geometry)
@@ -1301,6 +1297,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
         '<svg xmlns="http://www.w3.org/2000/svg" width="1510" height="660" viewBox="0 0 1510 660">'
         f"{banner}{''.join(pieces_rendered)}</svg>\n"
     )
+
 
 def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
     """Render the fit-screening section without promoting heuristic warnings to failures.

@@ -343,9 +343,7 @@ def _branch_activity_batch(
     aliases: dict[str, str] = {}
     fields: list[str] = []
     for index, sha in enumerate(batch):
-        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(
-            char not in string.hexdigits for char in sha
-        ):
+        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
             msg = f"invalid branch commit SHA: {sha!r}"
             raise RuntimeError(msg)
         alias = f"commit{index}"
@@ -412,8 +410,6 @@ def branch_activity_epochs(
 
     Raises:
         ValueError: If batch_size is not positive.
-        RuntimeError: If a SHA is malformed or commit activity cannot be verified.
-        TypeError: If GitHub returns commit activity with an unexpected type.
     """
     if batch_size <= 0:
         msg = "branch commit query batch size must be positive"
@@ -469,9 +465,7 @@ def closed_pr_head_shas_by_branch(
             continue
 
         encoded_head = quote(f"{owner}:{name}", safe=":")
-        pulls = list(
-            load_api_items(f"repos/{lookup.repo}/pulls?state=closed&head={encoded_head}")
-        )
+        pulls = list(load_api_items(f"repos/{lookup.repo}/pulls?state=closed&head={encoded_head}"))
         for pull_request in pulls:
             head = pull_request.get("head")
             head_repo = head.get("repo") if isinstance(head, dict) else None
@@ -488,6 +482,7 @@ def closed_pr_head_shas_by_branch(
                 closed_heads.setdefault(name, set()).add(sha)
                 break
     return closed_heads
+
 
 def stale_unprotected_branches(
     branches: list[dict[str, object]],
@@ -692,8 +687,6 @@ def dockerfile_tags_for_shas(
 
     Raises:
         ValueError: If the GraphQL batch size is not positive.
-        RuntimeError: If a protected commit cannot be verified.
-        TypeError: If GraphQL returns protected Dockerfile data with an unexpected type.
     """
     if batch_size <= 0:
         msg = "Dockerfile query batch size must be positive"
