@@ -22,25 +22,21 @@ def _mesh_pair() -> tuple[ParametricPattern, TriangleMesh, ParametricPattern, Tr
 
 
 def _vertices_on_segment(mesh: TriangleMesh, segment_id: str) -> frozenset[int]:
-    """Find the boundary vertices incident to edges carrying a segment identifier.
+    """Find the boundary vertices incident to one rectangle edge.
 
     Args:
-        mesh: Triangulated mesh with boundary edge provenance.
-        segment_id: Authored segment identifier whose boundary vertices are required.
+        mesh: Triangulated rectangular mesh with boundary edge provenance.
+        segment_id: Authored segment identifier whose two endpoints are required.
 
     Returns:
-        Immutable set of vertices adjacent to the requested segment's boundary edges.
+        Immutable set containing the selected boundary edge endpoints.
+
+    Raises:
+        ValueError: If the segment ID is absent from the mesh's boundary provenance.
     """
     boundary = mesh.boundary_vertex_indices
-    return frozenset(
-        vertex
-        for position, edge_id in enumerate(mesh.boundary_edge_segment_ids)
-        if edge_id == segment_id
-        for vertex in (
-            boundary[position],
-            boundary[(position + 1) % len(boundary)],
-        )
-    )
+    position = mesh.boundary_edge_segment_ids.index(segment_id)
+    return frozenset((boundary[position], boundary[(position + 1) % len(boundary)]))
 
 
 @pytest.mark.parametrize(
