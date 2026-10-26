@@ -22,6 +22,20 @@ from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 from tests.support.assertions import require
 
+def _load_internal_callable(module_name: str, attribute_name: str) -> object:
+    """Load a test-only internal callable by its module and attribute name.
+
+    Args:
+        module_name: Dotted import path of the module under test.
+        attribute_name: Internal callable attribute to retrieve.
+
+    Returns:
+        The requested module attribute.
+    """
+    module = importlib.import_module(module_name)
+    return getattr(module, attribute_name)
+
+
 BASE_BOUNDARY_VERTEX_COUNT = 4
 BASE_RECTANGLE_TRIANGLE_COUNT = 2
 CONCAVE_POLYGON_TRIANGLE_COUNT = 3
@@ -34,7 +48,6 @@ DISTANCE_FLOOR_MM = 0.0
 ENDPOINT_DISTANCE_TOLERANCE_MM = 1e-8
 ORIENTATION_DISTANCE_TOLERANCE_MM = 1e-8
 MINIMUM_SEAM_STITCH_COUNT = 2
-SUBNORMAL_DISTANCE_MM = 1e-291
 SUBNORMAL_SEGMENT_LENGTH_MM = 3.858376809264568e-291
 SMALL_COORDINATE_MM = 6.269632363395404e-257
 SUBNORMAL_ENDPOINT_MM = 1.6724306261326825e-169
@@ -46,6 +59,8 @@ DISTANCE_EXAMPLES = (
     ((3.0, 4.0), (0.0, 0.0), (0.0, 0.0), 5.0),
     ((1.0, 1.0), (2.0, 0.0), (0.0, 0.0), 1.0),
     ((0.0, 0.0), (1.0, SMALL_COORDINATE_MM), (1.0, 0.0), 1.0),
+    ((1e-291, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), 1e-291),
+    ((0.0, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), 0.0),
 )
 PROPERTY_COORDINATE_STRATEGY = st.floats(
     min_value=-1e6,
@@ -79,20 +94,6 @@ INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
         "freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"
     ),
 )
-
-
-def _load_internal_callable(module_name: str, attribute_name: str) -> object:
-    """Load a test-only internal callable by its module and attribute name.
-
-    Args:
-        module_name: Dotted import path of the module under test.
-        attribute_name: Internal callable attribute to retrieve.
-
-    Returns:
-        The requested module attribute.
-    """
-    module = importlib.import_module(module_name)
-    return getattr(module, attribute_name)
 
 
 def test_rectangle_mesh_area_and_topology() -> None:
