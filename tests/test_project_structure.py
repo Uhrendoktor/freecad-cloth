@@ -500,11 +500,21 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging() -> None:
         message="test_freecad_runner_uses_native_a...: required condition failed",
     )
     require(
+        condition=('WORKBENCH_STAGE_ROOT = TEMP_ROOT / "freecad-mod"' in source),
+        message="FreeCAD module staging root must remain bounded and named.",
+    )
+    require(
         condition=(
-            'command.extend(["-M", "/tmp/freecad-mod", "-P", "/tmp/freecad-mod/freecad-cloth"])'
+            'WORKBENCH_STAGE_PATH = WORKBENCH_STAGE_ROOT / "freecad-cloth"' in source
+        ),
+        message="FreeCAD workbench staging path must derive from the staging root.",
+    )
+    require(
+        condition=(
+            'command.extend(["-M", str(WORKBENCH_STAGE_ROOT), "-P", str(WORKBENCH_STAGE_PATH)])'
             in source
         ),
-        message="test_freecad_runner_uses_native_a...: required condition failed",
+        message="FreeCAD must pass the bounded staging paths via -M and -P.",
     )
     require(
         condition=("command.append(str(args.test_script))" in source),
@@ -525,11 +535,11 @@ def test_freecad_runner_preserves_script_owned_logs() -> None:
     root = Path(__file__).resolve().parents[1]
     source = (root / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
     require(
-        condition=("stdout=subprocess.PIPE" in source),
+        condition=("stdout=asyncio.subprocess.PIPE" in source),
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
-        condition=("process.communicate(timeout=timeout_seconds)" in source),
+        condition=("asyncio.wait_for(" in source),
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
@@ -792,10 +802,13 @@ def test_avatar_modules_have_one_camel_case_implementation_name() -> None:
     )
 
 
-def test_shared_module_filenames_follow_camel_case_convention():
+def test_shared_module_filenames_follow_camel_case_convention() -> None:
     """Keep shared implementation modules consistent with the workbench module style."""
     shared_dir = Path(__file__).resolve().parents[1] / "freecad_cloth" / "shared"
     module_names = sorted(
         path.name for path in shared_dir.glob("*.py") if path.name != "__init__.py"
     )
-    assert all(name[0].isupper() and "_" not in name for name in module_names)
+    require(
+        condition=all(name[0].isupper() and "_" not in name for name in module_names),
+        message="Shared module filenames must follow the CamelCase convention.",
+    )
