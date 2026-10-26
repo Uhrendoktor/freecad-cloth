@@ -76,7 +76,7 @@ def test_joint_rotations_round_trip_is_deterministic():
 )
 
 
-def test_joint_rotation_parser_rejects_unversioned_payloads(payload):
+def test_joint_rotation_parser_rejects_unversioned_payloads(payload: str) -> None:
     """Reject empty, unversioned, raw-map, and wrong-unit pose JSON."""
     with pytest.raises((ValueError, TypeError)):
         joint_rotations_from_json(payload)

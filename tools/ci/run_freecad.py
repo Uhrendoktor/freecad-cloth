@@ -230,9 +230,7 @@ async def _stop_process_tree(process: asyncio.subprocess.Process) -> None:
         await process.wait()
 
 
-def _write_diagnostics(
-    path: Path, return_code: int | None, *, timed_out: bool
-) -> None:
+def _write_diagnostics(path: Path, return_code: int | None, *, timed_out: bool) -> None:
     """Write the process result and available display-server logs to a diagnostic file.
 
     Args:

@@ -504,9 +504,7 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging() -> None:
         message="FreeCAD module staging root must remain bounded and named.",
     )
     require(
-        condition=(
-            'WORKBENCH_STAGE_PATH = WORKBENCH_STAGE_ROOT / "freecad-cloth"' in source
-        ),
+        condition=('WORKBENCH_STAGE_PATH = WORKBENCH_STAGE_ROOT / "freecad-cloth"' in source),
         message="FreeCAD workbench staging path must derive from the staging root.",
     )
     require(

@@ -225,7 +225,7 @@ def main() -> int:
     sys.stdout.write(
         "workbench-benchmark=passed "
         f"workbench={args.workbench} repeats={metrics['repeats']} "
-        f"initialize_ms={float(benchmark['initialize_ms']):.3f}\n"
+        f"initialize_ms={float(cast('int | float', benchmark['initialize_ms'])):.3f}\n"
     )
     return 0
 

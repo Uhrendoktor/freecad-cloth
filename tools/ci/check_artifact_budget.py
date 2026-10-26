@@ -18,6 +18,8 @@ type JSONValue = str | int | float | bool | list[JSONValue] | dict[str, JSONValu
 API_VERSION = "2022-11-28"
 MAX_ARTIFACT_BYTES = 10_000_000
 PAGE_SIZE = 100
+API_ERROR_BODY_BYTES = 2048
+API_ERROR_MESSAGE_CHAR_LIMIT = 256
 
 
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
@@ -63,7 +65,20 @@ def _request_artifact_payload(
     connection.request("GET", request_path, headers=dict(headers))
     response = connection.getresponse()
     if response.status != http.client.OK:
-        msg = f"GitHub artifact API request failed: HTTP {response.status} {response.reason}"
+        error_body = response.read(API_ERROR_BODY_BYTES)
+        try:
+            error_payload = json.loads(error_body)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            error_payload = None
+        detail = error_payload.get("message") if isinstance(error_payload, dict) else None
+        if isinstance(detail, str) and detail.strip():
+            bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
+            msg = (
+                "GitHub artifact API request failed: "
+                f"HTTP {response.status} {response.reason}: {bounded_detail}"
+            )
+        else:
+            msg = f"GitHub artifact API request failed: HTTP {response.status} {response.reason}"
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 

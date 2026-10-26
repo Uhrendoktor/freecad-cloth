@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
-from freecad_cloth.common.ValidationModels import validate_finite_number
 
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
@@ -549,9 +548,7 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
     Returns:
         Parsed topology, placement, pose, screenshot, and simulation observations.
     """
-    parsed = ProgressEvidence(
-        has_simulation_start="tunic-simulation-start" in progress_text
-    )
+    parsed = ProgressEvidence(has_simulation_start="tunic-simulation-start" in progress_text)
     for line in progress_text.splitlines():
         topology = _parse_topology(line)
         if topology is not None:
@@ -1128,8 +1125,8 @@ def _render_edge_shapes(
     for edge_index, local_points, edge_id in edge_shapes:
         if not local_points:
             continue
-        highlighted = edge_index in colors
-        stroke = colors.get(edge_index, "#758195")
+        highlighted = edge_index is not None and edge_index in colors
+        stroke = colors.get(edge_index, "#758195") if edge_index is not None else "#758195"
         points_to_draw = [
             _svg_transform_point(point, origin_x=origin_x) for point in local_points
         ]

@@ -133,9 +133,7 @@ def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
         raise GitHubApiError(msg) from exc
 
 
-def _request_github_api(
-    method: str, endpoint: str, body: dict[str, str] | None = None
-) -> object:
+def _request_github_api(method: str, endpoint: str, body: dict[str, str] | None = None) -> object:
     """Send one authenticated GitHub API request and decode its response.
 
     Args:

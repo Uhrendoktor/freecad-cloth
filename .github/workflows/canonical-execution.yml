@@ -154,7 +154,7 @@ jobs:
           pyright -p pyrightconfig.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
-          ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py
+          ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/cloth_backend.py freecad_cloth/simulation/ClothSolver.py
           python tools/ci/check_changed_python_types.py
           # Scan the complete statically analyzable core surface on every run.
           python tools/check_dead_code.py

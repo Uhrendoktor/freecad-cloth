@@ -33,9 +33,7 @@ CHANGED_GRID_RESOLUTION = (16, 16, 17)
 def test_backend_boundary_is_small_and_solver_neutral() -> None:
     """Expose the core simulation operations without runtime-specific backend selection."""
     backend_methods = {
-        name
-        for name in EXPECTED_BACKEND_METHODS
-        if hasattr(ClothSimulationBackend, name)
+        name for name in EXPECTED_BACKEND_METHODS if hasattr(ClothSimulationBackend, name)
     }
     require(
         condition=backend_methods == EXPECTED_BACKEND_METHODS,

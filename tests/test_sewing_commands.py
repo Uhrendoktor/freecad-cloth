@@ -248,7 +248,8 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause():
         raise AssertionError(msg)
 
 
-def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error():
+def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error() -> None:
+    """Propagate unexpected runtime failures instead of treating them as repair errors."""
     def edge_length(_piece, _edge):
         msg = "unexpected solver/runtime failure"
         raise RuntimeError(msg)

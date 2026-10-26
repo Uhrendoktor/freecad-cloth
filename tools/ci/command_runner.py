@@ -127,7 +127,7 @@ async def _run_async(
         if deadline is None:
             stdout, stderr = await process.communicate(input_bytes)
         else:
-            async with asyncio.timeout(cast(float, deadline)):
+            async with asyncio.timeout(cast("float", deadline)):
                 stdout, stderr = await process.communicate(input_bytes)
     except TimeoutError as exc:
         process.kill()

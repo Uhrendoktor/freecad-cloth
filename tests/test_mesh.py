@@ -22,9 +22,6 @@ from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 from tests.support.assertions import require
 
-
-
-
 BASE_BOUNDARY_VERTEX_COUNT = 4
 BASE_RECTANGLE_TRIANGLE_COUNT = 2
 CONCAVE_POLYGON_TRIANGLE_COUNT = 3

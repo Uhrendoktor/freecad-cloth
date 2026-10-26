@@ -40,6 +40,7 @@ _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
 
+
 def _emit_diagnostic(message: str) -> None:
     """Write one diagnostic line and flush it for CI log consumers.
 

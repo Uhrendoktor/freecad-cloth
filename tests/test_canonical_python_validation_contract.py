@@ -107,12 +107,13 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
     require(
         condition=(
-            set(validate_acceptance.CASES) == {
-            "avatar-pose",
-            "avatar-shape-editor",
-            "fitting",
-            "simulation-quality",
-            "surface-pen",
+            set(validate_acceptance.CASES)
+            == {
+                "avatar-pose",
+                "avatar-shape-editor",
+                "fitting",
+                "simulation-quality",
+                "surface-pen",
             }
         ),
         message="canonical CI contract",
