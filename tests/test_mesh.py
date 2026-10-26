@@ -98,9 +98,7 @@ INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
         [tuple[tuple[int, int, int], ...]],
         tuple[tuple[int, ...], tuple[tuple[int, ...], ...]],
     ],
-    _load_internal_callable(
-        "freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"
-    ),
+    _load_internal_callable("freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"),
 )
 
 
@@ -275,7 +273,7 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments(
 
 def test_point_to_segment_distance_handles_subnormal_segment_length() -> None:
     """Keep the finite distance contract for extremely short representable segments."""
-    distance = point_to_segment_distance_for_test(
+    distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(
         (1.0, 0.0),
         (0.0, 0.0),
         (0.0, SUBNORMAL_ENDPOINT_MM),
@@ -297,8 +295,8 @@ def test_point_to_segment_distance_obeys_metric_properties(
     """
     px, py, sx, sy, ex, ey = values
     point, start, end = (px, py), (sx, sy), (ex, ey)
-    distance = point_to_segment_distance_for_test(point, start, end)
-    reversed_distance = point_to_segment_distance_for_test(point, end, start)
+    distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, start, end)
+    reversed_distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, end, start)
     endpoint_bound = min(dist(point, start), dist(point, end))
 
     require(
