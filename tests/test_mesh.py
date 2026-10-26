@@ -6,8 +6,8 @@ from collections.abc import Callable, Sequence
 from math import dist
 from typing import ClassVar, cast
 
-from hypothesis import given, strategies as st
 import pytest
+from hypothesis import given, strategies as st
 
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -61,7 +61,12 @@ DISTANCE_EXAMPLES = (
     ((3.0, 4.0), (0.0, 0.0), (0.0, 0.0), 5.0),
     ((1.0, 1.0), (2.0, 0.0), (0.0, 0.0), 1.0),
     ((0.0, 0.0), (1.0, SMALL_COORDINATE_MM), (1.0, 0.0), 1.0),
-    ((SUBNORMAL_DISTANCE_MM, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), SUBNORMAL_DISTANCE_MM),
+    (
+        (SUBNORMAL_DISTANCE_MM, 0.0),
+        (0.0, 0.0),
+        (0.0, SUBNORMAL_SEGMENT_LENGTH_MM),
+        SUBNORMAL_DISTANCE_MM,
+    ),
     ((0.0, 0.0), (0.0, 0.0), (0.0, SUBNORMAL_SEGMENT_LENGTH_MM), 0.0),
 )
 PROPERTY_COORDINATE_STRATEGY = st.floats(
