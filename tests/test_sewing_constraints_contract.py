@@ -6,7 +6,7 @@ import pytest
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, rectangle
 from freecad_cloth.pattern.PatternMesh import TriangleMesh, triangulate
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
+from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 from tests.support.assertions import require
 
 
@@ -35,7 +35,12 @@ def _vertices_on_segment(mesh: TriangleMesh, segment_id: str) -> frozenset[int]:
         ValueError: If the segment ID is absent from the mesh's boundary provenance.
     """
     boundary = mesh.boundary_vertex_indices
-    position = mesh.boundary_edge_segment_ids.index(segment_id)
+    for position, edge_id in enumerate(mesh.boundary_edge_segment_ids):
+        if edge_id == segment_id:
+            break
+    else:
+        msg = f"boundary provenance has no edge for segment ID: {segment_id}"
+        raise ValueError(msg)
     return frozenset((boundary[position], boundary[(position + 1) % len(boundary)]))
 
 
@@ -60,7 +65,9 @@ def test_sewing_constraints_resolve_integer_and_stable_edge_references(
     """
     pattern_a, mesh_a, pattern_b, mesh_b = _mesh_pair()
     seam = Seam("front", edge_a, "back", edge_b, id="side")
-    constraints = build_sewing_constraints(pattern_a, mesh_a, pattern_b, mesh_b, seam)
+    constraints = build_sewing_constraints(
+        SewingPatternMesh(pattern_a, mesh_a), SewingPatternMesh(pattern_b, mesh_b), seam
+    )
 
     require(
         condition=expected_key in constraints.seam_map,
@@ -90,4 +97,6 @@ def test_sewing_constraints_reject_unknown_stable_segment_identifier() -> None:
     seam = Seam("front", "missing", "back", "left", id="invalid-edge")
 
     with pytest.raises(ValueError, match="seam edge_a references unknown segment id"):
-        build_sewing_constraints(pattern_a, mesh_a, pattern_b, mesh_b, seam)
+        build_sewing_constraints(
+            SewingPatternMesh(pattern_a, mesh_a), SewingPatternMesh(pattern_b, mesh_b), seam
+        )

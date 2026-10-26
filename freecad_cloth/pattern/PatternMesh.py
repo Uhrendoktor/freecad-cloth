@@ -13,14 +13,18 @@ from math import ceil, hypot, isclose, isfinite
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from shapely.geometry import LineString
-from shapely.geometry import Point as ShapelyPoint
+from shapely.geometry import LineString, Point as ShapelyPoint
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
 
 
 TRIANGLE_VERTEX_COUNT = 3
+TRIANGLE_ARRAY_DIMENSIONS = 2
+MINIMUM_OUTLINE_AREA_MM2 = 1e-9
+TRIANGULATION_AREA_RELATIVE_TOLERANCE = 1e-6
+VERTEX_RECONCILIATION_DECIMALS = 9
+CURVE_PROVENANCE_SAMPLES = 32
 
 
 @pydantic_dataclass(frozen=True)
@@ -38,7 +42,7 @@ class TriangleMesh:
         Raises:
             ValueError: If vertices, triangles, boundary indices, or provenance are invalid.
         """
-        if len(self.vertices) < 3:
+        if len(self.vertices) < TRIANGLE_VERTEX_COUNT:
             msg = "mesh needs at least three vertices"
             raise ValueError(msg)
         if not self.triangles:
@@ -69,7 +73,7 @@ class TriangleMesh:
             msg = "invalid triangle index"
             raise ValueError(msg)
 
-        if len(self.boundary_vertex_indices) < 3:
+        if len(self.boundary_vertex_indices) < TRIANGLE_VERTEX_COUNT:
             msg = "mesh needs at least three boundary vertices"
             raise ValueError(msg)
         try:
@@ -92,7 +96,7 @@ class TriangleMesh:
 
     @property
     def area(self) -> float:
-        """Return the sum of triangle areas in square millimetres.
+        """Area of the triangle mesh in square millimetres.
 
         Returns:
             Sum of the absolute areas of all mesh triangles.
@@ -127,10 +131,9 @@ def triangulate(
 ) -> TriangleMesh:
     """Triangulate a sampled simple polygon with constrained Delaunay Triangle.
 
-    ``max_area`` delegates simulation mesh refinement to Triangle itself. The
-    ``Y`` switch forbids Steiner points on authored boundary segments, so
-    semantic seam edge indices remain stable while Triangle adds interior
-    vertices where needed.
+    The optional maximum area delegates simulation mesh refinement to Triangle.
+    The Y switch forbids Steiner points on authored boundary segments, preserving
+    semantic seam edge indices while Triangle adds interior vertices where needed.
 
     Args:
         pattern: Authored polygon boundary to triangulate.
@@ -144,34 +147,80 @@ def triangulate(
         ValueError: If mesh options or the sampled polygon boundary are invalid.
         RuntimeError: If the required Triangle package is unavailable.
     """
-    options_input = TriangulationOptions.model_validate(
+    options = TriangulationOptions.model_validate(
         {"curve_samples": curve_samples, "max_area": max_area}
     )
-    curve_samples, max_area = options_input.curve_samples, options_input.max_area
+    points, edge_ids = _normalized_boundary(pattern, options.curve_samples)
+    result_vertices, result_triangles = _run_triangle_triangulation(points, options.max_area)
+    boundary_indices = _map_boundary_vertices(points, result_vertices)
+    triangles = _orient_triangles(result_triangles, result_vertices)
+    vertices = tuple((float(vertex[0]), float(vertex[1])) for vertex in result_vertices.tolist())
+    mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
+    mesh.validate()
+    _validate_triangulation_area(mesh, points)
+    return mesh
+
+
+def _normalized_boundary(
+    pattern: ParametricPattern,
+    curve_samples: int,
+) -> tuple[list[Point], list[str]]:
+    """Prepare the sampled polygon boundary and preserve segment provenance.
+
+    Args:
+        pattern: Authored parametric pattern.
+        curve_samples: Number of samples for each curved segment.
+
+    Returns:
+        Counter-clockwise boundary points and their authored segment IDs.
+
+    Raises:
+        ValueError: If the sampled boundary has too few points, zero area, or self-intersects.
+    """
     points = _deduplicate_consecutive(pattern.sampled_outline(curve_samples))
-    if len(points) < 3:
+    if len(points) < TRIANGLE_VERTEX_COUNT:
         msg = "pattern has too few distinct boundary points"
         raise ValueError(msg)
     outline_area = signed_area(points)
-    if abs(outline_area) < 1e-9:
+    if abs(outline_area) < MINIMUM_OUTLINE_AREA_MM2:
         msg = "pattern has zero area"
         raise ValueError(msg)
     if _self_intersects(points):
         msg = "pattern boundary self-intersects"
         raise ValueError(msg)
+
     if all(isinstance(segment, LineSegment) for segment in pattern.segments) and len(points) == len(
         pattern.segments
     ):
         edge_ids = [segment.id for segment in pattern.segments]
     else:
         edge_ids = _edge_segment_ids(pattern, points)
-    if outline_area < 0:
+    if outline_area < 0.0:
         points = list(reversed(points))
         # Recompute provenance from geometry after normalization. A refined
         # authored edge can contain several internal sub-segments, so a fixed
         # one-slot rotation is not a valid semantic mapping.
         edge_ids = _edge_segment_ids(pattern, points)
+    return points, edge_ids
 
+
+def _run_triangle_triangulation(
+    points: Sequence[Point],
+    max_area: float | None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Run Triangle and validate its raw vertex/face arrays.
+
+    Args:
+        points: Counter-clockwise sampled polygon boundary.
+        max_area: Optional maximum area for interior mesh refinement.
+
+    Returns:
+        Triangle's finite vertex array and triangular face-index array.
+
+    Raises:
+        ValueError: If Triangle returns invalid topology or changes the boundary unexpectedly.
+        RuntimeError: If the required Triangle package is unavailable.
+    """
     try:
         import triangle as tr
     except ImportError as exc:
@@ -180,19 +229,22 @@ def triangulate(
 
     vertices_in = np.asarray(points, dtype=np.float64)
     segments = np.asarray(
-        [(i, (i + 1) % len(points)) for i in range(len(points))],
+        [(index, (index + 1) % len(points)) for index in range(len(points))],
         dtype=np.int32,
     )
-    options = "pQ"
+    triangle_options = "pQ"
     if max_area is not None:
-        options += f"Ya{max_area:.12g}"
-    result = tr.triangulate({"vertices": vertices_in, "segments": segments}, options)
+        triangle_options += f"Ya{max_area:.12g}"
+    result = tr.triangulate({"vertices": vertices_in, "segments": segments}, triangle_options)
     result_vertices = np.asarray(result.get("vertices", ()), dtype=np.float64)
     result_triangles = np.asarray(result.get("triangles", ()), dtype=np.int64)
     if len(result_vertices) == 0:
         msg = "Triangle returned no vertices"
         raise ValueError(msg)
-    if result_triangles.ndim != 2 or result_triangles.shape[1] != 3:
+    if (
+        result_triangles.ndim != TRIANGLE_ARRAY_DIMENSIONS
+        or result_triangles.shape[1] != TRIANGLE_VERTEX_COUNT
+    ):
         msg = "Triangle returned no triangular faces"
         raise ValueError(msg)
     if max_area is None and len(result_vertices) != len(points):
@@ -200,8 +252,26 @@ def triangulate(
             "Triangle inserted or removed vertices unexpectedly; expected a boundary-only base mesh"
         )
         raise ValueError(msg)
+    return result_vertices, result_triangles
 
-    output_index_by_coordinate: dict[tuple[int, int], int] = {}
+
+def _map_boundary_vertices(
+    points: Sequence[Point],
+    result_vertices: np.ndarray,
+) -> list[int]:
+    """Map authored boundary points to Triangle's vertex indices.
+
+    Args:
+        points: Authored sampled boundary points.
+        result_vertices: Vertices returned by Triangle.
+
+    Returns:
+        Boundary vertex indices in the same order as the authored points.
+
+    Raises:
+        ValueError: If Triangle drops an authored boundary vertex.
+    """
+    output_index_by_coordinate: dict[tuple[float, float], int] = {}
     for index, vertex in enumerate(result_vertices):
         key = (_quantize(float(vertex[0])), _quantize(float(vertex[1])))
         output_index_by_coordinate.setdefault(key, index)
@@ -214,7 +284,25 @@ def triangulate(
             msg = "Triangle dropped an authored boundary vertex"
             raise ValueError(msg)
         boundary_indices.append(index)
+    return boundary_indices
 
+
+def _orient_triangles(
+    result_triangles: np.ndarray,
+    result_vertices: np.ndarray,
+) -> list[tuple[int, int, int]]:
+    """Normalize triangle winding and reject repeated vertex indices.
+
+    Args:
+        result_triangles: Raw faces returned by Triangle.
+        result_vertices: Vertex coordinates used to determine face orientation.
+
+    Returns:
+        Triangles with counter-clockwise winding.
+
+    Raises:
+        ValueError: If Triangle returns a degenerate face.
+    """
     triangles: list[tuple[int, int, int]] = []
     for raw in result_triangles.tolist():
         a, b, c = int(raw[0]), int(raw[1]), int(raw[2])
@@ -228,23 +316,33 @@ def triangulate(
             < 0.0
         ):
             b, c = c, b
-        if len({a, b, c}) != 3:
+        if len({a, b, c}) != TRIANGLE_VERTEX_COUNT:
             msg = "Triangle returned a degenerate face"
             raise ValueError(msg)
         triangles.append((a, b, c))
+    return triangles
 
-    vertices = tuple((float(v[0]), float(v[1])) for v in result_vertices.tolist())
-    mesh = TriangleMesh(vertices, tuple(triangles), tuple(boundary_indices), tuple(edge_ids))
-    mesh.validate()
+
+def _validate_triangulation_area(mesh: TriangleMesh, points: Sequence[Point]) -> None:
+    """Verify that triangulation preserves the authored polygon area.
+
+    Args:
+        mesh: Validated triangulated mesh.
+        points: Normalized authored polygon boundary.
+
+    Raises:
+        ValueError: If area calculations are non-finite or the area delta is too large.
+    """
     expected_area = abs(signed_area(points))
     actual_area = mesh.area
     if not isfinite(expected_area) or not isfinite(actual_area):
         msg = "triangulation area must be finite"
         raise ValueError(msg)
-    if abs(actual_area - expected_area) > 1e-6 * max(1.0, expected_area):
+    if abs(actual_area - expected_area) > TRIANGULATION_AREA_RELATIVE_TOLERANCE * max(
+        1.0, expected_area
+    ):
         msg = "triangulation area does not match pattern area"
         raise ValueError(msg)
-    return mesh
 
 
 def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
@@ -267,11 +365,11 @@ def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> Pa
     segments = []
     for segment in pattern.segments:
         if isinstance(segment, LineSegment):
-            steps = max(1, int(ceil(segment.length() / spacing)))
+            steps = max(1, ceil(segment.length() / spacing))
             for index in range(steps):
-                start = segment.point(index / float(steps))
-                end = segment.point((index + 1) / float(steps))
-                suffix = "" if steps == 1 else "::sub::%d" % index
+                start = segment.point(index / steps)
+                end = segment.point((index + 1) / steps)
+                suffix = "" if steps == 1 else f"::sub::{index}"
                 segments.append(LineSegment(segment.id + suffix, start, end))
         else:
             segments.append(segment)
@@ -287,7 +385,7 @@ def _quantize(value: float) -> float:
     Returns:
         Coordinate rounded to nine decimal places.
     """
-    return round(float(value), 9)
+    return round(float(value), VERTEX_RECONCILIATION_DECIMALS)
 
 
 def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
@@ -363,7 +461,7 @@ def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> li
     Returns:
         Segment ID for each boundary edge, in boundary order.
     """
-    prepared_segments = _prepare_segment_geometries(pattern, 32)
+    prepared_segments = _prepare_segment_geometries(pattern, CURVE_PROVENANCE_SAMPLES)
     result: list[str] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
@@ -390,7 +488,7 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     Raises:
         ValueError: If coordinate differences or the computed distance are non-finite.
     """
-    if point in (start, end):
+    if point in {start, end}:
         return 0.0
 
     with_offset = (
@@ -403,20 +501,42 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         msg = "point-to-segment coordinate differences must be finite"
         raise ValueError(msg)
     scale = max(abs(value) for value in with_offset)
-    if scale == 0.0:
+    if not scale:
         return 0.0
 
     dx, dy, px, py = (value / scale for value in with_offset)
-    normalized_distance = float(LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py))))
+    normalized_distance = float(
+        LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
+    )
     distance = scale * normalized_distance
     if isfinite(distance):
         return distance
+    return _fallback_point_to_segment_distance(point, start, end)
 
-    sx, sy = float(start[0]), float(start[1])
-    px, py = float(point[0]), float(point[1])
-    dx, dy = float(end[0]) - sx, float(end[1]) - sy
+
+def _fallback_point_to_segment_distance(
+    point: Point,
+    start: Point,
+    end: Point,
+) -> float:
+    """Calculate point-to-segment distance using a unit-direction projection.
+
+    Args:
+        point: Point to measure against the segment.
+        start: First segment endpoint.
+        end: Second segment endpoint.
+
+    Returns:
+        Finite Euclidean distance using the closest clamped segment position.
+
+    Raises:
+        ValueError: If the fallback produces a non-finite distance.
+    """
+    sx, sy = start
+    px, py = point
+    dx, dy = end[0] - sx, end[1] - sy
     length = hypot(dx, dy)
-    if length == 0.0:
+    if not length:
         distance = hypot(px - sx, py - sy)
     else:
         unit_x, unit_y = dx / length, dy / length
@@ -454,6 +574,6 @@ def _self_intersects(points: Sequence[Point]) -> bool:
     Returns:
         Whether the boundary is not simple, excluding undersized point lists.
     """
-    if len(points) < 3:
+    if len(points) < TRIANGLE_VERTEX_COUNT:
         return False
     return not LineString([*points, points[0]]).is_simple

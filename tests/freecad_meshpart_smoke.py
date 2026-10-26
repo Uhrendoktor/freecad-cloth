@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMeshFreeCAD import mesh_from_pattern
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
+from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 
 
 def main() -> None:
@@ -25,10 +25,8 @@ def main() -> None:
     assert first.boundary_vertex_indices == second.boundary_vertex_indices
     assert first.boundary_edge_segment_ids == ("bottom", "right", "top", "left")
     constraints = build_sewing_constraints(
-        pattern,
-        first,
-        pattern,
-        second,
+        SewingPatternMesh(pattern, first),
+        SewingPatternMesh(pattern, second),
         Seam("front", 1, "back", 3, id="meshpart-smoke"),
         samples=5,
     )

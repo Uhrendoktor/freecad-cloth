@@ -14,6 +14,14 @@ MINIMUM_SEAM_SAMPLES = 2
 
 
 @pydantic_dataclass(frozen=True)
+class SewingPatternMesh:
+    """Authored pattern and its corresponding triangulated mesh."""
+
+    pattern: ParametricPattern
+    mesh: TriangleMesh
+
+
+@pydantic_dataclass(frozen=True)
 class Stitch:
     """One pair of mesh vertices connected by a sewing stitch."""
 
@@ -45,20 +53,16 @@ class SewingConstraintSet:
 
 
 def build_sewing_constraints(
-    pattern_a: ParametricPattern,
-    mesh_a: TriangleMesh,
-    pattern_b: ParametricPattern,
-    mesh_b: TriangleMesh,
+    side_a: SewingPatternMesh,
+    side_b: SewingPatternMesh,
     seam: Seam,
     samples: int = 8,
 ) -> SewingConstraintSet:
     """Map corresponding canonical seam samples to mesh boundary vertices.
 
     Args:
-        pattern_a: Authored pattern containing the first seam edge.
-        mesh_a: Triangulated mesh corresponding to the first pattern.
-        pattern_b: Authored pattern containing the second seam edge.
-        mesh_b: Triangulated mesh corresponding to the second pattern.
+        side_a: First authored pattern and its triangulated mesh.
+        side_b: Second authored pattern and its triangulated mesh.
         seam: Canonical seam with index or stable-ID edge references.
         samples: Number of corresponding positions sampled along the seam.
 
@@ -76,6 +80,8 @@ def build_sewing_constraints(
         msg = "seam piece names must not be empty"
         raise ValueError(msg)
 
+    pattern_a, mesh_a = side_a.pattern, side_a.mesh
+    pattern_b, mesh_b = side_b.pattern, side_b.mesh
     seg_a = _resolve_seam_segment(pattern_a, seam.edge_a, "edge_a")
     seg_b = _resolve_seam_segment(pattern_b, seam.edge_b, "edge_b")
     boundary_a = _segment_boundary_vertices(mesh_a, seg_a.id)

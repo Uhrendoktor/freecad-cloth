@@ -22,7 +22,7 @@ from freecad_cloth.pattern.PatternMesh import (
     triangulate,
 )
 from freecad_cloth.pattern.PatternModel import Seam
-from freecad_cloth.sewing.SewingConstraints import build_sewing_constraints
+from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
 from freecad_cloth.simulation.SimulationObjects import _indexed_mesh_topology
 
 
@@ -176,7 +176,10 @@ def test_seam_generates_stitches():
     b = rectangle(100.0, 50.0)
     ma, mb = triangulate(a), triangulate(b)
     constraints = build_sewing_constraints(
-        a, ma, b, mb, Seam("front", 1, "back", 3, id="side"), samples=5
+        SewingPatternMesh(a, ma),
+        SewingPatternMesh(b, mb),
+        Seam("front", 1, "back", 3, id="side"),
+        samples=5,
     )
     assert len(constraints.stitches) >= 2
     constraints.validate()
