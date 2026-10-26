@@ -90,7 +90,6 @@ def build_sewing_constraints(
     return result
 
 
-
 def _sample_stitches(
     side_a: SewingPatternMesh,
     segment_a: Segment,
