@@ -35,6 +35,52 @@ _IGNORED_DIRECTORIES = frozenset(
 )
 
 
+def _is_imported_any_name(node: ast.AST, any_names: set[str]) -> bool:
+    """Return whether a name node resolves to an imported Any symbol.
+
+    Args:
+        node: AST expression to inspect.
+        any_names: Local aliases that resolve to typing.Any.
+
+    Returns:
+        Whether the expression is a prohibited imported Any reference.
+    """
+    return isinstance(node, ast.Name) and node.id in any_names
+
+
+def _is_typing_any_attribute(node: ast.AST, typing_modules: set[str]) -> bool:
+    """Return whether an attribute node resolves to typing.Any.
+
+    Args:
+        node: AST expression to inspect.
+        typing_modules: Local aliases for typing modules.
+
+    Returns:
+        Whether the expression accesses Any on an imported typing module.
+    """
+    if not isinstance(node, ast.Attribute) or node.attr != "Any":
+        return False
+    return isinstance(node.value, ast.Name) and node.value.id in typing_modules
+
+
+def _is_any_reference(
+    node: ast.AST,
+    any_names: set[str],
+    typing_modules: set[str],
+) -> bool:
+    """Identify imported Any names and qualified typing.Any expressions.
+
+    Args:
+        node: AST expression to inspect.
+        any_names: Local aliases that resolve to typing.Any.
+        typing_modules: Local aliases for typing modules.
+
+    Returns:
+        Whether the node names the prohibited Any type.
+    """
+    return _is_imported_any_name(node, any_names) or _is_typing_any_attribute(node, typing_modules)
+
+
 def _contains_explicit_any(
     node: ast.AST,
     any_names: set[str],
@@ -60,12 +106,7 @@ def _contains_explicit_any(
                 nested = None
             if nested is not None:
                 pending.append(nested)
-        elif (isinstance(current, ast.Name) and current.id in any_names) or (
-            isinstance(current, ast.Attribute)
-            and current.attr == "Any"
-            and isinstance(current.value, ast.Name)
-            and current.value.id in typing_modules
-        ):
+        elif _is_any_reference(current, any_names, typing_modules):
             return True
         pending.extend(ast.iter_child_nodes(current))
     return False
@@ -161,7 +202,8 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             and node.value.id in typing_modules
         ):
             violations.append(
-                f"{filename}:{getattr(node, 'lineno', 1)}: explicit {node.value.id}.Any reference is prohibited; "
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit "
+                f"{node.value.id}.Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
 
@@ -191,7 +233,8 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             roots = _type_comment_roots(type_comment)
             if any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
                 violations.append(
-                    f"{filename}:{getattr(node, 'lineno', 1)}: type comment references explicit Any; "
+                    f"{filename}:{getattr(node, 'lineno', 1)}: type comment "
+                    "references explicit Any; "
                     "use a concrete type, object with narrowing, or a Protocol"
                 )
 
@@ -233,11 +276,11 @@ def main() -> int:
         violations.extend(explicit_any_violations(source, path.relative_to(ROOT).as_posix()))
 
     if violations:
-        print("explicit-any-policy=failed", file=sys.stderr)
-        print("\n".join(sorted(violations)), file=sys.stderr)
+        sys.stderr.write("explicit-any-policy=failed\n")
+        sys.stderr.write("\n".join(sorted(violations)) + "\n")
         return 1
 
-    print(f"explicit-any-policy=passed python_files={count}")
+    sys.stdout.write(f"explicit-any-policy=passed python_files={count}\n")
     return 0
 
 

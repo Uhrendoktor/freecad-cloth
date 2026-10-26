@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -23,7 +24,8 @@ INLINE_EDIT_COMMANDS = (
     re.compile(r"(?im)\b(?:perl|ruby)\s+-[^\s]*p[^\s]*i[^\s]*\b"),
 )
 INLINE_PYTHON_EDIT = re.compile(
-    r"(?i)\bpython(?:3(?:\.\d+)?)?\s+-c\b[^\n]*(?:\.replace\s*\(|\.write_text\s*\(|\.write_bytes\s*\()"
+    r"(?i)\bpython(?:3(?:\.\d+)?)?\s+-c\b[^\n]*"
+    r"(?:\.replace\s*\(|\.write_text\s*\(|\.write_bytes\s*\()",
 )
 
 
@@ -147,6 +149,307 @@ def _is_checked_in_source_expression(
     )
 
 
+def _assignment_targets(node: ast.Assign | ast.AnnAssign | ast.NamedExpr) -> list[ast.expr]:
+    """Return every expression that receives a value from an assignment.
+
+    Args:
+        node: Assignment, annotated assignment, or named expression to inspect.
+
+    Returns:
+        Assignment target expressions in source order.
+    """
+    if isinstance(node, ast.Assign):
+        return node.targets
+    return [node.target]
+
+
+def _assignment_names(node: ast.Assign | ast.AnnAssign | ast.NamedExpr) -> set[str]:
+    """Collect simple names bound by an assignment statement.
+
+    Args:
+        node: Assignment expression whose targets should be examined.
+
+    Returns:
+        Names bound directly or through tuple/list unpacking.
+    """
+    names: set[str] = set()
+    for target in _assignment_targets(node):
+        names.update(_target_names(target))
+    return names
+
+
+def _seed_python_path_names(
+    assignments: list[ast.Assign | ast.AnnAssign | ast.NamedExpr],
+) -> set[str]:
+    """Find assignments whose values identify a Python source path.
+
+    Args:
+        assignments: Assignment nodes gathered from the parsed module.
+
+    Returns:
+        Names assigned expressions that explicitly reference Python source paths.
+    """
+    names: set[str] = set()
+    for node in assignments:
+        if node.value is not None and _contains_python_path_literal(node.value):
+            names.update(_assignment_names(node))
+    return names
+
+
+def _looks_like_source_read(
+    node: ast.Assign | ast.AnnAssign | ast.NamedExpr,
+    python_path_names: set[str],
+) -> bool:
+    """Determine whether an assignment reads text from a Python source path.
+
+    Args:
+        node: Assignment whose value may read checked-in source text.
+        python_path_names: Names already known to refer to Python source paths.
+
+    Returns:
+        Whether the assignment appears to capture source text.
+    """
+    if node.value is None:
+        return False
+    receiver = _read_method_receiver(node.value)
+    if receiver is None:
+        return False
+    receiver_names = _names_used(receiver)
+    if receiver_names & python_path_names:
+        return True
+    if _contains_python_path_literal(receiver):
+        return True
+    return bool(_assignment_names(node) & PYTHON_SOURCE_NAME_HINTS)
+
+
+def _call_rewrites_known_source(node: ast.Call, source_names: set[str]) -> bool:
+    """Return whether a call rewrites or substitutes known Python source text.
+
+    Args:
+        node: Call expression being classified.
+        source_names: Names known to hold checked-in Python source contents.
+
+    Returns:
+        Whether the call modifies source text through replace or regex substitution.
+    """
+    if isinstance(node.func, ast.Attribute):
+        if node.func.attr == "replace":
+            return bool(_names_used(node.func.value) & source_names)
+        if node.func.attr in {"sub", "subn"}:
+            return any(_names_used(argument) & source_names for argument in node.args)
+    if isinstance(node.func, ast.Name) and node.func.id in {"sub", "subn"}:
+        return any(_names_used(argument) & source_names for argument in node.args)
+    return False
+
+
+def _propagate_assignment_names(
+    node: ast.Assign | ast.AnnAssign | ast.NamedExpr,
+    python_path_names: set[str],
+    source_names: set[str],
+    modified_source_names: set[str],
+) -> bool:
+    """Propagate source-reading and source-modification names through an assignment.
+
+    Args:
+        node: Assignment node being analyzed.
+        python_path_names: Names known to refer to Python source paths.
+        source_names: Mutable set of names that may contain checked-in source.
+        modified_source_names: Mutable set of names holding transformed source text.
+
+    Returns:
+        Whether either tracked set gained a newly identified name.
+    """
+    changed = False
+    value = node.value
+    if value is None:
+        return False
+
+    if _looks_like_source_read(node, python_path_names):
+        before = len(source_names)
+        source_names.update(_assignment_names(node))
+        changed = len(source_names) != before
+
+    transformed = isinstance(value, ast.Call) and _call_rewrites_known_source(value, source_names)
+    derived = isinstance(value, ast.BinOp) and bool(
+        _names_used(value) & (source_names | modified_source_names)
+    )
+    if transformed or derived:
+        before = len(modified_source_names)
+        modified_source_names.update(_assignment_names(node))
+        changed = changed or len(modified_source_names) != before
+    return changed
+
+
+def _resolve_source_names(
+    assignments: list[ast.Assign | ast.AnnAssign | ast.NamedExpr],
+    python_path_names: set[str],
+    source_names: set[str],
+    modified_source_names: set[str],
+) -> None:
+    """Resolve aliases of source text and its transformed variants to a fixed point.
+
+    Args:
+        assignments: Assignment nodes from the source module.
+        python_path_names: Names known to refer to Python source paths.
+        source_names: Mutable set of names holding checked-in source text.
+        modified_source_names: Mutable set of names holding modified source text.
+    """
+    for _ in range(4):
+        changed = False
+        for node in assignments:
+            changed = (
+                _propagate_assignment_names(
+                    node,
+                    python_path_names,
+                    source_names,
+                    modified_source_names,
+                )
+                or changed
+            )
+        if not changed:
+            return
+
+
+@dataclass(slots=True)
+class _SourceAnalysis:
+    """Collect names and diagnostics while auditing one parsed Python module.
+
+    Attributes:
+        path: Relative filename used in policy diagnostics.
+        python_path_names: Names known to reference Python source paths.
+        source_names: Names known to hold unchanged checked-in source text.
+        modified_source_names: Names known to hold transformed source text.
+        violations: Mutable policy diagnostics accumulated by analysis helpers.
+    """
+
+    path: str
+    python_path_names: set[str]
+    source_names: set[str]
+    modified_source_names: set[str]
+    violations: list[str]
+
+
+def _record_exec_compile_violation(
+    expression: ast.expr,
+    call_line: int,
+    analysis: _SourceAnalysis,
+) -> None:
+    """Record a generated-code violation for a compile call nested in exec.
+
+    Args:
+        expression: First argument passed to the nested compile call.
+        call_line: Line number of the outer exec call for stable diagnostics.
+        analysis: Module analysis state with known source aliases and diagnostics.
+    """
+    generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
+    literal_expression = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
+    generated_expression = literal_expression and not (
+        _names_used(expression) & analysis.source_names
+    )
+    if generated_name or generated_expression:
+        analysis.violations.append(
+            f"{analysis.path}:{call_line}: generated Python source must not be executed"
+        )
+
+
+def _record_exec_call_violation(node: ast.Call, analysis: _SourceAnalysis) -> None:
+    """Reject dynamic execution of generated or transformed Python source.
+
+    Args:
+        node: Call expression being examined.
+        analysis: Module analysis state with source aliases and diagnostics.
+    """
+    if not isinstance(node.func, ast.Name) or node.func.id != "exec" or not node.args:
+        return
+    expression = node.args[0]
+    if _names_used(expression) & analysis.modified_source_names:
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: transformed source must not be executed dynamically"
+        )
+        return
+    if isinstance(expression, ast.Call):
+        if (
+            isinstance(expression.func, ast.Name)
+            and expression.func.id == "compile"
+            and expression.args
+        ):
+            _record_exec_compile_violation(expression.args[0], node.lineno, analysis)
+        return
+    generated_literal = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
+    generated_literal_without_source = generated_literal and not (
+        _names_used(expression) & analysis.source_names
+    )
+    generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
+    if generated_literal_without_source or generated_name:
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: generated Python source must not be executed"
+        )
+
+
+def _record_source_mutation_violation(node: ast.Call, analysis: _SourceAnalysis) -> None:
+    """Report replacements or file writes that operate on checked-in source text.
+
+    Args:
+        node: Call expression being examined.
+        analysis: Module analysis state with source aliases and diagnostics.
+    """
+    if _call_rewrites_known_source(node, analysis.source_names):
+        call_name = node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: Python source text must not be rewritten with "
+            f"{call_name}(); use explicit functions/configuration"
+        )
+    if not isinstance(node.func, ast.Attribute) or node.func.attr not in WRITE_METHODS:
+        return
+    tracked_names = analysis.source_names | analysis.modified_source_names
+    if _names_used(node) & tracked_names:
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: Python source text must not be written after "
+            "runtime transformation"
+        )
+
+
+def _record_compile_call_violation(node: ast.Call, analysis: _SourceAnalysis) -> None:
+    """Reject compiling generated Python text or text derived by modification.
+
+    Args:
+        node: Call expression being examined.
+        analysis: Module analysis state with source aliases and diagnostics.
+    """
+    if not isinstance(node.func, ast.Name) or node.func.id != "compile" or not node.args:
+        return
+    expression = node.args[0]
+    transformed = bool(_names_used(expression) & analysis.modified_source_names)
+    derived_expression = isinstance(expression, ast.BinOp) and bool(
+        _names_used(expression) & analysis.source_names
+    )
+    if transformed or derived_expression:
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: transformed source must not be compiled at runtime"
+        )
+        return
+    if not _is_checked_in_source_expression(
+        expression,
+        analysis.source_names,
+        analysis.python_path_names,
+    ):
+        analysis.violations.append(
+            f"{analysis.path}:{node.lineno}: compiling generated Python source is prohibited"
+        )
+
+
+def _record_call_violations(node: ast.Call, analysis: _SourceAnalysis) -> None:
+    """Apply all dynamic-execution and source-mutation rules to one call.
+
+    Args:
+        node: Call expression being examined.
+        analysis: Module analysis state with source aliases and diagnostics.
+    """
+    _record_exec_call_violation(node, analysis)
+    _record_source_mutation_violation(node, analysis)
+    _record_compile_call_violation(node, analysis)
+
+
 def python_source_rewrite_violations(source_text: str, path: str = "<source>") -> tuple[str, ...]:
     """Find Python-source replacement, file-write, and dynamic execution patterns.
 
@@ -167,150 +470,21 @@ def python_source_rewrite_violations(source_text: str, path: str = "<source>") -
         for node in ast.walk(tree)
         if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
     ]
-    python_path_names: set[str] = set()
-    for node in assignments:
-        value = node.value
-        if value is not None and _contains_python_path_literal(value):
-            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-            for target in targets:
-                python_path_names.update(_target_names(target))
-
+    python_path_names = _seed_python_path_names(assignments)
     source_names = _checked_in_source_handles(tree, python_path_names)
     modified_source_names: set[str] = set()
-    for _ in range(4):
-        changed = False
-        for node in assignments:
-            value = node.value
-            if value is None:
-                continue
-            read_receiver = _read_method_receiver(value)
-            if read_receiver is not None:
-                receiver_names = _names_used(read_receiver)
-                if (
-                    receiver_names & python_path_names
-                    or _contains_python_path_literal(read_receiver)
-                    or (
-                        _target_names(node.targets[0])
-                        if isinstance(node, ast.Assign)
-                        else _target_names(node.target)
-                    )
-                    & PYTHON_SOURCE_NAME_HINTS
-                ):
-                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                    for target in targets:
-                        before = len(source_names)
-                        source_names.update(_target_names(target))
-                        changed |= len(source_names) != before
-            if isinstance(value, ast.Call):
-                rewrites_source = False
-                if isinstance(value.func, ast.Attribute) and value.func.attr == "replace":
-                    rewrites_source = bool(_names_used(value.func.value) & source_names)
-                elif (
-                    isinstance(value.func, ast.Attribute) and value.func.attr in {"sub", "subn"}
-                ) or (isinstance(value.func, ast.Name) and value.func.id in {"sub", "subn"}):
-                    rewrites_source = any(
-                        _names_used(argument) & source_names for argument in value.args
-                    )
-                if rewrites_source:
-                    targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                    for target in targets:
-                        before = len(modified_source_names)
-                        modified_source_names.update(_target_names(target))
-                        changed |= len(modified_source_names) != before
-            if isinstance(value, ast.BinOp) and _names_used(value) & (
-                source_names | modified_source_names
-            ):
-                targets = node.targets if isinstance(node, ast.Assign) else [node.target]
-                for target in targets:
-                    before = len(modified_source_names)
-                    modified_source_names.update(_target_names(target))
-                    changed |= len(modified_source_names) != before
-        if not changed:
-            break
-
-    violations: list[str] = []
+    _resolve_source_names(assignments, python_path_names, source_names, modified_source_names)
+    analysis = _SourceAnalysis(
+        path,
+        python_path_names,
+        source_names,
+        modified_source_names,
+        [],
+    )
     for node in ast.walk(tree):
-        if not isinstance(node, ast.Call):
-            continue
-
-        if isinstance(node.func, ast.Name) and node.func.id == "exec" and node.args:
-            expression = node.args[0]
-            if _names_used(expression) & modified_source_names:
-                violations.append(
-                    f"{path}:{node.lineno}: transformed source must not be executed dynamically"
-                )
-            elif isinstance(expression, ast.Call) and isinstance(expression.func, ast.Name):
-                if expression.func.id == "compile" and expression.args:
-                    compiled_source = expression.args[0]
-                    if _names_used(compiled_source) & modified_source_names:
-                        violations.append(
-                            f"{path}:{node.lineno}: transformed source must not be executed dynamically"
-                        )
-                    elif (
-                        isinstance(compiled_source, ast.Name)
-                        and compiled_source.id not in source_names
-                    ) or (
-                        isinstance(compiled_source, (ast.Constant, ast.BinOp, ast.JoinedStr))
-                        and not (_names_used(compiled_source) & source_names)
-                    ):
-                        violations.append(
-                            f"{path}:{node.lineno}: generated Python source must not be executed"
-                        )
-            elif isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr)):
-                if not (_names_used(expression) & source_names):
-                    violations.append(
-                        f"{path}:{node.lineno}: generated Python source must not be executed"
-                    )
-            elif isinstance(expression, ast.Name) and expression.id not in source_names:
-                violations.append(
-                    f"{path}:{node.lineno}: generated Python source must not be executed"
-                )
-
-        if isinstance(node.func, ast.Attribute):
-            receiver_names = _names_used(node.func.value)
-            rewrites_source = (
-                node.func.attr == "replace" and bool(receiver_names & source_names)
-            ) or (
-                node.func.attr in {"sub", "subn"}
-                and any(_names_used(argument) & source_names for argument in node.args)
-            )
-            if rewrites_source:
-                violations.append(
-                    f"{path}:{node.lineno}: Python source text must not be rewritten with "
-                    f"{node.func.attr}(); use explicit functions/configuration"
-                )
-            if node.func.attr in WRITE_METHODS and (
-                _names_used(node) & (source_names | modified_source_names)
-            ):
-                violations.append(
-                    f"{path}:{node.lineno}: Python source text must not be written after "
-                    "runtime transformation"
-                )
-
-        if (
-            isinstance(node.func, ast.Name)
-            and node.func.id in {"sub", "subn"}
-            and any(_names_used(argument) & source_names for argument in node.args)
-        ):
-            violations.append(
-                f"{path}:{node.lineno}: Python source text must not be rewritten with "
-                f"{node.func.id}(); use explicit functions/configuration"
-            )
-
-        if isinstance(node.func, ast.Name) and node.func.id == "compile" and node.args:
-            expression = node.args[0]
-            if _names_used(expression) & modified_source_names or (
-                isinstance(expression, ast.BinOp) and _names_used(expression) & source_names
-            ):
-                violations.append(
-                    f"{path}:{node.lineno}: transformed source must not be compiled at runtime"
-                )
-            elif not _is_checked_in_source_expression(expression, source_names, python_path_names):
-                violations.append(
-                    f"{path}:{node.lineno}: compiling generated Python source is prohibited"
-                )
-
-    return tuple(sorted(set(violations)))
+        if isinstance(node, ast.Call):
+            _record_call_violations(node, analysis)
+    return tuple(sorted(set(analysis.violations)))
 
 
 def workflow_source_rewrite_violations(text: str, path: str = "<workflow>") -> tuple[str, ...]:
@@ -373,9 +547,9 @@ def main() -> int:
         elif path.suffix in {".yml", ".yaml", ".sh"}:
             errors.extend(workflow_source_rewrite_violations(text, relative))
     if errors:
-        print("\n".join(errors), file=sys.stderr)
+        sys.stderr.write("\n".join(errors) + "\n")
         return 1
-    print("source-rewriting-policy=passed")
+    sys.stdout.write("source-rewriting-policy=passed\n")
     return 0
 
 
