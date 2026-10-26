@@ -33,7 +33,11 @@ class TriangleMesh:
     boundary_edge_segment_ids: tuple[str, ...] = ()
 
     def validate(self) -> None:
-        """Validate mesh indices, boundary data, and finite vertex coordinates."""
+        """Validate mesh indices, boundary data, and finite vertex coordinates.
+
+        Raises:
+            ValueError: If vertices, triangles, boundary indices, or provenance are invalid.
+        """
         if len(self.vertices) < 3:
             msg = "mesh needs at least three vertices"
             raise ValueError(msg)
@@ -88,7 +92,14 @@ class TriangleMesh:
 
     @property
     def area(self) -> float:
-        """Provide the public area operation."""
+        """Return the sum of triangle areas in square millimetres.
+
+        Returns:
+            Sum of the absolute areas of all mesh triangles.
+
+        Raises:
+            ValueError: If the computed area is not finite.
+        """
         vertices = np.asarray(self.vertices, dtype=np.float64)
         triangles = np.asarray(self.triangles, dtype=np.intp)
         first = vertices[triangles[:, 0]]
@@ -102,7 +113,11 @@ class TriangleMesh:
         return total
 
     def boundary_edges(self) -> tuple[tuple[int, int], ...]:
-        """Provide the public boundary edges operation."""
+        """Return consecutive vertex-index pairs around the mesh boundary.
+
+        Returns:
+            Boundary edges in boundary-vertex order, including the closing edge.
+        """
         indices = self.boundary_vertex_indices
         return tuple((indices[i], indices[(i + 1) % len(indices)]) for i in range(len(indices)))
 
@@ -116,6 +131,18 @@ def triangulate(
     ``Y`` switch forbids Steiner points on authored boundary segments, so
     semantic seam edge indices remain stable while Triangle adds interior
     vertices where needed.
+
+    Args:
+        pattern: Authored polygon boundary to triangulate.
+        curve_samples: Sampling count for each curved boundary segment.
+        max_area: Optional positive maximum triangle area for interior refinement.
+
+    Returns:
+        Validated triangular mesh with semantic boundary provenance.
+
+    Raises:
+        ValueError: If mesh options or the sampled polygon boundary are invalid.
+        RuntimeError: If the required Triangle package is unavailable.
     """
     options_input = TriangulationOptions.model_validate(
         {"curve_samples": curve_samples, "max_area": max_area}
@@ -221,7 +248,18 @@ def triangulate(
 
 
 def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> ParametricPattern:
-    """Subdivide straight authored boundary segments without changing semantic identity."""
+    """Subdivide straight authored boundary segments without changing semantic identity.
+
+    Args:
+        pattern: Authored boundary whose straight segments may be subdivided.
+        max_spacing: Maximum allowed spacing between linear boundary vertices.
+
+    Returns:
+        Pattern with refined linear segments and stable authored-segment identity.
+
+    Raises:
+        ValueError: If the maximum spacing is not positive and finite.
+    """
     spacing = float(max_spacing)
     if not isfinite(spacing) or spacing <= 0.0:
         msg = "max boundary spacing must be positive and finite"
@@ -241,10 +279,26 @@ def refine_linear_boundary(pattern: ParametricPattern, max_spacing: float) -> Pa
 
 
 def _quantize(value: float) -> float:
+    """Round a coordinate to the precision used for vertex reconciliation.
+
+    Args:
+        value: Finite coordinate value.
+
+    Returns:
+        Coordinate rounded to nine decimal places.
+    """
     return round(float(value), 9)
 
 
 def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
+    """Remove adjacent duplicate points and a repeated polygon-closing point.
+
+    Args:
+        points: Ordered boundary points to deduplicate.
+
+    Returns:
+        Points with consecutive and closing duplicates removed.
+    """
     result: list[Point] = []
     for point in points:
         if not result or not (
@@ -264,7 +318,15 @@ def _deduplicate_consecutive(points: Sequence[Point]) -> list[Point]:
 def _prepare_segment_geometries(
     pattern: ParametricPattern, curve_samples: int
 ) -> tuple[tuple[str, LineString], ...]:
-    """Sample authored curves once and construct GEOS line strings for distance queries."""
+    """Sample authored curves once and construct GEOS line strings for distance queries.
+
+    Args:
+        pattern: Authored boundary segments to sample.
+        curve_samples: Number of points used to sample each curved segment.
+
+    Returns:
+        Segment IDs paired with their prepared GEOS line strings.
+    """
     prepared: list[tuple[str, LineString]] = []
     for segment in pattern.segments:
         # Sketcher curves may be sampled polylines without a control attribute.
@@ -278,13 +340,29 @@ def _prepare_segment_geometries(
 
 
 def _nearest_segment_id(prepared_segments: Sequence[tuple[str, LineString]], point: Point) -> str:
-    """Return the authored segment closest to a query point using GEOS distance."""
+    """Return the authored segment closest to a query point using GEOS distance.
+
+    Args:
+        prepared_segments: Authored segment IDs paired with their GEOS geometries.
+        point: Query point in pattern coordinates.
+
+    Returns:
+        ID of the closest authored segment.
+    """
     query = ShapelyPoint(point)
     return min(prepared_segments, key=lambda item: item[1].distance(query))[0]
 
 
 def _edge_segment_ids(pattern: ParametricPattern, points: Sequence[Point]) -> list[str]:
-    """Map sampled boundary edges to authored segments with one GEOS query per edge."""
+    """Map sampled boundary edges to authored segments with one GEOS query per edge.
+
+    Args:
+        pattern: Authored segments used as provenance candidates.
+        points: Ordered points of the sampled boundary.
+
+    Returns:
+        Segment ID for each boundary edge, in boundary order.
+    """
     prepared_segments = _prepare_segment_geometries(pattern, 32)
     result: list[str] = []
     for index, start in enumerate(points):
@@ -300,6 +378,17 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
     Normalize coordinate differences before asking GEOS to avoid overflow for
     tiny coordinates. If GEOS still returns a non-finite distance because its
     projection arithmetic underflows, use a unit-direction projection fallback.
+
+    Args:
+        point: Point to measure against the segment.
+        start: First endpoint of the segment.
+        end: Second endpoint of the segment.
+
+    Returns:
+        Finite Euclidean distance in pattern-coordinate units.
+
+    Raises:
+        ValueError: If coordinate differences or the computed distance are non-finite.
     """
     if point in (start, end):
         return 0.0
@@ -343,11 +432,28 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
 
 
 def _cross(a: Point, b: Point, c: Point) -> float:
+    """Return twice the signed area of the triangle formed by three points.
+
+    Args:
+        a: First point.
+        b: Second point.
+        c: Third point.
+
+    Returns:
+        Positive, negative, or zero determinant according to point orientation.
+    """
     return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
 
 
 def _self_intersects(points: Sequence[Point]) -> bool:
-    """Return whether a closed polygon boundary crosses itself using GEOS."""
+    """Return whether a closed polygon boundary crosses itself using GEOS.
+
+    Args:
+        points: Ordered vertices of the closed polygon boundary.
+
+    Returns:
+        Whether the boundary is not simple, excluding undersized point lists.
+    """
     if len(points) < 3:
         return False
     return not LineString([*points, points[0]]).is_simple
