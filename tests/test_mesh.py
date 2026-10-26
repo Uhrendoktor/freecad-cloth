@@ -2,12 +2,12 @@
 """Regression tests for triangular pattern meshing and semantic boundary topology."""
 
 import importlib
-from collections.abc import Callable, Sequence
 from math import dist
 from typing import ClassVar, cast
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -86,18 +86,15 @@ PROPERTY_COORDINATES = st.tuples(
 )
 
 EDGE_SEGMENT_IDS_FOR_TEST = cast(
-    Callable[[ParametricPattern, Sequence[Point]], list[str]],
+    "Callable[[ParametricPattern, Sequence[Point]], list[str]]",
     _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_edge_segment_ids"),
 )
 POINT_TO_SEGMENT_DISTANCE_FOR_TEST = cast(
-    Callable[[Point, Point, Point], float],
+    "Callable[[Point, Point, Point], float]",
     _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_point_to_segment_distance"),
 )
 INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
-    Callable[
-        [tuple[tuple[int, int, int], ...]],
-        tuple[tuple[int, ...], tuple[tuple[int, ...], ...]],
-    ],
+    "Callable[[tuple[tuple[int, int, int], ...]], tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]]",
     _load_internal_callable("freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"),
 )
 
