@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import sys
 from pathlib import Path
 
 IMAGE_SUFFIXES = (".png", ".gif", ".jpg", ".jpeg", ".webp")
@@ -90,6 +91,7 @@ def write_provenance(
     published_root: Path,
     source_root: Path,
     source_sha: str,
+    *,
     run_id: str,
     run_number: str,
 ) -> None:
@@ -109,7 +111,11 @@ def write_provenance(
     assets = sorted(documented_assets(source_root))
     actual = public_assets(published_root)
     if assets != sorted(actual):
-        msg = f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
+        msg = (
+            "public image set mismatch; "
+            f"missing={sorted(set(assets) - actual)} "
+            f"extra={sorted(actual - set(assets))}"
+        )
         raise ValueError(msg)
     lines = [
         "# README/wiki visual evidence provenance",
@@ -148,12 +154,12 @@ def verify(
     expected = documented_assets(source_root)
     actual = public_assets(published_root)
     errors: list[str] = []
-    errors.extend(
-        f"missing documented images: {sorted(expected - actual)}" for _ in [0] if expected - actual
-    )
-    errors.extend(
-        f"undocumented public images: {sorted(actual - expected)}" for _ in [0] if actual - expected
-    )
+    missing = expected - actual
+    if missing:
+        errors.append(f"missing documented images: {sorted(missing)}")
+    undocumented = actual - expected
+    if undocumented:
+        errors.append(f"undocumented public images: {sorted(undocumented)}")
     if not provenance.is_file() or not provenance.stat().st_size:
         errors.append(f"missing provenance: {provenance}")
     else:
@@ -190,10 +196,11 @@ def main() -> int:
     errors = verify(args.source_root, args.published_root, args.provenance, args.source_sha)
     if errors:
         for error in errors:
-            print(f"visual-evidence-error={error}")
+            sys.stdout.write(f"visual-evidence-error={error}\n")
         return 1
-    print(
-        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}"
+    sys.stdout.write(
+        "readme-wiki-visual-freshness=passed "
+        f"asset_count={len(documented_assets(args.source_root))}\n"
     )
     return 0
 

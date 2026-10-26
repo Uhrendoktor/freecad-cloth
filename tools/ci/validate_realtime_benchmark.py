@@ -74,9 +74,7 @@ def _validate_fixture_size(metrics: dict[str, object], errors: list[str]) -> Non
     """
     particles = _integer(metrics.get("particles"))
     if particles is None or particles < MIN_PARTICLES:
-        errors.append(
-            f"particles must be an integer >= {MIN_PARTICLES} for garment-scale coverage"
-        )
+        errors.append(f"particles must be an integer >= {MIN_PARTICLES} for garment-scale coverage")
     if _integer(metrics.get("panel_count")) != EXPECTED_PANEL_COUNT:
         errors.append(f"panel_count must be {EXPECTED_PANEL_COUNT}")
     collision_triangles = _integer(metrics.get("collision_triangles"))

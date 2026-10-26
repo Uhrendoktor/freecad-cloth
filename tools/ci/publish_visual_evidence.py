@@ -4,12 +4,18 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import os
 import shutil
-import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
+from build_visual_gifs import build, image_tool
+from visual_evidence import documented_assets, verify, write_provenance
+
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
+SURFACE_PEN_FRAME_COUNT = 4
 ARTIFACT_ROOTS = (
     # The tunic audit owns the canonical profiles also used by the 3D arranged/draped views.
     Path("tunic"),
@@ -25,14 +31,87 @@ ARTIFACT_ROOTS = (
 )
 
 
-def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status.
+async def _execute_command(
+    args: tuple[str, ...],
+    cwd: Path | None = None,
+    timeout: float | None = None,
+    capture_output: bool = False,
+    quiet: bool = False,
+) -> tuple[int, str]:
+    """Execute an argument-vector command without invoking a shell.
+
+    Args:
+        args: Executable name followed by its individual command-line arguments.
+        cwd: Optional working directory for the process.
+        timeout: Maximum number of seconds to wait, or None for no time limit.
+        capture_output: Whether to capture and return standard output.
+        quiet: Whether to discard standard output and standard error.
+
+    Returns:
+        Process exit status and captured standard output text.
+
+    Raises:
+        SystemExit: If the executable is unavailable or the command exceeds its timeout.
+    """
+    executable = shutil.which(args[0])
+    if executable is None:
+        msg = f"required executable not found on PATH: {args[0]}"
+        raise SystemExit(msg)
+    stdout_target = (
+        asyncio.subprocess.PIPE
+        if capture_output
+        else asyncio.subprocess.DEVNULL
+        if quiet
+        else None
+    )
+    stderr_target = (
+        asyncio.subprocess.PIPE
+        if capture_output
+        else asyncio.subprocess.DEVNULL
+        if quiet
+        else None
+    )
+    process = await asyncio.create_subprocess_exec(
+        executable,
+        *args[1:],
+        cwd=cwd,
+        stdout=stdout_target,
+        stderr=stderr_target,
+    )
+    try:
+        stdout_data, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
+    except TimeoutError as exc:
+        process.kill()
+        await process.wait()
+        msg = f"command timed out after {timeout} seconds: {args[0]}"
+        raise SystemExit(msg) from exc
+    returncode = process.returncode
+    if returncode is None:
+        msg = f"command has no exit status: {args[0]}"
+        raise SystemExit(msg)
+    output = stdout_data.decode("utf-8", errors="replace") if stdout_data else ""
+    return returncode, output
+
+
+def run(
+    *args: str,
+    cwd: Path | None = None,
+    timeout: float | None = None,
+) -> None:
+    """Run a command without a shell and fail on a non-zero exit status.
 
     Args:
         args: Executable name followed by the command-line arguments to run.
         cwd: Optional working directory in which the command should execute.
+        timeout: Optional execution limit in seconds.
+
+    Raises:
+        SystemExit: If the executable is missing, the command times out, or it fails.
     """
-    subprocess.run(args, cwd=cwd, check=True)
+    returncode, _ = asyncio.run(_execute_command(tuple(args), cwd, timeout))
+    if returncode != 0:
+        msg = f"command failed with exit status {returncode}: {args[0]}"
+        raise SystemExit(msg)
 
 
 def find_asset(asset: str) -> Path:
@@ -86,7 +165,8 @@ def normalize_visual_artifact(kind: str, artifact_root: Path) -> Path:
     for entry in entries:
         target = normalized_root / entry.name
         if target.exists() or target.is_symlink():
-            raise SystemExit(f"duplicate asset while normalizing {artifact_root}: {target}")
+            msg = f"duplicate asset while normalizing {artifact_root}: {target}"
+            raise SystemExit(msg)
         shutil.move(str(entry), str(target))
     return normalized_root
 
@@ -98,19 +178,10 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         kind: GIF collection identifier accepted by the documentation asset builder.
         artifact_root: Temporary directory containing the downloaded validation outputs.
 
-    Raises:
-        SystemExit: If normalized assets would collide with existing files.
-        CalledProcessError: If the documentation GIF builder exits with an error.
-        TimeoutExpired: If the builder exceeds its 55-second execution limit.
     """
     normalize_visual_artifact(kind, artifact_root)
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
-    subprocess.run(
-        ["python3", str(source), kind],
-        check=True,
-        timeout=55,
-        cwd=artifact_root,
-    )
+    run("python3", str(source), kind, timeout=55, cwd=artifact_root)
 
 
 def build_surface_pen_gif() -> None:
@@ -119,12 +190,13 @@ def build_surface_pen_gif() -> None:
     Raises:
         SystemExit: If the captured workflow does not contain exactly four frames.
     """
-    from build_visual_gifs import build, image_tool
-
     root = Path("surface-pen")
     frames = sorted(root.glob("surface-pen-frame-*.png"))
-    if len(frames) != 4:
-        msg = f"surface-pen: expected 4 captured workflow frames, got {len(frames)}"
+    if len(frames) != SURFACE_PEN_FRAME_COUNT:
+        msg = (
+            f"surface-pen: expected {SURFACE_PEN_FRAME_COUNT} captured workflow frames, "
+            f"got {len(frames)}"
+        )
         raise SystemExit(msg)
     build(image_tool(), frames, root / "surface-pen-workflow.gif", "80")
 
@@ -132,11 +204,11 @@ def build_surface_pen_gif() -> None:
 def main() -> int:
     """Publish and validate the repository visual evidence inventory.
 
-    Raises:
-        SystemExit: If the published visual inventory does not satisfy its contract.
-
     Returns:
         Process status indicating that the visual evidence inventory was published and verified.
+
+    Raises:
+        SystemExit: If the published visual inventory does not satisfy its contract.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -148,8 +220,6 @@ def main() -> int:
     # gh uses GH_TOKEN for clone/authentication; configure Git before the raw push.
     run("gh", "auth", "setup-git")
 
-    from visual_evidence import documented_assets, verify, write_provenance
-
     source_root = Path.cwd()
     expected = documented_assets(source_root)
     build_visual_gif_set("turntables", Path("turntable-doc-assets"))
@@ -157,20 +227,30 @@ def main() -> int:
     build_visual_gif_set("tunic", Path("tunic"))
     build_surface_pen_gif()
 
-    worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "cloth-screenshot-publish"
+    worktree = (
+        Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
+        / "cloth-screenshot-publish"
+    )
     shutil.rmtree(worktree, ignore_errors=True)
     run("gh", "repo", "clone", args.repository, str(worktree), "--", "--filter=blob:none")
 
     branch = "docs/screenshots"
-    remote_exists = (
-        subprocess.run(
-            ("git", "-C", str(worktree), "ls-remote", "--exit-code", "--heads", "origin", branch),
-            check=False,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        ).returncode
-        == 0
+    remote_status, _ = asyncio.run(
+        _execute_command(
+            (
+                "git",
+                "-C",
+                str(worktree),
+                "ls-remote",
+                "--exit-code",
+                "--heads",
+                "origin",
+                branch,
+            ),
+            quiet=True,
+        )
     )
+    remote_exists = remote_status == 0
     if remote_exists:
         run("git", "-C", str(worktree), "fetch", "origin", branch)
         run("git", "-C", str(worktree), "checkout", "-B", branch, f"origin/{branch}")
@@ -193,8 +273,8 @@ def main() -> int:
         published,
         source_root,
         args.source_sha,
-        args.run_id,
-        args.run_number,
+        run_id=args.run_id,
+        run_number=args.run_number,
     )
 
     errors = verify(source_root, published, provenance, args.source_sha)
@@ -211,13 +291,10 @@ def main() -> int:
         "41898282+github-actions[bot]@users.noreply.github.com",
     )
     run("git", "-C", str(worktree), "add", "docs/images/generated")
-    dirty = (
-        subprocess.run(
-            ("git", "-C", str(worktree), "diff", "--cached", "--quiet"),
-            check=False,
-        ).returncode
-        != 0
+    diff_status, _ = asyncio.run(
+        _execute_command(("git", "-C", str(worktree), "diff", "--cached", "--quiet"))
     )
+    dirty = diff_status != 0
     if dirty:
         run(
             "git",
@@ -230,19 +307,31 @@ def main() -> int:
         run("git", "-C", str(worktree), "push", "origin", f"HEAD:{branch}")
 
     run("git", "-C", str(worktree), "fetch", "origin", branch)
-    remote_commit = subprocess.check_output(
-        ("git", "-C", str(worktree), "rev-parse", f"origin/{branch}"),
-        text=True,
-    ).strip()
-    local_commit = subprocess.check_output(
-        ("git", "-C", str(worktree), "rev-parse", "HEAD"),
-        text=True,
-    ).strip()
+    remote_status, remote_output = asyncio.run(
+        _execute_command(
+            ("git", "-C", str(worktree), "rev-parse", f"origin/{branch}"),
+            capture_output=True,
+        )
+    )
+    local_status, local_output = asyncio.run(
+        _execute_command(
+            ("git", "-C", str(worktree), "rev-parse", "HEAD"),
+            capture_output=True,
+        )
+    )
+    if remote_status != 0 or local_status != 0:
+        msg = "unable to verify local and remote screenshot branch commits"
+        raise SystemExit(msg)
+    remote_commit = remote_output.strip()
+    local_commit = local_output.strip()
     if remote_commit != local_commit:
         msg = f"remote screenshot branch mismatch: {remote_commit} != {local_commit}"
         raise SystemExit(msg)
-    print(
-        f"visual-publish=passed source_sha={args.source_sha} asset_count={len(expected)} remote_commit={remote_commit}"
+    sys.stdout.write(
+        "visual-publish=passed "
+        f"source_sha={args.source_sha} "
+        f"asset_count={len(expected)} "
+        f"remote_commit={remote_commit}\n"
     )
     return 0
 

@@ -33,7 +33,6 @@ MAX_SDF_RESOLUTION = 256
 SDF_PADDING_MM = 200.0
 
 
-
 def read(path: Path) -> dict:
     """Read a required JSON manifest from disk.
 
@@ -50,7 +49,6 @@ def read(path: Path) -> dict:
         msg = f"missing manifest: {path}"
         raise SystemExit(msg)
     return json.loads(path.read_text(encoding="utf-8"))
-
 
 
 def _validate_simulation_case(name: str, case: dict, max_penetration: float) -> None:
@@ -80,7 +78,6 @@ def _validate_simulation_case(name: str, case: dict, max_penetration: float) -> 
         if not (ROOT / image).is_file():
             msg = f"{name}: missing image {image}"
             raise SystemExit(msg)
-
 
 
 def _validate_simulation_manifest(
@@ -119,7 +116,6 @@ def _validate_simulation_manifest(
         raise SystemExit(msg)
 
 
-
 def validate_simulation() -> None:
     """Validate the canonical simulation collision manifests."""
     specs = (
@@ -129,7 +125,6 @@ def validate_simulation() -> None:
     for name, path, count, max_penetration, purpose in specs:
         _validate_simulation_manifest(name, path, count, max_penetration, purpose)
         sys.stdout.write(f"{name}-collision-ladder=passed\n")
-
 
 
 def _validate_turntable_frames(root: Path, directory: str) -> None:
@@ -160,7 +155,6 @@ def _validate_turntable_frames(root: Path, directory: str) -> None:
     if len(set(checkpoint_hashes)) != TURNTABLE_CHECKPOINT_COUNT:
         msg = f"{directory}: camera checkpoints are not distinct"
         raise SystemExit(msg)
-
 
 
 def _validate_turntable_progress(root: Path) -> None:
@@ -204,7 +198,6 @@ def _validate_turntable_progress(root: Path) -> None:
         raise SystemExit(msg)
 
 
-
 def validate_turntables() -> None:
     """Validate the canonical avatar and simulation turntable evidence."""
     root = Path("docs/images/generated")
@@ -219,7 +212,6 @@ def validate_turntables() -> None:
     sys.stdout.write("turntables=passed\n")
 
 
-
 def _realtime_failure(data: dict) -> NoReturn:
     """Stop validation with the canonical realtime metric failure message.
 
@@ -231,7 +223,6 @@ def _realtime_failure(data: dict) -> NoReturn:
     """
     msg = f"tunic: realtime performance gate failed: {data}"
     raise SystemExit(msg)
-
 
 
 def _validate_versioned_realtime_metadata(data: dict) -> None:
@@ -262,7 +253,6 @@ def _validate_versioned_realtime_metadata(data: dict) -> None:
         _realtime_failure(data)
 
 
-
 def _finite_realtime_metric(data: dict, name: str) -> float:
     """Read one finite non-boolean numeric metric from a JSON payload.
 
@@ -281,7 +271,6 @@ def _finite_realtime_metric(data: dict, name: str) -> float:
     ):
         _realtime_failure(data)
     return float(value)
-
 
 
 def _validate_realtime_metrics(data: dict) -> None:
@@ -306,7 +295,6 @@ def _validate_realtime_metrics(data: dict) -> None:
     p95_interval = _finite_realtime_metric(data, "p95_frame_interval_ms")
     if mean_interval > budget or p95_interval > budget:
         _realtime_failure(data)
-
 
 
 def _validate_tunic_collision_configuration(text: str) -> None:
@@ -362,7 +350,6 @@ def _validate_tunic_collision_configuration(text: str) -> None:
         raise SystemExit(msg)
 
 
-
 def _validate_tunic_images(generated: Path, *, require_canonical_e2e: bool) -> None:
     """Require the canonical garment screenshots and mannequin motion frames.
 
@@ -398,7 +385,6 @@ def _validate_tunic_images(generated: Path, *, require_canonical_e2e: bool) -> N
         raise SystemExit(msg)
 
 
-
 def _validate_tunic_end_to_end() -> None:
     """Verify all mandatory markers from the canonical garment end-to-end journey.
 
@@ -430,7 +416,6 @@ def _validate_tunic_end_to_end() -> None:
         if marker not in e2e:
             msg = f"tunic: missing E2E marker {marker}"
             raise SystemExit(msg)
-
 
 
 def _validate_tunic(*, require_canonical_e2e: bool) -> None:
@@ -470,17 +455,14 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
     sys.stdout.write("tunic-visual=passed\n")
 
 
-
 def validate_tunic() -> None:
     """Validate the strict canonical tunic evidence."""
     _validate_tunic(require_canonical_e2e=True)
 
 
-
 def validate_tunic_production() -> None:
     """Validate production tunic evidence without canonical garment E2E artifacts."""
     _validate_tunic(require_canonical_e2e=False)
-
 
 
 def validate_blanket() -> None:
@@ -512,7 +494,6 @@ def validate_blanket() -> None:
         msg = f"blanket: expected {BLANKET_MOTION_FRAME_COUNT} motion frames"
         raise SystemExit(msg)
     sys.stdout.write("blanket-visual=passed\n")
-
 
 
 def _validate_diagnostic_record(
@@ -551,7 +532,6 @@ def _validate_diagnostic_record(
             raise SystemExit(msg)
 
 
-
 def _validate_diagnostic_ladder(
     root: Path,
     name: str,
@@ -583,7 +563,6 @@ def _validate_diagnostic_ladder(
         _validate_diagnostic_record(root, name, record, first_rung + offset)
 
 
-
 def validate_diagnostic() -> None:
     """Validate the canonical diagnostic PBD evidence.
 
@@ -602,7 +581,6 @@ def validate_diagnostic() -> None:
         msg = "diagnostic contact manifest header failed"
         raise SystemExit(msg)
     sys.stdout.write("diagnostic-contact=passed\n")
-
 
 
 def main() -> int:
