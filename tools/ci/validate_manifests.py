@@ -11,6 +11,7 @@ import re
 import sys
 from math import ceil, isclose
 from pathlib import Path
+from typing import NoReturn
 
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
@@ -221,7 +222,7 @@ def validate_turntables() -> None:
 
 
 
-def _realtime_failure(data: dict) -> None:
+def _realtime_failure(data: dict) -> NoReturn:
     """Stop validation with the canonical realtime metric failure message.
 
     Args:
@@ -369,7 +370,7 @@ def _validate_tunic_collision_configuration(text: str) -> None:
         raise SystemExit(msg)
 
 
-def _validate_tunic_images(generated: Path, require_canonical_e2e: bool) -> None:
+def _validate_tunic_images(generated: Path, *, require_canonical_e2e: bool) -> None:
     """Require the canonical garment screenshots and mannequin motion frames.
 
     Args:
@@ -468,7 +469,7 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
             msg = "tunic: progress contract failed"
             raise SystemExit(msg)
     _validate_tunic_collision_configuration(text)
-    _validate_tunic_images(generated, require_canonical_e2e)
+    _validate_tunic_images(generated, require_canonical_e2e=require_canonical_e2e)
     if require_canonical_e2e:
         _validate_tunic_end_to_end()
     sys.stdout.write("tunic-visual=passed\n")
