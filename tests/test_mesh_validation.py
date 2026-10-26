@@ -97,9 +97,8 @@ def test_fallback_surface_area_uses_triangle_geometry() -> None:
     vertices = ((0.0, 0.0, 0.0), (3.0, 0.0, 0.0), (0.0, 4.0, 0.0))
     result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
     require(
-        condition=result.surface_area == pytest.approx(
-            RIGHT_TRIANGLE_SURFACE_AREA, rel=0.0, abs=1e-12
-        ),
+        condition=result.surface_area
+        == pytest.approx(RIGHT_TRIANGLE_SURFACE_AREA, rel=0.0, abs=1e-12),
         message="right-triangle area should equal half the base-height product",
     )
 
@@ -118,9 +117,7 @@ def test_fallback_surface_area_obeys_base_height_identity(width: float, height: 
     vertices = ((0.0, 0.0, 0.0), (width, 0.0, 0.0), (0.0, height, 0.0))
     result = validate_mesh(vertices, ((0, 1, 2),), prefer_trimesh=False)
     require(
-        condition=result.surface_area == pytest.approx(
-            width * height / 2.0, rel=1e-12, abs=1e-12
-        ),
+        condition=result.surface_area == pytest.approx(width * height / 2.0, rel=1e-12, abs=1e-12),
         message="triangle area should follow the base-height identity",
     )
 

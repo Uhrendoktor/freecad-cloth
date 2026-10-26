@@ -5,6 +5,7 @@ import ast
 import re
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -23,9 +24,27 @@ EXPECTED_SURFACE_PEN_FRAMES = 4
 EXPECTED_AVATAR_SHAPE_GIFS = 2
 
 
+def _require_mapping(value: object, *, label: str) -> dict[str, object]:
+    """Return a fixture mapping after checking its runtime shape.
+
+    Args:
+        value: Candidate fixture value from a decoded or constructed metrics object.
+        label: Human-readable name used when the fixture has an invalid shape.
+
+    Returns:
+        The value narrowed to a string-keyed mapping.
+
+    Raises:
+        TypeError: If the supplied value is not a dictionary.
+    """
+    if not isinstance(value, dict):
+        msg = f"{label} must be a dictionary"
+        raise TypeError(msg)
+    return cast("dict[str, object]", value)
+
+
 def test_collection_plugin_accepts_all_expected_modules() -> None:
     """Verify valid collection metadata is accepted."""
-
     pytest_collection_contract.validate_collection_contract(
         [
             SimpleNamespace(path=ROOT / "tests" / "test_core.py"),
@@ -37,7 +56,6 @@ def test_collection_plugin_accepts_all_expected_modules() -> None:
 
 def test_collection_plugin_fails_when_a_module_collects_no_items() -> None:
     """Reject a required test module that collects no tests."""
-
     with pytest.raises(pytest.UsageError, match=re.escape("tests/test_mesh.py")):
         pytest_collection_contract.validate_collection_contract(
             [SimpleNamespace(path=ROOT / "tests" / "test_core.py")],
@@ -55,53 +73,50 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     end = start + 3 + match.start() if match else len(workflow)
     block = workflow[start:end]
     require(
-        condition=(
-            "group: [core, pattern, sewing, gui, pytest]" in block
-        ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        condition=("group: [core, pattern, sewing, gui, pytest]" in block),
+        message="canonical CI contract",
     )
     require(
         condition=(
             "python_validation.py" in block
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
     require(
         condition=(
             '"tools.ci.pytest_collection_contract"' in runner
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "CLOTH_EXPECTED_TEST_MODULES" in runner
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "check_test_collection.py" not in runner
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "matrix.group != 'gui'" in block
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "test-args: gui" in block
         ),
-        message="test_canonical_python_job_executes_pytest_contract_modules",
+        message="canonical CI contract",
     )
 
 
 def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
-
     require(
         condition=(
             set(validate_acceptance.CASES) == {
@@ -112,7 +127,7 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
             "surface-pen",
             }
         ),
-        message="test_gui_acceptance_validator_uses_visual_artifacts_only",
+        message="canonical CI contract",
     )
     require(
         condition=(
@@ -121,26 +136,26 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
             )
             == EXPECTED_SIMULATION_SCREENSHOTS
         ),
-        message="test_gui_acceptance_validator_uses_visual_artifacts_only",
+        message="canonical CI contract",
     )
     require(
         condition=(
             len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == EXPECTED_SURFACE_PEN_FRAMES
         ),
-        message="test_gui_acceptance_validator_uses_visual_artifacts_only",
+        message="canonical CI contract",
     )
     require(
         condition=(
             len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"])
             == EXPECTED_AVATAR_SHAPE_GIFS
         ),
-        message="test_gui_acceptance_validator_uses_visual_artifacts_only",
+        message="canonical CI contract",
     )
     require(
         condition=(
             all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
         ),
-        message="test_gui_acceptance_validator_uses_visual_artifacts_only",
+        message="canonical CI contract",
     )
 
 
@@ -234,42 +249,46 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
         condition=(
             plugin.is_file()
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
     require(
         condition=(
             not old_checker.exists()
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
     require(
         condition=(
             '"-p"' in runner
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
     require(
         condition=(
             '"tools.ci.pytest_collection_contract"' in runner
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "CLOTH_EXPECTED_TEST_MODULES" in runner
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "collection_command" not in runner
         ),
-        message="test_group_collection_is_checked_during_the_execution_run",
+        message="canonical CI contract",
     )
 
 
 def _valid_realtime_benchmark_metrics() -> dict[str, object]:
+    """Build a sample that satisfies the sustained 30 FPS metrics contract.
 
+    Returns:
+        Complete metrics mapping for a valid tunic realtime benchmark artifact.
+    """
     return {
         "schema_version": 1,
         "backend": "position-based-dynamics",
@@ -323,24 +342,20 @@ def _valid_realtime_benchmark_metrics() -> dict[str, object]:
 
 def test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
-
     require(
         condition=(
             validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
         ),
-        message="test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample",
+        message="canonical CI contract",
     )
 
 
 def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     """Reject a slow artifact with invalid solver state or profile values."""
-
     metrics = _valid_realtime_benchmark_metrics()
     metrics["mean_frame_interval_ms"] = 42.0
     metrics["backend_finite"] = False
-    profile = metrics["profile"]
-    if not isinstance(profile, dict):
-        raise TypeError("profile must be a dictionary")
+    profile = _require_mapping(metrics["profile"], label="profile")
     profile["pbd_substeps"] = 8
 
     errors = validate_realtime_benchmark.validate_metrics(metrics)
@@ -349,29 +364,26 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
         condition=(
             any("mean_frame_interval_ms exceeds" in error for error in errors)
         ),
-        message="test_realtime_metric_validator_rejects_tampered_or_slow_samples",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "backend_finite must be true" in errors
         ),
-        message="test_realtime_metric_validator_rejects_tampered_or_slow_samples",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "profile.pbd_substeps must be 1" in errors
         ),
-        message="test_realtime_metric_validator_rejects_tampered_or_slow_samples",
+        message="canonical CI contract",
     )
 
 
 def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
     """Reject a realtime artifact missing a required stage timing."""
-
     metrics = _valid_realtime_benchmark_metrics()
-    stages = metrics["stage_timings"]
-    if not isinstance(stages, dict):
-        raise TypeError("stage timings must be a dictionary")
+    stages = _require_mapping(metrics["stage_timings"], label="stage timings")
     del stages["viewport_redraw"]
 
     errors = validate_realtime_benchmark.validate_metrics(metrics)
@@ -380,13 +392,12 @@ def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
         condition=(
             "stage_timings.viewport_redraw must be a JSON object" in errors
         ),
-        message="test_realtime_metric_validator_rejects_missing_stage_timings",
+        message="canonical CI contract",
     )
 
 
 def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> None:
     """Reject a realtime artifact with too few measured intervals."""
-
     metrics = _valid_realtime_benchmark_metrics()
     metrics["measured_intervals"] = 9
 
@@ -396,7 +407,7 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
         condition=(
             "measured_intervals must equal frames_requested" in errors
         ),
-        message="test_realtime_metric_validator_fails_closed_when_samples_are_missing",
+        message="canonical CI contract",
     )
 
 
@@ -415,61 +426,61 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
         condition=(
             "_Preview" in identifiers
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "_prepare" in identifiers
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "QEventLoop" in attributes
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "disconnect" in attributes
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "connect" in attributes
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "WARMUP_FRAMES" in identifiers
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "FRAMES" in identifiers
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "stage_timings" in identifiers
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "solver_step" in string_constants
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "viewport_redraw" in string_constants
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
     require(
         condition=(
@@ -477,19 +488,17 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
             ROOT / ".github" / "workflows" / "canonical-execution.yml"
             ).read_text(encoding="utf-8")
         ),
-        message="test_realtime_benchmark_uses_the_production_timer_and_event_loop",
+        message="canonical CI contract",
     )
 
 
 def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
     """Accept a tunic manifest using the current realtime metrics schema."""
-
     vars(validate_manifests)["_validate_realtime_metrics"](_valid_realtime_benchmark_metrics())
 
 
 def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> None:
     """Reject current-schema tunic metrics exceeding the unchanged 30 FPS budget."""
-
     metrics = _valid_realtime_benchmark_metrics()
     metrics["p95_frame_interval_ms"] = validate_realtime_benchmark.FRAME_BUDGET_MS + 0.1
 
@@ -499,7 +508,6 @@ def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> Non
 
 def test_tunic_manifest_gate_preserves_the_legacy_metrics_contract() -> None:
     """Retain the legacy metrics gate for older artifacts."""
-
     legacy_metrics = {
         "finite": True,
         "mean_frame_ms": 16.0,
@@ -546,7 +554,6 @@ def _valid_workbench_benchmark_metrics(workbench: str = "Pattern") -> dict[str, 
 
 def test_workbench_benchmark_validator_accepts_matching_schema_two_artifact() -> None:
     """Fresh workbench output satisfies its own strict, distinct schema contract."""
-
     require(
         condition=(
             validate_workbench_benchmark.validate_metrics(
@@ -554,21 +561,16 @@ def test_workbench_benchmark_validator_accepts_matching_schema_two_artifact() ->
             )
             == []
         ),
-        message="test_workbench_benchmark_validator_accepts_matching_schema_two_artifact",
+        message="canonical CI contract",
     )
 
 
 def test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count() -> None:
     """Schema drift and incomplete repeated initialization remain blocking."""
-
     metrics = _valid_workbench_benchmark_metrics()
     metrics["schema"] = 1
-    workbenches = metrics["workbenches"]
-    if not isinstance(workbenches, dict):
-        raise TypeError("workbenches must be a dictionary")
-    pattern = workbenches["Pattern"]
-    if not isinstance(pattern, dict):
-        raise TypeError("pattern metrics must be a dictionary")
+    workbenches = _require_mapping(metrics["workbenches"], label="workbenches")
+    pattern = _require_mapping(workbenches["Pattern"], label="pattern metrics")
     pattern["initialize_samples"] = 6
 
     errors = validate_workbench_benchmark.validate_metrics(metrics, "Pattern")
@@ -577,19 +579,18 @@ def test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count() -
         condition=(
             "schema must be 2" in errors
         ),
-        message="test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "initialize_samples must equal repeats" in errors
         ),
-        message="test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count",
+        message="canonical CI contract",
     )
 
 
 def test_workbench_benchmark_validator_rejects_wrong_matrix_entry_and_nonfinite_timing() -> None:
     """A stale artifact for another matrix job or malformed timing cannot pass."""
-
     metrics = _valid_workbench_benchmark_metrics()
     require(
         condition=(
@@ -599,20 +600,14 @@ def test_workbench_benchmark_validator_rejects_wrong_matrix_entry_and_nonfinite_
         message="workbench matrix contract",
     )
 
-    workbenches = metrics["workbenches"]
-    if not isinstance(workbenches, dict):
-        raise TypeError("workbenches must be a dictionary")
-    pattern = workbenches["Pattern"]
-    if not isinstance(pattern, dict):
-        raise TypeError("pattern metrics must be a dictionary")
+    workbenches = _require_mapping(metrics["workbenches"], label="workbenches")
+    pattern = _require_mapping(workbenches["Pattern"], label="pattern metrics")
     pattern["initialize_ms"] = float("nan")
 
     require(
         condition=(
             "initialize_ms must be a finite non-negative number"
-            in validate_workbench_benchmark.validate_metrics(
-            metrics, "Pattern"
-            )
+            in validate_workbench_benchmark.validate_metrics(metrics, "Pattern")
         ),
         message="workbench matrix contract",
     )
@@ -629,21 +624,20 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
         condition=(
             "tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json" in benchmark_job
         ),
-        message="test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator",
+        message="canonical CI contract",
     )
     require(
         condition=(
             "validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job
         ),
-        message="test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator",
+        message="canonical CI contract",
     )
     require(
         condition=(
             (
-            "python3 tools/ci/validate_realtime_benchmark.py "
-        "artifacts/freecad-realtime/metrics.json"
-            in workflow
+                "python3 tools/ci/validate_realtime_benchmark.py "
+                "artifacts/freecad-realtime/metrics.json" in workflow
             )
         ),
-        message="test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator",
+        message="canonical CI contract",
     )

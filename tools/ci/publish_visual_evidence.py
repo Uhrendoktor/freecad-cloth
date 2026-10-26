@@ -146,9 +146,6 @@ def run(*args: str, options: CommandOptions | None = None) -> None:
         raise SystemExit(msg)
 
 
-
-
-
 def find_asset(asset: str) -> Path:
     """Locate a generated visual asset using deterministic artifact-root precedence.
 
@@ -213,8 +210,6 @@ def build_visual_gif_set(kind: str, artifact_root: Path) -> None:
         kind: GIF collection identifier accepted by the documentation asset builder.
         artifact_root: Temporary directory containing the downloaded validation outputs.
 
-    Raises:
-        SystemExit: If normalization collides with an existing asset or the builder fails.
     """
     normalize_visual_artifact(kind, artifact_root)
     source = Path(__file__).resolve().with_name("build_visual_gifs.py")
@@ -359,7 +354,7 @@ def _commit_published_assets(worktree: Path, source_sha: str) -> None:
         ("git", "-C", str(worktree), "diff", "--cached", "--quiet"),
         CommandOptions(),
     )
-    if diff_status not in (COMMAND_SUCCESS, COMMAND_DIFFERENCE_FOUND):
+    if diff_status not in {COMMAND_SUCCESS, COMMAND_DIFFERENCE_FOUND}:
         msg = f"unable to inspect staged screenshot changes (git status {diff_status})"
         raise SystemExit(msg)
     if diff_status == COMMAND_DIFFERENCE_FOUND:
@@ -412,8 +407,6 @@ def main() -> int:
     Returns:
         Process status indicating that the visual evidence inventory was published and verified.
 
-    Raises:
-        SystemExit: If the published visual inventory does not satisfy its contract.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -425,10 +418,7 @@ def main() -> int:
     source_root = Path.cwd()
     expected = documented_assets(source_root)
     _build_documentation_gifs()
-    worktree = (
-        Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
-        / "cloth-screenshot-publish"
-    )
+    worktree = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir())) / "cloth-screenshot-publish"
     _clone_screenshot_repository(args.repository, worktree)
     _checkout_screenshot_branch(worktree)
     metadata = visual_evidence.ProvenanceMetadata(

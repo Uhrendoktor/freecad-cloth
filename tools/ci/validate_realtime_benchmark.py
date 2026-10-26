@@ -232,9 +232,7 @@ def _validate_profile(metrics: dict[str, object], errors: list[str]) -> None:
         errors.append("profile.quality_preset must be Fast")
     spacing = _number(profile.get("particle_distance_mm"))
     if spacing is None or spacing < MIN_PARTICLE_DISTANCE_MM:
-        errors.append(
-            f"profile.particle_distance_mm must be >= {MIN_PARTICLE_DISTANCE_MM:g}"
-        )
+        errors.append(f"profile.particle_distance_mm must be >= {MIN_PARTICLE_DISTANCE_MM:g}")
     errors.extend(
         f"profile.{key} must be 1"
         for key in ("solver_iterations", "solver_substeps", "pbd_substeps")
