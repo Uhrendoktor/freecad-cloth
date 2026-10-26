@@ -81,26 +81,48 @@ def build_sewing_constraints(
         msg = "seam piece names must not be empty"
         raise ValueError(msg)
 
-    pattern_a, mesh_a = side_a.pattern, side_a.mesh
-    pattern_b, mesh_b = side_b.pattern, side_b.mesh
-    seg_a = _resolve_seam_segment(pattern_a, seam.edge_a, "edge_a")
-    seg_b = _resolve_seam_segment(pattern_b, seam.edge_b, "edge_b")
-    boundary_a = _segment_boundary_vertices(mesh_a, seg_a.id)
-    boundary_b = _segment_boundary_vertices(mesh_b, seg_b.id)
-    stitches: list[Stitch] = []
-    pairs: list[tuple[int, int]] = []
-    for index in range(samples):
-        t = index / (samples - 1)
-        vertex_a = _nearest_boundary_vertex(mesh_a, boundary_a, seg_a.point(t))
-        vertex_b = _nearest_boundary_vertex(mesh_b, boundary_b, seg_b.point(1.0 - t))
-        pair = (vertex_a, vertex_b)
-        if not pairs or pairs[-1] != pair:
-            pairs.append(pair)
-            stitches.append(Stitch(vertex_a, vertex_b))
+    seg_a = _resolve_seam_segment(side_a.pattern, seam.edge_a, "edge_a")
+    seg_b = _resolve_seam_segment(side_b.pattern, seam.edge_b, "edge_b")
+    stitches, pairs = _sample_stitches(side_a, seg_a, side_b, seg_b, samples)
     key = f"{seam.piece_a}:{seam.edge_a}-{seam.piece_b}:{seam.edge_b}"
     result = SewingConstraintSet(tuple(stitches), {key: tuple(pairs)})
     result.validate()
     return result
+
+
+
+def _sample_stitches(
+    side_a: SewingPatternMesh,
+    segment_a: Segment,
+    side_b: SewingPatternMesh,
+    segment_b: Segment,
+    samples: int,
+) -> tuple[list[Stitch], list[tuple[int, int]]]:
+    """Sample corresponding points and map them to eligible mesh boundary vertices.
+
+    Args:
+        side_a: First authored pattern and triangulated mesh.
+        segment_a: Authored segment referenced by the first seam edge.
+        side_b: Second authored pattern and triangulated mesh.
+        segment_b: Authored segment referenced by the second seam edge.
+        samples: Number of corresponding points sampled along the seam.
+
+    Returns:
+        Stitch records and their ordered vertex-pair correspondence.
+    """
+    boundary_a = _segment_boundary_vertices(side_a.mesh, segment_a.id)
+    boundary_b = _segment_boundary_vertices(side_b.mesh, segment_b.id)
+    stitches: list[Stitch] = []
+    pairs: list[tuple[int, int]] = []
+    for index in range(samples):
+        t = index / (samples - 1)
+        vertex_a = _nearest_boundary_vertex(side_a.mesh, boundary_a, segment_a.point(t))
+        vertex_b = _nearest_boundary_vertex(side_b.mesh, boundary_b, segment_b.point(1.0 - t))
+        pair = (vertex_a, vertex_b)
+        if not pairs or pairs[-1] != pair:
+            pairs.append(pair)
+            stitches.append(Stitch(vertex_a, vertex_b))
+    return stitches, pairs
 
 
 def _resolve_seam_segment(

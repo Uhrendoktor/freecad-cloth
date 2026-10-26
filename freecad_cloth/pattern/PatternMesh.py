@@ -13,7 +13,8 @@ from math import ceil, hypot, isclose, isfinite
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from shapely.geometry import LineString, Point as ShapelyPoint
+from shapely.geometry import LineString
+from shapely.geometry import Point as ShapelyPoint
 
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
@@ -143,9 +144,6 @@ def triangulate(
     Returns:
         Validated triangular mesh with semantic boundary provenance.
 
-    Raises:
-        ValueError: If mesh options or the sampled polygon boundary are invalid.
-        RuntimeError: If the required Triangle package is unavailable.
     """
     options = TriangulationOptions.model_validate(
         {"curve_samples": curve_samples, "max_area": max_area}
@@ -505,9 +503,7 @@ def _point_to_segment_distance(point: Point, start: Point, end: Point) -> float:
         return 0.0
 
     dx, dy, px, py = (value / scale for value in with_offset)
-    normalized_distance = float(
-        LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py)))
-    )
+    normalized_distance = float(LineString(((0.0, 0.0), (dx, dy))).distance(ShapelyPoint((px, py))))
     distance = scale * normalized_distance
     if isfinite(distance):
         return distance
