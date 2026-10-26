@@ -2,9 +2,8 @@
 """Regression tests for triangular pattern meshing and semantic boundary topology."""
 
 import importlib
-from collections.abc import Callable, Sequence
 from math import dist
-from typing import ClassVar, cast
+from typing import ClassVar
 
 import pytest
 from hypothesis import given
@@ -24,18 +23,6 @@ from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewi
 from tests.support.assertions import require
 
 
-def _load_internal_callable(module_name: str, attribute_name: str) -> object:
-    """Load a test-only internal callable by its module and attribute name.
-
-    Args:
-        module_name: Dotted import path of the module under test.
-        attribute_name: Internal callable attribute to retrieve.
-
-    Returns:
-        The requested module attribute.
-    """
-    module = importlib.import_module(module_name)
-    return getattr(module, attribute_name)
 
 
 BASE_BOUNDARY_VERTEX_COUNT = 4
@@ -86,19 +73,48 @@ PROPERTY_COORDINATES = st.tuples(
     PROPERTY_COORDINATE_STRATEGY,
 )
 
-EDGE_SEGMENT_IDS_FOR_TEST = cast(
-    "Callable[[ParametricPattern, Sequence[Point]], list[str]]",
-    _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_edge_segment_ids"),
-)
-POINT_TO_SEGMENT_DISTANCE_FOR_TEST = cast(
-    "Callable[[Point, Point, Point], float]",
-    _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_point_to_segment_distance"),
-)
-INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
-    "Callable[[tuple[tuple[int, int, int], ...]], "
-    "tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]]",
-    _load_internal_callable("freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"),
-)
+def _edge_segment_ids_for_test(pattern: ParametricPattern, points: list[Point]) -> list[str]:
+    """Map ordered boundary points to their authored segment identifiers.
+
+    Args:
+        pattern: Authored parametric pattern whose edges produce the boundary.
+        points: Ordered outline points whose semantic segment IDs are required.
+
+    Returns:
+        The authored segment ID associated with every point.
+    """
+    module = importlib.import_module("freecad_cloth.pattern.PatternMesh")
+    return getattr(module, "_edge_segment_ids")(pattern, points)
+
+
+def _point_to_segment_distance_for_test(point: Point, start: Point, end: Point) -> float:
+    """Calculate the distance from a point to a line segment using the mesher helper.
+
+    Args:
+        point: Two-dimensional query point in pattern coordinates.
+        start: First endpoint of the line segment in pattern coordinates.
+        end: Second endpoint of the line segment in pattern coordinates.
+
+    Returns:
+        Non-negative Euclidean distance from the point to the line segment.
+    """
+    module = importlib.import_module("freecad_cloth.pattern.PatternMesh")
+    return getattr(module, "_point_to_segment_distance")(point, start, end)
+
+
+def _indexed_mesh_topology_for_test(
+    triangles: tuple[tuple[int, int, int], ...],
+) -> tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]:
+    """Return the compact vertex and face topology for indexed triangles.
+
+    Args:
+        triangles: Triangle vertex-index triples to normalize into compact topology.
+
+    Returns:
+        The vertex-index mapping and normalized triangle faces.
+    """
+    module = importlib.import_module("freecad_cloth.simulation.SimulationObjects")
+    return getattr(module, "_indexed_mesh_topology")(triangles)
 
 
 def test_rectangle_mesh_area_and_topology() -> None:
@@ -262,7 +278,7 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments(
         end: Second endpoint of the candidate segment.
         expected_distance: Expected Euclidean point-to-segment distance.
     """
-    actual = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, start, end)
+    actual = _point_to_segment_distance_for_test(point, start, end)
 
     require(
         condition=actual == pytest.approx(expected_distance, rel=1e-12, abs=0.0),
@@ -272,7 +288,7 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments(
 
 def test_point_to_segment_distance_handles_subnormal_segment_length() -> None:
     """Keep the finite distance contract for extremely short representable segments."""
-    distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(
+    distance = _point_to_segment_distance_for_test(
         (1.0, 0.0),
         (0.0, 0.0),
         (0.0, SUBNORMAL_ENDPOINT_MM),
@@ -294,8 +310,8 @@ def test_point_to_segment_distance_obeys_metric_properties(
     """
     px, py, sx, sy, ex, ey = values
     point, start, end = (px, py), (sx, sy), (ex, ey)
-    distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, start, end)
-    reversed_distance = POINT_TO_SEGMENT_DISTANCE_FOR_TEST(point, end, start)
+    distance = _point_to_segment_distance_for_test(point, start, end)
+    reversed_distance = _point_to_segment_distance_for_test(point, end, start)
     endpoint_bound = min(dist(point, start), dist(point, end))
 
     require(
@@ -374,7 +390,7 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> N
         ]
     )
     CountedCurve.calls = 0
-    result = EDGE_SEGMENT_IDS_FOR_TEST(pattern, outline)
+    result = _edge_segment_ids_for_test(pattern, outline)
 
     require(
         condition=len(result) == len(outline),
@@ -392,7 +408,7 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
     expected_vertices = (0, 1, 2, 3, 5, 6, 7)
     expected_faces = ((0, 1, 2), (0, 2, 3), (4, 5, 6), (3, 2, 0))
 
-    result = INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles)
+    result = _indexed_mesh_topology_for_test(triangles)
     vertex_indices, faces = result
 
     require(
@@ -404,6 +420,6 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
         message="Topology compaction must consistently remap every triangle index.",
     )
     require(
-        condition=INDEXED_MESH_TOPOLOGY_FOR_TEST(triangles) is result,
+        condition=_indexed_mesh_topology_for_test(triangles) is result,
         message="Repeated topology input must reuse its cached compact mapping.",
     )
