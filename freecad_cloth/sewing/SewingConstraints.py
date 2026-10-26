@@ -4,6 +4,7 @@
 from collections.abc import Sequence
 from math import hypot
 
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point, Segment
@@ -13,7 +14,7 @@ from freecad_cloth.pattern.PatternModel import EdgeRef, Seam
 MINIMUM_SEAM_SAMPLES = 2
 
 
-@pydantic_dataclass(frozen=True)
+@pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class SewingPatternMesh:
     """Authored pattern and its corresponding triangulated mesh."""
 

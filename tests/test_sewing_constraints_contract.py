@@ -35,10 +35,15 @@ def _vertices_on_segment(mesh: TriangleMesh, segment_id: str) -> frozenset[int]:
         ValueError: If the segment ID is absent from the mesh's boundary provenance.
     """
     boundary = mesh.boundary_vertex_indices
-    for position, edge_id in enumerate(mesh.boundary_edge_segment_ids):
-        if edge_id == segment_id:
-            break
-    else:
+    position = next(
+        (
+            index
+            for index, edge_id in enumerate(mesh.boundary_edge_segment_ids)
+            if edge_id == segment_id
+        ),
+        None,
+    )
+    if position is None:
         msg = f"boundary provenance has no edge for segment ID: {segment_id}"
         raise ValueError(msg)
     return frozenset((boundary[position], boundary[(position + 1) % len(boundary)]))
