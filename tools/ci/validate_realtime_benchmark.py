@@ -105,9 +105,7 @@ def _validate_frame_counts(
     if frames is None or frames < MIN_FRAMES:
         errors.append(f"frames_requested must be an integer >= {MIN_FRAMES}")
     if warmup is None or warmup < MIN_WARMUP_FRAMES:
-        errors.append(
-            f"warmup_frames_requested must be an integer >= {MIN_WARMUP_FRAMES}"
-        )
+        errors.append(f"warmup_frames_requested must be an integer >= {MIN_WARMUP_FRAMES}")
     if frames is not None and intervals != frames:
         errors.append("measured_intervals must equal frames_requested")
     if frames is not None and warmup is not None:
@@ -237,9 +235,11 @@ def _validate_profile(metrics: dict[str, object], errors: list[str]) -> None:
         errors.append(
             f"profile.particle_distance_mm must be >= {MIN_PARTICLE_DISTANCE_MM:g}"
         )
-    for key in ("solver_iterations", "solver_substeps", "pbd_substeps"):
-        if _integer(profile.get(key)) != 1:
-            errors.append(f"profile.{key} must be 1")
+    errors.extend(
+        f"profile.{key} must be 1"
+        for key in ("solver_iterations", "solver_substeps", "pbd_substeps")
+        if _integer(profile.get(key)) != 1
+    )
 
 
 def _validate_runtime(metrics: dict[str, object], errors: list[str]) -> None:
@@ -291,11 +291,11 @@ def validate_metrics(payload: object) -> list[str]:
 def main() -> int:
     """Read and independently validate a saved realtime metric artifact.
 
-    Returns:
-        Process status indicating whether the realtime metrics are acceptable.
-
     Raises:
         SystemExit: Raised when the metrics file cannot be read or decoded.
+
+    Returns:
+        Process status indicating whether the realtime metrics are acceptable.
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("metrics", type=Path, help="path to metrics.json produced by FreeCAD")

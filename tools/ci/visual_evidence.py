@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 IMAGE_SUFFIXES = (".png", ".gif", ".jpg", ".jpeg", ".webp")
@@ -86,14 +87,26 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+@dataclass(frozen=True)
+class ProvenanceMetadata:
+    """Identify the commit and workflow run that produced the visual assets.
+
+    Attributes:
+        source_sha: Commit SHA from which the source assets were produced.
+        run_id: GitHub Actions identifier for the producing run.
+        run_number: Human-readable sequence number for the producing run.
+    """
+
+    source_sha: str
+    run_id: str
+    run_number: str
+
+
 def write_provenance(
     provenance: Path,
     published_root: Path,
     source_root: Path,
-    source_sha: str,
-    *,
-    run_id: str,
-    run_number: str,
+    metadata: ProvenanceMetadata,
 ) -> None:
     """Write the visual evidence provenance manifest.
 
@@ -101,9 +114,7 @@ def write_provenance(
         provenance: Destination path for the provenance JSON document.
         published_root: Directory containing the publicly published images.
         source_root: Repository root containing documented image references.
-        source_sha: Commit SHA from which the source assets were produced.
-        run_id: GitHub Actions identifier for the producing run.
-        run_number: Human-readable sequence number for the producing run.
+        metadata: Source commit and GitHub Actions run identifying the publication.
 
     Raises:
         ValueError: Raised when the published images differ from the documented inventory.
@@ -120,9 +131,9 @@ def write_provenance(
     lines = [
         "# README/wiki visual evidence provenance",
         "",
-        f"source_main_sha={source_sha}",
-        f"workflow_run={run_id}",
-        f"workflow_run_number={run_number}",
+        f"source_main_sha={metadata.source_sha}",
+        f"workflow_run={metadata.run_id}",
+        f"workflow_run_number={metadata.run_number}",
         "",
     ]
     for asset in assets:
