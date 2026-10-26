@@ -2,6 +2,7 @@
 """Regression tests for triangular pattern meshing and semantic boundary topology."""
 
 import importlib
+from collections.abc import Callable, Sequence
 from math import dist
 from typing import ClassVar, cast
 
@@ -94,7 +95,8 @@ POINT_TO_SEGMENT_DISTANCE_FOR_TEST = cast(
     _load_internal_callable("freecad_cloth.pattern.PatternMesh", "_point_to_segment_distance"),
 )
 INDEXED_MESH_TOPOLOGY_FOR_TEST = cast(
-    "Callable[[tuple[tuple[int, int, int], ...]], tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]]",
+    "Callable[[tuple[tuple[int, int, int], ...]], "
+    "tuple[tuple[int, ...], tuple[tuple[int, ...], ...]]]",
     _load_internal_callable("freecad_cloth.simulation.SimulationObjects", "_indexed_mesh_topology"),
 )
 

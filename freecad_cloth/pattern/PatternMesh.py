@@ -19,7 +19,6 @@ from shapely.geometry import Point as ShapelyPoint
 from freecad_cloth.common.ValidationModels import TriangulationOptions
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Point, signed_area
 
-
 TRIANGLE_VERTEX_COUNT = 3
 TRIANGLE_ARRAY_DIMENSIONS = 2
 MINIMUM_OUTLINE_AREA_MM2 = 1e-9
