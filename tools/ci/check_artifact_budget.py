@@ -44,7 +44,7 @@ def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     return total
 
 
-def _request_artifact_payload(
+def request_artifact_payload(
     connection: http.client.HTTPSConnection,
     request_path: str,
     headers: Mapping[str, str],
@@ -71,14 +71,26 @@ def _request_artifact_payload(
         except (json.JSONDecodeError, UnicodeDecodeError):
             error_payload = None
         detail = error_payload.get("message") if isinstance(error_payload, dict) else None
+        header_details = []
+        for header, label in (
+            ("X-GitHub-Request-Id", "request_id"),
+            ("X-Accepted-GitHub-Permissions", "accepted_permissions"),
+            ("X-RateLimit-Resource", "rate_limit_resource"),
+            ("X-RateLimit-Remaining", "rate_limit_remaining"),
+        ):
+            value = response.getheader(header)
+            if isinstance(value, str) and value.strip():
+                bounded_value = value.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
+                header_details.append(f"{label}={bounded_value}")
+        header_suffix = (
+            f" headers=[{'; '.join(header_details)}]" if header_details else ""
+        )
+        status = f"HTTP {response.status} {response.reason}{header_suffix}"
         if isinstance(detail, str) and detail.strip():
             bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
-            msg = (
-                "GitHub artifact API request failed: "
-                f"HTTP {response.status} {response.reason}: {bounded_detail}"
-            )
+            msg = f"GitHub artifact API request failed: {status}: {bounded_detail}"
         else:
-            msg = f"GitHub artifact API request failed: HTTP {response.status} {response.reason}"
+            msg = f"GitHub artifact API request failed: {status}"
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 
@@ -110,7 +122,7 @@ def fetch_artifact_page(
     }
     connection = http.client.HTTPSConnection("api.github.com", timeout=20)
     try:
-        payload = _request_artifact_payload(connection, request_path, headers)
+        payload = request_artifact_payload(connection, request_path, headers)
     except (http.client.HTTPException, OSError) as exc:
         msg = f"GitHub artifact API request failed: {exc}"
         raise RuntimeError(msg) from exc

@@ -11,7 +11,7 @@ import hashlib
 import os
 import sys
 from copy import deepcopy
-from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -25,12 +25,13 @@ from freecad_cloth.common.ValidationModels import (
     PBDStepInput,
     validate_finite_number,
 )
-from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.cloth_backend import ClothSimulationBackend
-from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
+
+    from freecad_cloth.shared.Collision import CollisionSurface
+    from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
@@ -47,12 +48,11 @@ def _emit_diagnostic(message: str) -> None:
     Args:
         message: Structured status line emitted by the PBD adapter.
     """
-    sys.stdout.write(f"{message}\\n")
+    sys.stdout.write(f"{message}\n")
     sys.stdout.flush()
 
 
-
-FloatArray: TypeAlias = npt.NDArray[np.float64]
+type FloatArray = npt.NDArray[np.float64]
 
 
 class _NativePBDParticles(Protocol):
