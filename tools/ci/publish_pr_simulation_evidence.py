@@ -6,31 +6,57 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
+if __package__:
+    from tools.ci.command_runner import CommandContext, CommandResult, run_command
+else:
+    from command_runner import CommandContext, CommandResult, run_command
 
-def run(*args: str, cwd: Path | None = None) -> None:
-    """Run a subprocess command and fail on a non-zero exit status.
+
+def run(
+    *args: str,
+    cwd: Path | None = None,
+    check: bool = True,
+) -> CommandResult:
+    """Run one executable using a resolved path and argument-vector invocation.
 
     Args:
-        args: Executable name and command-line arguments passed to subprocess.run.
-        cwd: Optional working directory for the subprocess.
+        args: Executable name and command-line arguments passed to the process.
+        cwd: Optional working directory for the process.
+        check: Whether a non-zero exit status should raise CommandExecutionError.
+
+    Returns:
+        Process exit status and any captured standard output or error.
 
     Raises:
-        subprocess.CalledProcessError: If the subprocess exits with a non-zero status.
+        ValueError: If no executable command is provided.
+        FileNotFoundError: If the requested executable is unavailable on PATH.
     """
-    subprocess.run(args, cwd=cwd, check=True)
+    if not args:
+        msg = "an executable command is required"
+        raise ValueError(msg)
+    executable = shutil.which(args[0])
+    if executable is None:
+        msg = f"Required executable is not on PATH: {args[0]}"
+        raise FileNotFoundError(msg)
+    return run_command(
+        (executable, *args[1:]),
+        check=check,
+        context=CommandContext(cwd=str(cwd) if cwd is not None else None),
+    )
 
 
 def main() -> int:
     """Publish the selected PR simulation evidence bundle.
 
-    Raises:
-        SystemExit: If the run produced no PNG evidence to publish.
-
     Returns:
         Process status indicating that the evidence bundle was published.
+
+    Raises:
+        SystemExit: If the run produced no PNG evidence to publish.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--repository", required=True)
@@ -45,7 +71,8 @@ def main() -> int:
 
     review_root = Path("tunic")
     evidence_branch = f"simulation-evidence/pr-{args.pr_number}"
-    worktree = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "simulation-evidence"
+    temp_root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
+    worktree = temp_root / "simulation-evidence"
     shutil.rmtree(worktree, ignore_errors=True)
     run(
         "gh",
@@ -60,16 +87,14 @@ def main() -> int:
     run("git", "-C", str(worktree), "fetch", "origin", "main")
     run("git", "-C", str(worktree), "checkout", "--detach", "origin/main")
 
-    remote = subprocess.run(
-        (
-            "git",
-            "-C",
-            str(worktree),
-            "show-ref",
-            "--verify",
-            "--quiet",
-            f"refs/remotes/origin/{evidence_branch}",
-        ),
+    remote = run(
+        "git",
+        "-C",
+        str(worktree),
+        "show-ref",
+        "--verify",
+        "--quiet",
+        f"refs/remotes/origin/{evidence_branch}",
         check=False,
     )
     if remote.returncode == 0:
@@ -91,7 +116,7 @@ def main() -> int:
         )
     else:
         run("git", "-C", str(worktree), "switch", "--orphan", evidence_branch)
-        subprocess.run(("git", "-C", str(worktree), "rm", "-rf", "."), check=False)
+        run("git", "-C", str(worktree), "rm", "-rf", ".", check=False)
 
     images = sorted(
         path
@@ -145,7 +170,7 @@ def main() -> int:
     )
     run("git", "-C", str(worktree), "push", "origin", f"HEAD:{evidence_branch}")
 
-    body = Path(os.environ.get("RUNNER_TEMP", "/tmp")) / "simulation-review.md"
+    body = temp_root / "simulation-review.md"
     lines = [
         "<!-- simulation-evidence -->",
         f"## Simulation visual evidence — PR #{args.pr_number} / run {args.run_id}",
@@ -153,18 +178,23 @@ def main() -> int:
         "Inspect the rendered images before reading the logs.",
     ]
     for image in images[:8]:
-        url = f"https://raw.githubusercontent.com/{args.repository}/{evidence_branch}/pr-{args.pr_number}/run-{args.run_id}/{image.name}"
+        url = (
+            f"https://raw.githubusercontent.com/{args.repository}/{evidence_branch}/"
+            f"pr-{args.pr_number}/run-{args.run_id}/{image.name}"
+        )
         lines.extend(("", f"**{image.name}**", f"![{image.name}]({url})"))
     lines.extend(
         (
             "",
-            f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})",
+            f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/"
+            f"{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})",
         )
     )
     body.write_text("\n".join(lines) + "\n", encoding="utf-8")
     run("gh", "pr", "comment", args.pr_number, "--repo", args.repository, "--body-file", str(body))
-    print(
-        f"simulation-evidence-publish=passed pr={args.pr_number} run={args.run_id} images={len(images)}"
+    sys.stdout.write(
+        f"simulation-evidence-publish=passed pr={args.pr_number} "
+        f"run={args.run_id} images={len(images)}\n"
     )
     return 0
 
