@@ -92,9 +92,7 @@ def test_pinned_stitch_allows_numerical_zero_separation() -> None:
 
 def test_simulation_workbench_does_not_force_a_backend_selector() -> None:
     """Keep runtime solver choice out of the workbench registration boundary."""
-    source = (
-        ROOT / "freecad_cloth" / "simulation" / "workbench.py"
-    ).read_text(encoding="utf-8")
+    source = (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
     require(
         condition="CLOTH_SIMULATION_BACKEND" not in source,
         message="The simulation workbench must not inject a backend environment selector.",
