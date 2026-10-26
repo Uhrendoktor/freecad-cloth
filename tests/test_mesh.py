@@ -49,6 +49,7 @@ DISTANCE_FLOOR_MM = 0.0
 ENDPOINT_DISTANCE_TOLERANCE_MM = 1e-8
 ORIENTATION_DISTANCE_TOLERANCE_MM = 1e-8
 MINIMUM_SEAM_STITCH_COUNT = 2
+EXPECTED_CURVE_PROVENANCE_SAMPLE_CALLS = 1
 SUBNORMAL_DISTANCE_MM = 1e-291
 SUBNORMAL_SEGMENT_LENGTH_MM = 3.858376809264568e-291
 SMALL_COORDINATE_MM = 6.269632363395404e-257
@@ -383,7 +384,7 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> N
         message="Provenance mapping must return one segment ID per boundary edge.",
     )
     require(
-        condition=CountedCurve.calls == 1,
+        condition=CountedCurve.calls == EXPECTED_CURVE_PROVENANCE_SAMPLE_CALLS,
         message="The authored curve polyline must be sampled once per mapping operation.",
     )
 
