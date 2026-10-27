@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 ROOT = Path(__file__).resolve().parents[2]
 _TYPE_MODULES = frozenset({"typing", "typing_extensions"})
+_LITERAL_HOST_MODULE_NAMES = frozenset({"FreeCAD", "FreeCADGui"})
 _IGNORED_DIRECTORIES = frozenset(
     {
         ".git",
@@ -33,6 +34,67 @@ _IGNORED_DIRECTORIES = frozenset(
         "venv",
     }
 )
+
+
+def literal_host_importlib_violations(
+    source: str,
+    filename: str = "<memory>",
+) -> tuple[str, ...]:
+    """Reject importlib indirection for fixed FreeCAD host-module names.
+
+    Importing FreeCAD lazily is valid at a host boundary, but a literal module
+    name does not require importlib. A local import or an injected module keeps
+    the dependency boundary explicit without evading import-placement lint.
+
+    Args:
+        source: Python source text to inspect.
+        filename: Filename included in policy diagnostics.
+
+    Returns:
+        Sorted diagnostics for constant-name FreeCAD or FreeCADGui imports.
+    """
+    try:
+        tree = ast.parse(source, filename=filename)
+    except SyntaxError as exc:
+        line = exc.lineno or 1
+        return (f"{filename}:{line}: invalid Python syntax: {exc.msg}",)
+
+    importlib_names: set[str] = set()
+    import_module_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "importlib":
+                    importlib_names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            for alias in node.names:
+                if alias.name == "import_module":
+                    import_module_names.add(alias.asname or alias.name)
+
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        call_target = node.func
+        is_importlib_call = (
+            isinstance(call_target, ast.Attribute)
+            and call_target.attr == "import_module"
+            and isinstance(call_target.value, ast.Name)
+            and call_target.value.id in importlib_names
+        ) or (isinstance(call_target, ast.Name) and call_target.id in import_module_names)
+        module_name = node.args[0]
+        if (
+            is_importlib_call
+            and isinstance(module_name, ast.Constant)
+            and isinstance(module_name.value, str)
+            and module_name.value in _LITERAL_HOST_MODULE_NAMES
+        ):
+            violations.append(
+                f"{filename}:{node.lineno}: importlib is used with the fixed host module "
+                f"{module_name.value!r}; use a direct import at the host boundary or inject "
+                "the module dependency"
+            )
+    return tuple(sorted(set(violations)))
 
 
 def _is_imported_any_name(node: ast.AST, any_names: set[str]) -> bool:
@@ -263,7 +325,8 @@ def main() -> int:
     Returns:
         Process status indicating whether the explicit-Any policy is satisfied.
     """
-    violations: list[str] = []
+    any_violations: list[str] = []
+    importlib_violations: list[str] = []
     count = 0
     for path in python_files():
         count += 1
@@ -273,15 +336,23 @@ def main() -> int:
             relative = path.relative_to(ROOT)
             violations.append(f"{relative}: unable to read Python source: {exc}")
             continue
-        violations.extend(explicit_any_violations(source, path.relative_to(ROOT).as_posix()))
+        relative_path = path.relative_to(ROOT).as_posix()
+        any_violations.extend(explicit_any_violations(source, relative_path))
+        importlib_violations.extend(literal_host_importlib_violations(source, relative_path))
 
-    if violations:
+    if any_violations:
         sys.stderr.write("explicit-any-policy=failed\n")
-        sys.stderr.write("\n".join(sorted(violations)) + "\n")
-        return 1
+        sys.stderr.write("\n".join(sorted(any_violations)) + "\n")
+    else:
+        sys.stdout.write(f"explicit-any-policy=passed python_files={count}\n")
 
-    sys.stdout.write(f"explicit-any-policy=passed python_files={count}\n")
-    return 0
+    if importlib_violations:
+        sys.stderr.write("literal-host-importlib-policy=failed\n")
+        sys.stderr.write("\n".join(sorted(importlib_violations)) + "\n")
+    else:
+        sys.stdout.write("literal-host-importlib-policy=passed\n")
+
+    return int(bool(any_violations or importlib_violations))
 
 
 if __name__ == "__main__":
