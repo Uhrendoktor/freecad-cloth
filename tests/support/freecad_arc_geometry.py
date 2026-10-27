@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import importlib
 import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, cast
@@ -223,6 +222,7 @@ def arc_through_midpoint(
 
     Args:
         part_module: Native FreeCAD Part module providing circle and arc constructors.
+        app_module: Native FreeCAD application module providing vector constructors.
         start: Authored two-dimensional start point of the arc in millimeters.
         end: Authored two-dimensional end point of the arc in millimeters.
         midpoint: Authored point selecting the intended minor sweep in millimeters.
@@ -235,7 +235,7 @@ def arc_through_midpoint(
             or the native arc loses geometric fidelity.
     """
     part_api = cast("ModuleType", part_module)
-    app_api = importlib.import_module("FreeCAD")
+    app_api = cast("ModuleType", app_module)
     geometry = _circle_geometry(start, end, midpoint)
     selected = _select_circle_sweep(part_api, app_api, geometry, (start, end, midpoint))
     if selected is None:
