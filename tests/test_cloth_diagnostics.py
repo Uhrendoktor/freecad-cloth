@@ -6,8 +6,6 @@ from pathlib import Path
 
 import pytest
 
-from tests.support.assertions import require as _require
-
 from freecad_cloth.simulation.ClothDiagnostics import (
     analyze_mesh,
     export_json,
@@ -16,6 +14,7 @@ from freecad_cloth.simulation.ClothDiagnostics import (
     metric_definition,
     summarize,
 )
+from tests.support.assertions import require as _require
 
 
 def _triangle(scale: float = 1.0, z: float = 0.0) -> list[tuple[float, float, float]]:
@@ -35,12 +34,21 @@ def test_zero_deformation_is_zero_strain_and_full_fit() -> None:
     """Require zero strain and full fit when rest and current meshes match."""
     vertices = _triangle()
     result = analyze_mesh(vertices, vertices, [(0, 1, 2)], stretch_limit=0.02)
-    _require(result.strain == pytest.approx((0.0,)), "Unchanged vertices must have zero strain.")
-    _require(result.stress == pytest.approx((0.0,)), "Unchanged vertices must have zero stress.")
-    _require(result.fit == pytest.approx((1.0,)), "An unchanged mesh must have full fit.")
     _require(
-        result.pressure == pytest.approx((0.0,)),
-        "A mesh without pressure input must report zero pressure.",
+        condition=result.strain == pytest.approx((0.0,)),
+        message="Unchanged vertices must have zero strain.",
+    )
+    _require(
+        condition=result.stress == pytest.approx((0.0,)),
+        message="Unchanged vertices must have zero stress.",
+    )
+    _require(
+        condition=result.fit == pytest.approx((1.0,)),
+        message="An unchanged mesh must have full fit.",
+    )
+    _require(
+        condition=result.pressure == pytest.approx((0.0,)),
+        message="A mesh without pressure input must report zero pressure.",
     )
 
 
@@ -50,20 +58,23 @@ def test_stretch_is_normalized_against_fabric_limit() -> None:
     current = _triangle(scale=1.1)
     result = analyze_mesh(rest, current, [(0, 1, 2)], stretch_limit=0.02)
     _require(
-        result.strain[0] == pytest.approx(0.1, rel=1e-9),
-        "Ten-percent stretch must be measured as 0.1 strain.",
+        condition=result.strain[0] == pytest.approx(0.1, rel=1e-9),
+        message="Ten-percent stretch must be measured as 0.1 strain.",
     )
     _require(
-        result.stress[0] == pytest.approx(5.0, rel=1e-9),
-        "Stress must be normalized against the 0.02 stretch limit.",
+        condition=result.stress[0] == pytest.approx(5.0, rel=1e-9),
+        message="Stress must be normalized against the 0.02 stretch limit.",
     )
 
     degenerate_rest = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))
     deformed = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0))
     degenerate_result = analyze_mesh(degenerate_rest, deformed, ((0, 1, 2),))
     _require(
-        degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0),
-        "A zero-length rest edge must contribute zero strain without affecting other edges.",
+        condition=degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0),
+        message=(
+            "A zero-length rest edge must contribute zero strain "
+            "without affecting other edges."
+        ),
     )
 
 
@@ -78,28 +89,28 @@ def test_fit_accepts_per_vertex_clearance() -> None:
         fit_tolerance=6.0,
     )
     _require(
-        result.fit[0] == pytest.approx(2.0 / 3.0),
-        "Per-vertex clearances must contribute to the face fit score.",
+        condition=result.fit[0] == pytest.approx(2.0 / 3.0),
+        message="Per-vertex clearances must contribute to the face fit score.",
     )
 
 
 def test_fit_score_is_bounded_and_symmetric() -> None:
     """Check the fit score's bounds and symmetry about zero clearance."""
     _require(
-        math.isclose(fit_score(0.0, 5.0), 1.0, rel_tol=0.0, abs_tol=1e-12),
-        "Zero clearance must have a fit score of one.",
+        condition=math.isclose(fit_score(0.0, 5.0), 1.0, rel_tol=0.0, abs_tol=1e-12),
+        message="Zero clearance must have a fit score of one.",
     )
     _require(
-        fit_score(2.5, 5.0) == pytest.approx(0.5),
-        "Half-tolerance positive clearance must score one half.",
+        condition=fit_score(2.5, 5.0) == pytest.approx(0.5),
+        message="Half-tolerance positive clearance must score one half.",
     )
     _require(
-        fit_score(-2.5, 5.0) == pytest.approx(0.5),
-        "Fit scoring must be symmetric for negative clearance.",
+        condition=fit_score(-2.5, 5.0) == pytest.approx(0.5),
+        message="Fit scoring must be symmetric for negative clearance.",
     )
     _require(
-        math.isclose(fit_score(50.0, 5.0), 0.0, rel_tol=0.0, abs_tol=1e-12),
-        "Clearance beyond the supported range must have zero fit.",
+        condition=math.isclose(fit_score(50.0, 5.0), 0.0, rel_tol=0.0, abs_tol=1e-12),
+        message="Clearance beyond the supported range must have zero fit.",
     )
 
 
@@ -121,27 +132,33 @@ def test_summary_is_stable_for_export() -> None:
     vertices = _triangle()
     result = analyze_mesh(vertices, _triangle(scale=1.02), [(0, 1, 2)], pressures=(12.0,))
     summary = summarize(result)
-    _require(summary["faces"] == 1, "The summary must report the single input face.")
     _require(
-        math.isclose(summary["pressure_max"], 12.0, rel_tol=0.0, abs_tol=1e-12),
-        "The summary must retain the maximum face pressure.",
+        condition=summary["faces"] == 1,
+        message="The summary must report the single input face.",
     )
-    _require(summary["stress_max"] > 0, "A stretched mesh must report positive maximum stress.")
+    _require(
+        condition=math.isclose(summary["pressure_max"], 12.0, rel_tol=0.0, abs_tol=1e-12),
+        message="The summary must retain the maximum face pressure.",
+    )
+    _require(
+        condition=summary["stress_max"] > 0,
+        message="A stretched mesh must report positive maximum stress.",
+    )
 
 
 def test_metric_definition_is_explicit_and_stable() -> None:
     """Keep the stress formula and strain units explicit in the metric metadata."""
     _require(
-        metric_definition("stress")
+        condition=metric_definition("stress")
         == {
             "formula": "|strain| / stretch_limit",
             "units": "normalized utilization",
         },
-        "Stress metadata must state its formula and normalized units.",
+        message="Stress metadata must state its formula and normalized units.",
     )
     _require(
-        metric_definition("strain")["units"] == "dimensionless",
-        "Strain metadata must use dimensionless units.",
+        condition=metric_definition("strain")["units"] == "dimensionless",
+        message="Strain metadata must use dimensionless units.",
     )
 
 
@@ -159,13 +176,16 @@ def test_diagnostic_json_export_is_deterministic(tmp_path: Path) -> None:
     export_json(result, first)
     export_json(result, second)
     _require(
-        first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8"),
-        "Repeated exports of the same diagnostics must be byte-for-byte identical.",
+        condition=first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8"),
+        message="Repeated exports of the same diagnostics must be byte-for-byte identical.",
     )
-    _require(payload["schema"] == 1, "The exported diagnostics must use schema version one.")
     _require(
-        payload["metrics"]["stress"] == pytest.approx(result.stress),
-        "The exported stress values must match the analyzed mesh.",
+        condition=payload["schema"] == 1,
+        message="The exported diagnostics must use schema version one.",
+    )
+    _require(
+        condition=payload["metrics"]["stress"] == pytest.approx(result.stress),
+        message="The exported stress values must match the analyzed mesh.",
     )
 
 
