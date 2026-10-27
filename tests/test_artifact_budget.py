@@ -8,9 +8,9 @@ import pytest
 
 from tests.support.assertions import require as _require
 from tools.ci.check_artifact_budget import (
+    accumulated_size,
     MAX_ARTIFACT_BYTES,
     request_artifact_payload,
-    accumulated_size,
 )
 
 EXPECTED_ACCUMULATED_BYTES = 9_500_000
@@ -71,7 +71,7 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
 
     with pytest.raises(
         RuntimeError,
-        match="GH-REQUEST-123.*actions=read.*Resource not accessible by integration",
+        match=r"GH-REQUEST-123.*actions=read.*Resource not accessible by integration",
     ):
         request_artifact_payload(
             connection,

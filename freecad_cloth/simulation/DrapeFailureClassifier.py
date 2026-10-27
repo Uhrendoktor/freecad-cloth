@@ -54,8 +54,10 @@ def classify_drape(
 
     Args:
         metrics: Existing finite, span, shape, and target-clearance measurements.
-        components: Optional connected-component count; values above one indicate fragmentation.
-        target_width: Optional positive target width in millimetres for normalizing vertex clearance.
+        components: Optional connected-component count; values above one indicate
+            fragmentation.
+        target_width: Optional positive target width in millimetres for normalizing
+            vertex clearance.
 
     Returns:
         Classification state and diagnostic reasons. A plausible state means only that the available

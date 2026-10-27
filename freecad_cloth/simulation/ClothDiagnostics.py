@@ -9,6 +9,7 @@ by GUI, export, or headless validation code.
 import json
 import pathlib
 from collections.abc import Sequence
+from typing import TypedDict, Unpack
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,6 +17,17 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
+
+
+class AnalyzeMeshOptions(TypedDict, total=False):
+    """Optional keyword controls accepted by analyze_mesh."""
+
+    stretch_limit: float
+    clearances: Sequence[float] | None
+    fit_tolerance: float
+    pressures: Sequence[float] | None
+
+
 DIAGNOSTIC_EPSILON = 1e-12
 
 METRIC_DEFINITIONS = {
@@ -212,11 +224,7 @@ def analyze_mesh(
     rest_vertices: Sequence[Point3],
     current_vertices: Sequence[Point3],
     triangles: Sequence[Triangle],
-    *,
-    stretch_limit: float = 0.02,
-    clearances: Sequence[float] | None = None,
-    fit_tolerance: float = 5.0,
-    pressures: Sequence[float] | None = None,
+    **options: Unpack[AnalyzeMeshOptions],
 ) -> DiagnosticResult:
     """Compute deterministic strain/stress/fit/pressure maps per triangle.
 
@@ -228,10 +236,9 @@ def analyze_mesh(
         rest_vertices: Reference vertex coordinates before simulation.
         current_vertices: Vertex coordinates from the evaluated cloth mesh.
         triangles: Faces expressed as triples of vertex indices.
-        stretch_limit: Positive allowable fabric stretch used to normalize stress.
-        clearances: Optional target clearances, supplied per face or per vertex.
-        fit_tolerance: Distance scale over which a clearance fit score reaches zero.
-        pressures: Optional solver-provided pressure values, one per face.
+        options: Optional fabric stretch, clearances, fit tolerance, and solver pressure controls.
+            Defaults are a 0.02 stretch limit, no clearances, a 5.0 fit tolerance,
+            and zero pressure.
 
     Returns:
         Per-face strain, stress, fit and pressure metrics with global extrema.
@@ -240,6 +247,11 @@ def analyze_mesh(
         ValueError: If mesh vertex counts differ, the stretch limit is nonpositive,
             or optional clearance and pressure arrays have unsupported lengths.
     """
+    stretch_limit = options.get("stretch_limit", 0.02)
+    clearances = options.get("clearances")
+    fit_tolerance = options.get("fit_tolerance", 5.0)
+    pressures = options.get("pressures")
+
     if len(rest_vertices) != len(current_vertices):
         msg = "rest and current meshes must have equal vertex counts"
         raise ValueError(msg)
