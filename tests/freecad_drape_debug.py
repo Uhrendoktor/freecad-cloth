@@ -131,21 +131,21 @@ def _make_tunic_sketch(
         elif idx == 2:
             # Preserve the canonical open inward-scooped armhole.
             midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
-            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+            geometry = _arc_through_midpoint(Part, App, start_vector, end_vector, midpoint)
         elif idx == 4:
             # Mirror the actual scooped neckline in the fast diagnostic.
             midpoint = App.Vector(0.5 * (start[0] + end[0]), neckline_scoop_z, 0)
-            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+            geometry = _arc_through_midpoint(Part, App, start_vector, end_vector, midpoint)
         elif idx == 6:
             midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
-            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+            geometry = _arc_through_midpoint(Part, App, start_vector, end_vector, midpoint)
         elif idx == 7:
             midpoint = App.Vector(
                 0.5 * (start[0] + end[0]) - side_ease_mm,
                 0.5 * (start[1] + end[1]),
                 0,
             )
-            geometry = _arc_through_midpoint(Part, start_vector, end_vector, midpoint)
+            geometry = _arc_through_midpoint(Part, App, start_vector, end_vector, midpoint)
         else:
             geometry = Part.LineSegment(start_vector, end_vector)
         sketch.addGeometry(geometry, False)
