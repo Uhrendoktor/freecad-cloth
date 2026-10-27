@@ -89,7 +89,7 @@ def test_initialize_is_idempotent_and_preserves_registered_command_order() -> No
         workbench.Initialize()
         _require(
             condition=workbench.commands == first,
-            message=f"{type(workbench).__name__} changed command order during repeated initialization.",
+            message=f"{type(workbench).__name__} changed command order on repeat.",
         )
         _require(
             condition=len(workbench.commands) == len(set(workbench.commands)),
@@ -108,7 +108,7 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
     )
     _require(
         condition=set(workbench.commands) == expected,
-        message="Sewing workbench commands differ from the sewing, fitting, and avatar registrations.",
+        message="Sewing workbench commands do not match the expected registration set.",
     )
 
 
@@ -136,7 +136,8 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
         message="Package metadata contains an unexpected license identifier.",
     )
     _require(
-        condition=root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth",
+        condition=root.findtext(namespace + "url")
+        == "https://github.com/Uhrendoktor/freecad-cloth",
         message="Package metadata contains an unexpected repository URL.",
     )
     content = require_not_none(
@@ -217,7 +218,7 @@ def test_workbench_command_groups_do_not_overlap() -> None:
         for command in commands:
             _require(
                 condition=command not in seen,
-                message=f"Command {command!r} occurs in both {workbench} and {seen.get(command)!r}.",
+                message=f"Duplicate command {command!r}: {workbench!r} and {seen.get(command)!r}.",
             )
             seen[command] = workbench
 
