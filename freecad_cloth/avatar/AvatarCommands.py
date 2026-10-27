@@ -112,7 +112,6 @@ class _AvatarFeature(_AvatarFeatureView, Protocol):
     ArrangementPoints: list[str]
 
 
-
 class _FreeCADApplication(Protocol):
     """Active-document functions dynamically exported by the FreeCAD module."""
 
