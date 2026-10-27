@@ -484,7 +484,7 @@ def test_workflow_actions_use_immutable_release_pins() -> None:
 def test_avatar_commands_do_not_depend_on_simulation_package() -> None:
     """Keep avatar command code independent of the simulation command layer."""
     root = Path(__file__).resolve().parents[1]
-    source = (root / "freecad_cloth" / "avatar" / "AvatarCommands.py").read_text(encoding="utf-8")
+    source = (root / "freecad_cloth" / "avatar" / "avatar_commands.py").read_text(encoding="utf-8")
     require(
         condition=("freecad_cloth.simulation.SimulationObjects" not in source),
         message="test_avatar_commands_do_not_depen...: required condition failed",
