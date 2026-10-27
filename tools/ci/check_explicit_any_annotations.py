@@ -1,9 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Reject explicit ``Any`` references in repository Python sources.
+"""Enforce repository-wide AST contracts for explicit Any and host imports.
 
 Ruff ANN401 handles function annotations. This syntax-aware gate catches explicit
-``Any`` references in aliases and attributes, including quoted forward references
-and legacy type comments, which ordinary AST name traversal cannot see.
+Any references in aliases, attributes, quoted forward references, and legacy
+type comments. It also rejects importlib indirection for literal FreeCAD host
+module names while preserving genuinely dynamic module loading.
 """
 
 from __future__ import annotations
@@ -320,10 +321,10 @@ def python_files(root: Path = ROOT) -> Iterator[Path]:
 
 
 def main() -> int:
-    """Check every repository Python source and fail with actionable locations.
+    """Check every repository Python source against the AST policy contracts.
 
     Returns:
-        Process status indicating whether the explicit-Any policy is satisfied.
+        Process status indicating whether explicit-Any and host-import policies pass.
     """
     any_violations: list[str] = []
     importlib_violations: list[str] = []
