@@ -87,7 +87,6 @@ class BenchmarkWorkbenchBackend:
         """
         del name, commands
 
-
     def __getattr__(self, name: str) -> object:
         """Resolve a FreeCAD callback name to its lint-friendly implementation.
 
@@ -243,7 +242,6 @@ def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> dict[str, objec
 
     Returns:
         Median timings, completed sample count, and the median registered-command count.
-
     """
     module_name, class_name = WORKBENCHES[name]
     trace(f"benchmark: {name}: importing and constructing")
