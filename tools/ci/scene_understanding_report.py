@@ -21,7 +21,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
-
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
 TWO_DIMENSIONAL_COORDINATE_COUNT = 2
@@ -147,6 +146,42 @@ def _literal_tuple(value: str) -> tuple[object, ...]:
     return cast("tuple[object, ...]", parsed)
 
 
+def _float_value(value: object) -> float:
+    """Normalize one validated numeric literal to a floating-point value.
+
+    Args:
+        value: Candidate integer or floating-point value parsed from diagnostics.
+
+    Returns:
+        The value converted to a float.
+
+    Raises:
+        TypeError: If the value is not a numeric literal or is a boolean.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        msg = "expected a numeric value in the workflow diagnostic"
+        raise TypeError(msg)
+    return float(value)
+
+
+def _int_value(value: object) -> int:
+    """Validate an exact integer literal parsed from diagnostics.
+
+    Args:
+        value: Candidate integer value parsed from a diagnostic record.
+
+    Returns:
+        The exact integer value.
+
+    Raises:
+        TypeError: If the value is not an integer literal or is a boolean.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        msg = "expected an integer value in the workflow diagnostic"
+        raise TypeError(msg)
+    return value
+
+
 def _point(value: object) -> list[float]:
     """Normalize a 2D point to a JSON-safe list of finite floats.
 
@@ -204,7 +239,7 @@ def _parse_topology(line: str) -> dict[str, object] | None:
             "id": edge_name,
             "edge_index": int(edge_match.group(1)) if edge_match else None,
             "kind": str(item[1]),
-            "sample_count": int(item[2]),
+            "sample_count": _int_value(item[2]),
             "start_mm": _point(item[3]),
             "end_mm": _point(item[4]),
         }
@@ -218,8 +253,8 @@ def _parse_topology(line: str) -> dict[str, object] | None:
             continue
         nearby.append(
             {
-                "distance_mm": float(item[0]),
-                "sample_segment_index": int(item[1]),
+                "distance_mm": _float_value(item[0]),
+                "sample_segment_index": _int_value(item[1]),
                 "edge_id": str(item[2]),
                 "start_mm": _point(item[3]),
                 "end_mm": _point(item[4]),
@@ -261,10 +296,10 @@ def _parse_armhole(line: str) -> dict[str, object] | None:
     return {
         "edge_index": int(match.group(1)),
         "curve_type": match.group(2),
-        "parameter_range": [float(value) for value in _literal_tuple(match.group(3))],
+        "parameter_range": [_float_value(value) for value in _literal_tuple(match.group(3))],
         "start_local_mm": _pair(match.group(4)),
         "end_local_mm": _pair(match.group(5)),
-        "bounds_local_mm": [float(value) for value in _literal_tuple(match.group(6))],
+        "bounds_local_mm": [_float_value(value) for value in _literal_tuple(match.group(6))],
         "inward_scoop_mm": float(match.group(7)),
         "samples_local_mm": [_point(value) for value in samples],
     }
@@ -555,7 +590,7 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             parsed.topology_by_piece[str(topology["piece"])] = topology
         armhole = _parse_armhole(line)
         if armhole is not None:
-            parsed.armholes_by_index[int(armhole["edge_index"])] = armhole
+            parsed.armholes_by_index[_int_value(armhole["edge_index"])] = armhole
         _record_pose(line, parsed)
         _record_placement(line, parsed)
         screenshot = _SCREENSHOT_RE.search(line)
@@ -758,7 +793,7 @@ def _build_issues(
             dict.fromkeys(
                 str(item["edge_id"])
                 for item in nearby
-                if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
+                if _float_value(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             )
         )
         issues.append(
