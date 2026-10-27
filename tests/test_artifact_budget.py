@@ -85,6 +85,41 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
         )
 
 
+def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
+    """Expose useful upstream text without logging common bearer-token formats."""
+    connection = Mock()
+    response = Mock()
+    response.status = http.client.FORBIDDEN
+    response.reason = "Forbidden"
+    response.read.return_value = (
+        b"upstream gateway refused request; Bearer ghp_example_secret_token"
+    )
+    response.getheader.return_value = None
+    response.getheaders.return_value = [("Content-Type", "text/plain")]
+    connection.getresponse.return_value = response
+
+    with pytest.raises(RuntimeError) as error:
+        request_artifact_payload(
+            connection,
+            "/repos/owner/repository/actions/runs/42/artifacts",
+            {},
+        )
+
+    message = str(error.value)
+    _require(
+        condition="upstream gateway refused request" in message,
+        message="the body preview should explain a non-JSON response",
+    )
+    _require(
+        condition="ghp_example_secret_token" not in message and "[REDACTED]" in message,
+        message="the body preview must redact credential-shaped strings",
+    )
+    _require(
+        condition=len(message) < 700,
+        message="the error report must remain bounded",
+    )
+
+
 def test_artifact_api_error_reports_empty_response_metadata() -> None:
     """Expose empty response metadata when GitHub returns a bodyless HTTP failure."""
     connection = Mock()

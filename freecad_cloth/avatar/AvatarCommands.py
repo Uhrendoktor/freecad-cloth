@@ -357,6 +357,26 @@ def _stored_avatar_shape_parameters(
     )
 
 
+def _shape_float(value: object, *, name: str) -> float:
+    """Convert a persisted shape control after validating its JSON-compatible type.
+
+    Args:
+        value: Candidate stored numeric value from FreeCAD or avatar JSON.
+        name: Shape-control name used in validation diagnostics.
+
+    Returns:
+        The stored numeric value converted to a float.
+
+    Raises:
+        TypeError: If the stored shape control is not a number or numeric string.
+        ValueError: If a numeric string cannot be converted to a float.
+    """
+    if not isinstance(value, (str, int, float)):
+        msg = f"stored avatar shape value {name!r} must be numeric"
+        raise TypeError(msg)
+    return float(value)
+
+
 def _parameters(obj: _AvatarFeature) -> AvatarParameters:
     """Reconstruct validated avatar parameters from persisted FreeCAD properties.
 
@@ -386,8 +406,7 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         "right_elbow_angle": float(preset_defaults.right_elbow_angle),
     }
     angles = {
-        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name]))
-        for name in fallback
+        name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name])) for name in fallback
     }
 
     payload = str(getattr(obj, "ParametersJSON", "") or "")
@@ -409,10 +428,18 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         mass_target_kg,
     ) = _stored_avatar_shape_parameters(payload)
 
-    gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
-    breast_size = float(
-        getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
+    gender_value = getattr(
+        obj,
+        SHAPE_PROPERTY_MAP["gender"],
+        shape_payload.get("gender", 0.5),
     )
+    gender = _shape_float(gender_value, name="gender")
+    breast_size_value = getattr(
+        obj,
+        SHAPE_PROPERTY_MAP["breast_size"],
+        shape_payload.get("breast_size", 0.0),
+    )
+    breast_size = _shape_float(breast_size_value, name="breast_size")
     return AvatarParameters(
         values,
         float(getattr(obj, "SkinOffset", 3.0)),

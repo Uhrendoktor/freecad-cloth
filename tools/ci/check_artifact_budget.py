@@ -6,6 +6,7 @@ from __future__ import annotations
 import http.client
 import json
 import os
+import re
 import sys
 from typing import TYPE_CHECKING, cast
 from urllib.parse import urlencode
@@ -20,6 +21,32 @@ MAX_ARTIFACT_BYTES = 10_000_000
 PAGE_SIZE = 100
 API_ERROR_BODY_BYTES = 2048
 API_ERROR_MESSAGE_CHAR_LIMIT = 256
+API_ERROR_BODY_PREVIEW_CHAR_LIMIT = 256
+
+
+def _safe_error_body_preview(body: bytes) -> str:
+    """Return a bounded response preview without exposing common credential formats.
+
+    Args:
+        body: Raw HTTP error body, possibly containing arbitrary upstream text.
+
+    Returns:
+        Single-line, bounded diagnostic text with common bearer tokens redacted.
+    """
+    preview = " ".join(body.decode("utf-8", errors="replace").split())
+    preview = re.sub(r"(?i)\bBearer\s+\S+", "Bearer [REDACTED]", preview)
+    preview = re.sub(
+        r"\b(?:gh[pousr]_[A-Za-z0-9_]+|github_pat_[A-Za-z0-9_]+)\b",
+        "[REDACTED]",
+        preview,
+    )
+    preview = re.sub(
+        r"(?i)(authorization\s*[:=]\s*)[^,;\s]+",
+        r"\1[REDACTED]",
+        preview,
+    )
+    return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
+
 
 
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
@@ -99,7 +126,9 @@ def request_artifact_payload(
             bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
             msg = f"GitHub artifact API request failed: {status}: {bounded_detail}"
         else:
-            msg = f"GitHub artifact API request failed: {status}"
+            preview = _safe_error_body_preview(error_body)
+            body_suffix = f": response_body_preview={preview!r}" if preview else ""
+            msg = f"GitHub artifact API request failed: {status}{body_suffix}
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 
