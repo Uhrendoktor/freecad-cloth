@@ -6,8 +6,12 @@ from pathlib import Path
 from tests.support.assertions import require
 
 
-def _workbenches():
-    """Import workbench classes lazily so headless test collection stays import-safe."""
+def _workbenches() -> tuple[tuple[type[object], str], ...]:
+    """Import workbench classes lazily so headless test collection stays import-safe.
+
+    Returns:
+        Workbench classes paired with their user-facing menu labels.
+    """
     from freecad_cloth.pattern.workbench import ClothPatternWorkbench
     from freecad_cloth.sewing.workbench import ClothSewingWorkbench
     from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
