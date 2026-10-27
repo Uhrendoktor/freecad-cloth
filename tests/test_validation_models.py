@@ -39,7 +39,6 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     correspondence_samples,
 )
 from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
-
 from tests.support.assertions import require
 
 
