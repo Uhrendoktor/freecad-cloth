@@ -802,21 +802,21 @@ def _make_tunic_sketch(
         elif index == 2:
             # Keep the open armholes at their authored inward-scooped size.
             midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+            geometry.append(_arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
         elif index == 4:
             # A true U-shaped neckline: the center arc cuts down into the panel.
             midpoint = App.Vector(0.5 * (start[0] + end[0]), neckline_scoop_z, 0)
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+            geometry.append(_arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
         elif index == 6:
             midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0)
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+            geometry.append(_arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
         elif index == 7:
             midpoint = App.Vector(
                 0.5 * (start[0] + end[0]) - side_ease_mm,
                 0.5 * (start[1] + end[1]),
                 0,
             )
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+            geometry.append(_arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
 
