@@ -280,9 +280,7 @@ def _typing_import_symbols(
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             typing_modules.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name in _TYPE_MODULES
+                alias.asname or alias.name for alias in node.names if alias.name in _TYPE_MODULES
             )
         elif isinstance(node, ast.ImportFrom) and node.module in _TYPE_MODULES:
             for alias in node.names:

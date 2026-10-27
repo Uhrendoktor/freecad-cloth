@@ -355,8 +355,7 @@ async def _run_application(
             diagnostic = log_file.with_name("runtime-diagnostics.log")
             _write_diagnostics(diagnostic, return_code, timed_out=False)
             sys.stdout.write(
-                f"freecad-run-failure=exit-{return_code} "
-                f"log={log_file} diagnostics={diagnostic}\n"
+                f"freecad-run-failure=exit-{return_code} log={log_file} diagnostics={diagnostic}\n"
             )
             sys.stdout.flush()
         return return_code

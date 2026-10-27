@@ -1,12 +1,28 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the package-owned Cloth workbenches."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from tests.support.assertions import require
 
+if TYPE_CHECKING:
+    from freecad_cloth.pattern.workbench import ClothPatternWorkbench
+    from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
-def _workbenches() -> tuple[tuple[type[object], str], ...]:
+
+def _workbenches() -> tuple[
+    tuple[
+        type[ClothPatternWorkbench]
+        | type[ClothSewingWorkbench]
+        | type[ClothSimulationWorkbench],
+        str,
+    ],
+    ...,
+]:
     """Import workbench classes lazily so headless test collection stays import-safe.
 
     Returns:
