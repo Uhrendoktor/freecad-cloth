@@ -5,7 +5,6 @@ import importlib
 from pathlib import Path
 
 from defusedxml import ElementTree
-
 from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (

@@ -847,7 +847,7 @@ def _crossing_summary(
             "edge_ids": [
                 item["edge_id"]
                 for item in cast("list[dict[str, object]]", record["near_crossing"])
-                if float(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
+                if _float_value(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             ],
         }
         for record in invalid_geometry

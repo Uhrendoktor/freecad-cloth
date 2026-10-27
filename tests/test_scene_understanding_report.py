@@ -384,15 +384,10 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
 
     report = write_report(progress, output_root, tmp_path)
 
-    status = report["status"]
-    fit_assessment = report["fit_assessment"]
-    require(
-        condition=isinstance(status, dict),
-        message="Scene report predicate failed: isinstance(status, dict).",
-    )
-    require(
-        condition=isinstance(fit_assessment, dict),
-        message="Scene report predicate failed: isinstance(fit_assessment, dict).",
+    status = _expect_dict(report["status"], message="Report status must be a dictionary.")
+    fit_assessment = _expect_dict(
+        report["fit_assessment"],
+        message="Fit assessment must be a dictionary.",
     )
     require(
         condition=status["result"] == "review_required",
@@ -415,19 +410,21 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
         message="Fit deviations must be a dictionary.",
     )
     require(
-        condition=abs(float(observed["minimum"]) - 663.158) < 0.001,
+        condition=abs(_float_value(observed["minimum"]) - 663.158) < 0.001,
         message="The minimum final-panel height must match the regression fixture.",
     )
     require(
-        condition=abs(float(observed["maximum"]) - 1235.459) < 0.001,
+        condition=abs(_float_value(observed["maximum"]) - 1235.459) < 0.001,
         message="The maximum final-panel height must match the regression fixture.",
     )
+    top_deviation = _float_value(deviations["cloth_top_below_shoulder_reference"])
+    hem_deviation = _float_value(deviations["cloth_extends_below_expected_hem"])
     require(
-        condition=abs(float(deviations["cloth_top_below_shoulder_reference"]) - 112.041) < 0.001,
+        condition=abs(top_deviation - 112.041) < 0.001,
         message="The report must quantify cloth-top distance from its shoulder reference.",
     )
     require(
-        condition=abs(float(deviations["cloth_extends_below_expected_hem"]) - 256.842) < 0.001,
+        condition=abs(hem_deviation - 256.842) < 0.001,
         message="The report must quantify extension below the hem reference.",
     )
     findings = _expect_list(
@@ -572,11 +569,8 @@ def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> N
         condition=stages["simulation"] == "not_reached",
         message="Simulation must not be reported as reached after a topology blocker.",
     )
-    issue = report["issues"][0]
-    require(
-        condition=isinstance(issue, dict),
-        message="Scene report predicate failed: isinstance(issue, dict).",
-    )
+    issues = _expect_list(report["issues"], message="Report issues must be a list.")
+    issue = _expect_dict(issues[0], message="Each report issue must be a dictionary.")
     require(
         condition=issue["kind"] == "invalid_derived_outline",
         message="The issue kind must identify an invalid derived outline.",
