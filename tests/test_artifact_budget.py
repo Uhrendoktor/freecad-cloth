@@ -67,11 +67,39 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
         "X-GitHub-Request-Id": "GH-REQUEST-123",
         "X-Accepted-GitHub-Permissions": "actions=read",
     }.get
+    response.getheaders.return_value = [
+        ("X-GitHub-Request-Id", "GH-REQUEST-123"),
+        ("X-Accepted-GitHub-Permissions", "actions=read"),
+        ("Content-Type", "application/json"),
+    ]
     connection.getresponse.return_value = response
 
     with pytest.raises(
         RuntimeError,
         match=r"GH-REQUEST-123.*actions=read.*Resource not accessible by integration",
+    ):
+        request_artifact_payload(
+            connection,
+            "/repos/owner/repository/actions/runs/42/artifacts",
+            {},
+        )
+
+
+
+def test_artifact_api_error_reports_empty_response_metadata() -> None:
+    """Expose empty response metadata when GitHub returns a bodyless HTTP failure."""
+    connection = Mock()
+    response = Mock()
+    response.status = http.client.FORBIDDEN
+    response.reason = "Forbidden"
+    response.read.return_value = b""
+    response.getheader.return_value = None
+    response.getheaders.return_value = []
+    connection.getresponse.return_value = response
+
+    with pytest.raises(
+        RuntimeError,
+        match=r"response_header_names=\[\].*error_body_bytes_read=0",
     ):
         request_artifact_payload(
             connection,
