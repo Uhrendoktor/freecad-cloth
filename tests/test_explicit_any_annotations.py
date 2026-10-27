@@ -8,7 +8,10 @@ import json
 import pytest
 
 from tests.support.assertions import require, require_not_none
-from tools.ci.check_explicit_any_annotations import explicit_any_violations
+from tools.ci.check_explicit_any_annotations import (
+    explicit_any_violations,
+    literal_host_importlib_violations,
+)
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
     PYTHON_POLICY_COMMANDS,
@@ -113,6 +116,47 @@ def test_parse_errors_fail_closed() -> None:
     require(
         condition=first_error.startswith("broken.py:1: invalid Python syntax"),
         message="Parse diagnostics must identify the source path and line.",
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        'import importlib\\napp = importlib.import_module("FreeCAD")',
+        'import importlib as loader\\napp = loader.import_module("FreeCADGui")',
+        'from importlib import import_module as load\\napp = load("FreeCAD")',
+    ],
+)
+def test_literal_freecad_modules_cannot_be_loaded_through_importlib(source: str) -> None:
+    """Reject fixed FreeCAD module names passed through importlib.
+
+    Args:
+        source: Python source that calls importlib with a constant host module name.
+    """
+    require(
+        condition=bool(literal_host_importlib_violations(source)),
+        message="Fixed FreeCAD host modules must use explicit imports or dependency injection.",
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "import importlib\\napp = importlib.import_module(module_name)",
+        'import importlib\\nmodule = importlib.import_module("freecad_cloth.pattern.workbench")',
+        'import importlib\\nqt = importlib.import_module("PySide.QtCore")',
+        'message = "importlib.import_module(\\\"FreeCAD\\\")"',
+    ],
+)
+def test_dynamic_and_non_host_importlib_loading_remains_supported(source: str) -> None:
+    """Allow runtime-selected modules, other modules, and ordinary strings.
+
+    Args:
+        source: Python source that should not violate the fixed host-module policy.
+    """
+    require(
+        condition=literal_host_importlib_violations(source) == (),
+        message="Only literal FreeCAD and FreeCADGui importlib calls are prohibited.",
     )
 
 
