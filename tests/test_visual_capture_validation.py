@@ -12,13 +12,12 @@ from hypothesis import strategies as st
 from PIL import Image
 from pydantic import ValidationError
 
-from tests.support.assertions import require as _require
-
 from freecad_cloth.common.ValidationModels import PngCaptureMetrics
 from freecad_cloth.common.VisualCaptureValidation import (
     png_has_visible_content,
     validate_png_capture,
 )
+from tests.support.assertions import require as _require
 
 
 def _write_png(

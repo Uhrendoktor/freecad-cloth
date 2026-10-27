@@ -50,7 +50,6 @@ EXPECTED_PNG_HEIGHT = 600
 
 def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:
     """Normalize mesh coordinates while preserving exact integer connectivity."""
-
     mesh = MeshArrays.model_validate(
         {"vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]], "triangles": [[0, 1, 2]]}
     )
@@ -65,7 +64,6 @@ def test_point_schema_rejects_nonfinite_or_coerced_coordinates(value: object) ->
     Args:
         value: Invalid coordinate component supplied to the schema.
     """
-
     with pytest.raises(ValidationError):
         validate_point2d((value, 0.0))
 
@@ -77,7 +75,6 @@ def test_mesh_schema_rejects_invalid_face_indices(face: list[object]) -> None:
     Args:
         face: Triangle index list containing a malformed or out-of-range value.
     """
-
     with pytest.raises(ValidationError):
         MeshArrays.model_validate(
             {"vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]], "triangles": [face]}
@@ -86,7 +83,6 @@ def test_mesh_schema_rejects_invalid_face_indices(face: list[object]) -> None:
 
 def test_mesh_api_rejects_fractional_indices_instead_of_truncating() -> None:
     """Reject fractional mesh indices instead of truncating them."""
-
     with pytest.raises(ValueError, match="valid integer"):
         validate_mesh(
             cast("list[tuple[float, float, float]]", [[0, 0, 0], [1, 0, 0], [0, 1, 0]]),
@@ -97,7 +93,6 @@ def test_mesh_api_rejects_fractional_indices_instead_of_truncating() -> None:
 
 def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
     """Reject coordinate arrays with wrong dimensions or non-finite values."""
-
     with pytest.raises(ValidationError):
         MeshArrays.model_validate({"vertices": [[0, 0]], "triangles": []})
     with pytest.raises(ValidationError):
@@ -113,9 +108,7 @@ def test_coordinate_validation_rejects_wrong_dimensions_and_nan() -> None:
         ("3", "valid integer"),
     ],
 )
-def test_arc_length_api_requires_an_exact_integer_count(
-    count: object, expected_error: str
-) -> None:
+def test_arc_length_api_requires_an_exact_integer_count(count: object, expected_error: str) -> None:
     """Reject sample counts that are not exact integers of at least two.
 
     Args:
@@ -153,7 +146,6 @@ def test_normalized_range_rejects_nonfinite_empty_and_outside_intervals(
 
 def test_correspondence_schema_keeps_range_status_separate_from_numeric_validity() -> None:
     """Keep invalid seam ranges distinct from invalid numeric inputs."""
-
     with pytest.raises(ValidationError):
         CorrespondenceAnalysisInput(length_a=math.nan, length_b=10.0)
     data = CorrespondenceAnalysisInput(length_a=10.0, length_b=10.0, start_a=0.8, end_a=0.2)
@@ -164,7 +156,6 @@ def test_correspondence_schema_keeps_range_status_separate_from_numeric_validity
 
 def test_seam_parameter_sampling_rejects_invalid_options() -> None:
     """Reject invalid sample counts and reversed seam parameter ranges."""
-
     with pytest.raises(ValueError, match="valid integer"):
         correspondence_samples(cast("int", 2.5))
     with pytest.raises(ValueError, match="seam parameter ranges"):
@@ -173,7 +164,6 @@ def test_seam_parameter_sampling_rejects_invalid_options() -> None:
 
 def test_library_option_schemas_validate_numeric_knobs() -> None:
     """Validate the numeric settings shared by pattern and triangulation APIs."""
-
     with pytest.raises(ValidationError):
         RectangleDimensions(width=10.0, height=math.inf)
     with pytest.raises(ValidationError):
@@ -188,7 +178,6 @@ def test_library_option_schemas_validate_numeric_knobs() -> None:
 
 def test_pattern_geometry_rejects_nonfinite_coordinates_and_dimensions() -> None:
     """Reject non-finite geometry and invalid curve-sampling counts."""
-
     with pytest.raises(ValueError, match="finite"):
         LineSegment("bad", (0.0, math.nan), (1.0, 0.0))
     with pytest.raises(ValueError, match="finite"):
@@ -201,7 +190,6 @@ def test_pattern_geometry_rejects_nonfinite_coordinates_and_dimensions() -> None
 
 def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     """Require matching three-dimensional points for clearance calculations."""
-
     require(condition=nearest_target_clearance(((0.0, 0.0, EXPECTED_CLEARANCE_MM),), ((0.0, 0.0, 0.0),)) == pytest.approx(EXPECTED_CLEARANCE_MM), message="Vertex clearance is not calculated in three dimensions.")
     with pytest.raises(ValueError, match="3 items"):
         nearest_target_clearance(
@@ -212,7 +200,6 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
 
 def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() -> None:
     """Keep faces connected at only a vertex in separate components."""
-
     vertices = (
         (0.0, 0.0, 0.0),
         (1.0, 0.0, 0.0),
@@ -226,7 +213,6 @@ def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() ->
 
 def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
     """Reject boundary indices that point beyond existing mesh vertices."""
-
     mesh = TriangleMesh(
         vertices=((0.0, 0.0), (1.0, 0.0), (0.0, 1.0)),
         triangles=((0, 1, 2),),
@@ -238,7 +224,6 @@ def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
 
 def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
     """Interpolate opposite large finite endpoints without overflowing intermediate values."""
-
     line = LineSegment("extreme-line", (-1e308, 0.0), (1e308, 0.0))
     require(condition=line.point(0.5) == (0.0, 0.0), message="Line interpolation overflowed.")
     curve = QuadraticBezier("extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0))
@@ -247,7 +232,6 @@ def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
 
 def test_computed_polygon_area_overflow_fails_closed() -> None:
     """Reject polygon outlines whose computed area overflows."""
-
     pattern = rectangle(1e308, 1e308)
     with pytest.raises(ValueError, match="area must be finite"):
         seam_allowance_outline(pattern, 1.0)
@@ -255,7 +239,6 @@ def test_computed_polygon_area_overflow_fails_closed() -> None:
 
 def test_triangle_mesh_area_overflow_fails_closed() -> None:
     """Reject mesh area calculations that overflow to a non-finite result."""
-
     mesh = TriangleMesh(
         vertices=((0.0, 0.0), (1e308, 0.0), (0.0, 1e308)),
         triangles=((0, 1, 2),),
@@ -267,7 +250,6 @@ def test_triangle_mesh_area_overflow_fails_closed() -> None:
 
 def test_vertex_clearance_overflow_fails_closed() -> None:
     """Reject vertex clearance calculations that overflow to a non-finite result."""
-
     with pytest.raises(ValueError, match="clearance must be finite"):
         nearest_target_clearance(((-1e308, 0.0, 0.0),), ((1e308, 0.0, 0.0),))
 
@@ -296,7 +278,6 @@ def test_particle_rejects_nonfinite_state_and_negative_inverse_mass(
 
 def test_solver_grid_validates_finite_dimensions_origin_and_integer_resolution() -> None:
     """Validate finite grid dimensions, origin, and exact resolution counts."""
-
     with pytest.raises(ValueError, match="finite"):
         ClothSystem.grid(math.nan, 10.0)
     with pytest.raises(ValueError, match="valid integer"):
@@ -307,7 +288,6 @@ def test_solver_grid_validates_finite_dimensions_origin_and_integer_resolution()
 
 def test_solver_rejects_fractional_pin_and_stitch_indices() -> None:
     """Reject fractional indices in pinning and seam-stitch operations."""
-
     system = ClothSystem.grid(10.0, 10.0, nx=2, ny=2)
     with pytest.raises(ValueError, match="integer"):
         system.pin(cast("list[int]", [0.5]))
@@ -317,7 +297,6 @@ def test_solver_rejects_fractional_pin_and_stitch_indices() -> None:
 
 def test_distance_constraints_validate_fields_and_particle_references() -> None:
     """Validate constraint fields and every referenced particle index."""
-
     with pytest.raises(ValueError, match="valid integer"):
         DistanceConstraint(cast("int", 0.5), 1, 0.0)
     with pytest.raises(ValueError, match="finite real number"):
@@ -331,7 +310,6 @@ def test_distance_constraints_validate_fields_and_particle_references() -> None:
 
 def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
     """Reject non-finite transforms and overflow in transformed points."""
-
     matrix = list(Transform3D.identity().matrix)
     matrix[0] = math.nan
     with pytest.raises(ValueError, match="finite real number"):
@@ -343,14 +321,12 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
 
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     """Preserve accurate interpolation for large same-sign coordinates."""
-
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
     require(condition=segment.point(0.5) == pytest.approx((1.05e308, 0.0)), message="Large finite polyline interpolation lost precision.")
 
 
 def test_png_options_validate_dimensions_and_thresholds() -> None:
     """Accept valid PNG dimensions and reject invalid capture thresholds."""
-
     require(condition=PngCaptureOptions(expected_width=EXPECTED_PNG_WIDTH).expected_width == EXPECTED_PNG_WIDTH, message="PNG capture width was not preserved.")
     require(condition=PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height == EXPECTED_PNG_HEIGHT, message="PNG capture height was not preserved.")
     with pytest.raises(ValidationError):
@@ -361,7 +337,6 @@ def test_png_options_validate_dimensions_and_thresholds() -> None:
 
 def test_png_metrics_schema_rejects_impossible_counts_and_dimensions() -> None:
     """Reject PNG metrics with impossible pixel counts or dimensions."""
-
     with pytest.raises(ValidationError, match="opaque pixel count"):
         PngCaptureMetrics(width=1, height=1, opaque_pixels=2, nonwhite_pixels=1, distinct_rgb=1)
     with pytest.raises(ValidationError, match="visible pixel count"):
@@ -370,7 +345,6 @@ def test_png_metrics_schema_rejects_impossible_counts_and_dimensions() -> None:
 
 def test_mesh_health_metrics_rejects_invalid_bounds_and_counts() -> None:
     """Reject mesh-health metrics with unordered bounds or inconsistent components."""
-
     with pytest.raises(ValidationError, match="ordered"):
         MeshHealthMetrics(
             vertices=3,

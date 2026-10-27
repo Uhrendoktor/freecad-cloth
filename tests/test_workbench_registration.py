@@ -10,8 +10,10 @@ from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
     COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-    ClothSewingWorkbench,
+)
+from freecad_cloth.sewing.workbench import (
     TOOLBAR_COMMANDS,
+    ClothSewingWorkbench,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 from tests.support.assertions import require as _require
@@ -29,8 +31,11 @@ EXPECTED_WORKBENCHES = {
 def test_workbench_resources_are_stable() -> None:
     """Preserve workbench labels, tooltips, icon paths, and GUI class identity."""
     workbenches = (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench())
-    _require(condition={workbench.MenuText: workbench.ToolTip for workbench in workbenches}
-        == EXPECTED_WORKBENCHES, message="Workbench menu metadata no longer matches the public registration contract.")
+    _require(
+        condition={workbench.MenuText: workbench.ToolTip for workbench in workbenches}
+        == EXPECTED_WORKBENCHES,
+        message="Workbench menu metadata no longer matches the public registration contract.",
+    )
     for workbench in workbenches:
         resources = workbench.GetResources()
         _require(condition=resources["MenuText"] == workbench.MenuText, message=f"{workbench.MenuText} resources expose a mismatched menu label.")
@@ -94,23 +99,29 @@ def test_workbench_package_metadata_matches_registration_surface() -> None:
     declared = {
         item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
     }
-    _require(condition=declared
+    _require(
+        condition=declared
         == {
             "ClothPatternWorkbench",
             "ClothSewingWorkbench",
             "ClothSimulationWorkbench",
-        }, message="Package metadata does not list exactly the implemented workbenches.")
+        },
+        message="Package metadata does not list exactly the implemented workbenches.",
+    )
 
 
 def test_sewing_toolbar_is_stable_and_registered() -> None:
     """Keep the public sewing toolbar command sequence registered and stable."""
-    _require(condition=TOOLBAR_COMMANDS
+    _require(
+        condition=TOOLBAR_COMMANDS
         == (
             "ClothSewing_CreateSeam",
             "ClothSewing_CreateOperation",
             "ClothSewing_Validate",
             "ClothFitting_CreateAvatar",
-        ), message="Sewing toolbar command order no longer matches its public contract.")
+        ),
+        message="Sewing toolbar command order no longer matches its public contract.",
+    )
     workbench = ClothSewingWorkbench()
     workbench.Initialize()
     _require(condition=set(TOOLBAR_COMMANDS) <= set(workbench.commands), message="The sewing toolbar includes commands absent from workbench registration.")

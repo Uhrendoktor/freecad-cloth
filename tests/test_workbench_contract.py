@@ -16,9 +16,7 @@ if TYPE_CHECKING:
 
 def _workbenches() -> tuple[
     tuple[
-        type[ClothPatternWorkbench]
-        | type[ClothSewingWorkbench]
-        | type[ClothSimulationWorkbench],
+        type[ClothPatternWorkbench | ClothSewingWorkbench | ClothSimulationWorkbench],
         str,
     ],
     ...,

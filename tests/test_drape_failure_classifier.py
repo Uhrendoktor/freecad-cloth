@@ -6,6 +6,7 @@ from freecad_cloth.simulation.DrapeFailureClassifier import (
     summarize_classification,
 )
 from freecad_cloth.simulation.DrapeVisualSanity import inspect_drape, seam_correspondence_gap
+from tests.support.assertions import require
 
 TARGET = (
     (-100.0, -50.0, 0.0),
@@ -18,14 +19,14 @@ TARGET = (
 def test_empty() -> None:
     """Classify an empty garment mesh before evaluating shape quality."""
     result = classify_drape(inspect_drape((), TARGET), target_width=200.0)
-    assert result.state == "empty"
+    require(condition=result.state == "empty", message="Empty garment classification should remain empty.")
 
 
 def test_nonfinite() -> None:
     """Classify non-finite garment coordinates before evaluating shape quality."""
     metrics = inspect_drape(((0.0, 0.0, float("nan")),), TARGET)
     result = classify_drape(metrics, target_width=200.0)
-    assert result.state == "nonfinite"
+    require(condition=result.state == "nonfinite", message="Non-finite garment coordinates should be classified as non-finite.")
 
 
 def test_clean_canonical_style_geometry() -> None:
@@ -38,8 +39,8 @@ def test_clean_canonical_style_geometry() -> None:
     )
     metrics = inspect_drape(garment, TARGET, target_height=1750.0, target_width=1000.0)
     result = classify_drape(metrics, components=1, target_width=1000.0)
-    assert result.state == "structurally-plausible"
-    assert "no failure evidence" in result.reasons[0]
+    require(condition=result.state == "structurally-plausible", message="Geometry without failure evidence should remain structurally plausible.")
+    require(condition="no failure evidence" in result.reasons[0], message="The plausible classification should explain the absence of failure evidence.")
 
 
 def test_fragmented() -> None:
@@ -47,15 +48,15 @@ def test_fragmented() -> None:
     garment = ((0.0, 0.0, 100.0), (100.0, 0.0, 100.0), (0.0, 0.0, 1000.0))
     metrics = inspect_drape(garment, TARGET, target_height=1750.0, target_width=1000.0)
     result = classify_drape(metrics, components=2, target_width=1000.0)
-    assert result.state == "fragmented"
-    assert "multiple connected components" in result.reasons[0]
+    require(condition=result.state == "fragmented", message="Disconnected garment geometry should be classified as fragmented.")
+    require(condition="multiple connected components" in result.reasons[0], message="Fragmentation should be supported by the component-count diagnostic.")
 
 
 def test_broken_edge_correspondence() -> None:
     """Report large gaps between corresponding seam edges."""
     left = ((0.0, 0.0, 0.0), (100.0, 0.0, 0.0))
     right = ((1000.0, 0.0, 0.0), (1100.0, 0.0, 0.0))
-    assert seam_correspondence_gap(left, right, 0, 0) > 500.0
+    require(condition=seam_correspondence_gap(left, right, 0, 0) > 500.0, message="Separated corresponding seam edges should report a large gap.")
 
 
 def test_edge_on_candidate() -> None:
@@ -63,7 +64,7 @@ def test_edge_on_candidate() -> None:
     garment = ((0.0, 0.0, 700.0), (0.0, 10.0, 700.0), (0.0, 0.0, 710.0))
     metrics = inspect_drape(garment, TARGET, target_height=1750.0, target_width=1000.0)
     result = classify_drape(metrics, target_width=1000.0)
-    assert result.state == "edge-on-candidate"
+    require(condition=result.state == "edge-on-candidate", message="A narrow edge-on garment should be marked as an edge-on candidate.")
 
 
 def test_detached_candidate_uses_normalized_clearance() -> None:
@@ -75,7 +76,7 @@ def test_detached_candidate_uses_normalized_clearance() -> None:
     )
     metrics = inspect_drape(garment, TARGET, target_height=1750.0, target_width=1000.0)
     result = classify_drape(metrics, target_width=200.0)
-    assert result.state == "detached-candidate"
+    require(condition=result.state == "detached-candidate", message="Excessive normalized clearance should classify the garment as detached.")
 
 
 def test_structurally_plausible() -> None:
@@ -90,5 +91,5 @@ def test_structurally_plausible() -> None:
     result = classify_drape(metrics, target_width=1000.0)
     assert result.state == "structurally-plausible"
     data = summarize_classification(result)
-    assert data["state"] == "structurally-plausible"
-    assert isinstance(data["reasons"], list)
+    require(condition=data["state"] == "structurally-plausible", message="Serialized classification should preserve its state.")
+    require(condition=isinstance(data["reasons"], list), message="Serialized classification reasons should be a JSON-ready list.")
