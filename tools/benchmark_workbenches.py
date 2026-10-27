@@ -222,7 +222,7 @@ def _initialize_sample(
     return duration, command_count
 
 
-def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
+def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> dict[str, object]:
     """Measure import, construction, and GUI initialization time for a workbench.
 
     Args:
@@ -258,7 +258,6 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
     initialize_samples = []
     command_counts = []
     try:
-        gui = importlib.import_module("FreeCADGui")
         for sample in range(repeats):
             duration, command_count = _initialize_sample(gui, wb_cls, name, sample, repeats)
             initialize_samples.append(duration)
@@ -275,17 +274,13 @@ def runtime_metrics(name: str, repeats: int) -> dict[str, object]:
     }
 
 
-def close_gui() -> None:
-    """Close the FreeCAD main window and quit its Qt application when available."""
-    try:
-        gui = importlib.import_module("FreeCADGui")
-        qt_widgets = importlib.import_module("PySide.QtWidgets")
-    except ImportError:
-        try:
-            gui = importlib.import_module("FreeCADGui")
-            qt_widgets = importlib.import_module("PySide2.QtWidgets")
-        except ImportError:
-            return
+def close_gui(gui: ModuleType, qt_widgets: ModuleType) -> None:
+    """Close the FreeCAD main window and quit its Qt application when available.
+
+    Args:
+        gui: FreeCAD GUI module already imported by the host runner.
+        qt_widgets: Qt widgets module selected for the host's Qt binding.
+    """
     window = gui.getMainWindow()
     if window is not None:
         window.close()
@@ -294,8 +289,13 @@ def close_gui() -> None:
         app.quit()
 
 
-def main() -> None:
-    """Run the selected workbench measurements and write a JSON benchmark artifact.
+def main(freecad: ModuleType, gui: ModuleType, qt_widgets: ModuleType) -> None:
+    """Run selected workbench measurements and write a JSON benchmark artifact.
+
+    Args:
+        freecad: FreeCAD application module provided by the host launcher.
+        gui: FreeCAD GUI module used to register and inspect workbenches.
+        qt_widgets: Qt widgets module selected by the host launcher.
 
     Raises:
         SystemExit: If the repeat count is invalid or a required FreeCAD step fails.
@@ -327,13 +327,6 @@ def main() -> None:
         raise SystemExit(msg)
     trace("benchmark: arguments parsed")
 
-    trace("benchmark: FreeCAD import starting")
-    try:
-        freecad = importlib.import_module("FreeCAD")
-    except EXPECTED_WORKBENCH_ERRORS as exc:
-        fail("FreeCAD import", exc)
-    trace("benchmark: FreeCAD import complete")
-
     names = [args.workbench] if args.workbench else list(WORKBENCHES)
     result = {
         "schema": 2,
@@ -345,7 +338,7 @@ def main() -> None:
     for name in names:
         result["workbenches"][name] = {
             **static_metrics(name),
-            **runtime_metrics(name, args.repeats),
+            **runtime_metrics(name, args.repeats, gui),
         }
 
     out = ROOT / args.output
@@ -354,7 +347,7 @@ def main() -> None:
     trace("benchmark: JSON written")
     sys.stdout.write(json.dumps(result, indent=2, sort_keys=True) + "\n")
     sys.stdout.flush()
-    close_gui()
+    close_gui(gui, qt_widgets)
     os._exit(0)
 
 
@@ -362,8 +355,17 @@ if __name__ == "__main__":
     # FreeCAD loads Python files through its delayed-startup event. Defer the
     # benchmark one event-loop turn so addWorkbench is not called re-entrantly
     # from the file-import machinery (which can crash FreeCAD/Qt).
+    trace("benchmark: FreeCAD import starting")
+    try:
+        import FreeCAD as App
+        import FreeCADGui as Gui
+    except EXPECTED_WORKBENCH_ERRORS as exc:
+        fail("FreeCAD import", exc)
     try:
         qt_core = importlib.import_module("PySide.QtCore")
+        qt_widgets = importlib.import_module("PySide.QtWidgets")
     except ImportError:
         qt_core = importlib.import_module("PySide2.QtCore")
-    qt_core.QTimer.singleShot(0, main)
+        qt_widgets = importlib.import_module("PySide2.QtWidgets")
+    trace("benchmark: FreeCAD import complete")
+    qt_core.QTimer.singleShot(0, lambda: main(App, Gui, qt_widgets))
