@@ -15,7 +15,7 @@ def initialize_workbenches(installation_root: Path) -> None:
         RuntimeError: If a simulation menu references an unregistered avatar command.
     """
     try:
-        gui = import_module("FreeCADGui")
+        import FreeCADGui as gui
     except ImportError:
         return
 
