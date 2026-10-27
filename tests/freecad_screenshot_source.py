@@ -22,8 +22,8 @@ except ImportError:
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-_arc_through_midpoint: Callable[[object, object, object, object], object] = cast(
-    "Callable[[object, object, object, object], object]",
+_arc_through_midpoint: Callable[[object, object, object, object, object], object] = cast(
+    "Callable[[object, object, object, object, object], object]",
     getattr(
         importlib.import_module("tests.support.freecad_arc_geometry"),
         "arc_through_midpoint",
@@ -798,7 +798,7 @@ def _make_tunic_sketch(
                 0.5 * (start[1] + end[1]),
                 0,
             )
-            geometry.append(_arc_through_midpoint(Part, start_vector, end_vector, midpoint))
+            geometry.append(_arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
         elif index == 2:
             # Keep the open armholes at their authored inward-scooped size.
             midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0)
