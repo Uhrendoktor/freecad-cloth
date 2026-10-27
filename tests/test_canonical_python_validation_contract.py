@@ -139,9 +139,7 @@ def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
         message="canonical CI contract",
     )
     require(
-        condition=(
-            all(path.suffix == ".png" for path in validate_acceptance.CASES.values())
-        ),
+        condition=(all(path.suffix == ".png" for path in validate_acceptance.CASES.values())),
         message="canonical CI contract",
     )
 
@@ -156,27 +154,19 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head() -> 
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
     require(
-        condition=(
-            "publish-visual-evidence@" in publisher
-        ),
+        condition=("publish-visual-evidence@" in publisher),
         message="simulation evidence contract",
     )
     require(
-        condition=(
-            "evidence-head:" in publisher
-        ),
+        condition=("evidence-head:" in publisher),
         message="simulation evidence contract",
     )
     require(
-        condition=(
-            "source-sha:" in publisher
-        ),
+        condition=("source-sha:" in publisher),
         message="simulation evidence contract",
     )
     require(
-        condition=(
-            "mode: pr" in publisher
-        ),
+        condition=("mode: pr" in publisher),
         message="simulation evidence contract",
     )
 
@@ -195,33 +185,23 @@ def test_main_visual_publisher_uses_local_visual_action_with_pinned_downloads() 
     )
 
     require(
-        condition=(
-            "uses: ./.github/actions/publish-visual-evidence" in publisher
-        ),
+        condition=("uses: ./.github/actions/publish-visual-evidence" in publisher),
         message="visual publication contract",
     )
     require(
-        condition=(
-            "Download Surface Pen artifacts" in action
-        ),
+        condition=("Download Surface Pen artifacts" in action),
         message="visual publication contract",
     )
     require(
-        condition=(
-            "name: surface-pen" in action
-        ),
+        condition=("name: surface-pen" in action),
         message="visual publication contract",
     )
     require(
-        condition=(
-            "turntable-doc-assets" in action
-        ),
+        condition=("turntable-doc-assets" in action),
         message="visual publication contract",
     )
     require(
-        condition=(
-            re.search(r"uses: actions/download-artifact@[0-9a-f]{40}", action) is not None
-        ),
+        condition=(re.search(r"uses: actions/download-artifact@[0-9a-f]{40}", action) is not None),
         message="visual publication contract",
     )
 
@@ -233,39 +213,27 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     old_checker = ROOT / "tools" / "ci" / "check_test_collection.py"
 
     require(
-        condition=(
-            plugin.is_file()
-        ),
+        condition=(plugin.is_file()),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            not old_checker.exists()
-        ),
+        condition=(not old_checker.exists()),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            '"-p"' in runner
-        ),
+        condition=('"-p"' in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            '"tools.ci.pytest_collection_contract"' in runner
-        ),
+        condition=('"tools.ci.pytest_collection_contract"' in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "CLOTH_EXPECTED_TEST_MODULES" in runner
-        ),
+        condition=("CLOTH_EXPECTED_TEST_MODULES" in runner),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "collection_command" not in runner
-        ),
+        condition=("collection_command" not in runner),
         message="canonical CI contract",
     )
 
@@ -348,21 +316,15 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
     require(
-        condition=(
-            any("mean_frame_interval_ms exceeds" in error for error in errors)
-        ),
+        condition=(any("mean_frame_interval_ms exceeds" in error for error in errors)),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "backend_finite must be true" in errors
-        ),
+        condition=("backend_finite must be true" in errors),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "profile.pbd_substeps must be 1" in errors
-        ),
+        condition=("profile.pbd_substeps must be 1" in errors),
         message="canonical CI contract",
     )
 
@@ -376,9 +338,7 @@ def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
     require(
-        condition=(
-            "stage_timings.viewport_redraw must be a JSON object" in errors
-        ),
+        condition=("stage_timings.viewport_redraw must be a JSON object" in errors),
         message="canonical CI contract",
     )
 
@@ -391,9 +351,7 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
     require(
-        condition=(
-            "measured_intervals must equal frames_requested" in errors
-        ),
+        condition=("measured_intervals must equal frames_requested" in errors),
         message="canonical CI contract",
     )
 
@@ -410,70 +368,51 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     }
     require(
-        condition=(
-            "_Preview" in identifiers
-        ),
+        condition=("_Preview" in identifiers),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("_prepare" in identifiers),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("QEventLoop" in attributes),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("disconnect" in attributes),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("connect" in attributes),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("WARMUP_FRAMES" in identifiers),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("FRAMES" in identifiers),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("stage_timings" in identifiers),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("solver_step" in string_constants),
+        message="canonical CI contract",
+    )
+    require(
+        condition=("viewport_redraw" in string_constants),
         message="canonical CI contract",
     )
     require(
         condition=(
-            "_prepare" in identifiers
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "QEventLoop" in attributes
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "disconnect" in attributes
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "connect" in attributes
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "WARMUP_FRAMES" in identifiers
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "FRAMES" in identifiers
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "stage_timings" in identifiers
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "solver_step" in string_constants
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "viewport_redraw" in string_constants
-        ),
-        message="canonical CI contract",
-    )
-    require(
-        condition=(
-            "validate_realtime_benchmark.py" in (
-            ROOT / ".github" / "workflows" / "canonical-execution.yml"
-            ).read_text(encoding="utf-8")
+            "validate_realtime_benchmark.py"
+            in (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+                encoding="utf-8"
+            )
         ),
         message="canonical CI contract",
     )
@@ -563,15 +502,11 @@ def test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count() -
     errors = validate_workbench_benchmark.validate_metrics(metrics, "Pattern")
 
     require(
-        condition=(
-            "schema must be 2" in errors
-        ),
+        condition=("schema must be 2" in errors),
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "initialize_samples must equal repeats" in errors
-        ),
+        condition=("initialize_samples must equal repeats" in errors),
         message="canonical CI contract",
     )
 
@@ -614,9 +549,7 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
         message="canonical CI contract",
     )
     require(
-        condition=(
-            "validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job
-        ),
+        condition=("validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job),
         message="canonical CI contract",
     )
     require(
