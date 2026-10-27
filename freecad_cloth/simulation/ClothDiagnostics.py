@@ -270,9 +270,16 @@ def analyze_mesh(
         Per-face strain, stress, fit and pressure metrics with global extrema.
 
     Raises:
+        TypeError: If an unsupported keyword option is supplied.
         ValueError: If mesh vertex counts differ, the stretch limit is nonpositive,
             or optional clearance and pressure arrays have unsupported lengths.
     """
+    unknown_options = options.keys() - AnalyzeMeshOptions.__annotations__.keys()
+    if unknown_options:
+        unexpected_option = min(unknown_options)
+        msg = f"analyze_mesh() got an unexpected keyword argument {unexpected_option!r}"
+        raise TypeError(msg)
+
     stretch_limit = options.get("stretch_limit", 0.02)
     clearances = options.get("clearances")
     fit_tolerance = options.get("fit_tolerance", 5.0)
