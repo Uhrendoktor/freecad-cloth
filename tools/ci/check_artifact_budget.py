@@ -82,8 +82,19 @@ def request_artifact_payload(
             if isinstance(value, str) and value.strip():
                 bounded_value = value.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
                 header_details.append(f"{label}={bounded_value}")
+        response_header_names = sorted(
+            {
+                name.strip().lower()
+                for name, _value in response.getheaders()
+                if isinstance(name, str) and name.strip()
+            }
+        )[:20]
         header_suffix = f" headers=[{'; '.join(header_details)}]" if header_details else ""
-        status = f"HTTP {response.status} {response.reason}{header_suffix}"
+        response_suffix = (
+            f" response_header_names=[{', '.join(response_header_names)}]"
+            f" error_body_bytes_read={len(error_body)}"
+        )
+        status = f"HTTP {response.status} {response.reason}{header_suffix}{response_suffix}"
         if isinstance(detail, str) and detail.strip():
             bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
             msg = f"GitHub artifact API request failed: {status}: {bounded_detail}"
