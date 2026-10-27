@@ -335,7 +335,7 @@ def main() -> int:
             source = path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
             relative = path.relative_to(ROOT)
-            violations.append(f"{relative}: unable to read Python source: {exc}")
+            any_violations.append(f"{relative}: unable to read Python source: {exc}")
             continue
         relative_path = path.relative_to(ROOT).as_posix()
         any_violations.extend(explicit_any_violations(source, relative_path))
