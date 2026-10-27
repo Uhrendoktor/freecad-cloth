@@ -41,12 +41,11 @@ def _safe_error_body_preview(body: bytes) -> str:
         preview,
     )
     preview = re.sub(
-        r"(?i)(authorization\s*[:=]\s*)[^,;\s]+",
+        r"(?i)(authorization\s*[:=]\s*)(?:(?:bearer|token|basic)\s+)?[^,;\s]+",
         r"\1[REDACTED]",
         preview,
     )
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
-
 
 
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:

@@ -92,7 +92,8 @@ def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
     response.status = http.client.FORBIDDEN
     response.reason = "Forbidden"
     response.read.return_value = (
-        b"upstream gateway refused request; Bearer ghp_example_secret_token"
+        b"upstream gateway refused request; Bearer ghp_example_secret_token; "
+        b"Authorization: token plain_secret_value"
     )
     response.getheader.return_value = None
     response.getheaders.return_value = [("Content-Type", "text/plain")]
@@ -111,7 +112,11 @@ def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
         message="the body preview should explain a non-JSON response",
     )
     _require(
-        condition="ghp_example_secret_token" not in message and "[REDACTED]" in message,
+        condition=(
+            "ghp_example_secret_token" not in message
+            and "plain_secret_value" not in message
+            and "[REDACTED]" in message
+        ),
         message="the body preview must redact credential-shaped strings",
     )
     _require(

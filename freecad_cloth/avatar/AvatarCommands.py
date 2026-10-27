@@ -113,7 +113,6 @@ class _AvatarFeature(_AvatarFeatureView, Protocol):
 
 
 
-
 class _FreeCADApplication(Protocol):
     """Active-document functions dynamically exported by the FreeCAD module."""
 
@@ -371,7 +370,7 @@ def _shape_float(value: object, *, name: str) -> float:
         TypeError: If the stored shape control is not a number or numeric string.
         ValueError: If a numeric string cannot be converted to a float.
     """
-    if not isinstance(value, (str, int, float)):
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
         msg = f"stored avatar shape value {name!r} must be numeric"
         raise TypeError(msg)
     return float(value)
