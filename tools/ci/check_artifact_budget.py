@@ -82,9 +82,7 @@ def request_artifact_payload(
             if isinstance(value, str) and value.strip():
                 bounded_value = value.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
                 header_details.append(f"{label}={bounded_value}")
-        header_suffix = (
-            f" headers=[{'; '.join(header_details)}]" if header_details else ""
-        )
+        header_suffix = f" headers=[{'; '.join(header_details)}]" if header_details else ""
         status = f"HTTP {response.status} {response.reason}{header_suffix}"
         if isinstance(detail, str) and detail.strip():
             bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
