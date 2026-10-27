@@ -39,8 +39,8 @@ def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes() -> None:
     source, skeleton, _baseline_mapper, baseline_transforms = pose_world_state(baseline)
 
     for variant in (hip_changed, padded):
-        variant_source, variant_skeleton, _variant_mapper, variant_transforms = (
-            pose_world_state(variant)
+        variant_source, variant_skeleton, _variant_mapper, variant_transforms = pose_world_state(
+            variant
         )
         require(condition=variant_skeleton == skeleton, message="regression contract")
         unchanged_bones = (
@@ -125,9 +125,7 @@ def test_pose_and_avatar_parameters_persist_manual_joints() -> None:
     restored = AvatarParameters.from_json(params.to_json())
     require(condition=restored == params, message="manual joints survive persistence")
     require(
-        condition=(
-            restored.pose.joint_rotations[0].bone == "lowerarm01.L"
-        ),
+        condition=(restored.pose.joint_rotations[0].bone == "lowerarm01.L"),
         message="regression contract",
     )
 
@@ -148,9 +146,7 @@ def test_manual_pose_moves_fitting_landmark_from_baseline() -> None:
         {"clavicle.L": rotation, "spine04": IDENTITY},
     )
     require(
-        condition=(
-            posed[0].position == pytest.approx((1.0, 1.0, 0.0))
-        ),
+        condition=(posed[0].position == pytest.approx((1.0, 1.0, 0.0))),
         message="regression contract",
     )
     require(
@@ -167,9 +163,7 @@ def test_affine_transform_inverse_round_trips_rigid_points() -> None:
     )
     point = (1.25, -2.5, 9.0)
     require(
-        condition=(
-            transform.inverse().apply(transform.apply(point)) == pytest.approx(point)
-        ),
+        condition=(transform.inverse().apply(transform.apply(point)) == pytest.approx(point)),
         message="regression contract",
     )
 
@@ -239,15 +233,11 @@ def test_weighted_fk_rotates_a_selected_joint_and_inherits_to_child() -> None:
 def test_controllable_joint_order_is_stable() -> None:
     """Keep the controllable joint order and head rotation mapping stable."""
     require(
-        condition=(
-            CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head")
-        ),
+        condition=(CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head")),
         message="regression contract",
     )
     require(
-        condition=(
-            len(CONTROLLABLE_BONES) == CONTROLLABLE_JOINT_COUNT
-        ),
+        condition=(len(CONTROLLABLE_BONES) == CONTROLLABLE_JOINT_COUNT),
         message="regression contract",
     )
     require(
@@ -294,8 +284,6 @@ def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() ->
         message="overlapping weights are normalized",
     )
     require(
-        condition=(
-            posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0))
-        ),
+        condition=(posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0))),
         message="regression contract",
     )
