@@ -326,7 +326,12 @@ def _direct_any_reference_violations(
                 f"{filename}:{getattr(node, 'lineno', 1)}: explicit Any reference is prohibited; "
                 "use a concrete type, object with narrowing, or a Protocol"
             )
-        elif _is_typing_any_attribute(node, typing_modules):
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr == "Any"
+            and isinstance(node.value, ast.Name)
+            and node.value.id in typing_modules
+        ):
             module = node.value.id
             violations.append(
                 f"{filename}:{getattr(node, 'lineno', 1)}: explicit {module}.Any reference "
