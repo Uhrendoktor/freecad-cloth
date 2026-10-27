@@ -214,6 +214,7 @@ def _select_circle_sweep(
 
 def arc_through_midpoint(
     part_module: ModuleType,
+    app_module: ModuleType,
     start: _Point2D,
     end: _Point2D,
     midpoint: _Point2D,
