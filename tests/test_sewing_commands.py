@@ -341,7 +341,7 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -
     selection.addSelection = lambda obj, sub_name=None: selection.calls.append(
         ("add", obj, sub_name)
     )
-    active_document.getInEdit = lambda: (active_document.calls.append(("getInEdit",)) or True)
+    active_document.getInEdit = lambda: active_document.calls.append(("getInEdit",)) or True
     active_document.resetEdit = lambda: active_document.calls.append(("resetEdit",))
     active_document.setEdit = lambda name: active_document.calls.append(("setEdit", name))
     gui = SimpleNamespace(
