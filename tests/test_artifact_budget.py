@@ -85,7 +85,6 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
         )
 
 
-
 def test_artifact_api_error_reports_empty_response_metadata() -> None:
     """Expose empty response metadata when GitHub returns a bodyless HTTP failure."""
     connection = Mock()
