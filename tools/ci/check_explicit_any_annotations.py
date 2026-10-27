@@ -37,6 +37,86 @@ _IGNORED_DIRECTORIES = frozenset(
 )
 
 
+def _importlib_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
+    """Collect aliases bound to importlib and importlib.import_module.
+
+    Args:
+        tree: Parsed Python module.
+
+    Returns:
+        Module aliases and function aliases used for importlib calls.
+    """
+    module_aliases: set[str] = set()
+    function_aliases: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            module_aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "importlib"
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            function_aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "import_module"
+            )
+    return module_aliases, function_aliases
+
+
+def _is_importlib_call(
+    node: ast.Call,
+    module_aliases: set[str],
+    function_aliases: set[str],
+) -> bool:
+    """Return whether a call resolves to an imported importlib loader.
+
+    Args:
+        node: Call expression to inspect.
+        module_aliases: Aliases for the importlib module.
+        function_aliases: Aliases for importlib.import_module.
+
+    Returns:
+        Whether the call target is one of the recorded importlib loaders.
+    """
+    target = node.func
+    if isinstance(target, ast.Name):
+        return target.id in function_aliases
+    return (
+        isinstance(target, ast.Attribute)
+        and target.attr == "import_module"
+        and isinstance(target.value, ast.Name)
+        and target.value.id in module_aliases
+    )
+
+
+def _literal_host_module_name(
+    node: ast.Call,
+    module_aliases: set[str],
+    function_aliases: set[str],
+) -> str | None:
+    """Return a fixed FreeCAD host-module name loaded by importlib, if any.
+
+    Args:
+        node: Call expression to inspect.
+        module_aliases: Aliases for the importlib module.
+        function_aliases: Aliases for importlib.import_module.
+
+    Returns:
+        The prohibited literal host-module name, or None for all other calls.
+    """
+    if not node.args or not _is_importlib_call(node, module_aliases, function_aliases):
+        return None
+    argument = node.args[0]
+    if (
+        isinstance(argument, ast.Constant)
+        and isinstance(argument.value, str)
+        and argument.value in _LITERAL_HOST_MODULE_NAMES
+    ):
+        return argument.value
+    return None
+
+
 def literal_host_importlib_violations(
     source: str,
     filename: str = "<memory>",
@@ -60,41 +140,20 @@ def literal_host_importlib_violations(
         line = exc.lineno or 1
         return (f"{filename}:{line}: invalid Python syntax: {exc.msg}",)
 
-    importlib_names: set[str] = set()
-    import_module_names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "importlib":
-                    importlib_names.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
-            for alias in node.names:
-                if alias.name == "import_module":
-                    import_module_names.add(alias.asname or alias.name)
-
-    violations: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Call) or not node.args:
-            continue
-        call_target = node.func
-        is_importlib_call = (
-            isinstance(call_target, ast.Attribute)
-            and call_target.attr == "import_module"
-            and isinstance(call_target.value, ast.Name)
-            and call_target.value.id in importlib_names
-        ) or (isinstance(call_target, ast.Name) and call_target.id in import_module_names)
-        module_name = node.args[0]
-        if (
-            is_importlib_call
-            and isinstance(module_name, ast.Constant)
-            and isinstance(module_name.value, str)
-            and module_name.value in _LITERAL_HOST_MODULE_NAMES
-        ):
-            violations.append(
-                f"{filename}:{node.lineno}: importlib is used with the fixed host module "
-                f"{module_name.value!r}; use a direct import at the host boundary or inject "
-                "the module dependency"
-            )
+    module_aliases, function_aliases = _importlib_aliases(tree)
+    violations = [
+        (
+            f"{filename}:{node.lineno}: importlib is used with the fixed host module "
+            f"{module_name!r}; use a direct import at the host boundary or inject "
+            "the module dependency"
+        )
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        for module_name in (
+            _literal_host_module_name(node, module_aliases, function_aliases),
+        )
+        if module_name is not None
+    ]
     return tuple(sorted(set(violations)))
 
 
