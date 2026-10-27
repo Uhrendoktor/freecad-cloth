@@ -11,6 +11,7 @@ import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.simulation.DrapeFailureClassifier import DrapeMetrics
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -46,7 +47,7 @@ def maximum_box_penetration(
 
 
 @pydantic_dataclass(frozen=True)
-class DrapeVisualMetrics:
+class DrapeVisualMetrics(DrapeMetrics):
     """Public data model or service class for DrapeVisualMetrics."""
 
     vertices: int
