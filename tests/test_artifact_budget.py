@@ -9,6 +9,7 @@ import pytest
 from tests.support.assertions import require as _require
 from tools.ci.check_artifact_budget import (
     accumulated_size,
+    API_USER_AGENT,
     MAX_ARTIFACT_BYTES,
     request_artifact_payload,
 )
@@ -83,6 +84,12 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
             "/repos/owner/repository/actions/runs/42/artifacts",
             {},
         )
+
+    request_headers = connection.request.call_args.kwargs["headers"]
+    _require(
+        condition=request_headers.get("User-Agent") == API_USER_AGENT,
+        message="GitHub REST requests must send an explicit User-Agent header",
+    )
 
 
 def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 type JSONValue = str | int | float | bool | list[JSONValue] | dict[str, JSONValue] | None
 
 API_VERSION = "2022-11-28"
+API_USER_AGENT = "freecad-cloth-artifact-budget/1.0"
 MAX_ARTIFACT_BYTES = 10_000_000
 PAGE_SIZE = 100
 API_ERROR_BODY_BYTES = 2048
@@ -88,7 +89,9 @@ def request_artifact_payload(
     Raises:
         RuntimeError: If the GitHub API returns a non-success HTTP status.
     """
-    connection.request("GET", request_path, headers=dict(headers))
+    request_headers = dict(headers)
+    request_headers.setdefault("User-Agent", API_USER_AGENT)
+    connection.request("GET", request_path, headers=request_headers)
     response = connection.getresponse()
     if response.status != http.client.OK:
         error_body = response.read(API_ERROR_BODY_BYTES)
