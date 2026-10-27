@@ -88,14 +88,25 @@ class BenchmarkWorkbenchBackend:
         del name, commands
 
 
-# Register FreeCAD's legacy callback names without defining non-PEP-8 methods.
-type.__setattr__(
-    BenchmarkWorkbenchBackend, "appendToolbar", BenchmarkWorkbenchBackend.append_toolbar
-)
-type.__setattr__(BenchmarkWorkbenchBackend, "appendMenu", BenchmarkWorkbenchBackend.append_menu)
-type.__setattr__(
-    BenchmarkWorkbenchBackend, "appendContextMenu", BenchmarkWorkbenchBackend.append_context_menu
-)
+    def __getattr__(self, name: str) -> object:
+        """Resolve a FreeCAD callback name to its lint-friendly implementation.
+
+        Args:
+            name: Attribute name requested by the FreeCAD workbench API.
+
+        Returns:
+            The matching callback implementation.
+
+        Raises:
+            AttributeError: If the requested callback name is not supported.
+        """
+        if name == "appendToolbar":
+            return self.append_toolbar
+        if name == "appendMenu":
+            return self.append_menu
+        if name == "appendContextMenu":
+            return self.append_context_menu
+        raise AttributeError(name)
 
 
 def trace(message: str) -> None:
@@ -228,6 +239,7 @@ def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> dict[str, objec
     Args:
         name: Workbench key used to resolve its implementation module and class.
         repeats: Number of independent lookup, construction, and initialization samples.
+        gui: Imported FreeCAD GUI module used for workbench registration.
 
     Returns:
         Median timings, completed sample count, and the median registered-command count.
