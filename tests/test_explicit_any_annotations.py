@@ -145,7 +145,7 @@ def test_literal_freecad_modules_cannot_be_loaded_through_importlib(source: str)
         "import importlib\napp = importlib.import_module(module_name)",
         'import importlib\nmodule = importlib.import_module("freecad_cloth.pattern.workbench")',
         'import importlib\nqt = importlib.import_module("PySide.QtCore")',
-        'message = "importlib.import_module(\\"FreeCAD\\")"',
+        """message = 'importlib.import_module("FreeCAD")'""",
     ],
 )
 def test_dynamic_and_non_host_importlib_loading_remains_supported(source: str) -> None:
