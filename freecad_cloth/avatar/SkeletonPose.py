@@ -272,11 +272,27 @@ def _matvec(matrix: Matrix, vector: Vector) -> Vector:
     )
 
 
-def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
-    """Return the transform that applies second then first."""
+def compose_transforms(
+    first: AffineTransform,
+    second: AffineTransform,
+) -> AffineTransform:
+    """Return the transform that applies second, then first.
+
+    Args:
+        first: Transform applied after the second transform.
+        second: Transform applied before the first transform.
+
+    Returns:
+        Composition equivalent to applying second and then first.
+    """
     matrix = _matmul(first.matrix, second.matrix)
     translated = first.apply(second.translation)
     return AffineTransform(matrix, translated)
+
+
+def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
+    """Return the transform that applies second then first."""
+    return compose_transforms(first, second)
 
 
 def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Matrix:
