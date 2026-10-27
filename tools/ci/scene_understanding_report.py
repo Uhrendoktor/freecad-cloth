@@ -992,9 +992,8 @@ def _boundary_edge_shape(
     armhole = armholes.get(edge_index) if edge_index is not None else None
     if len(sampled_boundary) >= MINIMUM_CURVE_SAMPLE_COUNT:
         local_points = sampled_boundary
-    elif (
-        str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"}
-        and isinstance(armhole, dict)
+    elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
+        armhole, dict
     ):
         samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
         if len(samples) >= MINIMUM_CURVE_SAMPLE_COUNT:
@@ -1026,10 +1025,7 @@ def _piece_boundary_geometry(
             continue
         edge_index, local_points, edge_id = _boundary_edge_shape(raw_boundary, armholes)
         edge_shapes.append((edge_index, local_points, edge_id))
-        if (
-            coords
-            and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM
-        ):
+        if coords and math.dist(coords[-1], local_points[0]) <= BOUNDARY_POINT_CLOSURE_TOLERANCE_MM:
             coords.extend(local_points[1:])
         else:
             coords.extend(local_points)
@@ -1038,9 +1034,7 @@ def _piece_boundary_geometry(
     return coords, edge_shapes
 
 
-def _svg_transform_point(
-    point: list[float], *, origin_x: float
-) -> tuple[float, float]:
+def _svg_transform_point(point: list[float], *, origin_x: float) -> tuple[float, float]:
     """Map a local pattern-space coordinate into the SVG viewport.
 
     Args:
@@ -1123,9 +1117,7 @@ def _render_edge_shapes(
             continue
         highlighted = edge_index is not None and edge_index in colors
         stroke = colors.get(edge_index, "#758195") if edge_index is not None else "#758195"
-        points_to_draw = [
-            _svg_transform_point(point, origin_x=origin_x) for point in local_points
-        ]
+        points_to_draw = [_svg_transform_point(point, origin_x=origin_x) for point in local_points]
         point_string = " ".join(f"{x:.3f},{y:.3f}" for x, y in points_to_draw)
         label_x, label_y = _svg_transform_point(
             local_points[len(local_points) // 2], origin_x=origin_x
