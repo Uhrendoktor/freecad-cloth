@@ -70,6 +70,7 @@ PROPERTY_COORDINATES = st.tuples(
     PROPERTY_COORDINATE_STRATEGY,
 )
 
+
 def _edge_segment_ids_for_test(pattern: ParametricPattern, points: list[Point]) -> list[str]:
     """Map ordered boundary points to their authored segment identifiers.
 
