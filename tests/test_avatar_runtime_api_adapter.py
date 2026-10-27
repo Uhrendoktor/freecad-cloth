@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
 
-from support.assertions import require
+from tests.support.assertions import require
 
 _avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
 

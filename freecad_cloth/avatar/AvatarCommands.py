@@ -85,14 +85,11 @@ class _FreeCADDocument(Protocol):
     """Document members used by the persistent avatar command boundary."""
 
     Objects: Sequence[object]
-    addObject: Callable[[str, str], "_AvatarFeature"]
-    getObject: Callable[[str], object | None]
     recompute: Callable[[], None]
+
 
 class _AvatarFeature(_AvatarFeatureView, Protocol):
     """Dynamic FreeCAD avatar properties used by its command lifecycle."""
-
-    addProperty: Callable[[str, str, str], object]
 
     Label: str
     Document: _FreeCADDocument
@@ -114,25 +111,14 @@ class _AvatarFeature(_AvatarFeatureView, Protocol):
     AvatarRevision: int
     ArrangementPoints: list[str]
 
-    def addProperty(self, kind: str, name: str, group: str) -> object:
-        """Register a property on the FreeCAD feature.
 
-        Args:
-            kind: FreeCAD property type identifier.
-            name: Attribute name to register on the feature.
-            group: Property-editor group that contains the attribute.
-
-        Returns:
-            The native property-registration result.
-        """
-        ...
 
 
 class _FreeCADApplication(Protocol):
     """Active-document functions dynamically exported by the FreeCAD module."""
 
     ActiveDocument: _FreeCADDocument | None
-    newDocument: Callable[[str], _FreeCADDocument]
+
 
 class _DrapeTarget(Protocol):
     """Writable status fields on the simulation's persistent drape target."""
@@ -326,7 +312,7 @@ def _migrate_legacy_pose_angles(
     if stored_pose_data is None or str(stored_pose_data.get("preset", "standing")) != preset:
         return
     try:
-        stored_pose = AvatarParameters.from_json(payload).pose
+        default_pose = Pose(preset)
     except (TypeError, ValueError):
         return
     for name in ("left_arm_angle", "right_arm_angle"):
@@ -336,7 +322,39 @@ def _migrate_legacy_pose_angles(
         except (TypeError, ValueError):
             continue
         if angles[name] == serialized:
-            angles[name] = float(getattr(stored_pose, name))
+            angles[name] = float(getattr(default_pose, name))
+
+
+def _stored_avatar_shape_parameters(
+    payload: str,
+) -> tuple[dict[str, object], dict[str, float], dict[str, float], float | None]:
+    """Read optional shape overrides from a current-schema avatar payload.
+
+    Legacy schema-one payloads predate shape overrides, so they return empty
+    override maps and use the feature's persisted measurements and shape fields.
+
+    Args:
+        payload: Persisted avatar parameter JSON, or an empty string.
+
+    Returns:
+        Shape values, phenotype overrides, local-change overrides, and mass target.
+    """
+    if not payload:
+        return {}, {}, {}, None
+    decoded = json.loads(payload)
+    if _is_legacy_pose_schema(decoded):
+        return {}, {}, {}, None
+    stored_parameters = AvatarParameters.from_json(payload)
+    shape_values = decoded.get("shape", {}) if isinstance(decoded, dict) else {}
+    shape_payload = (
+        cast("dict[str, object]", shape_values) if isinstance(shape_values, dict) else {}
+    )
+    return (
+        shape_payload,
+        dict(stored_parameters.phenotype_overrides),
+        dict(stored_parameters.local_change_overrides),
+        stored_parameters.mass_target_kg,
+    )
 
 
 def _parameters(obj: _AvatarFeature) -> AvatarParameters:
@@ -348,16 +366,11 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
     Returns:
         Parameter model representing the saved avatar state.
 
-    Raises:
-        ValueError: If persisted parameter JSON violates the current schema.
-        TypeError: If a persistent property has an invalid type.
     """
     values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
     preset = str(getattr(obj, "PosePreset", "standing"))
     preset_defaults = Pose(preset)
-    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(
-        preset, DEFAULT_POSE_ARM_ANGLES["standing"]
-    )
+    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(preset, DEFAULT_POSE_ARM_ANGLES["standing"])
     fallback = {
         "left_arm_angle": float(
             default_arm_angle
@@ -389,23 +402,14 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
 
-    shape_payload: dict[str, object] = {}
-    phenotype_overrides = {}
-    local_change_overrides = {}
-    mass_target_kg = None
-    if payload:
-        stored_parameters = AvatarParameters.from_json(payload)
-        decoded = json.loads(payload)
-        shape_values = decoded.get("shape", {}) if isinstance(decoded, dict) else {}
-        if isinstance(shape_values, dict):
-            shape_payload = cast("dict[str, object]", shape_values)
-        phenotype_overrides = dict(stored_parameters.phenotype_overrides)
-        local_change_overrides = dict(stored_parameters.local_change_overrides)
-        mass_target_kg = stored_parameters.mass_target_kg
+    (
+        shape_payload,
+        phenotype_overrides,
+        local_change_overrides,
+        mass_target_kg,
+    ) = _stored_avatar_shape_parameters(payload)
 
-    gender = float(
-        getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5))
-    )
+    gender = float(getattr(obj, SHAPE_PROPERTY_MAP["gender"], shape_payload.get("gender", 0.5)))
     breast_size = float(
         getattr(obj, SHAPE_PROPERTY_MAP["breast_size"], shape_payload.get("breast_size", 0.0))
     )

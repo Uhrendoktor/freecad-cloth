@@ -179,6 +179,8 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             self.spacing = spacing
 
     class _Panel:
+        """Panel stub used to test canonical stylesheet and layout settings."""
+
         def __init__(self) -> None:
             """Initialize the panel stub and its outer and nested layouts."""
             self.stylesheet = ""
@@ -243,6 +245,8 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     """Check that expanding and collapsing the disclosure updates its controls."""
 
     class _Signal:
+        """Signal stub that stores and emits its connected callback."""
+
         def __init__(self) -> None:
             """Initialize the signal with no connected callback."""
             self.callback: Callable[[bool], None] | None = None
@@ -265,6 +269,8 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
                 self.callback(value)
 
     class _Widget:
+        """Widget stub that tracks visibility for disclosure-content tests."""
+
         def __init__(self, *_args: object) -> None:
             """Initialize the test widget as not yet shown.
             Args:
@@ -281,6 +287,8 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             self.visible = visible
 
     class _Layout:
+        """Layout stub that records disclosure geometry and child widgets."""
+
         def __init__(self, _parent: object) -> None:
             """Initialize layout geometry and child-widget records.
             Args:
@@ -318,6 +326,8 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             self.widgets.append(widget)
 
     class _ToolButton(_Widget):
+        """Button stub that records disclosure state and emitted toggles."""
+
         def __init__(self, parent: object | None = None) -> None:
             """Initialize toggle state and an isolated signal stub.
             Args:
@@ -390,7 +400,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
                 _name: Dynamic property key supplied by the helper.
                 _value: String value supplied with that key.
             """
-            pass
+            return None
 
     qt_core = SimpleNamespace(
         Qt=SimpleNamespace(
