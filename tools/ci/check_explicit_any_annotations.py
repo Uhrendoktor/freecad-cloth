@@ -51,15 +51,11 @@ def _importlib_aliases(tree: ast.AST) -> tuple[set[str], set[str]]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             module_aliases.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name == "importlib"
+                alias.asname or alias.name for alias in node.names if alias.name == "importlib"
             )
         elif isinstance(node, ast.ImportFrom) and node.module == "importlib":
             function_aliases.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name == "import_module"
+                alias.asname or alias.name for alias in node.names if alias.name == "import_module"
             )
     return module_aliases, function_aliases
 
@@ -149,9 +145,7 @@ def literal_host_importlib_violations(
         )
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
-        for module_name in (
-            _literal_host_module_name(node, module_aliases, function_aliases),
-        )
+        for module_name in (_literal_host_module_name(node, module_aliases, function_aliases),)
         if module_name is not None
     ]
     return tuple(sorted(set(violations)))
