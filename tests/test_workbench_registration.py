@@ -9,14 +9,12 @@ from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 from freecad_cloth.sewing.workbench import (
     COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
-)
-from freecad_cloth.sewing.workbench import (
-    TOOLBAR_COMMANDS,
     ClothSewingWorkbench,
+    TOOLBAR_COMMANDS,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
-from tests.support.assertions import require as _require
-from tests.support.assertions import require_not_none
+
+from tests.support.assertions import require as _require, require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"

@@ -4,6 +4,8 @@
 from collections.abc import Callable
 from types import SimpleNamespace
 
+from tests.support.assertions import require
+
 from freecad_cloth.common.UiDesign import (
     PANEL_STYLE,
     apply_panel_style,
@@ -92,11 +94,26 @@ def test_set_status_sets_text_semantic_state_and_wrap() -> None:
 
     set_status(label, "Select two edges, then Preview.", state="warning")
 
-    assert label.text == "Select two edges, then Preview."
-    assert label.wrap is True
-    assert label.properties == {"clothRole": "status", "clothState": "warning"}
-    assert [event[0] for event in label._style.events] == ["unpolish", "polish"]
-    assert label.events == ["update"]
+    require(
+        condition=(label.text == "Select two edges, then Preview."),
+        message="Status text should match the user-facing message.",
+    )
+    require(
+        condition=(label.wrap is True),
+        message="Status text should be configured to wrap.",
+    )
+    require(
+        condition=(label.properties == {"clothRole": "status", "clothState": "warning"}),
+        message="Status role and semantic state should be assigned.",
+    )
+    require(
+        condition=([event[0] for event in label._style.events] == ["unpolish", "polish"]),
+        message="The UI design helper did not preserve the expected contract.",
+    )
+    require(
+        condition=(label.events == ["update"]),
+        message="Status updates should request a repaint.",
+    )
 
 
 def test_set_status_falls_back_to_info_for_unknown_states() -> None:
@@ -105,23 +122,34 @@ def test_set_status_falls_back_to_info_for_unknown_states() -> None:
 
     set_status(label, "Ready", state="unexpected")
 
-    assert label.properties["clothState"] == "info"
+    require(
+        condition=(label.properties["clothState"] == "info"),
+        message="Unknown status values should use the informational state.",
+    )
 
 
 def test_mark_button_assigns_role_and_refreshes_style() -> None:
     """Assign the requested emphasis role and refresh the button style."""
+
     class _Button(_Label):
         pass
 
     button = _Button()
     mark_button(button, "primary")
 
-    assert button.properties["clothEmphasis"] == "primary"
-    assert [event[0] for event in button._style.events] == ["unpolish", "polish"]
+    require(
+        condition=(button.properties["clothEmphasis"] == "primary"),
+        message="The button should be assigned the requested emphasis role.",
+    )
+    require(
+        condition=([event[0] for event in button._style.events] == ["unpolish", "polish"]),
+        message="The UI design helper did not preserve the expected contract.",
+    )
 
 
 def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     """Scope the panel stylesheet and normalize outer and nested layouts."""
+
     class _QtLayout:
         pass
 
@@ -189,15 +217,31 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     panel = _Panel()
     apply_panel_style(panel, layout_type=_QtLayout)
 
-    assert panel.stylesheet == PANEL_STYLE
-    assert panel.outer_layout.margins == (8, 8, 8, 8)
-    assert panel.outer_layout.spacing == 6
-    assert panel.requested_child_type is _QtLayout
-    assert panel.nested_layouts[0].spacing == 6
+    require(
+        condition=(panel.stylesheet == PANEL_STYLE),
+        message="The panel should receive the canonical stylesheet.",
+    )
+    require(
+        condition=(panel.outer_layout.margins == (8, 8, 8, 8)),
+        message="The outer layout should use canonical margins.",
+    )
+    require(
+        condition=(panel.outer_layout.spacing == 6),
+        message="The outer layout should use canonical spacing.",
+    )
+    require(
+        condition=(panel.requested_child_type is _QtLayout),
+        message="Nested layout lookup should use the supplied Qt layout type.",
+    )
+    require(
+        condition=(panel.nested_layouts[0].spacing == 6),
+        message="Nested layouts should use canonical spacing.",
+    )
 
 
 def test_make_disclosure_toggles_content_and_arrow() -> None:
     """Check that expanding and collapsing the disclosure updates its controls."""
+
     class _Signal:
         def __init__(self) -> None:
             """Initialize the signal with no connected callback."""
@@ -366,18 +410,51 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
         "Advanced settings", content, qt_core, qt_widgets, expanded=False
     )
 
-    assert isinstance(wrapper, _Widget)
-    assert toggle.text == "Advanced settings"
-    assert toggle.checkable is True
-    assert toggle.checked is False
-    assert toggle.arrow == "right"
-    assert content.visible is False
-    assert toggle.tooltip == "Show or hide optional advanced settings."
+    require(
+        condition=(isinstance(wrapper, _Widget)),
+        message="The disclosure wrapper should be a widget.",
+    )
+    require(
+        condition=(toggle.text == "Advanced settings"),
+        message="The disclosure should expose its requested caption.",
+    )
+    require(
+        condition=(toggle.checkable is True),
+        message="The disclosure toggle should be checkable.",
+    )
+    require(
+        condition=(toggle.checked is False),
+        message="The disclosure toggle should start collapsed.",
+    )
+    require(
+        condition=(toggle.arrow == "right"),
+        message="The disclosure arrow should reflect its expanded or collapsed state.",
+    )
+    require(
+        condition=(content.visible is False),
+        message="Disclosure content visibility should follow toggle state.",
+    )
+    require(
+        condition=(toggle.tooltip == "Show or hide optional advanced settings."),
+        message="The disclosure should provide the expected tooltip.",
+    )
 
     toggle.setChecked(True)
-    assert content.visible is True
-    assert toggle.arrow == "down"
+    require(
+        condition=(content.visible is True),
+        message="Disclosure content visibility should follow toggle state.",
+    )
+    require(
+        condition=(toggle.arrow == "down"),
+        message="The disclosure arrow should reflect its expanded or collapsed state.",
+    )
 
     toggle.setChecked(False)
-    assert content.visible is False
-    assert toggle.arrow == "right"
+    require(
+        condition=(content.visible is False),
+        message="Disclosure content visibility should follow toggle state.",
+    )
+    require(
+        condition=(toggle.arrow == "right"),
+        message="The disclosure arrow should reflect its expanded or collapsed state.",
+    )
