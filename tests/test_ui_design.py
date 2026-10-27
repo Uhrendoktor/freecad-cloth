@@ -21,15 +21,15 @@ class _Style:
         self.events: list[tuple[str, object]] = []
 
     def unpolish(self, widget: object) -> None:
-        """Record a widget entering the style-unpolish phase."
-        
+        """Record a widget entering the style-unpolish phase."""
+
         Args:
             widget: Widget whose old style state is being cleared.
         self.events.append(("unpolish", widget))
 
     def polish(self, widget: object) -> None:
-        """Record a widget entering the style-polish phase."
-        
+        """Record a widget entering the style-polish phase."""
+
         Args:
             widget: Widget receiving the refreshed style state.
         self.events.append(("polish", widget))
@@ -47,30 +47,30 @@ class _Label:
         self._style: _Style = _Style()
 
     def setText(self, value: str) -> None:
-        """Store the visible status text for later assertions."
-        
+        """Store the visible status text for later assertions."""
+
         Args:
             value: Text assigned to the label.
         self.text = value
 
     def setWordWrap(self, value: bool) -> None:
-        """Store whether status text should wrap across lines."
-        
+        """Store whether status text should wrap across lines."""
+
         Args:
             value: Whether the label wraps its text.
         self.wrap = value
 
     def setProperty(self, name: str, value: str) -> None:
-        """Store a dynamic property on the label stub."
-        
+        """Store a dynamic property on the label stub."""
+
         Args:
             name: Dynamic property key to update.
             value: String value assigned to that property.
         self.properties[name] = value
 
     def style(self) -> _Style:
-        """Return the style stub used to record refresh events."
-        
+        """Return the style stub used to record refresh events."""
+
         Returns:
             Style stub associated with this label.
         return self._style
@@ -126,8 +126,8 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             self.spacing: int | None = None
 
         def setContentsMargins(self, left: int, top: int, right: int, bottom: int) -> None:
-            """Record the four layout margins supplied by the styling helper."
-            
+            """Record the four layout margins supplied by the styling helper."""
+
             Args:
                 left: Margin measured from the left edge.
                 top: Margin measured from the top edge.
@@ -136,40 +136,40 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             self.margins = (left, top, right, bottom)
 
         def setSpacing(self, spacing: int) -> None:
-            """Record the spacing value applied to a layout."
-            
+            """Record the spacing value applied to a layout."""
+
             Args:
                 spacing: Distance used between layout items.
             self.spacing = spacing
 
     class _Panel:
         def __init__(self) -> None:
-            """Initialize the signal with no connected callback."""
+            """Initialize the panel stub and its outer and nested layouts."""
             self.stylesheet = ""
             self.outer_layout = _Layout()
             self.nested_layouts = [_Layout()]
             self.requested_child_type: type[object] | None = None
 
         def setStyleSheet(self, stylesheet: str) -> None:
-            """Store the stylesheet assigned to this panel stub."
-            
+            """Store the stylesheet assigned to this panel stub."""
+
             Args:
                 stylesheet: Scoped stylesheet string applied to the panel.
             self.stylesheet = stylesheet
 
         def layout(self) -> _Layout:
-            """Return the panel's outer layout for normalization checks."
-            
+            """Return the panel's outer layout for normalization checks."""
+
             Returns:
                 Outer layout stub owned by this panel.
             return self.outer_layout
 
         def findChildren(self, widget_type: type[object]) -> list[_Layout]:
-            """Return nested layouts matching the requested widget type."
-            
+            """Return nested layouts matching the requested widget type."""
+
             Args:
                 widget_type: Qt child type requested by the style helper.
-            
+
             Returns:
                 Nested layout stubs discovered for the requested type.
             self.requested_child_type = widget_type
@@ -189,19 +189,19 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     """Check that expanding and collapsing the disclosure updates its controls."""
     class _Signal:
         def __init__(self) -> None:
-            """Initialize the test widget as not yet shown."""
+            """Initialize the signal with no connected callback."""
             self.callback: Callable[[bool], None] | None = None
 
         def connect(self, callback: Callable[[bool], None]) -> None:
-            """Register the callback invoked when the signal emits a value."
-            
+            """Register the callback invoked when the signal emits a value."""
+
             Args:
                 callback: Function called with the emitted checked state.
             self.callback = callback
 
         def emit(self, value: bool) -> None:
-            """Invoke the registered callback when one is connected."
-            
+            """Invoke the registered callback when one is connected."""
+
             Args:
                 value: Boolean state forwarded to the callback.
             if self.callback is not None:
@@ -209,28 +209,30 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
 
     class _Widget:
         def __init__(self, *_args: object) -> None:
-            """Initialize layout geometry and child-widget records."""
+            """Initialize the test widget as not yet shown."""
+            Args:
+                *_args: Constructor arguments received from the parent helper.
             self.visible: bool | None = None
 
         def setVisible(self, visible: bool) -> None:
-            """Store whether the content widget is currently visible."
-            
+            """Store whether the content widget is currently visible."""
+
             Args:
                 visible: Visibility state assigned to the widget.
             self.visible = visible
 
     class _Layout:
         def __init__(self, _parent: object) -> None:
-            """Initialize toggle state and an isolated signal stub."""
+            """Initialize layout geometry and child-widget records."""
             Args:
-                parent: Optional parent object supplied to the widget constructor.
+                _parent: Parent object supplied by the disclosure helper.
             self.margins: tuple[int, int, int, int] | None = None
             self.spacing: int | None = None
             self.widgets: list[object] = []
 
         def setContentsMargins(self, left: int, top: int, right: int, bottom: int) -> None:
-            """Record all four margins applied to the disclosure layout."
-            
+            """Record all four margins applied to the disclosure layout."""
+
             Args:
                 left: Margin measured from the left edge.
                 top: Margin measured from the top edge.
@@ -239,21 +241,24 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             self.margins = (left, top, right, bottom)
 
         def setSpacing(self, spacing: int) -> None:
-            """Record the spacing value applied to the disclosure layout."
-            
+            """Record the spacing value applied to the disclosure layout."""
+
             Args:
                 spacing: Distance used between layout items.
             self.spacing = spacing
 
         def addWidget(self, widget: object) -> None:
-            """Record a widget added to the test layout."
-            
+            """Record a widget added to the test layout."""
+
             Args:
                 widget: Child widget appended to the layout.
             self.widgets.append(widget)
 
     class _ToolButton(_Widget):
         def __init__(self, parent: object | None = None) -> None:
+            """Initialize toggle state and an isolated signal stub."""
+            Args:
+                parent: Optional parent object supplied to the widget constructor.
             super().__init__(parent)
             self.text = ""
             self.checkable = False
@@ -264,22 +269,22 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             self.toggled = _Signal()
 
         def setText(self, text: str) -> None:
-            """Store the disclosure caption shown on the toggle button."
-            
+            """Store the disclosure caption shown on the toggle button."""
+
             Args:
                 text: Caption displayed by the disclosure control.
             self.text = text
 
         def setCheckable(self, checkable: bool) -> None:
-            """Store whether the toggle control supports checked state."
-            
+            """Store whether the toggle control supports checked state."""
+
             Args:
                 checkable: Whether the button can be checked.
             self.checkable = checkable
 
         def setChecked(self, checked: bool) -> None:
-            """Update checked state and notify listeners when it changes."
-            
+            """Update checked state and notify listeners when it changes."""
+
             Args:
                 checked: Requested checked state of the toggle button.
             checked = bool(checked)
@@ -288,29 +293,29 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
                 self.toggled.emit(checked)
 
         def setArrowType(self, arrow: object) -> None:
-            """Store the arrow direction presented by the toggle button."
-            
+            """Store the arrow direction presented by the toggle button."""
+
             Args:
                 arrow: Arrow value selected by the disclosure helper.
             self.arrow = arrow
 
         def setToolButtonStyle(self, style: object) -> None:
-            """Store the text-and-icon presentation mode of the button."
-            
+            """Store the text-and-icon presentation mode of the button."""
+
             Args:
                 style: Button presentation mode selected by the helper.
             self.style = style
 
         def setToolTip(self, tooltip: str) -> None:
-            """Store the help text displayed for the disclosure toggle."
-            
+            """Store the help text displayed for the disclosure toggle."""
+
             Args:
                 tooltip: Tooltip text assigned to the button.
             self.tooltip = tooltip
 
         def setProperty(self, _name: str, _value: str) -> None:
-            """Accept the dynamic property update issued by the disclosure helper."
-            
+            """Accept the dynamic property update issued by the disclosure helper."""
+
             Args:
                 _name: Dynamic property key supplied by the helper.
                 _value: String value supplied with that key.
