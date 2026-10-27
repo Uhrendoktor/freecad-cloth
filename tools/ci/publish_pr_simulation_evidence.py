@@ -186,8 +186,10 @@ def main() -> int:
     lines.extend(
         (
             "",
-            f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/"
-            f"{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})",
+            (
+                f"[Open complete evidence bundle](https://github.com/{args.repository}/tree/"
+                f"{evidence_branch}/pr-{args.pr_number}/run-{args.run_id})"
+            ),
         )
     )
     body.write_text("\n".join(lines) + "\n", encoding="utf-8")
