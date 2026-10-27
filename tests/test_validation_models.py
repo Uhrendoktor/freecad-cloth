@@ -203,7 +203,7 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     """Require matching three-dimensional points for clearance calculations."""
     require(
         condition=nearest_target_clearance(((0.0, 0.0, EXPECTED_CLEARANCE_MM),), ((0.0, 0.0, 0.0),))
-            ==pytest.approx(EXPECTED_CLEARANCE_MM),
+            == pytest.approx(EXPECTED_CLEARANCE_MM),
         message="Vertex clearance is not calculated in three dimensions.",
     )
     with pytest.raises(ValueError, match="3 items"):
@@ -350,12 +350,12 @@ def test_png_options_validate_dimensions_and_thresholds() -> None:
     """Accept valid PNG dimensions and reject invalid capture thresholds."""
     require(
         condition=PngCaptureOptions(expected_width=EXPECTED_PNG_WIDTH).expected_width
-            ==EXPECTED_PNG_WIDTH,
+            == EXPECTED_PNG_WIDTH,
         message="PNG capture width was not preserved.",
     )
     require(
         condition=PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height
-            ==EXPECTED_PNG_HEIGHT,
+            == EXPECTED_PNG_HEIGHT,
         message="PNG capture height was not preserved.",
     )
     with pytest.raises(ValidationError):
