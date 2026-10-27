@@ -122,9 +122,9 @@ def test_parse_errors_fail_closed() -> None:
 @pytest.mark.parametrize(
     "source",
     [
-        'import importlib\\napp = importlib.import_module("FreeCAD")',
-        'import importlib as loader\\napp = loader.import_module("FreeCADGui")',
-        'from importlib import import_module as load\\napp = load("FreeCAD")',
+        'import importlib\napp = importlib.import_module("FreeCAD")',
+        'import importlib as loader\napp = loader.import_module("FreeCADGui")',
+        'from importlib import import_module as load\napp = load("FreeCAD")',
     ],
 )
 def test_literal_freecad_modules_cannot_be_loaded_through_importlib(source: str) -> None:
@@ -142,10 +142,10 @@ def test_literal_freecad_modules_cannot_be_loaded_through_importlib(source: str)
 @pytest.mark.parametrize(
     "source",
     [
-        "import importlib\\napp = importlib.import_module(module_name)",
-        'import importlib\\nmodule = importlib.import_module("freecad_cloth.pattern.workbench")',
-        'import importlib\\nqt = importlib.import_module("PySide.QtCore")',
-        'message = "importlib.import_module(\\\"FreeCAD\\\")"',
+        "import importlib\napp = importlib.import_module(module_name)",
+        'import importlib\nmodule = importlib.import_module("freecad_cloth.pattern.workbench")',
+        'import importlib\nqt = importlib.import_module("PySide.QtCore")',
+        'message = "importlib.import_module(\\"FreeCAD\\")"',
     ],
 )
 def test_dynamic_and_non_host_importlib_loading_remains_supported(source: str) -> None:
