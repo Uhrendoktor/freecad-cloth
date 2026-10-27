@@ -71,10 +71,7 @@ def test_stretch_is_normalized_against_fabric_limit() -> None:
     degenerate_result = analyze_mesh(degenerate_rest, deformed, ((0, 1, 2),))
     _require(
         condition=degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0),
-        message=(
-            "A zero-length rest edge must contribute zero strain "
-            "without affecting other edges."
-        ),
+        message="A zero-length rest edge must contribute zero strain without affecting other edges.",
     )
 
 
