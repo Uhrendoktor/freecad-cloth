@@ -128,7 +128,7 @@ def request_artifact_payload(
         else:
             preview = _safe_error_body_preview(error_body)
             body_suffix = f": response_body_preview={preview!r}" if preview else ""
-            msg = f"GitHub artifact API request failed: {status}{body_suffix}
+            msg = f"GitHub artifact API request failed: {status}{body_suffix}"
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 
