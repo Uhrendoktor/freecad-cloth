@@ -267,6 +267,136 @@ def _type_comment_roots(comment: str) -> tuple[ast.AST, ...]:
     return tuple(roots)
 
 
+def _typing_import_symbols(
+    tree: ast.AST,
+    filename: str,
+) -> tuple[set[str], set[str], list[str]]:
+    """Collect local aliases for typing.Any and typing modules.
+
+    Args:
+        tree: Parsed Python module.
+        filename: Source path for wildcard-import diagnostics.
+
+    Returns:
+        Any aliases, typing-module aliases, and prohibited wildcard imports.
+    """
+    any_names: set[str] = set()
+    typing_modules: set[str] = set()
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            typing_modules.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name in _TYPE_MODULES
+            )
+        elif isinstance(node, ast.ImportFrom) and node.module in _TYPE_MODULES:
+            for alias in node.names:
+                if alias.name == "Any":
+                    any_names.add(alias.asname or alias.name)
+                elif alias.name == "*":
+                    violations.append(
+                        f"{filename}:{node.lineno}: wildcard import from {node.module} "
+                        "is prohibited by the explicit-Any policy"
+                    )
+    return any_names, typing_modules, violations
+
+
+def _direct_any_reference_violations(
+    tree: ast.AST,
+    any_names: set[str],
+    typing_modules: set[str],
+    filename: str,
+) -> list[str]:
+    """Return diagnostics for direct Any names and qualified typing.Any uses.
+
+    Args:
+        tree: Parsed Python module.
+        any_names: Local aliases that resolve to typing.Any.
+        typing_modules: Aliases that resolve to typing or typing_extensions.
+        filename: Source path used in diagnostics.
+
+    Returns:
+        Diagnostics for prohibited explicit Any references.
+    """
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id in any_names:
+            violations.append(
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit Any reference is prohibited; "
+                "use a concrete type, object with narrowing, or a Protocol"
+            )
+        elif _is_typing_any_attribute(node, typing_modules):
+            module = node.value.id
+            violations.append(
+                f"{filename}:{getattr(node, 'lineno', 1)}: explicit {module}.Any reference "
+                "is prohibited; use a concrete type, object with narrowing, or a Protocol"
+            )
+    return violations
+
+
+def _annotation_fields(node: ast.AST) -> tuple[ast.AST, ...]:
+    """Return annotation expressions attached to one AST node.
+
+    Args:
+        node: Function argument, function definition, or annotated assignment.
+
+    Returns:
+        Annotation expressions stored on the node.
+    """
+    if isinstance(node, ast.arg) and node.annotation is not None:
+        return (node.annotation,)
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.returns is not None:
+        return (node.returns,)
+    if isinstance(node, ast.AnnAssign):
+        return (node.annotation,)
+    return ()
+
+
+def _annotation_any_violations(
+    tree: ast.AST,
+    any_names: set[str],
+    typing_modules: set[str],
+    filename: str,
+) -> list[str]:
+    """Return diagnostics for stringified annotations and legacy type comments.
+
+    Args:
+        tree: Parsed Python module with type-comment parsing enabled.
+        any_names: Local aliases that resolve to typing.Any.
+        typing_modules: Aliases that resolve to typing or typing_extensions.
+        filename: Source path used in diagnostics.
+
+    Returns:
+        Diagnostics for quoted annotations or type comments containing Any.
+    """
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        for annotation in _annotation_fields(node):
+            if (
+                isinstance(annotation, ast.Constant)
+                and isinstance(annotation.value, str)
+                and _contains_explicit_any(annotation, any_names, typing_modules)
+            ):
+                line = getattr(annotation, "lineno", getattr(node, "lineno", 1))
+                violations.append(
+                    f"{filename}:{line}: stringified annotation references explicit Any; "
+                    "use a concrete type, object with narrowing, or a Protocol"
+                )
+
+        type_comment = getattr(node, "type_comment", None)
+        if not isinstance(type_comment, str):
+            continue
+        roots = _type_comment_roots(type_comment)
+        if any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
+            line = getattr(node, "lineno", 1)
+            violations.append(
+                f"{filename}:{line}: type comment references explicit Any; "
+                "use a concrete type, object with narrowing, or a Protocol"
+            )
+    return violations
+
+
 def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[str, ...]:
     """Return source locations that explicitly reference ``typing.Any``.
 
@@ -289,77 +419,9 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         line = exc.lineno or 1
         return (f"{filename}:{line}: invalid Python syntax: {exc.msg}",)
 
-    any_names: set[str] = set()
-    typing_modules: set[str] = set()
-    violations: list[str] = []
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name in _TYPE_MODULES:
-                    typing_modules.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom) and node.module in _TYPE_MODULES:
-            for alias in node.names:
-                if alias.name == "Any":
-                    any_names.add(alias.asname or alias.name)
-                elif alias.name == "*":
-                    violations.append(
-                        f"{filename}:{node.lineno}: wildcard import from {node.module} "
-                        "is prohibited by the explicit-Any policy"
-                    )
-
-    # Existing syntax references (e.g. Any, alias names, and typing.Any) remain
-    # covered across the file. A Constant string is inspected only when it is
-    # attached to a real annotation or type-comment field.
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id in any_names:
-            violations.append(
-                f"{filename}:{getattr(node, 'lineno', 1)}: explicit Any reference is prohibited; "
-                "use a concrete type, object with narrowing, or a Protocol"
-            )
-        elif (
-            isinstance(node, ast.Attribute)
-            and node.attr == "Any"
-            and isinstance(node.value, ast.Name)
-            and node.value.id in typing_modules
-        ):
-            violations.append(
-                f"{filename}:{getattr(node, 'lineno', 1)}: explicit "
-                f"{node.value.id}.Any reference is prohibited; "
-                "use a concrete type, object with narrowing, or a Protocol"
-            )
-
-        annotation_fields: list[ast.AST] = []
-        if isinstance(node, ast.arg) and node.annotation is not None:
-            annotation_fields.append(node.annotation)
-        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if node.returns is not None:
-                annotation_fields.append(node.returns)
-        elif isinstance(node, ast.AnnAssign):
-            annotation_fields.append(node.annotation)
-
-        violations.extend(
-            f"{filename}:{getattr(annotation, 'lineno', getattr(node, 'lineno', 1))}: "
-            "stringified annotation references explicit Any; use a concrete type, "
-            "object with narrowing, or a Protocol"
-            for annotation in annotation_fields
-            if (
-                isinstance(annotation, ast.Constant)
-                and isinstance(annotation.value, str)
-                and _contains_explicit_any(annotation, any_names, typing_modules)
-            )
-        )
-
-        type_comment = getattr(node, "type_comment", None)
-        if isinstance(type_comment, str):
-            roots = _type_comment_roots(type_comment)
-            if any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
-                violations.append(
-                    f"{filename}:{getattr(node, 'lineno', 1)}: type comment "
-                    "references explicit Any; "
-                    "use a concrete type, object with narrowing, or a Protocol"
-                )
-
+    any_names, typing_modules, violations = _typing_import_symbols(tree, filename)
+    violations.extend(_direct_any_reference_violations(tree, any_names, typing_modules, filename))
+    violations.extend(_annotation_any_violations(tree, any_names, typing_modules, filename))
     return tuple(sorted(set(violations)))
 
 
