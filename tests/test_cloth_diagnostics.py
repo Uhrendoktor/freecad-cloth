@@ -2,7 +2,9 @@
 """Regression tests for cloth diagnostic metrics, validation, and deterministic export."""
 
 import math
+from collections.abc import Callable
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -116,6 +118,21 @@ def test_pressure_length_must_match_faces() -> None:
     vertices = _triangle()
     with pytest.raises(ValueError, match="pressures must be per-face"):
         analyze_mesh(vertices, vertices, [(0, 1, 2)], pressures=(1.0, 2.0))
+
+
+def test_unknown_mesh_option_fails_closed() -> None:
+    """Reject unsupported keyword names instead of silently ignoring caller typos."""
+    runtime_analyze = cast("Callable[..., object]", analyze_mesh)
+    with pytest.raises(
+        TypeError,
+        match=r"unexpected keyword argument 'stretch_limt'",
+    ):
+        runtime_analyze(
+            _triangle(),
+            _triangle(),
+            ((0, 1, 2),),
+            stretch_limt=0.02,
+        )
 
 
 def test_mesh_vertex_count_is_validated() -> None:
