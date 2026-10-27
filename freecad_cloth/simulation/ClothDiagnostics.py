@@ -28,6 +28,32 @@ class AnalyzeMeshOptions(TypedDict, total=False):
     pressures: Sequence[float] | None
 
 
+class DiagnosticMetricPayload(TypedDict):
+    """Describe the per-face arrays in an exported diagnostic payload."""
+
+    fit: list[float]
+    pressure: list[float]
+    strain: list[float]
+    stress: list[float]
+
+
+class DiagnosticRangePayload(TypedDict):
+    """Describe the global extrema recorded by diagnostic export."""
+
+    minimum: float
+    maximum: float
+
+
+class DiagnosticPayload(TypedDict):
+    """Describe the stable JSON schema emitted by diagnostic export."""
+
+    schema: int
+    faces: int
+    metrics: DiagnosticMetricPayload
+    range: DiagnosticRangePayload
+    summary: dict[str, int | float]
+
+
 DIAGNOSTIC_EPSILON = 1e-12
 
 METRIC_DEFINITIONS = {
@@ -58,7 +84,7 @@ def metric_definition(name: str) -> dict[str, str]:
         raise ValueError(msg) from exc
 
 
-def export_payload(result: "DiagnosticResult") -> dict[str, object]:
+def export_payload(result: "DiagnosticResult") -> DiagnosticPayload:
     """Build the JSON-ready payload for a completed diagnostics result.
 
     Args:
@@ -87,7 +113,7 @@ def export_payload(result: "DiagnosticResult") -> dict[str, object]:
     }
 
 
-def export_json(result: "DiagnosticResult", path: str | pathlib.Path) -> dict[str, object]:
+def export_json(result: "DiagnosticResult", path: str | pathlib.Path) -> DiagnosticPayload:
     """Write the diagnostic payload as stable, formatted JSON.
 
     Args:
