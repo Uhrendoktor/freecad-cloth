@@ -522,9 +522,7 @@ def stale_unprotected_branches(
         activity = retention.activity_epochs.get(sha)
         if activity is None:
             continue
-        closed_head_shas = (
-            retention.closed_pr_head_shas.get(name, set())
-        )
+        closed_head_shas = retention.closed_pr_head_shas.get(name, set())
         if activity >= retention.cutoff_epoch and sha not in closed_head_shas:
             continue
         stale.append((activity, branch))
@@ -596,9 +594,7 @@ def stale_package_versions(
         if activity >= cutoff_epoch or tags.intersection(protected_tags):
             continue
         stale.append(version)
-    stale.sort(
-        key=lambda version: package_version_activity_epoch(version) or float("inf")
-    )
+    stale.sort(key=lambda version: package_version_activity_epoch(version) or float("inf"))
     return stale
 
 
@@ -626,9 +622,7 @@ def _dockerfile_tag_batch(
     aliases: dict[str, str] = {}
     fields: list[str] = []
     for index, sha in enumerate(batch):
-        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(
-            char not in string.hexdigits for char in sha
-        ):
+        if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
             msg = f"invalid protected commit SHA: {sha!r}"
             raise RuntimeError(msg)
         alias = f"file{index}"
@@ -807,9 +801,7 @@ def cleanup_pbd_package_versions(
         detail = str(exc).strip().replace("\n", " ")[:HTTP_DETAIL_LENGTH]
         progress.result["deleted"] = progress.deleted
         progress.result["status"] = (
-            "permission_denied"
-            if "403" in detail or "forbidden" in detail.lower()
-            else "api_error"
+            "permission_denied" if "403" in detail or "forbidden" in detail.lower() else "api_error"
         )
         progress.result["error"] = f"{progress.phase}: {detail}"
         return progress.result
@@ -936,9 +928,7 @@ def _cleanup_stale_branches(
         cutoff_epoch=branch_cutoff,
         closed_pr_head_shas=closed_pr_heads,
     )
-    stale_branches = stale_unprotected_branches(
-        branches, open_heads, default_branch, retention
-    )
+    stale_branches = stale_unprotected_branches(branches, open_heads, default_branch, retention)
     selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
     removed_branches = 0
     for branch in selected_branches:
@@ -1009,11 +999,7 @@ def _protected_package_shas(
             protected.add(main_sha)
     for run in completed_runs:
         created_at, sha = run.get("created_at"), run.get("head_sha")
-        if (
-            isinstance(created_at, str)
-            and epoch(created_at) >= run_cutoff
-            and isinstance(sha, str)
-        ):
+        if isinstance(created_at, str) and epoch(created_at) >= run_cutoff and isinstance(sha, str):
             protected.add(sha)
     for status in ACTIVE_RUN_STATUSES:
         active_runs = paginated_api_items(
@@ -1049,9 +1035,7 @@ def main() -> int:
     completed_runs, removed_runs, stale_runs_pending = _cleanup_stale_completed_runs(
         repo, run_cutoff
     )
-    protected_shas = _protected_package_shas(
-        repo, protected_shas, completed_runs, run_cutoff
-    )
+    protected_shas = _protected_package_shas(repo, protected_shas, completed_runs, run_cutoff)
     package_result = cleanup_pbd_package_versions(repo, protected_shas, run_cutoff)
     sys.stdout.write(
         "maintenance-cleanup=passed "
