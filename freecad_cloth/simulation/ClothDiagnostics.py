@@ -9,7 +9,8 @@ by GUI, export, or headless validation code.
 import json
 import pathlib
 from collections.abc import Sequence
-from typing import TypedDict
+from inspect import Parameter, Signature
+from typing import TypedDict, Unpack
 
 import numpy as np
 from numpy.typing import NDArray
@@ -17,6 +18,15 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
+
+
+class AnalyzeMeshOptions(TypedDict, total=False):
+    """Optional keyword controls accepted by analyze_mesh."""
+
+    stretch_limit: float
+    clearances: Sequence[float] | None
+    fit_tolerance: float
+    pressures: Sequence[float] | None
 
 
 class DiagnosticMetricPayload(TypedDict):
@@ -316,11 +326,7 @@ def analyze_mesh(
     rest_vertices: Sequence[Point3],
     current_vertices: Sequence[Point3],
     triangles: Sequence[Triangle],
-    *,
-    stretch_limit: float = 0.02,
-    clearances: Sequence[float] | None = None,
-    fit_tolerance: float = 5.0,
-    pressures: Sequence[float] | None = None,
+    **options: Unpack[AnalyzeMeshOptions],
 ) -> DiagnosticResult:
     """Compute deterministic strain/stress/fit/pressure maps per triangle.
 
@@ -332,19 +338,29 @@ def analyze_mesh(
         rest_vertices: Reference vertex coordinates before simulation.
         current_vertices: Vertex coordinates from the evaluated cloth mesh.
         triangles: Faces expressed as triples of vertex indices.
-        stretch_limit: Positive allowable relative edge stretch for the fabric.
-        clearances: Optional per-face or per-vertex distance to a target surface.
-        fit_tolerance: Absolute target-distance error at which fit reaches zero.
-        pressures: Optional solver-provided pressure value for each face.
+        options: Optional fabric stretch, clearances, fit tolerance, and solver pressure controls.
+            Defaults are a 0.02 stretch limit, no clearances, a 5.0 fit tolerance,
+            and zero pressure.
 
     Returns:
         Per-face strain, stress, fit and pressure metrics with global extrema.
 
     Raises:
-        TypeError: If an unsupported keyword control is supplied.
+        TypeError: If an unsupported keyword option is supplied.
         ValueError: If vertex counts differ, the stretch limit is nonpositive,
             or optional clearance and pressure arrays have unsupported lengths.
     """
+    unknown_options = options.keys() - AnalyzeMeshOptions.__annotations__.keys()
+    if unknown_options:
+        unexpected_option = min(unknown_options)
+        msg = f"analyze_mesh() got an unexpected keyword argument {unexpected_option!r}"
+        raise TypeError(msg)
+
+    stretch_limit = options.get("stretch_limit", 0.02)
+    clearances = options.get("clearances")
+    fit_tolerance = options.get("fit_tolerance", 5.0)
+    pressures = options.get("pressures")
+
     if len(rest_vertices) != len(current_vertices):
         msg = "rest and current meshes must have equal vertex counts"
         raise ValueError(msg)
@@ -370,6 +386,63 @@ def analyze_mesh(
         else np.zeros(len(face_indices), dtype=np.float64)
     )
     return _build_diagnostic_result(strain_values, stress_values, fit_values, pressure_values)
+
+
+
+def _public_mesh_analysis_signature() -> Signature:
+    """Build inspection metadata for the stable public mesh-analysis API.
+
+    Returns:
+        An explicit signature with keyword-only controls and their public defaults.
+    """
+    return Signature(
+        parameters=(
+            Parameter(
+                "rest_vertices",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Point3],
+            ),
+            Parameter(
+                "current_vertices",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Point3],
+            ),
+            Parameter(
+                "triangles",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Triangle],
+            ),
+            Parameter(
+                "stretch_limit",
+                Parameter.KEYWORD_ONLY,
+                default=0.02,
+                annotation=float,
+            ),
+            Parameter(
+                "clearances",
+                Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Sequence[float] | None,
+            ),
+            Parameter(
+                "fit_tolerance",
+                Parameter.KEYWORD_ONLY,
+                default=5.0,
+                annotation=float,
+            ),
+            Parameter(
+                "pressures",
+                Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Sequence[float] | None,
+            ),
+        ),
+        return_annotation=DiagnosticResult,
+    )
+
+
+# Keep Ruff's argument limit without changing the public inspection signature.
+analyze_mesh.__dict__["__signature__"] = _public_mesh_analysis_signature()
 
 
 def summarize(result: DiagnosticResult) -> dict[str, int | float]:

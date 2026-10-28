@@ -165,8 +165,7 @@ def test_analyze_mesh_preserves_keyword_only_signature() -> None:
     )
     _require(
         condition=all(
-            parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
-            for name in option_defaults
+            parameters[name].kind is inspect.Parameter.KEYWORD_ONLY for name in option_defaults
         ),
         message="Optional mesh controls must remain keyword-only.",
     )
