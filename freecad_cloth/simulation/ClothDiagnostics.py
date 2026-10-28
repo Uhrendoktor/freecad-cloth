@@ -369,9 +369,7 @@ def analyze_mesh(
         if pressures is not None
         else np.zeros(len(face_indices), dtype=np.float64)
     )
-    return _build_diagnostic_result(
-        strain_values, stress_values, fit_values, pressure_values
-    )
+    return _build_diagnostic_result(strain_values, stress_values, fit_values, pressure_values)
 
 
 def summarize(result: DiagnosticResult) -> dict[str, int | float]:
