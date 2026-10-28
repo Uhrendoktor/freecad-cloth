@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from collections.abc import Callable, Mapping, Sequence
 from importlib import import_module
 from typing import Protocol, cast
@@ -169,7 +170,11 @@ def _points_in_local_space(
     """
     make_vector = vector_factory
     if make_vector is None:
-        make_vector = cast("Callable[..., object]", getattr(import_module("FreeCAD"), "Vector"))
+        host_module = sys.modules.get("FreeCAD")
+        if host_module is None:
+            msg = "FreeCAD must be loaded when converting placed mesh coordinates"
+            raise ImportError(msg)
+        make_vector = cast("Callable[..., object]", getattr(host_module, "Vector"))
     inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
     transform = cast("Callable[[object], object]", getattr(inverse, "multVec"))
     return tuple(_point_xyz(transform(make_vector(*point))) for point in points)

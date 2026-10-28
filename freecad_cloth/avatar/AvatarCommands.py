@@ -488,9 +488,13 @@ def _mesh_data(
         A native Mesh object with the provider's shared vertex topology preserved.
     """
     if app_module is None:
-        app_module = import_module("FreeCAD")
+        import FreeCAD
+
+        app_module = FreeCAD
     if mesh_module is None:
-        mesh_module = import_module("Mesh")
+        import Mesh
+
+        mesh_module = Mesh
 
     native = mesh_module.Mesh()
     vectors = list(starmap(app_module.Vector, vertices))
@@ -1168,9 +1172,10 @@ _HANDLERS = {
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:
-    gui = import_module("FreeCADGui")
+    import FreeCADGui
+
     from freecad_cloth.common.CommandAdapter import register_commands
 
-    register_commands(cast("GuiCommandRegistrar", gui), _HANDLERS)
+    register_commands(cast("GuiCommandRegistrar", FreeCADGui), _HANDLERS)
 except (ImportError, AttributeError):
     pass

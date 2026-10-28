@@ -1,12 +1,14 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for the native Garment document hierarchy."""
 
+from types import ModuleType
 from unittest.mock import Mock
 
 import pytest
 
 from freecad_cloth.common.GarmentDocument import (
     GARMENT_GROUPS,
+    create_garment_document,
     ensure_garment_hierarchy,
     garment_group,
     garment_structure,
@@ -139,3 +141,22 @@ def test_object_linking_is_a_standalone_no_op_and_rejects_unknown_roles() -> Non
     ensure_garment_hierarchy(document)
     with pytest.raises(ValueError, match="unsupported Garment hierarchy role"):
         link_garment_object(obj, "UnsupportedRole", document)
+
+def test_document_creation_accepts_an_injected_host_module() -> None:
+    """Create a document through an explicit application dependency in headless tests."""
+    document = _FakeDocument()
+    freecad_module = ModuleType("FreeCAD")
+    new_document = Mock(return_value=document)
+    setattr(freecad_module, "newDocument", new_document)
+
+    created = create_garment_document(app_module=freecad_module)
+
+    require(
+        condition=created is document,
+        message="Document creation must return the injected application's new document.",
+    )
+    require(
+        condition=new_document.call_args.args == ("Garment",),
+        message="Document creation must preserve the requested internal document name.",
+    )
+

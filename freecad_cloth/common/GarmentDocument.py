@@ -8,8 +8,9 @@ Standalone object creation remains valid when no Garment root is present.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Iterable
-from importlib import import_module
+from types import ModuleType
 from typing import cast
 
 GARMENT_SCHEMA_VERSION = "1"
@@ -368,20 +369,30 @@ def garment_structure(doc: object) -> dict[str, object]:
     return {"root": root_snapshot, "groups": groups}
 
 
-def create_garment_document(name: str = "Garment", label: str = "Garment") -> object:
+def create_garment_document(
+    name: str = "Garment",
+    label: str = "Garment",
+    *,
+    app_module: ModuleType | None = None,
+) -> object:
     """Create a new FreeCAD document with the complete native garment hierarchy.
 
     Args:
         name: Internal FreeCAD document name.
         label: User-facing label for the Garment root.
+        app_module: Optional injected FreeCAD application module for host boundaries.
 
     Returns:
         The newly created document after its root, groups, and default material exist.
+
+    Raises:
+        ImportError: If the FreeCAD application module is not loaded or injected.
     """
-    new_document = cast(
-        "Callable[[str], object]",
-        getattr(import_module("FreeCAD"), "newDocument"),
-    )
+    runtime_module = app_module or sys.modules.get("FreeCAD")
+    if runtime_module is None:
+        msg = "FreeCAD must be loaded or supplied as app_module to create a document"
+        raise ImportError(msg)
+    new_document = cast("Callable[[str], object]", getattr(runtime_module, "newDocument"))
     doc = new_document(str(name))
     ensure_garment_hierarchy(doc, label)
     return doc
