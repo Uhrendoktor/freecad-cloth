@@ -150,20 +150,7 @@ jobs:
           python tools/ci/check_pydantic_models.py
           python tools/ci/check_no_source_rewriting.py
           python -m pytest -q tests/test_no_source_rewriting.py
-          python -m pytest -q \
-            tests/test_avatar_fitting_coordinate_contract.py \
-            tests/test_avatar_model.py \
-            tests/test_avatar_model_landmark_angle_contract.py \
-            tests/test_sewing_constraints_contract.py \
-            tests/test_mesh.py \
-            tests/test_avatar_runtime_api_adapter.py \
-            tests/test_cloth_diagnostics.py \
-            tests/test_avatar_fitting_anchor_refresh.py \
-            tests/test_source_signature_contract.py \
-            tests/test_shared_adapters.py \
-            tests/test_garment_document_contract.py \
-            tests/test_mesh_validation.py \
-            tests/test_fitting_gui.py
+          python -m pytest -q tests/test_avatar_fitting_coordinate_contract.py tests/test_avatar_model.py tests/test_avatar_model_landmark_angle_contract.py tests/test_sewing_constraints_contract.py tests/test_mesh.py tests/test_avatar_runtime_api_adapter.py tests/test_cloth_diagnostics.py tests/test_avatar_fitting_anchor_refresh.py tests/test_source_signature_contract.py tests/test_shared_adapters.py tests/test_garment_document_contract.py tests/test_mesh_validation.py tests/test_fitting_gui.py
           pyright -p pyrightconfig.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
