@@ -3,7 +3,6 @@
 
 import json
 from collections.abc import Callable, Sequence
-from importlib import import_module
 from itertools import starmap
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
