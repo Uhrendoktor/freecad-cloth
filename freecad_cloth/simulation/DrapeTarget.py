@@ -28,7 +28,6 @@ class _DrapeTargetFeature(Protocol):
     SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
-    addProperty: Callable[[str, str, str], object]
 
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
@@ -135,7 +134,11 @@ def target_status(target: object | None) -> dict[str, str | bool]:
         }
     vertices = int(getattr(target, "CollisionVertexCount", 0))
     triangles = int(getattr(target, "CollisionTriangleCount", 0))
-    if not getattr(target, "SourceSignature", "") or vertices <= 0 or triangles <= 0:
+    if (
+        not getattr(target, "SourceSignature", "")
+        or vertices <= _EMPTY_COLLISION_COUNT
+        or triangles <= _EMPTY_COLLISION_COUNT
+    ):
         return {
             "state": "unbuilt",
             "message": "Drape target collision surface needs to be built",
