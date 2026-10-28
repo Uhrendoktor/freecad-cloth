@@ -1,13 +1,37 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
-from typing import ClassVar
+from collections.abc import Callable
+from typing import ClassVar, Protocol, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.SourceSignature import source_signature
+
+class _DrapeTargetFeature(Protocol):
+    """Persisted FreeCAD feature fields written by target lifecycle operations."""
+
+    Label: str
+    TargetType: str
+    SourceObject: object | None
+    CollisionDeflection: float
+    CollisionThickness: float
+    Enabled: bool
+    CollisionVertexCount: int
+    CollisionTriangleCount: int
+    SourceSignature: str
+    TargetStatus: str
+    InvalidationReason: str
+    addProperty: Callable[[str, str, str], object]
+
+
+class _DrapeTargetDocument(Protocol):
+    """Document factory used to create the persistent target feature."""
+
+    addObject: Callable[[str, str], object]
+
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
 
@@ -201,7 +225,11 @@ def create_drape_target(
     if source is None and target_type != "Mannequin":
         msg = "a FreeCAD Geometry target requires a source object"
         raise ValueError(msg)
-    target = doc.addObject("App::FeaturePython", "DrapeTarget")
+    document = cast("_DrapeTargetDocument", doc)
+    target = cast(
+        "_DrapeTargetFeature",
+        document.addObject("App::FeaturePython", "DrapeTarget"),
+    )
     target.Label = "Drape Target"
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
@@ -258,15 +286,16 @@ def assign_drape_target(
     if kind not in DrapeTargetSpec.VALID_TYPES:
         msg = "unsupported drape target type"
         raise ValueError(msg)
-    deflection = float(getattr(target, "CollisionDeflection", 1.0))
-    thickness = float(getattr(target, "CollisionThickness", 0.0))
+    typed_target = cast("_DrapeTargetFeature", target)
+    deflection = float(getattr(typed_target, "CollisionDeflection", 1.0))
+    thickness = float(getattr(typed_target, "CollisionThickness", 0.0))
     surface = collision_surface(source, deflection, thickness)
-    target.TargetType = kind
-    target.SourceObject = source
-    target.SourceSignature = repr(source_signature(source, deflection, thickness))
-    target.CollisionVertexCount = len(surface.vertices)
-    target.CollisionTriangleCount = len(surface.triangles)
-    status = target_status(target)
-    target.TargetStatus = status["state"]
-    target.InvalidationReason = status["reason"]
-    return target
+    typed_target.TargetType = kind
+    typed_target.SourceObject = source
+    typed_target.SourceSignature = repr(source_signature(source, deflection, thickness))
+    typed_target.CollisionVertexCount = len(surface.vertices)
+    typed_target.CollisionTriangleCount = len(surface.triangles)
+    status = target_status(typed_target)
+    typed_target.TargetStatus = str(status["state"])
+    typed_target.InvalidationReason = str(status["reason"])
+    return typed_target
