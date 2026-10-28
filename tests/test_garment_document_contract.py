@@ -160,4 +160,3 @@ def test_document_creation_accepts_an_injected_host_module() -> None:
         condition=new_document.call_args.args == ("Garment",),
         message="Document creation must preserve the requested internal document name.",
     )
-
