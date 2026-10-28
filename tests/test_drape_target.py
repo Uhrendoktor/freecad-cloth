@@ -132,7 +132,10 @@ def _target() -> SimpleNamespace:
     )
 
 
-def _mesh_target(vertices: tuple[SimpleNamespace, ...], triangles: tuple[tuple[int, int, int], ...]) -> SimpleNamespace:
+def _mesh_target(
+    vertices: tuple[SimpleNamespace, ...],
+    triangles: tuple[tuple[int, int, int], ...],
+) -> SimpleNamespace:
     """Build a mesh target whose topology can be replaced during a test.
 
     Args:
