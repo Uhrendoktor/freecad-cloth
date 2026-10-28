@@ -566,16 +566,20 @@ def test_static_preflight_runs_public_api_regressions() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    command = workflow.split(
-        "python -m pytest -q tests/test_avatar_fitting_coordinate_contract.py",
-        maxsplit=1,
-    )[1].split("pyright -p pyrightconfig.json", maxsplit=1)[0]
+    command_start = workflow.find("tests/test_avatar_fitting_coordinate_contract.py")
+    command_end = workflow.find("pyright -p pyrightconfig.json", command_start)
+    command = workflow[command_start:command_end] if command_end > command_start else ""
+    required_tests = (
+        "tests/test_avatar_runtime_api_adapter.py",
+        "tests/test_cloth_diagnostics.py",
+        "tests/test_avatar_fitting_anchor_refresh.py",
+    )
 
     require(
         condition=(
-            "tests/test_avatar_runtime_api_adapter.py" in command
-            and "tests/test_cloth_diagnostics.py" in command
+            command_start >= 0
+            and command_end > command_start
+            and all(path in command for path in required_tests)
         ),
-        message="static preflight must run diagnostic and avatar adapter regressions",
+        message="static preflight must run the diagnostic and avatar API regressions",
     )
-

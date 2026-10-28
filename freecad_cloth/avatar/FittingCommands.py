@@ -488,6 +488,25 @@ class _FittingDocument(Protocol):
     def removeObject(self, name: str) -> None: ...
 
 
+
+def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
+    """Refresh fitting anchors when the persistent drape target belongs to an avatar.
+
+    Args:
+        document: FreeCAD document containing the fitting scene and drape target.
+        avatar: Avatar object whose mesh has just been rebuilt.
+
+    Returns:
+        Names of arrangement points whose persisted positions were refreshed.
+    """
+    typed_document = cast("_FittingDocument", document)
+    scene = _scene(typed_document)
+    target = typed_document.getObject("DrapeTarget")
+    if scene is None or getattr(target, "SourceObject", None) is not avatar:
+        return ()
+    return tuple(_refresh_anchor_positions(scene, update_visuals=True))
+
+
 def _fitting_marker_group(
     doc: _FittingDocument, create: bool = False
 ) -> _FittingMarkerGroup | None:

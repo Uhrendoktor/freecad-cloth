@@ -3,6 +3,7 @@
 
 import json
 from collections.abc import Callable, Sequence
+from importlib import import_module
 from itertools import starmap
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
@@ -372,23 +373,28 @@ def _shape_float(value: object, *, name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):
         msg = f"stored avatar shape value {name!r} must be numeric"
         raise TypeError(msg)
-    return float(value)
+    try:
+        return float(value)
+    except ValueError as exc:
+        msg = f"stored avatar shape value {name!r} must be numeric"
+        raise ValueError(msg) from exc
 
 
-def _parameters(obj: _AvatarFeature) -> AvatarParameters:
-    """Reconstruct validated avatar parameters from persisted FreeCAD properties.
+def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
+    """Reconstruct saved pose values and apply legacy-schema angle migration.
 
     Args:
-        obj: Avatar feature containing saved measurements, pose, and shape values.
+        obj: Avatar feature containing the stored pose properties.
+        preset: Authored pose preset selected by the feature.
+        payload: Serialized parameters used to recognize legacy pose data.
 
     Returns:
-        Parameter model representing the saved avatar state.
-
+        Pose containing saved arm, elbow, and joint-rotation values.
     """
-    values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
-    preset = str(getattr(obj, "PosePreset", "standing"))
     preset_defaults = Pose(preset)
-    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(preset, DEFAULT_POSE_ARM_ANGLES["standing"])
+    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(
+        preset, DEFAULT_POSE_ARM_ANGLES["standing"]
+    )
     fallback = {
         "left_arm_angle": float(
             default_arm_angle
@@ -406,11 +412,8 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
     angles = {
         name: float(getattr(obj, POSE_PROPERTY_MAP[name], fallback[name])) for name in fallback
     }
-
-    payload = str(getattr(obj, "ParametersJSON", "") or "")
     _migrate_legacy_pose_angles(payload, preset, angles)
-
-    pose = Pose(
+    return Pose(
         preset,
         angles["left_arm_angle"],
         angles["right_arm_angle"],
@@ -419,25 +422,42 @@ def _parameters(obj: _AvatarFeature) -> AvatarParameters:
         tuple(joint_rotations_from_json(getattr(obj, "JointPoseJSON", ""))),
     )
 
+
+def _parameters(obj: _AvatarFeature) -> AvatarParameters:
+    """Reconstruct validated avatar parameters from persisted FreeCAD properties.
+
+    Args:
+        obj: Avatar feature containing saved measurements, pose, and shape values.
+
+    Returns:
+        Parameter model representing the saved avatar state.
+    """
+    values = {name: float(getattr(obj, PROPERTY_MAP[name])) for name in DEFAULT_MEASUREMENTS}
+    preset = str(getattr(obj, "PosePreset", "standing"))
+    payload = str(getattr(obj, "ParametersJSON", "") or "")
+    pose = _stored_pose(obj, preset, payload)
     (
         shape_payload,
         phenotype_overrides,
         local_change_overrides,
         mass_target_kg,
     ) = _stored_avatar_shape_parameters(payload)
-
-    gender_value = getattr(
-        obj,
-        SHAPE_PROPERTY_MAP["gender"],
-        shape_payload.get("gender", 0.5),
+    gender = _shape_float(
+        getattr(
+            obj,
+            SHAPE_PROPERTY_MAP["gender"],
+            shape_payload.get("gender", 0.5),
+        ),
+        name="gender",
     )
-    gender = _shape_float(gender_value, name="gender")
-    breast_size_value = getattr(
-        obj,
-        SHAPE_PROPERTY_MAP["breast_size"],
-        shape_payload.get("breast_size", 0.0),
+    breast_size = _shape_float(
+        getattr(
+            obj,
+            SHAPE_PROPERTY_MAP["breast_size"],
+            shape_payload.get("breast_size", 0.0),
+        ),
+        name="breast_size",
     )
-    breast_size = _shape_float(breast_size_value, name="breast_size")
     return AvatarParameters(
         values,
         float(getattr(obj, "SkinOffset", 3.0)),
@@ -470,9 +490,9 @@ def _mesh_data(
         A native Mesh object with the provider's shared vertex topology preserved.
     """
     if app_module is None:
-        import FreeCAD as app_module
+        app_module = import_module("FreeCAD")
     if mesh_module is None:
-        import Mesh as mesh_module
+        mesh_module = import_module("Mesh")
 
     native = mesh_module.Mesh()
     vectors = list(starmap(app_module.Vector, vertices))
@@ -571,9 +591,9 @@ def _refresh_drape_target_status(obj: _AvatarFeature) -> None:
     if target is None:
         return
     typed_target = cast("_DrapeTarget", target)
-    from freecad_cloth.simulation import DrapeTarget as drape_target
+    from freecad_cloth.simulation.DrapeTarget import target_status
 
-    status = drape_target.target_status(typed_target)
+    status = target_status(typed_target)
     typed_target.TargetStatus = status["state"]
     typed_target.InvalidationReason = status["reason"]
 
@@ -674,14 +694,14 @@ def _ensure_drape_target(obj: _AvatarFeature) -> object:
     Returns:
         The created or updated drape-target object.
     """
-    from freecad_cloth.simulation import DrapeTarget as drape_target
+    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
     target = _document_get_object(obj.Document, "DrapeTarget")
     if target is None:
-        target = drape_target.create_drape_target(
+        target = create_drape_target(
             obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0
         )
-    drape_target.assign_drape_target(target, obj, "Mannequin")
+    assign_drape_target(target, obj, "Mannequin")
     return target
 
 
@@ -773,9 +793,9 @@ def create_avatar(
     _rebuild(obj, params=params)
     if attach_collision:
         _ensure_drape_target(obj)
-    from freecad_cloth.common import GarmentDocument as garment_document
+    from freecad_cloth.common.GarmentDocument import link_garment_object
 
-    garment_document.link_garment_object(obj, "Avatar", doc)
+    link_garment_object(obj, "Avatar", doc)
     doc.recompute()
     return obj
 
@@ -816,12 +836,9 @@ def apply_avatar_parameters(
     # after the final mesh exists so their saved triangle/barycentric reference
     # follows the deformed surface instead of being invalidated by AvatarRevision.
     try:
-        from freecad_cloth.avatar import FittingCommands as fitting_commands
+        from freecad_cloth.avatar.FittingCommands import refresh_avatar_anchor_positions
 
-        fitting_scene = fitting_commands._scene(obj.Document)
-        drape_target = _document_get_object(obj.Document, "DrapeTarget")
-        if fitting_scene is not None and getattr(drape_target, "SourceObject", None) is obj:
-            fitting_commands._refresh_anchor_positions(fitting_scene, update_visuals=True)
+        refresh_avatar_anchor_positions(obj.Document, obj)
     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError):
         # Avatar creation/rebuild must remain independent of the optional fitting scene.
         pass
@@ -866,9 +883,9 @@ def edit_avatar() -> "AvatarTaskPanel":
     if doc is None:
         doc = _application_new_document(app, "ClothSewing")
     obj = _avatar(doc) or create_avatar()
-    from freecad_cloth.avatar import AvatarGui as avatar_gui
+    from freecad_cloth.avatar.AvatarGui import show_avatar_task
 
-    return avatar_gui.show_avatar_task(obj)
+    return show_avatar_task(obj)
 
 
 def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarPoseTaskPanel":
@@ -889,9 +906,9 @@ def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarPoseTaskPanel":
     if doc is None:
         doc = _application_new_document(app, "ClothSewing")
     obj = avatar if avatar is not None else (_avatar(doc) or create_avatar())
-    from freecad_cloth.avatar import AvatarPoseGui as avatar_pose_gui
+    from freecad_cloth.avatar.AvatarPoseGui import show_avatar_pose_task
 
-    return avatar_pose_gui.show_avatar_pose_task(obj)
+    return show_avatar_pose_task(obj)
 
 
 def set_avatar_measurements(**changes: float) -> _AvatarFeature:
@@ -1153,10 +1170,9 @@ _HANDLERS = {
     "ClothFitting_SetAvatarSkinOffset": lambda: set_avatar_skin_offset(5.0),
 }
 try:
-    import FreeCADGui as gui
+    gui = import_module("FreeCADGui")
+    from freecad_cloth.common.CommandAdapter import register_commands
 
-    from freecad_cloth.common import CommandAdapter as command_adapter
-
-    command_adapter.register_commands(cast("GuiCommandRegistrar", gui), _HANDLERS)
+    register_commands(cast("GuiCommandRegistrar", gui), _HANDLERS)
 except (ImportError, AttributeError):
     pass

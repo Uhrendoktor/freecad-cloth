@@ -388,7 +388,6 @@ def analyze_mesh(
     return _build_diagnostic_result(strain_values, stress_values, fit_values, pressure_values)
 
 
-
 def _public_mesh_analysis_signature() -> Signature:
     """Build inspection metadata for the stable public mesh-analysis API.
 
