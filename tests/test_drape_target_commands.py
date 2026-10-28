@@ -1,9 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Regression contract for mannequin drape-target attachment."""
+"""Regression contract for mannequin drape-target attachment and command callbacks."""
 
 import sys
 from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
+from typing import cast
 
 import pytest
 
@@ -35,17 +36,17 @@ def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.Monke
         recompute=lambda: None,
     )
     freecad_module = ModuleType("FreeCAD")
-    setattr(freecad_module, "ActiveDocument", document)
+    freecad_module.ActiveDocument = document
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
     avatar_module = ModuleType("freecad_cloth.avatar.AvatarCommands")
-    setattr(avatar_module, "create_avatar", lambda: mannequin)
+    avatar_module.create_avatar = lambda: mannequin
     monkeypatch.setitem(sys.modules, "freecad_cloth.avatar.AvatarCommands", avatar_module)
 
     drape_target_module = ModuleType("freecad_cloth.simulation.DrapeTarget")
-    setattr(drape_target_module, "DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM", 2.0)
-    setattr(drape_target_module, "assign_drape_target", lambda *args: None)
-    setattr(drape_target_module, "create_drape_target", lambda *args: target)
+    drape_target_module.DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 2.0
+    drape_target_module.assign_drape_target = lambda *_args: None
+    drape_target_module.create_drape_target = lambda *_args: target
     monkeypatch.setitem(sys.modules, "freecad_cloth.simulation.DrapeTarget", drape_target_module)
 
     created = DrapeCommands.create_mannequin_drape_target()
@@ -63,34 +64,60 @@ def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.Monke
         message="The created target must retain its mannequin-specific label.",
     )
 
-def test_drape_command_exposes_freecad_callback_names() -> None:
-    """Keep the host's callback spellings available on the command instance."""
-    calls: list[str] = []
-    command = DrapeCommands._DrapeCommand(
-        "ClothDrape_Diagnostics",
-        lambda: calls.append("activated") or "done",
-        lambda: True,
-        "diagnostic command fixture",
+
+def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify public registration preserves FreeCAD's native command callback interface.
+
+    Args:
+        monkeypatch: Isolated FreeCAD host modules for command activation.
+    """
+    target = SimpleNamespace(Enabled=False)
+    document = SimpleNamespace(
+        getObject=lambda name: target if name == "DrapeTarget" else None,
+        recompute=lambda: None,
     )
-    activated = cast("Callable[[], object]", getattr(command, "Activated"))
-    is_active = cast("Callable[[], bool]", getattr(command, "IsActive"))
-    get_resources = cast("Callable[[], dict[str, object]]", getattr(command, "GetResources"))
+    freecad_module = ModuleType("FreeCAD")
+    freecad_module.ActiveDocument = document
+    monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
+
+    registered_commands: dict[str, object] = {}
+
+    def add_command(name: str, command: object) -> None:
+        """Capture a command adapter passed to the public registration API.
+
+        Args:
+            name: Stable internal command identifier.
+            command: Adapter registered under that identifier.
+        """
+        registered_commands[name] = command
+
+    gui = SimpleNamespace(addCommand=add_command)
+    require(
+        condition=DrapeCommands.register_gui_commands(gui),
+        message="Command registration must accept the supported FreeCAD GUI boundary.",
+    )
+    command = registered_commands["ClothDrape_EnableTarget"]
+    activated_name = "Activated"
+    is_active_name = "IsActive"
+    resources_name = "GetResources"
+    activated = cast("Callable[[], object]", getattr(command, activated_name))
+    is_active = cast("Callable[[], bool]", getattr(command, is_active_name))
+    get_resources = cast("Callable[[], dict[str, object]]", getattr(command, resources_name))
 
     require(
-        condition=activated() == "done" and calls == ["activated"],
-        message="FreeCAD's Activated callback must invoke the registered action.",
+        condition=is_active() is True,
+        message="The native IsActive callback must report an active document.",
     )
     require(
-        condition=is_active() is True,
-        message="FreeCAD's IsActive callback must return the enabled state.",
+        condition=activated() is target and target.Enabled is True,
+        message="The native Activated callback must enable the persistent target.",
     )
     resources = get_resources()
     require(
-        condition=resources["MenuText"] == "Cloth Diagnostics",
-        message="FreeCAD's GetResources callback must preserve the diagnostic menu label.",
+        condition=resources["MenuText"] == "Enable Target",
+        message="The native GetResources callback must retain the command label.",
     )
     require(
-        condition=resources["ToolTip"] == "diagnostic command fixture",
-        message="FreeCAD's GetResources callback must preserve the action tooltip.",
+        condition=resources["ToolTip"] == DrapeCommands._TOOLTIPS["ClothDrape_EnableTarget"],
+        message="The native GetResources callback must retain the command tooltip.",
     )
-

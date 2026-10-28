@@ -13,8 +13,32 @@ class _FreeCADDocument(Protocol):
 
     Objects: Sequence[object]
 
+    def getObject(self, name: str) -> object | None:
+        """Find a document object by its internal name.
+
+        Args:
+            name: Internal document name to find.
+
+        Returns:
+            The matching object, or None if no such object exists.
+        """
+        ...
+
     def recompute(self) -> None:
         """Recompute the document after target links are assigned."""
+        ...
+
+
+class _FreeCADGui(Protocol):
+    """GUI API needed for native command registration."""
+
+    def addCommand(self, name: str, command: object) -> None:
+        """Register a command adapter under its stable identifier.
+
+        Args:
+            name: Internal FreeCAD command name.
+            command: Adapter exposing the native callback interface.
+        """
         ...
 
 
@@ -74,8 +98,8 @@ def _get_document_object(doc: object, object_name: str) -> object | None:
     Returns:
         The matching document object, or None if it does not exist.
     """
-    get_object = cast("Callable[[str], object | None]", getattr(doc, "getObject"))
-    return get_object(object_name)
+    typed_doc = cast("_FreeCADDocument", doc)
+    return typed_doc.getObject(object_name)
 
 
 def _target(doc: object) -> object | None:
@@ -292,7 +316,7 @@ def refresh_drape_target() -> object:
     return target
 
 
-def set_drape_target_enabled(enabled: object = True) -> object:
+def set_drape_target_enabled(enabled: bool = True) -> object:
     """Enable or disable collision checks for the persistent DrapeTarget.
 
     Args:
@@ -342,8 +366,11 @@ def show_diagnostics() -> object:
 
 
 def _has_document() -> bool:
-    """Return whether a FreeCAD document is available in the current host."""
+    """Return whether a FreeCAD document is available in the current host.
 
+    Returns:
+        True when an active document exists, otherwise False.
+    """
     try:
         import FreeCAD as App
     except ImportError:
@@ -353,8 +380,11 @@ def _has_document() -> bool:
 
 
 def _has_source_selection() -> bool:
-    """Return whether the current GUI selection includes a valid source."""
+    """Return whether the current GUI selection includes a valid source.
 
+    Returns:
+        True when the selection contains a shape or mesh, otherwise False.
+    """
     try:
         _selected_source()
     except (ImportError, ValueError):
@@ -418,11 +448,19 @@ class _DrapeCommand:
         self.tooltip = tooltip
 
     def activated(self) -> object:
-        """Invoke the command action selected by its identifier."""
+        """Invoke the command action selected by its identifier.
+
+        Returns:
+            The result returned by the registered action.
+        """
         return self.function()
 
     def is_active(self) -> bool:
-        """Return whether the command is available in the current document."""
+        """Return whether the command is available in the current document.
+
+        Returns:
+            True when the command predicate permits activation, otherwise False.
+        """
         return bool(self.active())
 
     def get_resources(self) -> dict[str, object]:
@@ -482,10 +520,10 @@ def register_gui_commands(gui: object | None = None) -> bool:
         except ImportError:
             return False
         gui = Gui
-    add_command = cast("Callable[[str, object], None]", getattr(gui, "addCommand"))
+    typed_gui = cast("_FreeCADGui", gui)
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
-        add_command(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
+        typed_gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
     return True
 
 

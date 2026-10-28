@@ -18,14 +18,16 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
+from freecad_cloth.shared.collision import CollisionSurface
 from tests.support.assertions import require
 
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
-_edge_length = cast("Callable[[object, int], float]", getattr(_SEWING_OBJECTS, "_edge_length"))
+_EDGE_LENGTH_ATTRIBUTE = "_edge_length"
+_EDGE_POINTS_ATTRIBUTE = "_edge_points"
+_edge_length = cast("Callable[[object, int], float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE))
 _edge_points = cast(
-    "Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, "_edge_points")
+    "Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE)
 )
 
 SAMPLE_PATTERN_WIDTH_MM = 100
@@ -192,7 +194,7 @@ def test_pattern_construction_and_dxf_export() -> None:
 
 def test_invalid_pattern_mark_reference_is_rejected() -> None:
     """Reject a pattern mark that names a nonexistent segment."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="pattern mark references unknown segment"):
         add_marks(
             derive_cut_boundary(rectangle(10, 10), 1),
             [PatternMark("bad", "Fold", segment_id="missing")],
