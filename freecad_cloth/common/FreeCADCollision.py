@@ -9,7 +9,20 @@ from freecad_cloth.shared.MeshTopology import orient_closed_triangle_winding
 def surface_from_freecad(
     obj: object, deflection: float = 1.0, thickness: float = 0.0
 ) -> CollisionSurface:
-    """Convert a FreeCAD mesh or shape into a deterministic collision surface."""
+    """Convert a FreeCAD mesh or shape into a deterministic collision surface.
+
+    Args:
+        obj: FreeCAD object exposing mesh topology or a tessellatable Shape.
+        deflection: Positive tessellation deflection for shape-backed inputs.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        CollisionSurface: Validated surface with normalized closed-mesh winding.
+
+    Raises:
+        TypeError: If the object exposes neither usable mesh topology nor a shape.
+        ValueError: If the deflection, source topology, or collision geometry is invalid.
+    """
     deflection = validate_finite_number(deflection)
     thickness = validate_finite_number(thickness)
     if deflection <= 0.0:

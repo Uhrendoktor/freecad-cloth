@@ -10,8 +10,9 @@ for acceptance diagnostics, backend comparisons, and developer tooling.
 
 from __future__ import annotations
 
+from importlib import import_module
 from math import isfinite
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -21,7 +22,7 @@ from scipy.spatial import KDTree
 from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
     from numbers import Real
     from numpy.typing import NDArray
 
@@ -29,11 +30,69 @@ Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
 
+class _SurfaceQuery(Protocol):
+    """Minimal point-to-surface query exposed by Trimesh proximity helpers."""
+
+    def on_surface(
+        self,
+        points: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.intp]]:
+        """Calculate nearest surface points, distances, and triangle indices.
+
+        Args:
+            points: Query coordinates represented as an (N, 3) NumPy array.
+
+        Returns:
+            Nearest points, their distances, and source triangle indices.
+        """
+
+
+class _TrimeshMesh(Protocol):
+    """Mesh fields and operations needed by the optional Trimesh adapter."""
+
+    bounds: NDArray[np.float64]
+    area: float
+    vertices: NDArray[np.float64]
+    is_watertight: bool
+    nearest: _SurfaceQuery
+
+    def split(self, *, only_watertight: bool = False) -> Sequence[object]:
+        """Split this mesh into disconnected components.
+
+        Args:
+            only_watertight: Whether to omit components that are not watertight.
+
+        Returns:
+            The connected mesh components.
+        """
+
+
 MeshValidationResult = MeshHealthMetrics
 
 
+def _trimesh_constructor() -> Callable[..., _TrimeshMesh]:
+    """Load the optional Trimesh constructor without importing it at module load.
+
+    Returns:
+        Callable[..., _TrimeshMesh]: Constructor for a native Trimesh object.
+
+    Raises:
+        ImportError: If the Trimesh dependency is unavailable.
+    """
+    module = import_module("trimesh")
+    return cast("Callable[..., _TrimeshMesh]", getattr(module, "Trimesh"))
+
+
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
-    """Validate mesh coordinates and connectivity with one schema boundary."""
+    """Validate mesh coordinates and connectivity with one schema boundary.
+
+    Args:
+        vertices: Ordered 3D vertex coordinates.
+        triangles: Face indices referencing the supplied vertices.
+
+    Returns:
+        MeshArrays: Normalized coordinates and validated triangle connectivity.
+    """
     return MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
 
 
@@ -67,7 +126,18 @@ def _fallback_bounds(
 def _triangle_areas(
     vertices: Sequence[Point3], triangles: Sequence[Triangle]
 ) -> NDArray[np.float64]:
-    """Calculate triangle areas with NumPy's vectorized cross product and norm."""
+    """Calculate triangle areas with NumPy's vectorized cross product and norm.
+
+    Args:
+        vertices: Finite 3D mesh coordinates.
+        triangles: Triangle indices into the vertex sequence.
+
+    Returns:
+        NDArray[np.float64]: One non-negative area for each input face.
+
+    Raises:
+        ValueError: If the computed triangle areas contain non-finite values.
+    """
     coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
     faces = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
     with np.errstate(over="ignore", invalid="ignore"):
@@ -83,7 +153,17 @@ def _triangle_areas(
 
 
 def _fallback_surface_area(areas: NDArray[np.float64]) -> float:
-    """Sum precomputed triangle areas without requiring the optional trimesh package."""
+    """Sum precomputed triangle areas without requiring the optional Trimesh package.
+
+    Args:
+        areas: Per-triangle areas already calculated from validated mesh inputs.
+
+    Returns:
+        float: Sum of all triangle areas.
+
+    Raises:
+        ValueError: If the sum overflows to a non-finite result.
+    """
     with np.errstate(over="ignore", invalid="ignore"):
         total = float(np.sum(areas, dtype=np.float64))
     if not isfinite(total):
@@ -140,8 +220,20 @@ def validate_mesh(
 ) -> MeshValidationResult:
     """Return mesh-health metrics without mutating the source arrays.
 
-    ``trimesh`` is imported lazily. The fallback keeps basic metrics available
-    in isolated tooling environments where the package is unavailable.
+    Trimesh is loaded lazily. The NumPy/SciPy fallback keeps basic metrics
+    available in isolated tooling environments where Trimesh is unavailable.
+
+    Args:
+        vertices: Ordered 3D vertex coordinates supplied by the caller.
+        triangles: Triangle index triples referencing the vertex sequence.
+        prefer_trimesh: Whether to attempt accelerated metrics using Trimesh.
+
+    Returns:
+        MeshValidationResult: Counts, bounds, area, and mesh-health indicators.
+
+    Raises:
+        ValueError: If coordinates or the computed surface area are non-finite,
+            or if mesh arrays fail the shared input schema.
     """
     validated = _validate_arrays(vertices, triangles)
     vertices, triangles = validated.vertices, validated.triangles
@@ -154,9 +246,8 @@ def validate_mesh(
 
     if prefer_trimesh:
         try:
-            import trimesh
-
-            mesh = trimesh.Trimesh(
+            mesh_constructor = _trimesh_constructor()
+            mesh = mesh_constructor(
                 vertices=np.asarray(vertices, dtype=float),
                 faces=np.asarray(triangles, dtype=int),
                 process=False,
@@ -260,7 +351,21 @@ def nearest_surface_clearance(
     target_vertices: Sequence[Point3],
     target_triangles: Sequence[Triangle],
 ) -> float:
-    """Return minimum point-to-surface distance using Trimesh and Rtree."""
+    """Return minimum point-to-surface distance using Trimesh and Rtree.
+
+    Args:
+        garment_vertices: Garment coordinates in the target mesh's frame.
+        target_vertices: Target mesh vertex coordinates.
+        target_triangles: Validated triangle indices for the target mesh.
+
+    Returns:
+        float: The minimum Euclidean point-to-surface distance.
+
+    Raises:
+        RuntimeError: If the optional Trimesh dependency is unavailable.
+        ValueError: If the target triangles or garment points are empty, or the
+            closest-surface query produces no finite distances.
+    """
     validated = _validate_arrays(target_vertices, target_triangles)
     garment_vertices = validate_points3d(cast("Iterable[Iterable[Real]]", garment_vertices))
     target_vertices, target_triangles = validated.vertices, validated.triangles
@@ -271,12 +376,11 @@ def nearest_surface_clearance(
         msg = "target triangles are required"
         raise ValueError(msg)
     try:
-        import numpy as np
-        import trimesh
+        mesh_constructor = _trimesh_constructor()
     except ImportError as exc:
         msg = "trimesh is required for nearest_surface_clearance"
         raise RuntimeError(msg) from exc
-    mesh = trimesh.Trimesh(
+    mesh = mesh_constructor(
         vertices=np.asarray(target_vertices, dtype=float),
         faces=np.asarray(target_triangles, dtype=int),
         process=False,
