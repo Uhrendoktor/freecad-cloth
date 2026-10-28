@@ -111,11 +111,12 @@ def test_hierarchy_creation_is_idempotent_and_populates_fabric_defaults() -> Non
         condition=getattr(root, "Label", "") == "Updated Project Label",
         message="Hierarchy repair must refresh the user-facing root label.",
     )
+    fabric_material_count = sum(
+        str(getattr(child, "GarmentRole", "")) == "FabricMaterial"
+        for child in fabric_children
+    )
     require(
-        condition=sum(
-            str(getattr(child, "GarmentRole", "")) == "FabricMaterial"
-            for child in fabric_children
-        ) == 1,
+        condition=fabric_material_count == 1,
         message="Hierarchy repair must retain one default fabric material.",
     )
     require(

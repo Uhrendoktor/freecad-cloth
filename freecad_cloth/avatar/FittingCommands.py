@@ -208,6 +208,38 @@ def _validated_mesh_topology(
     return points, cast("tuple[Triangle, ...]", faces)
 
 
+def _mesh_topology_from_parts(
+    target: object,
+    vertices: Sequence[object],
+    triangles: Sequence[Sequence[object]],
+    vector_factory: Callable[..., object] | None,
+) -> MeshTopology:
+    """Convert raw FreeCAD topology into validated object-local mesh arrays.
+
+    Args:
+        target: FreeCAD target whose placement may need to be inverted.
+        vertices: Raw mesh vertex values returned by the native API.
+        triangles: Raw face-index records returned by the native API.
+        vector_factory: Optional vector constructor used by focused tests.
+
+    Returns:
+        Validated local-space vertices and triangle indices.
+
+    Raises:
+        ValueError: If the topology is malformed or placement normalization fails.
+    """
+    points = tuple(_point_xyz(point) for point in vertices)
+    placement = getattr(target, "Placement", None)
+    if placement is not None:
+        try:
+            points = _points_in_local_space(points, placement, vector_factory)
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            msg = "could not normalize target mesh vertices to object-local coordinates"
+            raise ValueError(msg) from exc
+    faces = tuple(tuple(int(index) for index in face) for face in triangles)
+    return _validated_mesh_topology(points, faces)
+
+
 def _mesh_topology(
     target: object,
     *,
@@ -234,21 +266,7 @@ def _mesh_topology(
         vertices, triangles = cast(
             "tuple[Sequence[object], Sequence[Sequence[object]]]", topology
         )
-        points = tuple(_point_xyz(point) for point in vertices)
-        faces = tuple(tuple(int(index) for index in face) for face in triangles)
-    except (TypeError, ValueError, AttributeError) as exc:
-        msg = "the selected target has unusable mesh topology"
-        raise ValueError(msg) from exc
-
-    placement = getattr(target, "Placement", None)
-    if placement is not None:
-        try:
-            points = _points_in_local_space(points, placement, vector_factory)
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            msg = "could not normalize target mesh vertices to object-local coordinates"
-            raise ValueError(msg) from exc
-    try:
-        return _validated_mesh_topology(points, faces)
+        return _mesh_topology_from_parts(target, vertices, triangles, vector_factory)
     except (TypeError, ValueError, AttributeError) as exc:
         msg = "the selected target has unusable mesh topology"
         raise ValueError(msg) from exc
