@@ -39,18 +39,24 @@ def triangle_indices_are_valid(
         return False
 
 
-@lru_cache(maxsize=8)
-def _closed_mesh_orientation_plan(
-    triangles: tuple[tuple[int, int, int], ...],
-) -> tuple[
-    tuple[tuple[int, int, int], ...],
-    tuple[tuple[int, ...], ...],
-]:
-    """Cache coherent triangle winding and connected components by topology.
+_EDGE_OWNER_COUNT = 2
+_TRIANGLE_VERTEX_COUNT = 3
+_COORDINATE_DIMENSIONS = 3
 
-    Vertex coordinates are intentionally excluded from this plan. Fitted avatar
-    shapes retain stable indexed topology, so their graph traversal need only be
-    calculated once per FreeCAD process.
+
+def _edge_owners(
+    triangles: tuple[tuple[int, int, int], ...],
+) -> dict[tuple[int, int], list[tuple[int, int]]]:
+    """Map undirected triangle edges to their owning faces and directions.
+
+    Args:
+        triangles: Ordered triangle connectivity used by the surface.
+
+    Returns:
+        Edge-to-face ownership mapping with each shared edge represented twice.
+
+    Raises:
+        ValueError: If a face has a degenerate edge or an edge lacks exactly two owners.
     """
     edge_owners: dict[tuple[int, int], list[tuple[int, int]]] = {}
     for face_index, (a, b, c) in enumerate(triangles):
@@ -62,20 +68,51 @@ def _closed_mesh_orientation_plan(
             direction = 1 if first < second else -1
             edge_owners.setdefault(edge, []).append((face_index, direction))
 
-    if any(len(owners) != 2 for owners in edge_owners.values()):
+    if any(len(owners) != _EDGE_OWNER_COUNT for owners in edge_owners.values()):
         msg = "closed mesh requires every undirected edge to appear exactly twice"
         raise ValueError(msg)
+    return edge_owners
 
-    adjacency: list[list[tuple[int, bool]]] = [[] for _ in range(len(triangles))]
+
+def _face_adjacency(
+    edge_owners: dict[tuple[int, int], list[tuple[int, int]]],
+    face_count: int,
+) -> list[list[tuple[int, bool]]]:
+    """Build adjacent-face constraints from the validated edge owners.
+
+    Args:
+        edge_owners: Mapping where every undirected edge has exactly two owners.
+        face_count: Number of faces that must be represented in the adjacency list.
+
+    Returns:
+        Per-face neighbors paired with whether their winding flips must differ.
+    """
+    adjacency: list[list[tuple[int, bool]]] = [[] for _ in range(face_count)]
     for owners in edge_owners.values():
         (left, left_direction), (right, right_direction) = owners
         must_flip = left_direction == right_direction
         adjacency[left].append((right, must_flip))
         adjacency[right].append((left, must_flip))
+    return adjacency
 
-    flip_state = [-1] * len(triangles)
+
+def _face_flip_plan(
+    adjacency: list[list[tuple[int, bool]]],
+) -> tuple[list[int], tuple[tuple[int, ...], ...]]:
+    """Find consistent local flips and the connected components they form.
+
+    Args:
+        adjacency: Face neighbors and the required relative winding for each edge.
+
+    Returns:
+        Per-face flip states and face indices grouped by connected component.
+
+    Raises:
+        ValueError: If the adjacent-face constraints are not orientable.
+    """
+    flip_state = [-1] * len(adjacency)
     components: list[list[int]] = []
-    for start in range(len(triangles)):
+    for start in range(len(adjacency)):
         if flip_state[start] >= 0:
             continue
         flip_state[start] = 0
@@ -93,7 +130,22 @@ def _closed_mesh_orientation_plan(
                     msg = "closed mesh triangle winding is not orientable"
                     raise ValueError(msg)
         components.append(component)
+    return flip_state, tuple(tuple(component) for component in components)
 
+
+def _corrected_face_winding(
+    triangles: tuple[tuple[int, int, int], ...],
+    flip_state: list[int],
+) -> tuple[tuple[int, int, int], ...]:
+    """Apply the computed local flips while preserving face order.
+
+    Args:
+        triangles: Original triangle vertex indices.
+        flip_state: Per-face flags returned by the adjacency traversal.
+
+    Returns:
+        Triangles with coherent winding in their original face order.
+    """
     corrected = [list(face) for face in triangles]
     for face_index, should_flip in enumerate(flip_state):
         if should_flip:
@@ -101,8 +153,35 @@ def _closed_mesh_orientation_plan(
                 corrected[face_index][2],
                 corrected[face_index][1],
             )
-    corrected_faces = tuple((int(face[0]), int(face[1]), int(face[2])) for face in corrected)
-    return corrected_faces, tuple(tuple(component) for component in components)
+    return tuple((int(face[0]), int(face[1]), int(face[2])) for face in corrected)
+
+
+@lru_cache(maxsize=8)
+def _closed_mesh_orientation_plan(
+    triangles: tuple[tuple[int, int, int], ...],
+) -> tuple[
+    tuple[tuple[int, int, int], ...],
+    tuple[tuple[int, ...], ...],
+]:
+    """Cache coherent triangle winding and connected components by topology.
+
+    Vertex coordinates are intentionally excluded from this plan. Fitted avatar
+    shapes retain stable indexed topology, so their graph traversal need only be
+    calculated once per FreeCAD process.
+
+    Args:
+        triangles: Ordered indexed faces that should form a closed manifold.
+
+    Returns:
+        Corrected triangle winding and face indices grouped by component.
+
+    Raises:
+        ValueError: If the mesh has boundary/non-manifold edges or is not orientable.
+    """
+    edge_owners = _edge_owners(triangles)
+    adjacency = _face_adjacency(edge_owners, len(triangles))
+    flip_state, components = _face_flip_plan(adjacency)
+    return _corrected_face_winding(triangles, flip_state), components
 
 
 def orient_closed_triangle_winding(
@@ -115,13 +194,24 @@ def orient_closed_triangle_winding(
     from source assets, then signed volume selects the outward orientation per
     connected component. Open, non-manifold, degenerate, or non-orientable inputs
     are rejected rather than silently weakening collision-surface validation.
+
+    Args:
+        vertices: Ordered 3D vertex coordinates used to calculate component volumes.
+        triangles: Ordered triangle vertex indices forming a closed mesh.
+
+    Returns:
+        tuple[tuple[int, int, int], ...]: Face winding with consistent outward normals.
+
+    Raises:
+        ValueError: If coordinates or triangle indices are invalid, or a component has
+            no reliable enclosed volume.
     """
     points = np.asarray(vertices, dtype=np.float64)
     faces = np.asarray(triangles, dtype=np.int64)
-    if points.ndim != 2 or points.shape[1] != 3 or not len(points):
+    if points.ndim != 2 or points.shape[1] != _COORDINATE_DIMENSIONS or not len(points):
         msg = "closed mesh vertices must have shape (N, 3)"
         raise ValueError(msg)
-    if faces.ndim != 2 or faces.shape[1] != 3 or not len(faces):
+    if faces.ndim != 2 or faces.shape[1] != _TRIANGLE_VERTEX_COUNT or not len(faces):
         msg = "closed mesh triangles must have shape (M, 3)"
         raise ValueError(msg)
     if not bool(np.isfinite(points).all()):

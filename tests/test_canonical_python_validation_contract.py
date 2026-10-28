@@ -574,6 +574,7 @@ def test_static_preflight_runs_public_api_regressions() -> None:
         "tests/test_cloth_diagnostics.py",
         "tests/test_avatar_fitting_anchor_refresh.py",
         "tests/test_source_signature_contract.py",
+        "tests/test_shared_adapters.py",
     )
 
     require(
