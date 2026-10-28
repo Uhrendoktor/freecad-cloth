@@ -1,176 +1,335 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Regression tests for the target-neutral draping contract."""
+"""Regression contracts for target-neutral drape identity and persistence state."""
 
-import unittest
+from types import SimpleNamespace
+
+import pytest
 
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
+from tests.support.assertions import require
+
+DEFLECTION_MM = 1.0
+THICKNESS_MM = 2.0
+ALTERNATE_DEFLECTION_MM = 0.5
+ALTERNATE_THICKNESS_MM = 4.0
+MOVED_X_MM = 10.0
+MOVED_Y_MM = -5.0
+MOVED_ROTATION_DEGREES = 15.0
+CHANGED_SHAPE_HASH = 2
+INITIAL_SHAPE_HASH = 1
+FIXED_BREP_HASH = 7
+MESH_VERTEX_COUNT = 3
+MESH_TRIANGLE_COUNT = 1
+EXPECTED_TARGET_VERTEX_COUNT = 8
+EXPECTED_TARGET_TRIANGLE_COUNT = 12
+EXPECTED_DEFAULT_DEFLECTION_MM = 0.5
+EXPECTED_DEFAULT_THICKNESS_MM = 1.5
+INVALID_TARGET_NAME = "Unknown"
+GEOMETRY_TARGET_TYPE = "FreeCAD Geometry"
+MANNEQUIN_TARGET_TYPE = "Mannequin"
+TARGET_NAME = "Chair"
+TARGET_LABEL = "Chair target"
+MESH_TARGET_NAME = "MeshTarget"
+MESH_TARGET_LABEL = "Mesh target"
 
 
-class _Vec:
-    def __init__(self, x=0.0, y=0.0, z=0.0):
-        self.x, self.y, self.z = x, y, z
+def _set_runtime_attribute(target: object, name: str, value: object) -> None:
+    """Update a host-style dynamic attribute without narrowing its test fixture type.
+
+    Args:
+        target: Runtime fixture receiving an attribute update.
+        name: Exact host API attribute name.
+        value: Replacement runtime value.
+    """
+    setattr(target, name, value)
 
 
-class _Rotation:
-    def __init__(self, angle=0.0):
-        self.Angle = angle
-        self.Axis = _Vec(0, 0, 1)
+def _vector(x: float = 0.0, y: float = 0.0, z: float = 0.0) -> SimpleNamespace:
+    """Build a FreeCAD-vector stand-in.
+
+    Args:
+        x: Horizontal coordinate.
+        y: Depth coordinate.
+        z: Vertical coordinate.
+
+    Returns:
+        A vector-like object with x, y, and z attributes.
+    """
+    return SimpleNamespace(x=x, y=y, z=z)
 
 
-class _Placement:
-    def __init__(self, x=0.0, y=0.0, z=0.0, angle=0.0):
-        self.Base = _Vec(x, y, z)
-        self.Rotation = _Rotation(angle)
+def _placement(
+    x: float = 0.0,
+    y: float = 0.0,
+    z: float = 0.0,
+    angle: float = 0.0,
+) -> SimpleNamespace:
+    """Build a FreeCAD-placement stand-in.
+
+    Args:
+        x: Base translation on the x axis.
+        y: Base translation on the y axis.
+        z: Base translation on the z axis.
+        angle: Rotation angle used in the source signature.
+
+    Returns:
+        A placement-like object with Base and Rotation properties.
+    """
+    rotation = SimpleNamespace(Angle=angle, Axis=_vector(z=1.0))
+    return SimpleNamespace(Base=_vector(x, y, z), Rotation=rotation)
 
 
-class _BoundBox:
-    XMin = 0.0
-    XMax = 1.0
-    YMin = 0.0
-    YMax = 1.0
-    ZMin = 0.0
-    ZMax = 1.0
+def _bound_box() -> SimpleNamespace:
+    """Return deterministic shape bounds for signature fixtures."""
+    return SimpleNamespace(
+        XMin=0.0,
+        XMax=1.0,
+        YMin=0.0,
+        YMax=1.0,
+        ZMin=0.0,
+        ZMax=1.0,
+    )
 
 
-class _Shape:
-    def __init__(self, value):
-        self.value = value
+def _shape(value: int) -> SimpleNamespace:
+    """Build a shape-like object whose content hash can be changed in tests.
 
-    def isNull(self):
-        return False
+    Args:
+        value: Current synthetic shape hash.
 
-    def hashCode(self):
-        return self.value
-
-
-class _BrepShape:
-    def __init__(self, payload):
-        self.payload = payload
-        self.BoundBox = _BoundBox()
-
-    def isNull(self):
-        return False
-
-    def hashCode(self):
-        return 7
-
-    def exportBrepToString(self):
-        return self.payload
+    Returns:
+        A host-shaped object exposing the methods consumed by SourceSignature.
+    """
+    shape = SimpleNamespace(value=value, BoundBox=_bound_box())
+    shape.isNull = lambda: False
+    shape.hashCode = lambda: shape.value
+    return shape
 
 
-class _Mesh:
-    def __init__(self, vertices, triangles):
-        self.Topology = (vertices, triangles)
+def _brep_shape(payload: str) -> SimpleNamespace:
+    """Build a shape fixture that exposes deterministic BRep serialization.
+
+    Args:
+        payload: Serialized shape content used as the BRep signature input.
+
+    Returns:
+        A shape-like object with a stable hash and variable serialized content.
+    """
+    shape = SimpleNamespace(payload=payload, BoundBox=_bound_box())
+    shape.isNull = lambda: False
+    shape.hashCode = lambda: FIXED_BREP_HASH
+    shape.exportBrepToString = lambda: shape.payload
+    return shape
 
 
-class _Target:
-    def __init__(self):
-        self.Name = "Chair"
-        self.Label = "Chair target"
-        self.Placement = _Placement()
-        self.Shape = _Shape(1)
+def _target() -> SimpleNamespace:
+    """Build a basic named shape target for source-signature tests."""
+    return SimpleNamespace(
+        Name=TARGET_NAME,
+        Label=TARGET_LABEL,
+        Placement=_placement(),
+        Shape=_shape(INITIAL_SHAPE_HASH),
+    )
 
 
-class _MeshTarget:
-    def __init__(self):
-        self.Name = "MeshTarget"
-        self.Label = "Mesh target"
-        self.Placement = _Placement()
-        self.Mesh = _Mesh((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0)), ((0, 1, 2),))
+def _mesh_target(vertices: tuple[SimpleNamespace, ...], triangles: tuple[tuple[int, int, int], ...]) -> SimpleNamespace:
+    """Build a mesh target whose topology can be replaced during a test.
+
+    Args:
+        vertices: Ordered mesh vertices.
+        triangles: Ordered triangle connectivity.
+
+    Returns:
+        A document-object stand-in exposing a replaceable Mesh.Topology tuple.
+    """
+    mesh = SimpleNamespace(Topology=(vertices, triangles))
+    return SimpleNamespace(
+        Name=MESH_TARGET_NAME,
+        Label=MESH_TARGET_LABEL,
+        Placement=_placement(),
+        Mesh=mesh,
+    )
 
 
-class _PersistentTarget:
-    def __init__(self):
-        self.TargetType = "FreeCAD Geometry"
-        self.Enabled = True
-        self.CollisionDeflection = 1.0
-        self.CollisionThickness = 2.0
-        self.SourceObject = _Target()
-        self.CollisionVertexCount = 8
-        self.CollisionTriangleCount = 12
-        self.SourceSignature = repr(source_signature(self.SourceObject, 1.0, 2.0))
+def _persistent_target(source: object | None = None) -> SimpleNamespace:
+    """Build a persisted-target stand-in with an up-to-date collision signature.
+
+    Args:
+        source: Source geometry used for the signature; a basic target is used by default.
+
+    Returns:
+        A target fixture with non-empty collision-cache metadata.
+    """
+    source_object = _target() if source is None else source
+    return SimpleNamespace(
+        TargetType=GEOMETRY_TARGET_TYPE,
+        Enabled=True,
+        CollisionDeflection=DEFLECTION_MM,
+        CollisionThickness=THICKNESS_MM,
+        SourceObject=source_object,
+        CollisionVertexCount=EXPECTED_TARGET_VERTEX_COUNT,
+        CollisionTriangleCount=EXPECTED_TARGET_TRIANGLE_COUNT,
+        SourceSignature=repr(source_signature(source_object, DEFLECTION_MM, THICKNESS_MM)),
+    )
 
 
-class DrapeTargetTests(unittest.TestCase):
-    def test_target_spec_accepts_supported_types(self):
-        DrapeTargetSpec("Mannequin", "ClothAvatar", 1.0, 2.0).validate()
-        DrapeTargetSpec("FreeCAD Geometry", "Chair", 0.5, 1.5).validate()
-
-    def test_target_spec_rejects_invalid_settings(self):
-        for spec in (
-            DrapeTargetSpec("Unknown", "Chair"),
-            DrapeTargetSpec("FreeCAD Geometry", ""),
-            DrapeTargetSpec("FreeCAD Geometry", "Chair", 0),
-            DrapeTargetSpec("FreeCAD Geometry", "Chair", 1, -1),
-        ):
-            with self.assertRaises(ValueError):
-                spec.validate()
-
-    def test_source_signature_tracks_geometry_placement_and_collision_settings(self):
-        target = _Target()
-        baseline = source_signature(target, 1, 2)
-        target.Shape.value = 2
-        self.assertNotEqual(source_signature(target, 1, 2), baseline)
-        target.Placement = _Placement(10, -5, 0, 15)
-        moved = source_signature(target, 1, 2)
-        self.assertNotEqual(moved, baseline)
-        self.assertNotEqual(source_signature(target, 0.5, 2), moved)
-        self.assertNotEqual(source_signature(target, 0.5, 4), source_signature(target, 0.5, 2))
-
-    def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchanged(self):
-        target = _Target()
-        target.Shape = _BrepShape("brep-a")
-        baseline = source_signature(target, 1, 2)
-        target.Shape = _BrepShape("brep-b")
-        changed = source_signature(target, 1, 2)
-        self.assertNotEqual(changed, baseline)
-
-    def test_mesh_signature_hashes_complete_topology_not_aggregate_counts(self):
-        target = _MeshTarget()
-        baseline = source_signature(target, 1, 2)
-        target.Mesh.Topology = ((_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 0, 1)), ((0, 1, 2),))
-        self.assertNotEqual(source_signature(target, 1, 2), baseline)
-
-    def test_mesh_signature_tracks_triangle_connectivity(self):
-        target = _MeshTarget()
-        baseline = source_signature(target, 1, 2)
-        target.Mesh.Topology = (target.Mesh.Topology[0], ((0, 2, 1),))
-        self.assertNotEqual(source_signature(target, 1, 2), baseline)
-
-    def test_mesh_signature_tracks_triangle_order(self):
-        target = _MeshTarget()
-        target.Mesh.Topology = (
-            (_Vec(0, 0, 0), _Vec(1, 0, 0), _Vec(0, 1, 0), _Vec(0, 0, 1)),
-            ((0, 1, 2), (0, 2, 3)),
-        )
-        baseline = source_signature(target, 1, 2)
-        target.Mesh.Topology = (target.Mesh.Topology[0], ((0, 2, 3), (0, 1, 2)))
-        self.assertNotEqual(source_signature(target, 1, 2), baseline)
-
-    def test_source_signature_is_stable(self):
-        target = _Target()
-        self.assertEqual(source_signature(target, 1, 2), source_signature(target, 1, 2))
-
-    def test_target_status_is_ready_when_signature_is_current(self):
-        status = target_status(_PersistentTarget())
-        self.assertEqual(status["state"], "ready")
-        self.assertFalse(status["stale"])
-
-    def test_target_status_reports_source_change_as_stale(self):
-        target = _PersistentTarget()
-        target.SourceObject.Shape.value = 99
-        status = target_status(target)
-        self.assertEqual(status["state"], "stale")
-        self.assertTrue(status["stale"])
-        self.assertIn("source", status["reason"])
-
-    def test_target_status_reports_missing_collision_cache(self):
-        target = _PersistentTarget()
-        target.CollisionVertexCount = 0
-        status = target_status(target)
-        self.assertEqual(status["state"], "unbuilt")
-        self.assertTrue(status["stale"])
+def test_target_spec_accepts_supported_types() -> None:
+    """Accept mannequin and FreeCAD geometry target specifications."""
+    DrapeTargetSpec(MANNEQUIN_TARGET_TYPE, "ClothAvatar", DEFLECTION_MM, THICKNESS_MM).validate()
+    DrapeTargetSpec(
+        GEOMETRY_TARGET_TYPE,
+        TARGET_NAME,
+        EXPECTED_DEFAULT_DEFLECTION_MM,
+        EXPECTED_DEFAULT_THICKNESS_MM,
+    ).validate()
 
 
-if __name__ == "__main__":
-    unittest.main()
+def test_target_spec_rejects_invalid_settings() -> None:
+    """Reject unsupported source types, empty names, and invalid collision dimensions."""
+    specs = (
+        DrapeTargetSpec(INVALID_TARGET_NAME, TARGET_NAME),
+        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, ""),
+        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, 0.0),
+        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, -1.0),
+    )
+    for spec in specs:
+        with pytest.raises(ValueError):
+            spec.validate()
+
+
+def test_source_signature_tracks_geometry_placement_and_collision_settings() -> None:
+    """Track geometry, placement, tessellation, and collision-thickness changes."""
+    target = _target()
+    baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    _set_runtime_attribute(target.Shape, "value", CHANGED_SHAPE_HASH)
+    require(
+        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
+        message="A shape-content change must invalidate the source signature.",
+    )
+    _set_runtime_attribute(
+        target,
+        "Placement",
+        _placement(MOVED_X_MM, MOVED_Y_MM, 0.0, MOVED_ROTATION_DEGREES),
+    )
+    moved = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    require(
+        condition=moved != baseline,
+        message="A placement change must invalidate the source signature.",
+    )
+    require(
+        condition=source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM) != moved,
+        message="A tessellation-deflection change must invalidate the source signature.",
+    )
+    require(
+        condition=source_signature(target, ALTERNATE_DEFLECTION_MM, ALTERNATE_THICKNESS_MM)
+        != source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM),
+        message="A collision-thickness change must invalidate the source signature.",
+    )
+
+
+def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchanged() -> None:
+    """Use serialized BRep content when its stable metadata stays unchanged."""
+    target = _target()
+    _set_runtime_attribute(target, "Shape", _brep_shape("brep-a"))
+    baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    _set_runtime_attribute(target, "Shape", _brep_shape("brep-b"))
+    changed = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    require(
+        condition=changed != baseline,
+        message="Different serialized BRep content must change the source signature.",
+    )
+
+
+def test_mesh_signature_hashes_complete_topology_not_aggregate_counts() -> None:
+    """Detect changed mesh coordinates even when vertex and face counts match."""
+    vertices = (_vector(), _vector(x=1.0), _vector(y=1.0))
+    target = _mesh_target(vertices, ((0, 1, 2),))
+    baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    changed_vertices = (_vector(), _vector(x=1.0), _vector(z=1.0))
+    _set_runtime_attribute(target.Mesh, "Topology", (changed_vertices, ((0, 1, 2),)))
+    require(
+        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
+        message="Mesh coordinate changes must be represented in the source signature.",
+    )
+
+
+def test_mesh_signature_tracks_triangle_connectivity() -> None:
+    """Detect connectivity changes when the ordered vertex list remains stable."""
+    vertices = (_vector(), _vector(x=1.0), _vector(y=1.0))
+    target = _mesh_target(vertices, ((0, 1, 2),))
+    baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    _set_runtime_attribute(target.Mesh, "Topology", (vertices, ((0, 2, 1),)))
+    require(
+        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
+        message="Triangle connectivity and winding must be represented in the signature.",
+    )
+
+
+def test_mesh_signature_tracks_triangle_order() -> None:
+    """Detect face-order changes in a mesh with unchanged vertex and triangle counts."""
+    vertices = (_vector(), _vector(x=1.0), _vector(y=1.0), _vector(z=1.0))
+    triangles = ((0, 1, 2), (0, 2, 3))
+    target = _mesh_target(vertices, triangles)
+    baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    _set_runtime_attribute(target.Mesh, "Topology", (vertices, (triangles[1], triangles[0])))
+    require(
+        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
+        message="Triangle order must be represented in the source signature.",
+    )
+
+
+def test_source_signature_is_stable() -> None:
+    """Produce an identical signature for unchanged geometry and settings."""
+    target = _target()
+    require(
+        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+        == source_signature(target, DEFLECTION_MM, THICKNESS_MM),
+        message="The same source state must produce a deterministic signature.",
+    )
+
+
+def test_target_status_is_ready_when_signature_is_current() -> None:
+    """Report a built target as ready while its source signature is current."""
+    status = target_status(_persistent_target())
+    require(
+        condition=status["state"] == "ready",
+        message="A target with a current collision cache must be ready.",
+    )
+    require(
+        condition=status["stale"] is False,
+        message="A current collision cache must not be marked stale.",
+    )
+
+
+def test_target_status_reports_source_change_as_stale() -> None:
+    """Mark a target stale when the source geometry changes after building."""
+    target = _persistent_target()
+    _set_runtime_attribute(target.SourceObject.Shape, "value", 99)
+    status = target_status(target)
+    require(
+        condition=status["state"] == "stale",
+        message="A source-content change must invalidate the persisted signature.",
+    )
+    require(
+        condition=status["stale"] is True,
+        message="A changed source must be marked stale.",
+    )
+    require(
+        condition="source" in str(status["reason"]),
+        message="The stale reason must identify source invalidation.",
+    )
+
+
+def test_target_status_reports_missing_collision_cache() -> None:
+    """Mark a target unbuilt when its collision-cache counts are absent."""
+    target = _persistent_target()
+    _set_runtime_attribute(target, "CollisionVertexCount", 0)
+    status = target_status(target)
+    require(
+        condition=status["state"] == "unbuilt",
+        message="A target without cached collision vertices must be unbuilt.",
+    )
+    require(
+        condition=status["stale"] is True,
+        message="A target with a missing collision cache must be marked stale.",
+    )

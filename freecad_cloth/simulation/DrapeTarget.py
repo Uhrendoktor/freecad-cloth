@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
+from typing import ClassVar
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
@@ -19,10 +21,14 @@ class DrapeTargetSpec:
     deflection: float = 1.0
     thickness: float = 0.0
 
-    VALID_TYPES = ("Mannequin", "FreeCAD Geometry")
+    VALID_TYPES: ClassVar[tuple[str, str]] = ("Mannequin", "FreeCAD Geometry")
 
-    def validate(self):
-        """Validate this value and raise ValueError when its state is invalid."""
+    def validate(self) -> None:
+        """Validate target type and collision dimensions.
+
+        Raises:
+            ValueError: If the target type, source name, deflection, or thickness is invalid.
+        """
         if self.target_type not in self.VALID_TYPES:
             msg = "unsupported drape target type"
             raise ValueError(msg)
@@ -37,13 +43,37 @@ class DrapeTargetSpec:
             raise ValueError(msg)
 
 
-def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
-    """Return a collision-ready surface representation."""
+def collision_surface(
+    target: object,
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> CollisionSurface:
+    """Build a validated collision surface from a FreeCAD source.
+
+    Args:
+        target: FreeCAD shape or mesh object used as the collision source.
+        deflection: Positive tessellation deflection for shape-backed inputs.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        A validated, solver-neutral collision surface.
+
+    Raises:
+        TypeError: If target does not expose usable shape or mesh geometry.
+        ValueError: If tessellation, topology, or collision dimensions are invalid.
+    """
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-def target_status(target):
-    """Return a deterministic user-facing state for a persistent DrapeTarget."""
+def target_status(target: object | None) -> dict[str, str | bool]:
+    """Summarize whether the persisted collision cache is current.
+
+    Args:
+        target: Persistent DrapeTarget feature, or None when no target is assigned.
+
+    Returns:
+        A deterministic state, status message, stale flag, and invalidation reason.
+    """
     if target is None:
         return {
             "state": "missing",
@@ -121,8 +151,18 @@ def target_status(target):
     }
 
 
-def refresh_drape_target(target):
-    """Provide the public refresh drape target operation."""
+def refresh_drape_target(target: object) -> object:
+    """Rebuild the persistent target's collision cache from its current source.
+
+    Args:
+        target: Persisted target whose source and collision settings are refreshed.
+
+    Returns:
+        The refreshed target feature.
+
+    Raises:
+        ValueError: If the target does not have an assigned source.
+    """
     source = getattr(target, "SourceObject", None)
     if source is None:
         msg = "drape target source is required"
@@ -131,9 +171,27 @@ def refresh_drape_target(target):
 
 
 def create_drape_target(
-    doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0
-):
-    """Create and return the requested drape target object."""
+    doc: object,
+    source: object | None = None,
+    target_type: str = "FreeCAD Geometry",
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> object:
+    """Create a persistent DrapeTarget feature and optionally assign its source.
+
+    Args:
+        doc: FreeCAD document that owns the persistent target.
+        source: Optional collision source; geometry targets require one.
+        target_type: Supported source representation, either Mannequin or FreeCAD Geometry.
+        deflection: Positive tessellation deflection in model units.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        The created persistent DrapeTarget feature.
+
+    Raises:
+        ValueError: If the type, source, deflection, or collision thickness is invalid.
+    """
     if target_type not in DrapeTargetSpec.VALID_TYPES:
         msg = "unsupported drape target type"
         raise ValueError(msg)
@@ -174,8 +232,25 @@ def create_drape_target(
     return target
 
 
-def assign_drape_target(target, source, target_type: str | None = None):
-    """Provide the public assign drape target operation."""
+def assign_drape_target(
+    target: object,
+    source: object | None,
+    target_type: str | None = None,
+) -> object:
+    """Assign a source and refresh the persisted collision-cache metadata.
+
+    Args:
+        target: Existing persistent DrapeTarget feature being updated.
+        source: FreeCAD source object used to build collision geometry.
+        target_type: Optional target representation; the existing type is preserved by default.
+
+    Returns:
+        The updated persistent target feature.
+
+    Raises:
+        ValueError: If the source is absent or the target type is unsupported.
+        TypeError: If the source does not expose usable collision geometry.
+    """
     if source is None:
         msg = "drape target source is required"
         raise ValueError(msg)
