@@ -22,8 +22,8 @@ from scipy.spatial import KDTree
 from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Sequence
     from numbers import Real
+    from collections.abc import Callable, Iterable, Sequence
     from numpy.typing import NDArray
 
 Point3 = tuple[float, float, float]
@@ -79,8 +79,12 @@ def _trimesh_constructor() -> Callable[..., _TrimeshMesh]:
     Raises:
         ImportError: If the Trimesh dependency is unavailable.
     """
-    module = import_module("trimesh")
-    return cast("Callable[..., _TrimeshMesh]", getattr(module, "Trimesh"))
+    try:
+        module = import_module("trimesh")
+    except ImportError as exc:
+        msg = "Trimesh dependency is unavailable"
+        raise ImportError(msg) from exc
+    return cast("Callable[..., _TrimeshMesh]", module.__dict__["Trimesh"])
 
 
 def _validate_arrays(vertices: Sequence[Point3], triangles: Sequence[Triangle]) -> MeshArrays:
@@ -172,6 +176,32 @@ def _fallback_surface_area(areas: NDArray[np.float64]) -> float:
     return total
 
 
+def _shared_face_edge_owners(
+    faces: NDArray[np.intp],
+) -> tuple[NDArray[np.intp], NDArray[np.intp]]:
+    """Return face-index pairs that share an undirected mesh edge.
+
+    Args:
+        faces: Triangle connectivity with one row per face.
+
+    Returns:
+        Parallel row and column arrays for the shared-edge adjacency graph.
+    """
+    face_count = len(faces)
+    edges = np.concatenate(
+        (faces[:, (0, 1)], faces[:, (1, 2)], faces[:, (2, 0)]),
+        axis=0,
+    )
+    edges.sort(axis=1)
+    owners = np.tile(np.arange(face_count, dtype=np.intp), 3)
+    order = np.lexsort((owners, edges[:, 1], edges[:, 0]))
+    sorted_edges = edges[order]
+    sorted_owners = owners[order]
+    shared_edge = np.all(sorted_edges[1:] == sorted_edges[:-1], axis=1)
+    connected_pair = shared_edge & (sorted_owners[1:] != sorted_owners[:-1])
+    return sorted_owners[:-1][connected_pair], sorted_owners[1:][connected_pair]
+
+
 def _fallback_components(triangles: Sequence[Triangle]) -> int:
     """Count edge-connected face components using SciPy's sparse graph algorithm.
 
@@ -186,19 +216,7 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
     if face_count == 0:
         return 0
 
-    edges = np.concatenate(
-        (faces[:, (0, 1)], faces[:, (1, 2)], faces[:, (2, 0)]),
-        axis=0,
-    )
-    edges.sort(axis=1)
-    owners = np.tile(np.arange(face_count, dtype=np.intp), 3)
-    order = np.lexsort((owners, edges[:, 1], edges[:, 0]))
-    sorted_edges = edges[order]
-    sorted_owners = owners[order]
-    shared_edge = np.all(sorted_edges[1:] == sorted_edges[:-1], axis=1)
-    connected_pair = shared_edge & (sorted_owners[1:] != sorted_owners[:-1])
-    rows = sorted_owners[:-1][connected_pair]
-    columns = sorted_owners[1:][connected_pair]
+    rows, columns = _shared_face_edge_owners(faces)
     if not rows.size:
         return int(face_count)
 
@@ -210,6 +228,54 @@ def _fallback_components(triangles: Sequence[Triangle]) -> int:
     ).tocsr()
     count, _ = connected_components(adjacency, directed=False, return_labels=True)
     return int(count)
+
+
+def _trimesh_metrics(
+    vertices: Sequence[Point3],
+    triangles: Sequence[Triangle],
+    degenerate_faces: int,
+) -> MeshValidationResult:
+    """Compute mesh-health metrics with the optional Trimesh implementation.
+
+    Args:
+        vertices: Validated 3D vertex coordinates.
+        triangles: Validated triangle index triples.
+        degenerate_faces: Count of faces with duplicate vertices or zero area.
+
+    Returns:
+        Mesh-validation counts, bounds, area, and topology indicators.
+
+    Raises:
+        ValueError: If the calculated surface area is non-finite.
+    """
+    mesh_constructor = _trimesh_constructor()
+    mesh = mesh_constructor(
+        vertices=np.asarray(vertices, dtype=float),
+        faces=np.asarray(triangles, dtype=int),
+        process=False,
+    )
+    bounds = mesh.bounds
+    surface_area = float(mesh.area)
+    if not isfinite(surface_area):
+        msg = "computed mesh surface area must be finite"
+        raise ValueError(msg)
+    return MeshValidationResult(
+        vertices=len(vertices),
+        faces=len(triangles),
+        components=len(mesh.split(only_watertight=False)),
+        bounds=(
+            float(bounds[0][0]),
+            float(bounds[1][0]),
+            float(bounds[0][1]),
+            float(bounds[1][1]),
+            float(bounds[0][2]),
+            float(bounds[1][2]),
+        ),
+        surface_area=surface_area,
+        watertight=bool(mesh.is_watertight),
+        finite=bool(np.isfinite(mesh.vertices).all()),
+        degenerate_faces=degenerate_faces,
+    )
 
 
 def validate_mesh(
@@ -242,38 +308,11 @@ def validate_mesh(
     unique_vertices = (
         (faces[:, 0] != faces[:, 1]) & (faces[:, 1] != faces[:, 2]) & (faces[:, 2] != faces[:, 0])
     )
-    degenerate = int(np.count_nonzero(~unique_vertices | (triangle_areas == 0.0)))
+    degenerate = int(np.count_nonzero(~unique_vertices | np.equal(triangle_areas, 0.0)))
 
     if prefer_trimesh:
         try:
-            mesh_constructor = _trimesh_constructor()
-            mesh = mesh_constructor(
-                vertices=np.asarray(vertices, dtype=float),
-                faces=np.asarray(triangles, dtype=int),
-                process=False,
-            )
-            bounds = mesh.bounds
-            surface_area = float(mesh.area)
-            if not isfinite(surface_area):
-                msg = "computed mesh surface area must be finite"
-                raise ValueError(msg)
-            return MeshValidationResult(
-                vertices=len(vertices),
-                faces=len(triangles),
-                components=len(mesh.split(only_watertight=False)),
-                bounds=(
-                    float(bounds[0][0]),
-                    float(bounds[1][0]),
-                    float(bounds[0][1]),
-                    float(bounds[1][1]),
-                    float(bounds[0][2]),
-                    float(bounds[1][2]),
-                ),
-                surface_area=surface_area,
-                watertight=bool(mesh.is_watertight),
-                finite=bool(np.isfinite(mesh.vertices).all()),
-                degenerate_faces=degenerate,
-            )
+            return _trimesh_metrics(vertices, triangles, degenerate)
         except ImportError:
             pass
 
@@ -339,8 +378,6 @@ def nearest_target_clearance(
     Returns:
         The exact minimum vertex-to-vertex clearance in millimetres.
 
-    Raises:
-        ValueError: If either point set is empty or the query result is non-finite.
     """
     clearance, _target_point = nearest_target_observation(garment_vertices, target_vertices)
     return clearance
