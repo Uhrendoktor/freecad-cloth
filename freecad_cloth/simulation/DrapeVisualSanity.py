@@ -120,7 +120,16 @@ def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) 
 def point_inside_closed_mesh(
     point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle3]
 ) -> bool:
-    """Return whether one validated point is inside a closed triangle mesh."""
+    """Classify whether one point is inside a closed triangle mesh.
+
+    Args:
+        point: Three-dimensional point to classify.
+        vertices: Vertices of the target triangle mesh.
+        triangles: Triangle indices into the supplied vertex sequence.
+
+    Returns:
+        True when the point is classified inside the closed mesh.
+    """
     return points_inside_closed_mesh((point,), vertices, triangles)[0]
 
 
@@ -139,6 +148,17 @@ def points_inside_closed_mesh(
     the boundary. The native-host caller may bypass Trimesh acceleration when its
     optional spatial-query backend is unsafe; NumPy ray parity retains the containment
     check without changing its acceptance criterion.
+
+    Args:
+        points: Points to classify in world coordinates.
+        vertices: Target mesh vertices in the same coordinate system.
+        triangles: Indexed target mesh faces.
+        chunk_size: Maximum number of points handled by each fallback chunk.
+        prefer_trimesh: Whether to attempt the optional Trimesh spatial query first.
+        contains_fn: Optional injected Trimesh contains operation for deterministic tests.
+
+    Returns:
+        Boolean inside/outside results in the same order as the input points.
     """
     validated_mesh = MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
     validated_points = validate_points3d(points)
@@ -250,7 +270,26 @@ def seam_correspondence_gap(
     end_b: float = 1.0,
     samples: int = 5,
 ) -> float:
-    """Return deterministic max positional gap along one authored seam correspondence."""
+    """Return the maximum positional gap along an authored seam correspondence.
+
+    Args:
+        boundary_a: Ordered boundary vertices for the first pattern piece.
+        boundary_b: Ordered boundary vertices for the second pattern piece.
+        edge_a: Edge index on the first boundary.
+        edge_b: Edge index on the second boundary.
+        reversed_b: Whether the second edge is traversed in reverse.
+        start_a: Start fraction on the first edge.
+        end_a: End fraction on the first edge.
+        start_b: Start fraction on the second edge.
+        end_b: End fraction on the second edge.
+        samples: Number of paired edge positions to compare.
+
+    Returns:
+        Maximum Euclidean gap between corresponding seam samples.
+
+    Raises:
+        ValueError: If a boundary is empty, sample count is too small, or an edge index is invalid.
+    """
     if not boundary_a or not boundary_b:
         msg = "seam boundaries are required"
         raise ValueError(msg)
@@ -269,6 +308,16 @@ def seam_correspondence_gap(
         start_b, end_b = 1.0 - float(end_b), 1.0 - float(start_b)
 
     def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
+        """Interpolate one boundary position at a fractional edge distance.
+
+        Args:
+            left: Start coordinate of the edge.
+            right: End coordinate of the edge.
+            fraction: Interpolation fraction between the endpoints.
+
+        Returns:
+            Interpolated x, y, z coordinate.
+        """
         return (
             float(left[0]) + (float(right[0]) - float(left[0])) * fraction,
             float(left[1]) + (float(right[1]) - float(left[1])) * fraction,
@@ -302,6 +351,15 @@ def inspect_drape(
     ratios therefore intentionally use Z for vertical coverage and the larger
     of X/Y for lateral coverage; using the largest or second-smallest axis can
     make a wide, flattened or side-on garment look healthy by mistake.
+
+    Args:
+        garment_vertices: Current three-dimensional garment vertex positions.
+        target_vertices: Target surface vertices used for nearest-point clearance.
+        target_height: Optional target height for vertical-span normalization.
+        target_width: Optional target width for lateral-span normalization.
+
+    Returns:
+        Structural metrics, geometry bounds, coverage ratios, and a diagnostic state.
     """
     if not garment_vertices:
         return DrapeVisualMetrics(
@@ -359,8 +417,15 @@ def inspect_drape(
     )
 
 
-def summarize(metrics: DrapeVisualMetrics) -> dict:
-    """Provide the public summarize operation."""
+def summarize(metrics: DrapeVisualMetrics) -> dict[str, object]:
+    """Convert drape visual metrics into a stable summary mapping.
+
+    Args:
+        metrics: Computed structural metrics to expose to the report.
+
+    Returns:
+        Dictionary of state, counts, bounds, spans, coverage ratios, and clearance.
+    """
     return {
         "state": metrics.state,
         "vertices": metrics.vertices,
@@ -424,6 +489,13 @@ def mesh_shape_sanity(
     cloth result is physically correct. They catch the two failure modes that
     are easy to miss in a camera-only regression: isolated long-edge spikes
     and an unexpectedly extreme lateral footprint.
+
+    Args:
+        vertices: Ordered vertex coordinates of the generated cloth mesh.
+        triangles: Indexed triangular faces of the generated mesh.
+
+    Returns:
+        Finite-state, edge-length, spike, face-count, and footprint metrics.
     """
     if not vertices:
         return {
