@@ -1,126 +1,257 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing body measurement, avatar fitting, and arrangement commands."""
 
+from __future__ import annotations
+
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Mapping, Sequence
+from importlib import import_module
 from typing import Protocol, cast
 
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
+Point3 = tuple[float, float, float]
+Triangle = tuple[int, int, int]
+MeshTopology = tuple[tuple[Point3, ...], tuple[Triangle, ...]]
 
-def _drape_target_source(doc):
-    """Return the source object owned by the document's persistent DrapeTarget.
+
+def _drape_target_source(doc: _FittingDocument | None) -> object | None:
+    """Return the source object linked by the document's persistent drape target.
 
     Args:
-        doc: FreeCAD document that owns the target object.
+        doc: Document that owns the target object, or None when no document exists.
 
     Returns:
         The assigned source object, or None while the target is unassigned.
     """
     if doc is None:
         return None
-    target = doc.getObject("DrapeTarget")
-    return getattr(target, "SourceObject", None)
+    return getattr(doc.getObject("DrapeTarget"), "SourceObject", None)
 
 
-def _scene(doc):
-    return next((o for o in doc.Objects if getattr(o, "FittingType", "") == "FittingScene"), None)
+def _scene(doc: _FittingDocument | None) -> object | None:
+    """Find the fitting-scene feature stored in a document.
+
+    Args:
+        doc: Document to search, or None when no active document is available.
+
+    Returns:
+        The fitting-scene object, or None when the document has no scene.
+    """
+    if doc is None:
+        return None
+    return next(
+        (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
+        None,
+    )
 
 
-def _safe_name(value):
-    return "".join(ch if ch.isalnum() else "_" for ch in str(value)) or "Item"
+def _safe_name(value: object) -> str:
+    """Convert an arbitrary label to a stable FreeCAD object-name fragment.
+
+    Args:
+        value: Label or identifier to normalize.
+
+    Returns:
+        An alphanumeric/underscore string, using "Item" when the input is empty.
+    """
+    return "".join(character if character.isalnum() else "_" for character in str(value)) or "Item"
 
 
-def _ensure_anchor_property(scene):
-    """Ensure fitting scenes expose the anchor-data property required by this workflow."""
+def _ensure_anchor_property(scene: object) -> None:
+    """Ensure a fitting scene exposes its persistent surface-anchor property.
+
+    Args:
+        scene: Fitting-scene object that may need the property added.
+    """
     if hasattr(scene, "ArrangementAnchorData"):
         return
     add_property = getattr(scene, "addProperty", None)
     if callable(add_property):
         add_property("App::PropertyStringList", "ArrangementAnchorData", "Arrangement")
-        scene.ArrangementAnchorData = []
+        setattr(scene, "ArrangementAnchorData", [])
 
 
-def _anchor_records(scene):
-    """Read the compact persistent anchor metadata keyed by arrangement-point name."""
+def _anchor_records(scene: object) -> dict[str, dict[str, object]]:
+    """Decode persistent anchor records indexed by arrangement-point name.
+
+    Args:
+        scene: Fitting-scene object holding serialized anchor records.
+
+    Returns:
+        Valid JSON-object records keyed by their nonempty arrangement-point names.
+    """
     _ensure_anchor_property(scene)
-    result = {}
+    result: dict[str, dict[str, object]] = {}
     for value in tuple(getattr(scene, "ArrangementAnchorData", ()) or ()):
         try:
-            record = json.loads(str(value))
-            name = str(record.get("name", ""))
+            decoded: object = json.loads(str(value))
+            if not isinstance(decoded, dict):
+                continue
+            name = str(decoded.get("name", ""))
             if name:
-                result[name] = record
+                result[name] = cast("dict[str, object]", decoded)
         except (AttributeError, TypeError, ValueError):
             continue
     return result
 
 
-def _store_anchor_records(scene, records):
-    """Persist a stable, sorted representation of surface-anchor references."""
+def _store_anchor_records(
+    scene: object,
+    records: Mapping[str, Mapping[str, object]],
+) -> None:
+    """Persist anchor references in a stable key-sorted JSON representation.
+
+    Args:
+        scene: Fitting-scene object receiving the serialized records.
+        records: Anchor records indexed by arrangement-point name.
+    """
     _ensure_anchor_property(scene)
-    scene.ArrangementAnchorData = [
-        json.dumps(records[name], sort_keys=True, separators=(",", ":")) for name in sorted(records)
-    ]
+    setattr(
+        scene,
+        "ArrangementAnchorData",
+        [
+            json.dumps(dict(records[name]), sort_keys=True, separators=(",", ":"))
+            for name in sorted(records)
+        ],
+    )
 
 
-def _point_xyz(point):
-    """Normalize a tuple or FreeCAD vector to a numeric XYZ triple."""
+def _point_xyz(point: object) -> Point3:
+    """Normalize a tuple-like coordinate or FreeCAD vector to an XYZ triple.
+
+    Args:
+        point: Three-dimensional coordinate sequence or vector-like object.
+
+    Returns:
+        The first three coordinates converted to floats.
+    """
     try:
-        return tuple(float(value) for value in point[:3])
+        values = cast("Sequence[object]", point)
+        return cast("Point3", tuple(float(value) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
-        return (float(point.x), float(point.y), float(point.z))
+        return (
+            float(getattr(point, "x")),
+            float(getattr(point, "y")),
+            float(getattr(point, "z")),
+        )
 
 
-def _geometry_round(value, digits=5):
-    """Round geometry values and canonicalize negative zero for stable signatures."""
+def _geometry_round(value: float, digits: int = 5) -> float:
+    """Round a geometry scalar and canonicalize signed zero for stable signatures.
+
+    Args:
+        value: Geometry value to round.
+        digits: Number of decimal places retained.
+
+    Returns:
+        The rounded scalar, with both positive and negative zero represented as 0.0.
+    """
     rounded = round(float(value), digits)
-    return 0.0 if rounded == 0.0 else rounded
+    return 0.0 if not rounded else rounded
 
 
-def _mesh_topology(target, *, vector_factory: Callable[..., object] | None = None):
-    """Return mesh-local vertices and triangle indices, or None for non-mesh targets."""
+def _points_in_local_space(
+    points: tuple[Point3, ...],
+    placement: object,
+    vector_factory: Callable[..., object] | None,
+) -> tuple[Point3, ...]:
+    """Undo an object's placement for points read from a placed mesh.
+
+    Args:
+        points: Mesh vertex coordinates reported by FreeCAD.
+        placement: Object placement providing inverse and vector transformation APIs.
+        vector_factory: Optional vector constructor used by tests.
+
+    Returns:
+        The mesh vertices in object-local coordinates.
+    """
+    make_vector = vector_factory
+    if make_vector is None:
+        make_vector = cast(
+            "Callable[..., object]", getattr(import_module("FreeCAD"), "Vector")
+        )
+    inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
+    transform = cast("Callable[[object], object]", getattr(inverse, "multVec"))
+    return tuple(_point_xyz(transform(make_vector(*point))) for point in points)
+
+
+def _validated_mesh_topology(
+    points: tuple[Point3, ...],
+    faces: tuple[tuple[int, ...], ...],
+) -> MeshTopology:
+    """Validate mesh topology and narrow each face to a triangle.
+
+    Args:
+        points: Object-local mesh vertices.
+        faces: Candidate integer-indexed face records.
+
+    Returns:
+        Nonempty vertices and triangular faces with in-range indices.
+
+    Raises:
+        ValueError: If vertices or faces are empty or a face is not a valid triangle.
+    """
+    if (
+        not points
+        or not faces
+        or any(
+            len(face) != 3
+            or min(face) < 0
+            or max(face) >= len(points)
+            for face in faces
+        )
+    ):
+        msg = "mesh topology must contain valid triangles"
+        raise ValueError(msg)
+    return points, cast("tuple[Triangle, ...]", faces)
+
+
+def _mesh_topology(
+    target: object,
+    *,
+    vector_factory: Callable[..., object] | None = None,
+) -> MeshTopology | None:
+    """Return validated object-local vertices and triangle indices for a mesh target.
+
+    Args:
+        target: FreeCAD target object whose Mesh.Topology may be available.
+        vector_factory: Optional FreeCAD-compatible vector factory used by tests.
+
+    Returns:
+        Local-space vertices and triangles, or None when the target is not a mesh.
+
+    Raises:
+        ValueError: If the target exposes malformed mesh topology or its placement
+            cannot be inverted to object-local coordinates.
+    """
     mesh = getattr(target, "Mesh", None)
     topology = getattr(mesh, "Topology", None) if mesh is not None else None
     if topology is None:
         return None
     try:
-        vertices, triangles = topology
+        vertices, triangles = cast(
+            "tuple[Sequence[object], Sequence[Sequence[object]]]", topology
+        )
         points = tuple(_point_xyz(point) for point in vertices)
-        placement = getattr(target, "Placement", None)
-        if placement is not None:
-            # A placed Mesh::Feature can expose Mesh.Topology coordinates with the
-            # object placement already applied. Anchors persist in object-local
-            # space, so normalize here before calculating or resolving barycentric
-            # coordinates; _anchor_world_position applies Placement exactly once.
-            try:
-                if vector_factory is None:
-                    import FreeCAD as App
-
-                    make_vector = App.Vector
-                else:
-                    make_vector = vector_factory
-                inverse_placement = placement.inverse()
-                points = tuple(
-                    _point_xyz(inverse_placement.multVec(make_vector(*point))) for point in points
-                )
-            except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-                msg = "could not normalize target mesh vertices to object-local coordinates"
-                raise ValueError(msg) from exc
         faces = tuple(tuple(int(index) for index in face) for face in triangles)
-        if (
-            not points
-            or not faces
-            or any(len(face) != 3 or min(face) < 0 or max(face) >= len(points) for face in faces)
-        ):
-            msg = "mesh topology must contain valid triangles"
-            raise ValueError(msg)
-        return points, faces
     except (TypeError, ValueError, AttributeError) as exc:
         msg = "the selected target has unusable mesh topology"
         raise ValueError(msg) from exc
 
+    placement = getattr(target, "Placement", None)
+    if placement is not None:
+        try:
+            points = _points_in_local_space(points, placement, vector_factory)
+        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+            msg = "could not normalize target mesh vertices to object-local coordinates"
+            raise ValueError(msg) from exc
+    try:
+        return _validated_mesh_topology(points, faces)
+    except (TypeError, ValueError, AttributeError) as exc:
+        msg = "the selected target has unusable mesh topology"
+        raise ValueError(msg) from exc
 
 def _target_signature(target):
     """Sign local geometry/topology, deliberately excluding object Placement and mesh vertices.
