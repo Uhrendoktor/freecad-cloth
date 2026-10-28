@@ -559,3 +559,23 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
         ),
         message="canonical CI contract",
     )
+
+
+def test_static_preflight_runs_public_api_regressions() -> None:
+    """Run diagnostic and avatar adapter API regressions before broad static gates."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    command = workflow.split(
+        "python -m pytest -q tests/test_avatar_fitting_coordinate_contract.py",
+        maxsplit=1,
+    )[1].split("pyright -p pyrightconfig.json", maxsplit=1)[0]
+
+    require(
+        condition=(
+            "tests/test_avatar_runtime_api_adapter.py" in command
+            and "tests/test_cloth_diagnostics.py" in command
+        ),
+        message="static preflight must run diagnostic and avatar adapter regressions",
+    )
+
