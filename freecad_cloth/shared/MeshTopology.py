@@ -42,6 +42,7 @@ def triangle_indices_are_valid(
 _EDGE_OWNER_COUNT = 2
 _TRIANGLE_VERTEX_COUNT = 3
 _COORDINATE_DIMENSIONS = 3
+_ARRAY_RANK = 2
 
 
 def _edge_owners(
@@ -175,8 +176,6 @@ def _closed_mesh_orientation_plan(
     Returns:
         Corrected triangle winding and face indices grouped by component.
 
-    Raises:
-        ValueError: If the mesh has boundary/non-manifold edges or is not orientable.
     """
     edge_owners = _edge_owners(triangles)
     adjacency = _face_adjacency(edge_owners, len(triangles))
@@ -208,10 +207,10 @@ def orient_closed_triangle_winding(
     """
     points = np.asarray(vertices, dtype=np.float64)
     faces = np.asarray(triangles, dtype=np.int64)
-    if points.ndim != 2 or points.shape[1] != _COORDINATE_DIMENSIONS or not len(points):
+    if points.ndim != _ARRAY_RANK or points.shape[1] != _COORDINATE_DIMENSIONS or not len(points):
         msg = "closed mesh vertices must have shape (N, 3)"
         raise ValueError(msg)
-    if faces.ndim != 2 or faces.shape[1] != _TRIANGLE_VERTEX_COUNT or not len(faces):
+    if faces.ndim != _ARRAY_RANK or faces.shape[1] != _TRIANGLE_VERTEX_COUNT or not len(faces):
         msg = "closed mesh triangles must have shape (M, 3)"
         raise ValueError(msg)
     if not bool(np.isfinite(points).all()):

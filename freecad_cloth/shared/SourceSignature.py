@@ -8,10 +8,11 @@ cross-domain import.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol, cast
+
+import hashlib
+import json
 
 
 POINT_COORDINATE_COUNT = 3

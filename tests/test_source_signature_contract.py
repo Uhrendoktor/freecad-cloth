@@ -65,7 +65,7 @@ def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None
         Faces=(),
         Edges=(),
         Vertexes=(),
-        exportBrepToString=lambda: object(),
+        exportBrepToString=object,
         tessellate=lambda _deflection: (_COORDINATES, _TRIANGLES),
     )
     signature = source_signature(SimpleNamespace(Name="ShapeBody", Mesh=None, Shape=shape))
