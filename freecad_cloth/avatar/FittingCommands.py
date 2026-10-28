@@ -169,9 +169,7 @@ def _points_in_local_space(
     """
     make_vector = vector_factory
     if make_vector is None:
-        make_vector = cast(
-            "Callable[..., object]", getattr(import_module("FreeCAD"), "Vector")
-        )
+        make_vector = cast("Callable[..., object]", getattr(import_module("FreeCAD"), "Vector"))
     inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
     transform = cast("Callable[[object], object]", getattr(inverse, "multVec"))
     return tuple(_point_xyz(transform(make_vector(*point))) for point in points)
@@ -196,12 +194,7 @@ def _validated_mesh_topology(
     if (
         not points
         or not faces
-        or any(
-            len(face) != 3
-            or min(face) < 0
-            or max(face) >= len(points)
-            for face in faces
-        )
+        or any(len(face) != 3 or min(face) < 0 or max(face) >= len(points) for face in faces)
     ):
         msg = "mesh topology must contain valid triangles"
         raise ValueError(msg)
@@ -263,9 +256,7 @@ def _mesh_topology(
     if topology is None:
         return None
     try:
-        vertices, triangles = cast(
-            "tuple[Sequence[object], Sequence[Sequence[object]]]", topology
-        )
+        vertices, triangles = cast("tuple[Sequence[object], Sequence[Sequence[object]]]", topology)
         return _mesh_topology_from_parts(target, vertices, triangles, vector_factory)
     except (TypeError, ValueError, AttributeError) as exc:
         msg = "the selected target has unusable mesh topology"
