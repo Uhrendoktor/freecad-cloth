@@ -190,13 +190,19 @@ def test_target_spec_accepts_supported_types() -> None:
 def test_target_spec_rejects_invalid_settings() -> None:
     """Reject unsupported source types, empty names, and invalid collision dimensions."""
     specs = (
-        DrapeTargetSpec(INVALID_TARGET_NAME, TARGET_NAME),
-        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, ""),
-        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, 0.0),
-        DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, -1.0),
+        (DrapeTargetSpec(INVALID_TARGET_NAME, TARGET_NAME), "unsupported drape target type"),
+        (DrapeTargetSpec(GEOMETRY_TARGET_TYPE, ""), "drape target source must not be empty"),
+        (
+            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, 0.0),
+            "drape target deflection must be positive",
+        ),
+        (
+            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, -1.0),
+            "drape target thickness must not be negative",
+        ),
     )
-    for spec in specs:
-        with pytest.raises(ValueError):
+    for spec, expected_message in specs:
+        with pytest.raises(ValueError, match=expected_message):
             spec.validate()
 
 

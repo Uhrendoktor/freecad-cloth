@@ -133,7 +133,11 @@ def _scalar(value: object = 0.0) -> SimpleNamespace:
         scalar._value = bool(new_value)
 
     def block_signals(_value: bool) -> None:
-        """Accept signal blocking without triggering callbacks."""
+        """Accept signal blocking without triggering callbacks.
+
+        Args:
+            _value: Whether signals should be blocked.
+        """
 
     scalar.value = current_value
     scalar.setValue = set_value
@@ -169,7 +173,11 @@ def _status() -> SimpleNamespace:
         status.properties[name] = value
 
     def set_word_wrap(_value: bool) -> None:
-        """Accept the label word-wrapping request."""
+        """Accept the label word-wrapping request.
+
+        Args:
+            _value: Whether label text should wrap across lines.
+        """
 
     def style() -> None:
         """Return no GUI style object for the headless fixture."""
