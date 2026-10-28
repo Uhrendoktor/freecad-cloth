@@ -262,6 +262,7 @@ def _mesh_topology(
         msg = "the selected target has unusable mesh topology"
         raise ValueError(msg) from exc
 
+
 def _mesh_target_signature(
     target: object,
     vertices: tuple[Point3, ...],
@@ -702,6 +703,7 @@ def _closest_triangle_weights(
         or _triangle_bc_edge_weights(point, a, b, c)
         or _triangle_interior_weights(point, a, b, c)
     )
+
 
 def _weighted_triangle_point(vertices, triangle, weights):
     """Interpolate the current mesh position associated with saved triangle weights."""
