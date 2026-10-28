@@ -922,6 +922,34 @@ class _FittingDocument(Protocol):
     recompute: Callable[[], object]
 
 
+class _FreeCADVector(Protocol):
+    """Coordinate fields shared by FreeCAD vector-like values."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _PieceRotation(Protocol):
+    """Angular value exposed by a native piece placement."""
+
+    Angle: float
+
+
+class _ObjectPlacement(Protocol):
+    """Position and rotation fields of a native FreeCAD object placement."""
+
+    Base: _FreeCADVector
+    Rotation: _PieceRotation
+
+
+class _PatternPiece(Protocol):
+    """Document object used as a pattern piece in a fitting scene."""
+
+    PieceId: str
+    Placement: object
+
+
 class _FittingScene(Protocol):
     """Persistent fitting-scene properties used by command handlers.
 
@@ -948,7 +976,7 @@ class _FittingScene(Protocol):
     MeasurementUnit: str
     FitStatus: str
     AvatarProxy: object | None
-    PatternPieces: Sequence[object]
+    PatternPieces: Sequence[_PatternPiece]
     PiecePlacements: Sequence[str]
     HomePlacements: Sequence[str]
     ArrangementPoints: Sequence[str]
@@ -963,7 +991,7 @@ class _TargetPlacement(Protocol):
     """Callable operations exposed by a FreeCAD target placement."""
 
     inverse: Callable[[], _TargetPlacement]
-    multVec: Callable[[object], object]
+    multVec: Callable[[_FreeCADVector], _FreeCADVector]
 
 
 class _AnchorTarget(Protocol):
@@ -1073,7 +1101,7 @@ def _sync_visuals(scene):
             obj.AnchorSubelement = str(anchor.get("subelement", ""))
             obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
             local_point = tuple(cast("Sequence[object]", anchor.get("local_point", (0.0, 0.0, 0.0))))
-            obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
+            obj.AnchorLocalPoint = App.Vector(*(float(cast("float", v)) for v in local_point))
             obj.AnchorStatus = arrangement_anchor_status(obj)
         else:
             obj.AnchorTarget = None
@@ -1281,7 +1309,9 @@ def add_selected_pattern_pieces():
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     pieces = [
-        o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"
+        cast("_PatternPiece", obj)
+        for obj in Gui.Selection.getSelection()
+        if getattr(obj, "PatternType", "") == "PatternPiece"
     ]
     if not pieces:
         msg = "select one or more pattern pieces before adding them to the fitting scene"
@@ -1291,7 +1321,7 @@ def add_selected_pattern_pieces():
     by_id = {p.piece_id: p for p in existing}
     home_by_id = {p.piece_id: p for p in homes}
     for piece in pieces:
-        placement = piece.Placement
+        placement = cast("_ObjectPlacement", piece.Placement)
         base = placement.Base
         value = PiecePlacement(
             str(piece.PieceId),
@@ -1655,7 +1685,7 @@ def create_arrangement_anchor(
     if len(coords) != 3:
         msg = "picked surface location must contain three coordinates"
         raise ValueError(msg)
-    world = App.Vector(*coords)
+    world = cast("_FreeCADVector", App.Vector(*coords))
     try:
         local = anchor_target.Placement.inverse().multVec(world)
     except (AttributeError, RuntimeError, TypeError, ValueError):
@@ -1675,7 +1705,7 @@ def create_arrangement_anchor(
         anchor["triangle_index"] = int(triangle_index)
         anchor["barycentric"] = [float(value) for value in barycentric]
         anchor["local_point"] = [float(value) for value in projected]
-        local = App.Vector(*projected)
+        local = cast("_FreeCADVector", App.Vector(*projected))
         try:
             world = anchor_target.Placement.multVec(local)
         except (AttributeError, RuntimeError, TypeError, ValueError):
