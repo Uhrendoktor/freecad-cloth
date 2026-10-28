@@ -99,22 +99,15 @@ def collision_surface(
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-def target_status(target: object | None) -> _TargetStatus:
-    """Summarize whether the persisted collision cache is current.
+def _existing_target_prerequisite_status(target: object) -> _TargetStatus | None:
+    """Return a status record when an existing target cannot be simulated.
 
     Args:
-        target: Persistent DrapeTarget feature, or None when no target is assigned.
+        target: Existing persisted DrapeTarget feature.
 
     Returns:
-        A deterministic state, status message, stale flag, and invalidation reason.
+        A blocking status when disabled, unassigned, invalid, or unbuilt; otherwise None.
     """
-    if target is None:
-        return {
-            "state": "missing",
-            "message": "No drape target selected",
-            "stale": True,
-            "reason": "target missing",
-        }
     if not bool(getattr(target, "Enabled", True)):
         return {
             "state": "disabled",
@@ -143,8 +136,8 @@ def target_status(target: object | None) -> _TargetStatus:
             "stale": True,
             "reason": "source missing",
         }
-    vertices = int(getattr(target, "CollisionVertexCount", 0))
-    triangles = int(getattr(target, "CollisionTriangleCount", 0))
+    vertices = int(getattr(target, "CollisionVertexCount", _EMPTY_COLLISION_COUNT))
+    triangles = int(getattr(target, "CollisionTriangleCount", _EMPTY_COLLISION_COUNT))
     if (
         not getattr(target, "SourceSignature", "")
         or vertices <= _EMPTY_COLLISION_COUNT
@@ -156,6 +149,29 @@ def target_status(target: object | None) -> _TargetStatus:
             "stale": True,
             "reason": "collision cache missing",
         }
+    return None
+
+
+def target_status(target: object | None) -> _TargetStatus:
+    """Summarize whether the persisted collision cache is current.
+
+    Args:
+        target: Persistent DrapeTarget feature, or None when no target is assigned.
+
+    Returns:
+        A deterministic state, status message, stale flag, and invalidation reason.
+    """
+    if target is None:
+        return {
+            "state": "missing",
+            "message": "No drape target selected",
+            "stale": True,
+            "reason": "target missing",
+        }
+    prerequisite_status = _existing_target_prerequisite_status(target)
+    if prerequisite_status is not None:
+        return prerequisite_status
+    source = getattr(target, "SourceObject", None)
     try:
         current = repr(
             source_signature(
