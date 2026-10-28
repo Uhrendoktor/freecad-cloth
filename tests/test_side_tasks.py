@@ -25,7 +25,9 @@ from tests.support.assertions import require
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
 _EDGE_LENGTH_ATTRIBUTE = "_edge_length"
 _EDGE_POINTS_ATTRIBUTE = "_edge_points"
-_edge_length = cast("Callable[[object, int], float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE))
+_edge_length = cast(
+    "Callable[[object, int], float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE)
+)
 _edge_points = cast(
     "Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE)
 )

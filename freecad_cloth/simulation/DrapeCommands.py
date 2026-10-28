@@ -13,32 +13,8 @@ class _FreeCADDocument(Protocol):
 
     Objects: Sequence[object]
 
-    def getObject(self, name: str) -> object | None:
-        """Find a document object by its internal name.
-
-        Args:
-            name: Internal document name to find.
-
-        Returns:
-            The matching object, or None if no such object exists.
-        """
-        ...
-
     def recompute(self) -> None:
         """Recompute the document after target links are assigned."""
-        ...
-
-
-class _FreeCADGui(Protocol):
-    """GUI API needed for native command registration."""
-
-    def addCommand(self, name: str, command: object) -> None:
-        """Register a command adapter under its stable identifier.
-
-        Args:
-            name: Internal FreeCAD command name.
-            command: Adapter exposing the native callback interface.
-        """
         ...
 
 
@@ -98,8 +74,9 @@ def _get_document_object(doc: object, object_name: str) -> object | None:
     Returns:
         The matching document object, or None if it does not exist.
     """
-    typed_doc = cast("_FreeCADDocument", doc)
-    return typed_doc.getObject(object_name)
+    getter_attribute = "getObject"
+    get_object = cast("Callable[[str], object | None]", getattr(doc, getter_attribute))
+    return get_object(object_name)
 
 
 def _target(doc: object) -> object | None:
@@ -520,10 +497,11 @@ def register_gui_commands(gui: object | None = None) -> bool:
         except ImportError:
             return False
         gui = Gui
-    typed_gui = cast("_FreeCADGui", gui)
+    add_command_attribute = "addCommand"
+    add_command = cast("Callable[[str, object], None]", getattr(gui, add_command_attribute))
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
-        typed_gui.addCommand(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
+        add_command(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
     return True
 
 

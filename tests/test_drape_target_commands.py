@@ -36,17 +36,17 @@ def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.Monke
         recompute=lambda: None,
     )
     freecad_module = ModuleType("FreeCAD")
-    freecad_module.ActiveDocument = document
+    freecad_module.__dict__["ActiveDocument"] = document
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
     avatar_module = ModuleType("freecad_cloth.avatar.AvatarCommands")
-    avatar_module.create_avatar = lambda: mannequin
+    avatar_module.__dict__["create_avatar"] = lambda: mannequin
     monkeypatch.setitem(sys.modules, "freecad_cloth.avatar.AvatarCommands", avatar_module)
 
     drape_target_module = ModuleType("freecad_cloth.simulation.DrapeTarget")
-    drape_target_module.DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 2.0
-    drape_target_module.assign_drape_target = lambda *_args: None
-    drape_target_module.create_drape_target = lambda *_args: target
+    drape_target_module.__dict__["DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM"] = 2.0
+    drape_target_module.__dict__["assign_drape_target"] = lambda *_args: None
+    drape_target_module.__dict__["create_drape_target"] = lambda *_args: target
     monkeypatch.setitem(sys.modules, "freecad_cloth.simulation.DrapeTarget", drape_target_module)
 
     created = DrapeCommands.create_mannequin_drape_target()
@@ -118,6 +118,6 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
         message="The native GetResources callback must retain the command label.",
     )
     require(
-        condition=resources["ToolTip"] == DrapeCommands._TOOLTIPS["ClothDrape_EnableTarget"],
+        condition=resources["ToolTip"] == "Enable the persistent drape target",
         message="The native GetResources callback must retain the command tooltip.",
     )
