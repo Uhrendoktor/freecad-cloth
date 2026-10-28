@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from typing import Protocol, cast
 
 import pytest
-
 from fixtures.garment_fixtures import mirrored_pair, multi_piece, two_piece_rectangle
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,

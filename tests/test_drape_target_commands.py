@@ -2,9 +2,11 @@
 """Regression contract for mannequin drape-target attachment and command callbacks."""
 
 import sys
-from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pytest
 

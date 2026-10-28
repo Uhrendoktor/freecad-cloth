@@ -35,6 +35,7 @@ class _DrapeTarget(Protocol):
 
 
 _ACTIVE_DIAGNOSTICS_TASK_PANEL: list[object | None] = [None]
+_DEFAULT_TARGET_ENABLED = True
 
 
 def get_active_diagnostics_task_panel() -> object | None:
@@ -293,7 +294,7 @@ def refresh_drape_target() -> object:
     return target
 
 
-def set_drape_target_enabled(enabled: object = True) -> object:
+def set_drape_target_enabled(enabled: object = _DEFAULT_TARGET_ENABLED) -> object:
     """Enable or disable collision checks for the persistent DrapeTarget.
 
     Args:
