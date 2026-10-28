@@ -488,7 +488,6 @@ class _FittingDocument(Protocol):
     def removeObject(self, name: str) -> None: ...
 
 
-
 def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
     """Refresh fitting anchors when the persistent drape target belongs to an avatar.
 

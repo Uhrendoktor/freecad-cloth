@@ -392,9 +392,7 @@ def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
         Pose containing saved arm, elbow, and joint-rotation values.
     """
     preset_defaults = Pose(preset)
-    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(
-        preset, DEFAULT_POSE_ARM_ANGLES["standing"]
-    )
+    default_arm_angle = DEFAULT_POSE_ARM_ANGLES.get(preset, DEFAULT_POSE_ARM_ANGLES["standing"])
     fallback = {
         "left_arm_angle": float(
             default_arm_angle

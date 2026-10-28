@@ -10,8 +10,20 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Iterable, Sequence
-from typing import cast
+from collections.abc import Callable, Iterable, Sequence
+from typing import Protocol, cast
+
+
+POINT_COORDINATE_COUNT = 3
+TESSELLATION_COMPONENT_COUNT = 2
+
+
+class _VectorCoordinates(Protocol):
+    """Coordinate attributes exposed by FreeCAD vector-like values."""
+
+    x: float
+    y: float
+    z: float
 
 
 def _point_coordinates(point: object) -> tuple[float, float, float]:
@@ -24,19 +36,20 @@ def _point_coordinates(point: object) -> tuple[float, float, float]:
         Coordinates rounded to six decimal places.
     """
     try:
-        values = tuple(cast(Iterable[float], point))
+        values = tuple(cast("Iterable[float]", point))
     except TypeError:
         values = None
-    if values is not None and len(values) >= 3:
+    if values is not None and len(values) >= POINT_COORDINATE_COUNT:
         return (
             round(float(values[0]), 6),
             round(float(values[1]), 6),
             round(float(values[2]), 6),
         )
+    vector = cast("_VectorCoordinates", point)
     return (
-        round(float(getattr(point, "x")), 6),
-        round(float(getattr(point, "y")), 6),
-        round(float(getattr(point, "z")), 6),
+        round(float(vector.x), 6),
+        round(float(vector.y), 6),
+        round(float(vector.z), 6),
     )
 
 
@@ -97,6 +110,29 @@ def _mesh_signature(target: object) -> tuple[object, ...] | None:
         return None
 
 
+def _brep_signature(exporter: Callable[[], object]) -> tuple[str, str]:
+    """Hash the serialized BRep payload returned by a shape exporter.
+
+    Args:
+        exporter: Bound native shape method that returns a BRep representation.
+
+    Returns:
+        A BRepHash tag and the payload's SHA-256 digest.
+
+    Raises:
+        TypeError: If the exporter returns a value that is neither text nor bytes.
+    """
+    payload = exporter()
+    if isinstance(payload, str):
+        encoded = payload.encode("utf-8")
+    elif isinstance(payload, (bytes, bytearray, memoryview)):
+        encoded = bytes(payload)
+    else:
+        msg = "BRep exporter must return text or bytes"
+        raise TypeError(msg)
+    return "BRepHash", hashlib.sha256(encoded).hexdigest()
+
+
 def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[object, ...]:
     """Return a deterministic BRep or tessellation signature for a FreeCAD shape.
 
@@ -111,15 +147,7 @@ def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[ob
     exporter = getattr(shape, "exportBrepToString", None)
     if callable(exporter):
         try:
-            payload = exporter()
-            if isinstance(payload, str):
-                encoded = payload.encode("utf-8")
-            elif isinstance(payload, (bytes, bytearray, memoryview)):
-                encoded = bytes(payload)
-            else:
-                msg = "BRep exporter must return text or bytes"
-                raise TypeError(msg)
-            return ("BRepHash", hashlib.sha256(encoded).hexdigest())
+            return _brep_signature(cast("Callable[[], object]", exporter))
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
 
@@ -129,7 +157,7 @@ def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[ob
             tessellation = tessellate(float(deflection))
             if (
                 isinstance(tessellation, tuple)
-                and len(tessellation) == 2
+                and len(tessellation) == TESSELLATION_COMPONENT_COUNT
                 and isinstance(tessellation[0], Sequence)
                 and isinstance(tessellation[1], Sequence)
             ):
