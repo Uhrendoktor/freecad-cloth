@@ -28,6 +28,7 @@ class _DrapeTargetFeature(Protocol):
     SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
+    addProperty: Callable[[str, str, str], object]
 
 
 class _TargetStatus(TypedDict):
@@ -258,7 +259,6 @@ def create_drape_target(
     add_object = cast("Callable[[str, str], object]", getattr(doc, "addObject"))
     target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
-    add_property = cast("Callable[[str, str, str], object]", getattr(target, "addProperty"))
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
         ("App::PropertyLink", "SourceObject", "Draping"),
@@ -271,7 +271,7 @@ def create_drape_target(
         ("App::PropertyString", "TargetStatus", "State"),
         ("App::PropertyString", "InvalidationReason", "State"),
     ):
-        add_property(type_name, name, group)
+        target.addProperty(type_name, name, group)
     target.TargetType = target_type
     target.CollisionDeflection = float(deflection)
     target.CollisionThickness = float(thickness)
