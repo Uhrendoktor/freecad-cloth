@@ -167,6 +167,9 @@ def _points_in_local_space(
 
     Returns:
         The mesh vertices in object-local coordinates.
+
+    Raises:
+        ImportError: If no FreeCAD host module is loaded and no vector factory is injected.
     """
     make_vector = vector_factory
     if make_vector is None:

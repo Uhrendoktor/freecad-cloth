@@ -3,8 +3,9 @@
 
 from collections.abc import Callable, Iterable
 from colorsys import hsv_to_rgb
-from dataclasses import dataclass
 from hashlib import sha512
+
+from pydantic.dataclasses import dataclass
 
 _SEAM_COLOR_SATURATION = 0.78
 _SEAM_COLOR_VALUE = 0.92

@@ -142,6 +142,7 @@ def test_object_linking_is_a_standalone_no_op_and_rejects_unknown_roles() -> Non
     with pytest.raises(ValueError, match="unsupported Garment hierarchy role"):
         link_garment_object(obj, "UnsupportedRole", document)
 
+
 def test_document_creation_accepts_an_injected_host_module() -> None:
     """Create a document through an explicit application dependency in headless tests."""
     document = _FakeDocument()
