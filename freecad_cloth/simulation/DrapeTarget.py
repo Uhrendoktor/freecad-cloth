@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar, Protocol, cast
+from typing import TYPE_CHECKING, ClassVar, NotRequired, Protocol, TypedDict, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -28,6 +28,17 @@ class _DrapeTargetFeature(Protocol):
     SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
+
+
+class _TargetStatus(TypedDict):
+    """Stable result shape returned by target_status."""
+
+    state: str
+    message: str
+    stale: bool
+    reason: str
+    signature_current: NotRequired[str]
+    signature_authored: NotRequired[str]
 
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
@@ -88,7 +99,7 @@ def collision_surface(
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-def target_status(target: object | None) -> dict[str, str | bool]:
+def target_status(target: object | None) -> _TargetStatus:
     """Summarize whether the persisted collision cache is current.
 
     Args:
