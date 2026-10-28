@@ -14,7 +14,7 @@ from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 from freecad_cloth.simulation.DrapeFailureClassifier import DrapeMetrics
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable, Iterable, Sequence
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
@@ -385,9 +385,17 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset(
 
 
 def assert_drape_diagnostics(
-    records: Sequence[dict], *, allowed_diagnostics: Sequence[str] = ()
+    records: Sequence[dict], *, allowed_diagnostics: Iterable[str] = ()
 ) -> None:
-    """Fail closed while allowing explicitly documented diagnostic exceptions."""
+    """Reject fatal drape diagnostics unless a specific diagnostic is allowed.
+
+    Args:
+        records: Per-panel diagnostic records from the independent visual audit.
+        allowed_diagnostics: Fatal diagnostic identifiers explicitly accepted for this audit.
+
+    Raises:
+        RuntimeError: If any record contains a fatal classification or unallowed diagnostic.
+    """
     failures = []
     allowed = {str(item) for item in allowed_diagnostics}
     fatal_diagnostics = _FATAL_VISUAL_DIAGNOSTICS - allowed

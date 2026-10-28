@@ -24,12 +24,12 @@ class _SimulationScene(Protocol):
     DrapeTarget: object
 
 
-_ACTIVE_DIAGNOSTICS_TASK_PANEL = None
+_ACTIVE_DIAGNOSTICS_TASK_PANEL: list[object | None] = [None]
 
 
-def get_active_diagnostics_task_panel():
+def get_active_diagnostics_task_panel() -> object | None:
     """Return the diagnostics task panel opened by the public command."""
-    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
+    return _ACTIVE_DIAGNOSTICS_TASK_PANEL[0]
 
 
 def _selected_source():
@@ -141,7 +141,7 @@ def create_mannequin_drape_target():
         target.CollisionThickness = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
         assign_drape_target(target, mannequin, "Mannequin")
     target.Label = "Drape Target (Mannequin)"
-    _attach_to_simulation(doc, mannequin, target)
+    _attach_to_simulation(doc, target)
     doc.recompute()
     return target
 
@@ -191,9 +191,15 @@ def set_drape_target_enabled(enabled=True):
     return target
 
 
-def show_diagnostics():
-    """Open post-simulation stress/strain/fit/pressure diagnostics."""
-    global _ACTIVE_DIAGNOSTICS_TASK_PANEL
+def show_diagnostics() -> object:
+    """Open post-simulation stress, strain, fit, and pressure diagnostics.
+
+    Returns:
+        The diagnostics task-panel instance.
+
+    Raises:
+        ValueError: If no active FreeCAD document is available.
+    """
     import FreeCAD as App
 
     from freecad_cloth.simulation.ClothDiagnosticsGui import show_diagnostics as show_panel
@@ -202,8 +208,9 @@ def show_diagnostics():
     if doc is None:
         msg = "create a simulation before opening diagnostics"
         raise ValueError(msg)
-    _ACTIVE_DIAGNOSTICS_TASK_PANEL = show_panel()
-    return _ACTIVE_DIAGNOSTICS_TASK_PANEL
+    panel = show_panel()
+    _ACTIVE_DIAGNOSTICS_TASK_PANEL[0] = panel
+    return panel
 
 
 def _has_document():
