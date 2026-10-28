@@ -10,6 +10,8 @@ _SEAM_COLOR_SATURATION = 0.78
 _SEAM_COLOR_VALUE = 0.92
 _SEAM_COLOR_HASH_SCALE = float(1 << 64)
 _NEUTRAL_SEAM_COLOR = (0.48, 0.48, 0.48)
+
+
 @dataclass
 class _SeamColorState:
     """Mutable display configuration shared by seam-color operations."""
@@ -108,8 +110,9 @@ def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float
         color = colors.get(str(getattr(obj, "SeamId", "")))
         if view is not None and color is not None:
             view.LineColor = color if _SEAM_COLOR_STATE.highlights_enabled else _NEUTRAL_SEAM_COLOR
-    if seam_objects and _SEAM_COLOR_STATE.refresh_callback is not None:
+    refresh_callback = _SEAM_COLOR_STATE.refresh_callback
+    if seam_objects and refresh_callback is not None:
         document = getattr(seam_objects[0], "Document", None)
         if document is not None:
-            _SEAM_REFRESH_CALLBACK(document)
+            refresh_callback(document)
     return colors
