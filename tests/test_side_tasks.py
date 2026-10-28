@@ -1,11 +1,14 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
-from pathlib import Path
-from types import SimpleNamespace
+"""Regression contracts for pattern export, collision and sewing edge adapters."""
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from collections.abc import Callable
+from importlib import import_module
+from types import SimpleNamespace
+from typing import Protocol, cast
+
+import pytest
+
 from fixtures.garment_fixtures import mirrored_pair, multi_piece, two_piece_rectangle
-from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     PatternMark,
@@ -14,105 +17,216 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
     derive_cut_boundary,
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
-from freecad_cloth.pattern.PatternGeometry import (
-    rectangle,
-)
-from freecad_cloth.sewing.SewingObjects import _edge_length, _edge_points
+from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
+from tests.support.assertions import require
+
+_SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
+_edge_length = cast("Callable[[object, int], float]", getattr(_SEWING_OBJECTS, "_edge_length"))
+_edge_points = cast("Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, "_edge_points"))
+
+SAMPLE_PATTERN_WIDTH_MM = 100
+SAMPLE_PATTERN_HEIGHT_MM = 50
+EXPECTED_SEAM_COUNT = 3
+EXPECTED_EDGE_LENGTH_MM = 5.0
+EXPECTED_START_POINT = (10.0, -1.0, 2.2)
+EXPECTED_END_POINT = (7.0, -1.0, 2.2)
+EXPECTED_COLLISION_CENTER = (1 / 3, 1 / 3, 0.0)
 
 
-def test_svg_units_and_stable_ids():
-    svg = to_svg(rectangle(100, 50))
-    assert 'data-units="mm"' in svg
-    assert 'data-edge-ids="bottom right top left"' in svg
-    assert 'width="100mm"' in svg
-    assert 'height="50mm"' in svg
+class _VectorLike(Protocol):
+    """Coordinates exposed by the FreeCAD vector stand-in."""
+
+    x: float
+    y: float
+    z: float
 
 
-def test_collision_surface_contract():
-    """Validate the neutral collision surface and its geometric centroid."""
-    surface = CollisionSurface(((0, 0, 0), (1, 0, 0), (0, 1, 0)), ((0, 1, 2),), thickness=1.0)
-    surface.validate()
-    assert surface.center == (1 / 3, 1 / 3, 0.0)
+class _Vector:
+    """Minimal mutable vector used to verify piece-placement transforms."""
+
+    def __init__(self, x: float, y: float, z: float = 0.0) -> None:
+        """Create a vector with explicit coordinates.
+
+        Args:
+            x: Horizontal coordinate in millimetres.
+            y: Vertical coordinate in millimetres.
+            z: Depth coordinate in millimetres.
+        """
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
 
 
-def test_golden_fixtures_are_deterministic():
-    assert (
-        two_piece_rectangle()["pieces"][0].sampled_outline()
-        == two_piece_rectangle()["pieces"][0].sampled_outline()
+class _RotatedPlacement:
+    """Apply the fixed rotation and translation used by the edge regression."""
+
+    def multVec(self, value: _VectorLike) -> _Vector:
+        """Transform one input vector into the expected placed coordinate frame.
+
+        Args:
+            value: Local coordinate vector before the placement transform.
+
+        Returns:
+            A new vector after the test transform is applied.
+        """
+        return _Vector(-value.y + 10.0, value.x - 5.0, value.z + 2.0)
+
+
+def test_svg_units_and_stable_ids() -> None:
+    """Preserve physical-unit labels and deterministic edge identifiers in SVG."""
+    svg = to_svg(rectangle(SAMPLE_PATTERN_WIDTH_MM, SAMPLE_PATTERN_HEIGHT_MM))
+    require(
+        condition='data-units="mm"' in svg,
+        message="SVG export must label the canonical millimetre units.",
     )
-    assert mirrored_pair()["mirrored"] is True
-    assert multi_piece()["seams"] == 3
+    require(
+        condition='data-edge-ids="bottom right top left"' in svg,
+        message="SVG export must preserve stable edge identifiers.",
+    )
+    require(
+        condition=f'width="{SAMPLE_PATTERN_WIDTH_MM}mm"' in svg,
+        message="SVG width must preserve the pattern's physical width.",
+    )
+    require(
+        condition=f'height="{SAMPLE_PATTERN_HEIGHT_MM}mm"' in svg,
+        message="SVG height must preserve the pattern's physical height.",
+    )
 
 
-def test_pattern_construction_and_dxf_export():
-    pattern = rectangle(100, 60)
+def test_collision_surface_contract() -> None:
+    """Validate the neutral collision surface and its geometric centroid."""
+    surface = CollisionSurface(
+        ((0, 0, 0), (1, 0, 0), (0, 1, 0)),
+        ((0, 1, 2),),
+        thickness=1.0,
+    )
+    surface.validate()
+    require(
+        condition=surface.center == EXPECTED_COLLISION_CENTER,
+        message="Collision-surface center must equal the triangle centroid.",
+    )
+
+
+def test_golden_fixtures_are_deterministic() -> None:
+    """Keep representative multi-piece fixtures stable between constructions."""
+    first_outline = two_piece_rectangle()["pieces"][0].sampled_outline()
+    second_outline = two_piece_rectangle()["pieces"][0].sampled_outline()
+    require(
+        condition=first_outline == second_outline,
+        message="Repeated pattern-fixture construction must produce the same outline.",
+    )
+    require(
+        condition=mirrored_pair()["mirrored"] is True,
+        message="The mirrored fixture must retain its mirror contract.",
+    )
+    require(
+        condition=multi_piece()["seams"] == EXPECTED_SEAM_COUNT,
+        message="The multi-piece fixture must preserve its expected seam count.",
+    )
+
+
+def test_pattern_construction_and_dxf_export() -> None:
+    """Keep derived cutting geometry and DXF layer metadata deterministic."""
+    pattern = rectangle(SAMPLE_PATTERN_WIDTH_MM, 60)
     derived = add_notches(derive_cut_boundary(pattern, 5), [Notch("waist", "right", 0.5)])
     derived = add_marks(
         derived, [PatternMark("grain", "Grainline", angle=90, length=40, text="Grain")]
     )
     svg = to_svg(pattern, derived=derived)
-    assert 'id="sewing-boundary"' in svg
-    assert 'id="cut-boundary"' in svg
-    assert 'data-notch-ids="waist"' in svg
-    assert 'data-kind="Grainline"' in svg
+    require(
+        condition='id="sewing-boundary"' in svg,
+        message="SVG export must include the sewing boundary.",
+    )
+    require(
+        condition='id="cut-boundary"' in svg,
+        message="SVG export must include the derived cut boundary.",
+    )
+    require(
+        condition='data-notch-ids="waist"' in svg,
+        message="SVG export must retain the semantic notch identifier.",
+    )
+    require(
+        condition='data-kind="Grainline"' in svg,
+        message="SVG export must identify grainline annotations.",
+    )
     dxf = to_dxf(pattern, derived=derived)
-    assert "LWPOLYLINE" in dxf
-    assert "8\nSEWING" in dxf
-    assert "8\nCUT" in dxf
-    assert from_dxf_metadata(dxf) == {
-        "version": 1,
-        "units": "mm",
-        "edge_ids": ["bottom", "right", "top", "left"],
-    }
+    require(
+        condition="LWPOLYLINE" in dxf,
+        message="DXF export must encode pattern boundaries as polylines.",
+    )
+    require(
+        condition="8\nSEWING" in dxf,
+        message="DXF export must retain the sewing layer.",
+    )
+    require(
+        condition="8\nCUT" in dxf,
+        message="DXF export must retain the cut layer.",
+    )
+    require(
+        condition=from_dxf_metadata(dxf)
+        == {
+            "version": 1,
+            "units": "mm",
+            "edge_ids": ["bottom", "right", "top", "left"],
+        },
+        message="DXF export must round-trip canonical unit and edge metadata.",
+    )
 
 
-def test_invalid_pattern_mark_reference_is_rejected():
-    try:
+def test_invalid_pattern_mark_reference_is_rejected() -> None:
+    """Reject a pattern mark that names a nonexistent segment."""
+    with pytest.raises(ValueError):
         add_marks(
             derive_cut_boundary(rectangle(10, 10), 1),
             [PatternMark("bad", "Fold", segment_id="missing")],
         )
-        raise AssertionError
-    except ValueError:
-        pass
 
 
-def test_closed_sewing_outline_edge_wraps_to_first_vertex():
-    piece = SimpleNamespace(Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (4, 0), (4, 3)]))
-    assert _edge_length(piece, 2) == 5.0
+def test_closed_sewing_outline_edge_wraps_to_first_vertex() -> None:
+    """Measure the closing edge back to the first vertex of the outline."""
+    piece = SimpleNamespace(
+        Width=999.0,
+        Height=999.0,
+        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
+    )
+    require(
+        condition=_edge_length(piece, 2) == EXPECTED_EDGE_LENGTH_MM,
+        message="The last outline edge must wrap to the first vertex.",
+    )
 
 
-def test_sewing_edge_points_apply_rotated_piece_placement_once():
-    class Vector:
-        def __init__(self, x, y, z=0.0):
-            self.x, self.y, self.z = float(x), float(y), float(z)
-
-    class RotatedPlacement:
-        def multVec(self, value):
-            return Vector(-value.y + 10, value.x - 5, value.z + 2)
-
-    FakeApp = type("FakeApp", (), {"Vector": Vector})
-
+def test_sewing_edge_points_apply_rotated_piece_placement_once() -> None:
+    """Apply a rotated piece placement exactly once to the requested seam edge."""
     piece = SimpleNamespace(
         Width=4.0,
         Height=3.0,
         SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
-        Placement=RotatedPlacement(),
+        Placement=_RotatedPlacement(),
     )
-    start, end = _edge_points(piece, 1, 0.0, 1.0, z=0.2, vector_factory=FakeApp().Vector)
-    assert (start.x, start.y, start.z) == (10.0, -1.0, 2.2)
-    assert (end.x, end.y, end.z) == (7.0, -1.0, 2.2)
+    raw_start, raw_end = _edge_points(
+        piece,
+        1,
+        0.0,
+        1.0,
+        z=0.2,
+        vector_factory=_Vector,
+    )
+    start = cast("_Vector", raw_start)
+    end = cast("_Vector", raw_end)
+    require(
+        condition=(start.x, start.y, start.z) == EXPECTED_START_POINT,
+        message="The transformed seam start must match the placed local coordinate.",
+    )
+    require(
+        condition=(end.x, end.y, end.z) == EXPECTED_END_POINT,
+        message="The transformed seam end must match the placed local coordinate.",
+    )
 
 
-if __name__ == "__main__":
-    for name, fn in globals().copy().items():
-        if name.startswith("test_"):
-            fn()
-    print("side-task tests passed")
-
-
-def test_drape_visual_diagnostics_accept_clean_result():
+def test_drape_visual_diagnostics_accept_clean_result() -> None:
+    """Accept a structurally plausible drape without fatal diagnostics."""
     assert_drape_diagnostics(
         (
             {
@@ -124,7 +238,8 @@ def test_drape_visual_diagnostics_accept_clean_result():
     )
 
 
-def test_drape_visual_diagnostics_allows_only_explicit_exception():
+def test_drape_visual_diagnostics_allows_only_explicit_exception() -> None:
+    """Allow a fatal diagnostic only when the audit names that exact exception."""
     assert_drape_diagnostics(
         (
             {
@@ -136,7 +251,8 @@ def test_drape_visual_diagnostics_allows_only_explicit_exception():
     )
 
 
-def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
+def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem() -> None:
+    """Fail the visual audit closed for detached, collapsed, or below-hem outputs."""
     cases = (
         {"failure_classification": {"state": "detached-candidate"}, "diagnostics": []},
         {
@@ -153,10 +269,22 @@ def test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem():
         },
     )
     for record in cases:
-        try:
+        with pytest.raises(RuntimeError, match="drape visual acceptance failed closed"):
             assert_drape_diagnostics((record,))
-        except RuntimeError as exc:
-            assert "drape visual acceptance failed closed" in str(exc)
-        else:
-            msg = "fatal drape diagnostics were accepted"
-            raise AssertionError(msg)
+
+
+if __name__ == "__main__":
+    manual_tests: tuple[Callable[[], None], ...] = (
+        test_svg_units_and_stable_ids,
+        test_collision_surface_contract,
+        test_golden_fixtures_are_deterministic,
+        test_pattern_construction_and_dxf_export,
+        test_invalid_pattern_mark_reference_is_rejected,
+        test_closed_sewing_outline_edge_wraps_to_first_vertex,
+        test_sewing_edge_points_apply_rotated_piece_placement_once,
+        test_drape_visual_diagnostics_accept_clean_result,
+        test_drape_visual_diagnostics_allows_only_explicit_exception,
+        test_drape_visual_diagnostics_reject_detached_collapsed_or_below_hem,
+    )
+    for manual_test in manual_tests:
+        manual_test()
