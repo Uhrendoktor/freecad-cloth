@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for cloth diagnostic metrics, validation, and deterministic export."""
 
+import inspect
 import math
 from collections.abc import Callable
 from pathlib import Path
@@ -133,6 +134,42 @@ def test_unknown_mesh_option_fails_closed() -> None:
             ((0, 1, 2),),
             stretch_limt=0.02,
         )
+
+
+def test_analyze_mesh_preserves_keyword_only_signature() -> None:
+    """Keep the public mesh controls explicit for signature introspection."""
+    parameters = inspect.signature(analyze_mesh).parameters
+    expected_names = (
+        "rest_vertices",
+        "current_vertices",
+        "triangles",
+        "stretch_limit",
+        "clearances",
+        "fit_tolerance",
+        "pressures",
+    )
+    option_defaults = {
+        "stretch_limit": 0.02,
+        "clearances": None,
+        "fit_tolerance": 5.0,
+        "pressures": None,
+    }
+    _require(
+        condition=tuple(parameters) == expected_names,
+        message="Mesh analysis must retain its explicit public parameters.",
+    )
+    _require(
+        condition=all(
+            parameters[name].kind is inspect.Parameter.KEYWORD_ONLY
+            for name in option_defaults
+        ),
+        message="Optional mesh controls must remain keyword-only.",
+    )
+    _require(
+        condition={name: parameters[name].default for name in option_defaults}
+        == option_defaults,
+        message="Mesh control defaults must remain stable for introspection.",
+    )
 
 
 def test_mesh_vertex_count_is_validated() -> None:
