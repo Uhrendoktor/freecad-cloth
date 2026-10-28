@@ -262,109 +262,168 @@ def _mesh_topology(
         msg = "the selected target has unusable mesh topology"
         raise ValueError(msg) from exc
 
-def _target_signature(target):
-    """Sign local geometry/topology, deliberately excluding object Placement and mesh vertices.
+def _mesh_target_signature(
+    target: object,
+    vertices: tuple[Point3, ...],
+    triangles: tuple[Triangle, ...],
+) -> str:
+    """Sign mesh topology and provider identity without mutable vertex positions.
 
-    Mesh anchors use stable triangle connectivity plus barycentric coordinates. This lets a
-    generated avatar deform its vertices during skeleton posing without invalidating the
-    anchor, while still detecting a topology rebuild. Non-mesh anchors follow object
-    Placement and become stale if the underlying shape geometry itself changes.
+    Args:
+        target: Mesh-bearing FreeCAD object.
+        vertices: Validated object-local vertex coordinates.
+        triangles: Validated triangular face indices.
+
+    Returns:
+        A stable digest reflecting mesh connectivity or avatar provider identity.
     """
-    mesh_topology = _mesh_topology(target)
-    if mesh_topology is not None:
-        vertices, triangles = mesh_topology
-        if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
-            # Avatar FK can repack/deduplicate vertices while preserving native
-            # FacetN identity. Surface anchors store facet ordinal + barycentric
-            # coordinates, so vertex indices and the current vertex count are not
-            # part of avatar identity. Keep the source/provider and facet count in
-            # the signature, and separately sign a selected provider's geometry.
-            provider_source = getattr(target, "ProviderSource", None)
-            source_signature = (
-                _target_signature(provider_source)
-                if provider_source is not None and provider_source is not target
-                else None
-            )
-            payload = json.dumps(
-                {
-                    "avatar_type": "ClothAvatar",
-                    "provider_id": str(getattr(target, "AvatarProviderId", "")),
-                    "mesh_provider": str(getattr(target, "AvatarMeshProvider", "")),
-                    "mesh_source": str(getattr(target, "AvatarMeshSource", "")),
-                    "triangle_count": len(triangles),
-                    "declared_triangle_count": int(
-                        getattr(target, "MeshTriangleCount", len(triangles))
-                    ),
-                    "provider_source_signature": source_signature,
-                },
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("ascii")
-            return "avatar-mesh-topology:" + hashlib.sha256(payload).hexdigest()
+    if str(getattr(target, "AvatarType", "")) == "ClothAvatar":
+        provider_source = getattr(target, "ProviderSource", None)
+        source_signature = (
+            _target_signature(provider_source)
+            if provider_source is not None and provider_source is not target
+            else None
+        )
         payload = json.dumps(
-            {"vertex_count": len(vertices), "triangles": triangles},
+            {
+                "avatar_type": "ClothAvatar",
+                "provider_id": str(getattr(target, "AvatarProviderId", "")),
+                "mesh_provider": str(getattr(target, "AvatarMeshProvider", "")),
+                "mesh_source": str(getattr(target, "AvatarMeshSource", "")),
+                "triangle_count": len(triangles),
+                "declared_triangle_count": int(
+                    getattr(target, "MeshTriangleCount", len(triangles))
+                ),
+                "provider_source_signature": source_signature,
+            },
             separators=(",", ":"),
+            sort_keys=True,
         ).encode("ascii")
-        return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
+        return "avatar-mesh-topology:" + hashlib.sha256(payload).hexdigest()
+    payload = json.dumps(
+        {"vertex_count": len(vertices), "triangles": triangles},
+        separators=(",", ":"),
+    ).encode("ascii")
+    return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
 
-    shape = getattr(target, "Shape", None)
-    if shape is None:
-        msg = "the selected target does not expose supported geometry"
-        raise ValueError(msg)
-    # In FreeCAD, a Shape's returned geometry can include the owning object's
-    # Placement. Normalize a copy into object-local coordinates before signing it.
-    # A BRep serialization hash is not stable across an inverse rigid transform,
-    # so use rounded local vertex positions and intrinsic edge/face measures.
+
+def _normalized_shape_copy(target: object, shape: object) -> object:
+    """Copy a BRep and remove object placement before geometry is signed.
+
+    Args:
+        target: FreeCAD object whose placement may be applied to its shape.
+        shape: Native shape copied and normalized to object-local coordinates.
+
+    Returns:
+        A normalized non-null shape copy.
+
+    Raises:
+        ValueError: If the copy cannot be normalized or the resulting shape is null.
+    """
     try:
-        normalized_shape = shape.copy()
+        normalized = cast("Callable[[], object]", getattr(shape, "copy"))()
         placement = getattr(target, "Placement", None)
         if placement is not None:
-            normalized_shape.transformShape(placement.inverse().toMatrix())
-        if bool(normalized_shape.isNull()):
+            inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
+            matrix = cast("Callable[[], object]", getattr(inverse, "toMatrix"))()
+            cast("Callable[[object], object]", getattr(normalized, "transformShape"))(matrix)
+        if bool(cast("Callable[[], object]", getattr(normalized, "isNull"))()):
             msg = "the selected target shape is null"
             raise ValueError(msg)
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        msg = "could not normalize the selected target shape"
+        raise ValueError(msg) from exc
+    return normalized
 
-        vertices = tuple(
-            sorted(
-                tuple(_geometry_round(value) for value in _point_xyz(vertex.Point))
-                for vertex in tuple(normalized_shape.Vertexes)
+
+def _rounded_point(point: object) -> Point3:
+    """Round a point to the geometry-signature precision.
+
+    Args:
+        point: FreeCAD point or three-coordinate sequence.
+
+    Returns:
+        The point's coordinates rounded to the stable signature precision.
+    """
+    return cast("Point3", tuple(_geometry_round(value) for value in _point_xyz(point)))
+
+
+def _shape_signature_components(
+    shape: object,
+) -> tuple[
+    tuple[Point3, ...],
+    tuple[tuple[float, Point3], ...],
+    tuple[tuple[str, float, Point3, int], ...],
+    tuple[object, ...],
+]:
+    """Compute sorted vertex, edge, face, and bounding-box signature components.
+
+    Args:
+        shape: Normalized native FreeCAD shape.
+
+    Returns:
+        Sorted geometry components and the combined local-shape signature tuple.
+    """
+    vertices = tuple(
+        sorted(
+            _rounded_point(getattr(vertex, "Point"))
+            for vertex in cast("Sequence[object]", getattr(shape, "Vertexes"))
+        )
+    )
+    edges = tuple(
+        sorted(
+            (
+                _geometry_round(float(getattr(edge, "Length"))),
+                _rounded_point(getattr(edge, "CenterOfMass")),
             )
+            for edge in cast("Sequence[object]", getattr(shape, "Edges"))
         )
-        edges = tuple(
-            sorted(
-                (
-                    _geometry_round(edge.Length),
-                    tuple(_geometry_round(value) for value in _point_xyz(edge.CenterOfMass)),
-                )
-                for edge in tuple(normalized_shape.Edges)
+    )
+    faces = tuple(
+        sorted(
+            (
+                type(getattr(face, "Surface")).__name__,
+                _geometry_round(float(getattr(face, "Area"))),
+                _rounded_point(getattr(face, "CenterOfMass")),
+                len(tuple(cast("Sequence[object]", getattr(face, "Edges")))),
             )
+            for face in cast("Sequence[object]", getattr(shape, "Faces"))
         )
-        faces = tuple(
-            sorted(
-                (
-                    str(type(face.Surface).__name__),
-                    _geometry_round(face.Area),
-                    tuple(_geometry_round(value) for value in _point_xyz(face.CenterOfMass)),
-                    len(tuple(face.Edges)),
-                )
-                for face in tuple(normalized_shape.Faces)
-            )
-        )
-        box = normalized_shape.BoundBox
-        signature = (
-            "ShapeLocal",
-            len(tuple(normalized_shape.Solids)),
-            len(vertices),
-            vertices,
-            edges,
-            faces,
-            _geometry_round(box.XMin),
-            _geometry_round(box.XMax),
-            _geometry_round(box.YMin),
-            _geometry_round(box.YMax),
-            _geometry_round(box.ZMin),
-            _geometry_round(box.ZMax),
-        )
+    )
+    box = getattr(shape, "BoundBox")
+    signature = (
+        "ShapeLocal",
+        len(tuple(cast("Sequence[object]", getattr(shape, "Solids")))),
+        len(vertices),
+        vertices,
+        edges,
+        faces,
+        _geometry_round(float(getattr(box, "XMin"))),
+        _geometry_round(float(getattr(box, "XMax"))),
+        _geometry_round(float(getattr(box, "YMin"))),
+        _geometry_round(float(getattr(box, "YMax"))),
+        _geometry_round(float(getattr(box, "ZMin"))),
+        _geometry_round(float(getattr(box, "ZMax"))),
+    )
+    return vertices, edges, faces, signature
+
+
+def _shape_geometry_signature(target: object, shape: object) -> str:
+    """Create a local-geometry signature for a supported non-mesh target.
+
+    Args:
+        target: FreeCAD object owning the source shape.
+        shape: Native shape to copy and inspect.
+
+    Returns:
+        A deterministic representation of the shape's local geometry.
+
+    Raises:
+        ValueError: If the shape is unusable or exposes no supported geometry.
+    """
+    normalized = _normalized_shape_copy(target, shape)
+    try:
+        vertices, edges, faces, signature = _shape_signature_components(normalized)
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
         msg = "could not normalize the selected target shape"
         raise ValueError(msg) from exc
@@ -374,57 +433,275 @@ def _target_signature(target):
     return repr(("shape-geometry", signature))
 
 
-def _closest_triangle_weights(point, a, b, c):
-    """Return barycentric coordinates of the closest point on triangle ABC."""
+def _target_signature(target: object) -> str:
+    """Sign local geometry/topology, deliberately excluding object placement and vertices.
 
-    def subtract(left, right):
-        return tuple(left[i] - right[i] for i in range(3))
+    Mesh anchors use stable triangle connectivity plus barycentric coordinates. This lets a
+    generated avatar deform its vertices during skeleton posing without invalidating the
+    anchor, while still detecting a topology rebuild. Non-mesh anchors follow object
+    placement and become stale if the underlying shape geometry itself changes.
 
-    def dot(left, right):
-        return sum(left[i] * right[i] for i in range(3))
+    Args:
+        target: FreeCAD object whose local geometry should be signed.
 
-    ab = subtract(b, a)
-    ac = subtract(c, a)
-    ap = subtract(point, a)
-    d1, d2 = dot(ab, ap), dot(ac, ap)
+    Returns:
+        A stable mesh-topology digest or non-mesh geometry signature.
+
+    Raises:
+        ValueError: If the target does not expose supported geometry or its mesh/shape
+            data cannot be normalized.
+    """
+    mesh_topology = _mesh_topology(target)
+    if mesh_topology is not None:
+        vertices, triangles = mesh_topology
+        return _mesh_target_signature(target, vertices, triangles)
+    shape = getattr(target, "Shape", None)
+    if shape is None:
+        msg = "the selected target does not expose supported geometry"
+        raise ValueError(msg)
+    return _shape_geometry_signature(target, shape)
+
+
+def _vector_subtract(left: Point3, right: Point3) -> Point3:
+    """Subtract two three-dimensional vectors component-wise.
+
+    Args:
+        left: Vector from which the right operand is subtracted.
+        right: Vector subtracted from the left operand.
+
+    Returns:
+        The component-wise difference.
+    """
+    return tuple(left[index] - right[index] for index in range(3))
+
+
+def _vector_dot(left: Point3, right: Point3) -> float:
+    """Calculate the dot product of two three-dimensional vectors.
+
+    Args:
+        left: First vector operand.
+        right: Second vector operand.
+
+    Returns:
+        The scalar dot product.
+    """
+    return sum(left[index] * right[index] for index in range(3))
+
+
+def _triangle_dot_products(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> tuple[float, float, float, float, float, float]:
+    """Calculate the six dot products used by triangle closest-point regions.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Dot products d1 through d6 in the order used by the region tests.
+    """
+    ab = _vector_subtract(b, a)
+    ac = _vector_subtract(c, a)
+    ap = _vector_subtract(point, a)
+    bp = _vector_subtract(point, b)
+    cp = _vector_subtract(point, c)
+    return (
+        _vector_dot(ab, ap),
+        _vector_dot(ac, ap),
+        _vector_dot(ab, bp),
+        _vector_dot(ac, bp),
+        _vector_dot(ab, cp),
+        _vector_dot(ac, cp),
+    )
+
+
+def _triangle_ab_vertex_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3 | None:
+    """Return vertex-region weights for triangle vertices A or B.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Weights for vertex A or B when the query falls in either vertex region,
+        or None when another region is closer.
+    """
+    d1, d2, d3, d4, _, _ = _triangle_dot_products(point, a, b, c)
     if d1 <= 0.0 and d2 <= 0.0:
         return (1.0, 0.0, 0.0)
-
-    bp = subtract(point, b)
-    d3, d4 = dot(ab, bp), dot(ac, bp)
     if d3 >= 0.0 and d4 <= d3:
         return (0.0, 1.0, 0.0)
+    return None
 
+
+def _triangle_ab_edge_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3 | None:
+    """Return barycentric weights when edge AB is the closest triangle region.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Edge-AB barycentric weights, or None when another region is closer.
+    """
+    d1, d2, d3, d4, _, _ = _triangle_dot_products(point, a, b, c)
     vc = d1 * d4 - d3 * d2
-    if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
-        denom = d1 - d3
-        v = d1 / denom if abs(denom) > 1e-15 else 0.0
-        return (1.0 - v, v, 0.0)
+    if not (vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0):
+        return None
+    denom = d1 - d3
+    v = d1 / denom if abs(denom) > 1e-15 else 0.0
+    return (1.0 - v, v, 0.0)
 
-    cp = subtract(point, c)
-    d5, d6 = dot(ab, cp), dot(ac, cp)
+
+def _triangle_c_vertex_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3 | None:
+    """Return barycentric weights when vertex C is the closest region.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Weights for vertex C, or None when another region is closer.
+    """
+    _, _, _, _, d5, d6 = _triangle_dot_products(point, a, b, c)
     if d6 >= 0.0 and d5 <= d6:
         return (0.0, 0.0, 1.0)
+    return None
 
+
+def _triangle_ac_edge_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3 | None:
+    """Return barycentric weights when edge AC is the closest triangle region.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Edge-AC barycentric weights, or None when another region is closer.
+    """
+    d1, d2, _, _, d5, d6 = _triangle_dot_products(point, a, b, c)
     vb = d5 * d2 - d1 * d6
-    if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
-        denom = d2 - d6
-        w = d2 / denom if abs(denom) > 1e-15 else 0.0
-        return (1.0 - w, 0.0, w)
+    if not (vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0):
+        return None
+    denom = d2 - d6
+    w = d2 / denom if abs(denom) > 1e-15 else 0.0
+    return (1.0 - w, 0.0, w)
 
+
+def _triangle_bc_edge_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3 | None:
+    """Return barycentric weights when edge BC is the closest triangle region.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Edge-BC barycentric weights, or None when another region is closer.
+    """
+    _, _, d3, d4, d5, d6 = _triangle_dot_products(point, a, b, c)
     va = d3 * d6 - d5 * d4
-    if va <= 0.0 and d4 - d3 >= 0.0 and d5 - d6 >= 0.0:
-        denom = (d4 - d3) + (d5 - d6)
-        w = (d4 - d3) / denom if abs(denom) > 1e-15 else 0.0
-        return (0.0, 1.0 - w, w)
+    if not (va <= 0.0 and d4 - d3 >= 0.0 and d5 - d6 >= 0.0):
+        return None
+    denom = (d4 - d3) + (d5 - d6)
+    w = (d4 - d3) / denom if abs(denom) > 1e-15 else 0.0
+    return (0.0, 1.0 - w, w)
 
+
+def _triangle_interior_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3:
+    """Return barycentric weights for the triangle's interior closest region.
+
+    Args:
+        point: Query point.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Barycentric weights summing to one, with a stable fallback for degeneracy.
+    """
+    d1, d2, d3, d4, d5, d6 = _triangle_dot_products(point, a, b, c)
+    va = d3 * d6 - d5 * d4
+    vb = d5 * d2 - d1 * d6
+    vc = d1 * d4 - d3 * d2
     denom = va + vb + vc
     if abs(denom) <= 1e-15:
         return (1.0, 0.0, 0.0)
-    inv = 1.0 / denom
-    v, w = vb * inv, vc * inv
+    inverse = 1.0 / denom
+    v, w = vb * inverse, vc * inverse
     return (1.0 - v - w, v, w)
 
+
+def _closest_triangle_weights(
+    point: Point3,
+    a: Point3,
+    b: Point3,
+    c: Point3,
+) -> Point3:
+    """Return barycentric coordinates of the closest point on triangle ABC.
+
+    Args:
+        point: Query point in the same coordinate system as the triangle.
+        a: First triangle vertex.
+        b: Second triangle vertex.
+        c: Third triangle vertex.
+
+    Returns:
+        Barycentric coordinates for the closest point, or vertex A for a degenerate
+        triangle whose interior denominator is effectively zero.
+    """
+    return (
+        _triangle_ab_vertex_weights(point, a, b, c)
+        or _triangle_ab_edge_weights(point, a, b, c)
+        or _triangle_c_vertex_weights(point, a, b, c)
+        or _triangle_ac_edge_weights(point, a, b, c)
+        or _triangle_bc_edge_weights(point, a, b, c)
+        or _triangle_interior_weights(point, a, b, c)
+    )
 
 def _weighted_triangle_point(vertices, triangle, weights):
     """Interpolate the current mesh position associated with saved triangle weights."""

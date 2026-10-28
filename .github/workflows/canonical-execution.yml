@@ -162,7 +162,8 @@ jobs:
             tests/test_source_signature_contract.py \
             tests/test_shared_adapters.py \
             tests/test_garment_document_contract.py \
-            tests/test_mesh_validation.py
+            tests/test_mesh_validation.py \
+            tests/test_fitting_gui.py
           pyright -p pyrightconfig.json
           ast-grep test --skip-snapshot-tests --color never
           ast-grep scan --min-severity error --color never freecad_cloth
