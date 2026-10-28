@@ -8,9 +8,12 @@ import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from importlib import import_module
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
+
+if TYPE_CHECKING:
+    from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -31,7 +34,7 @@ def _drape_target_source(doc: _FittingDocument | None) -> object | None:
     return getattr(doc.getObject("DrapeTarget"), "SourceObject", None)
 
 
-def _scene(doc: _FittingDocument | None) -> object | None:
+def _scene(doc: _FittingDocument | None) -> _FittingScene | None:
     """Find the fitting-scene feature stored in a document.
 
     Args:
@@ -42,10 +45,11 @@ def _scene(doc: _FittingDocument | None) -> object | None:
     """
     if doc is None:
         return None
-    return next(
+    scene = next(
         (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
         None,
     )
+    return cast("_FittingScene | None", scene)
 
 
 def _safe_name(value: object) -> str:
@@ -130,7 +134,7 @@ def _point_xyz(point: object) -> Point3:
     """
     try:
         values = cast("Sequence[object]", point)
-        return cast("Point3", tuple(float(value) for value in values[:3]))
+        return cast("Point3", tuple(float(cast("float", value)) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
         return (
             float(getattr(point, "x")),
@@ -237,7 +241,7 @@ def _mesh_topology_from_parts(
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
-    faces = tuple(tuple(int(index) for index in face) for face in triangles)
+    faces = tuple(tuple(int(cast("int", index)) for index in face) for face in triangles)
     return _validated_mesh_topology(points, faces)
 
 
@@ -481,7 +485,7 @@ def _vector_subtract(left: Point3, right: Point3) -> Point3:
     Returns:
         The component-wise difference.
     """
-    return tuple(left[index] - right[index] for index in range(3))
+    return (left[0] - right[0], left[1] - right[1], left[2] - right[2])
 
 
 def _vector_dot(left: Point3, right: Point3) -> float:
@@ -906,13 +910,67 @@ class _FittingMarkerGroup(Protocol):
 class _FittingDocument(Protocol):
     """Document API used to organize generated marker features."""
 
-    Objects: tuple[object, ...]
+    Name: str
+    Objects: Sequence[object]
 
     def getObject(self, name: str) -> object | None: ...
 
     def addObject(self, type_id: str, name: str) -> _FittingMarkerGroup: ...
 
     def removeObject(self, name: str) -> None: ...
+
+    recompute: Callable[[], object]
+
+
+class _FittingScene(Protocol):
+    """Persistent fitting-scene properties used by command handlers.
+
+    Attributes:
+        Document: Owning document used for resolving linked FreeCAD objects.
+        MeasurementData: Serialized validated body measurements.
+        MeasurementUnit: Unit label associated with saved measurements.
+        FitStatus: User-visible readiness status for the fitting scene.
+        AvatarProxy: Optional source object assigned to the fitting scene.
+        PatternPieces: Pattern objects assigned to the scene.
+        PiecePlacements: Serialized current placements for assigned pieces.
+        HomePlacements: Serialized pre-arrangement placements for assigned pieces.
+        ArrangementPoints: Serialized named arrangement points.
+        BoundingVolumes: Serialized named bounding volumes.
+        SymmetryEnabled: Whether symmetric arrangement updates are enabled.
+        ArrangementAnchorData: Serialized target-local surface-anchor records.
+        ArrangementPointObjects: Names of generated arrangement-point visuals.
+        BoundingVolumeObjects: Names of generated bounding-volume visuals.
+    """
+
+    Document: _FittingDocument
+    FittingType: str
+    MeasurementData: str
+    MeasurementUnit: str
+    FitStatus: str
+    AvatarProxy: object | None
+    PatternPieces: Sequence[object]
+    PiecePlacements: Sequence[str]
+    HomePlacements: Sequence[str]
+    ArrangementPoints: Sequence[str]
+    BoundingVolumes: Sequence[str]
+    SymmetryEnabled: bool
+    ArrangementAnchorData: Sequence[str]
+    ArrangementPointObjects: Sequence[str]
+    BoundingVolumeObjects: Sequence[str]
+
+
+class _TargetPlacement(Protocol):
+    """Callable operations exposed by a FreeCAD target placement."""
+
+    inverse: Callable[[], _TargetPlacement]
+    multVec: Callable[[object], object]
+
+
+class _AnchorTarget(Protocol):
+    """Target fields accessed after validating the picked object's document."""
+
+    Name: str
+    Placement: _TargetPlacement
 
 
 def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
@@ -1014,7 +1072,7 @@ def _sync_visuals(scene):
             obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
             obj.AnchorSubelement = str(anchor.get("subelement", ""))
             obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
-            local_point = tuple(anchor.get("local_point", (0.0, 0.0, 0.0)))
+            local_point = tuple(cast("Sequence[object]", anchor.get("local_point", (0.0, 0.0, 0.0))))
             obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
             obj.AnchorStatus = arrangement_anchor_status(obj)
         else:
@@ -1097,14 +1155,20 @@ def _sync_visuals(scene):
         obj.ViewObject.Visibility = True
 
 
-def create_fitting_scene():
+def create_fitting_scene() -> _FittingScene:
+    """Create or return the persistent fitting scene for the active document.
+
+    Returns:
+        The fitting scene with its measurement, placement, and anchor properties.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing_scene = _scene(doc)
+    if existing_scene is not None:
+        return existing_scene
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -1135,7 +1199,7 @@ def create_fitting_scene():
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
     doc.recompute()
-    return obj
+    return cast("_FittingScene", obj)
 
 
 def set_body_measurements(measurements, unit="mm"):
@@ -1386,7 +1450,9 @@ def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     volume = BoundingVolume(
-        str(name), tuple(float(v) for v in center), tuple(float(v) for v in size)
+        str(name),
+        cast("Point3", tuple(float(v) for v in center)),
+        cast("Point3", tuple(float(v) for v in size)),
     )
     volume.validate()
     values = {v.name: v for v in (BoundingVolume.from_string(v) for v in scene.BoundingVolumes)}
@@ -1580,7 +1646,8 @@ def create_arrangement_anchor(
     if target_document is None or getattr(target_document, "Name", "") != doc.Name:
         msg = "select a surface on geometry in the active document"
         raise ValueError(msg)
-    signature = _target_signature(target)
+    anchor_target = cast("_AnchorTarget", target)
+    signature = _target_signature(anchor_target)
     try:
         coords = (float(world_point.x), float(world_point.y), float(world_point.z))
     except AttributeError:
@@ -1590,19 +1657,19 @@ def create_arrangement_anchor(
         raise ValueError(msg)
     world = App.Vector(*coords)
     try:
-        local = target.Placement.inverse().multVec(world)
+        local = anchor_target.Placement.inverse().multVec(world)
     except (AttributeError, RuntimeError, TypeError, ValueError):
         local = world
 
     local_coords = (float(local.x), float(local.y), float(local.z))
     anchor = {
         "name": str(name),
-        "target": str(target.Name),
+        "target": str(anchor_target.Name),
         "subelement": str(subelement),
         "local_point": list(local_coords),
         "geometry_signature": signature,
     }
-    mesh_hit = _mesh_anchor_coordinates(target, local_coords)
+    mesh_hit = _mesh_anchor_coordinates(anchor_target, local_coords)
     if mesh_hit is not None:
         triangle_index, barycentric, projected = mesh_hit
         anchor["triangle_index"] = int(triangle_index)
@@ -1610,7 +1677,7 @@ def create_arrangement_anchor(
         anchor["local_point"] = [float(value) for value in projected]
         local = App.Vector(*projected)
         try:
-            world = target.Placement.multVec(local)
+            world = anchor_target.Placement.multVec(local)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             world = local
         coords = (float(world.x), float(world.y), float(world.z))
@@ -1713,6 +1780,6 @@ try:
 
     from freecad_cloth.common.CommandAdapter import register_commands
 
-    register_commands(Gui, _COMMAND_HANDLERS)
+    register_commands(cast("GuiCommandRegistrar", Gui), _COMMAND_HANDLERS)
 except (ImportError, AttributeError):
     pass
