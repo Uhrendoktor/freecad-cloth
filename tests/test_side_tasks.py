@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for pattern export, collision and sewing edge adapters."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from importlib import import_module
 from types import SimpleNamespace
 from typing import Protocol, cast
@@ -24,7 +24,9 @@ from tests.support.assertions import require
 
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
 _edge_length = cast("Callable[[object, int], float]", getattr(_SEWING_OBJECTS, "_edge_length"))
-_edge_points = cast("Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, "_edge_points"))
+_edge_points = cast(
+    "Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, "_edge_points")
+)
 
 SAMPLE_PATTERN_WIDTH_MM = 100
 SAMPLE_PATTERN_HEIGHT_MM = 50
@@ -41,6 +43,18 @@ class _VectorLike(Protocol):
     x: float
     y: float
     z: float
+
+
+class _SampledPatternPiece(Protocol):
+    """Outline API consumed by deterministic garment-fixture assertions."""
+
+    def sampled_outline(self) -> object:
+        """Return the piece's ordered outline samples.
+
+        Returns:
+            The sampled outline in the piece's local coordinate system.
+        """
+        ...
 
 
 class _Vector:
@@ -108,8 +122,12 @@ def test_collision_surface_contract() -> None:
 
 def test_golden_fixtures_are_deterministic() -> None:
     """Keep representative multi-piece fixtures stable between constructions."""
-    first_outline = two_piece_rectangle()["pieces"][0].sampled_outline()
-    second_outline = two_piece_rectangle()["pieces"][0].sampled_outline()
+    first_fixture = cast("dict[str, object]", two_piece_rectangle())
+    second_fixture = cast("dict[str, object]", two_piece_rectangle())
+    first_pieces = cast("Sequence[_SampledPatternPiece]", first_fixture["pieces"])
+    second_pieces = cast("Sequence[_SampledPatternPiece]", second_fixture["pieces"])
+    first_outline = first_pieces[0].sampled_outline()
+    second_outline = second_pieces[0].sampled_outline()
     require(
         condition=first_outline == second_outline,
         message="Repeated pattern-fixture construction must produce the same outline.",
