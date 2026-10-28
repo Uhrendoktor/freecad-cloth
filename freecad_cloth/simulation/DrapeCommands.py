@@ -293,7 +293,7 @@ def refresh_drape_target() -> object:
     return target
 
 
-def set_drape_target_enabled(enabled: bool = True) -> object:
+def set_drape_target_enabled(enabled: object = True) -> object:
     """Enable or disable collision checks for the persistent DrapeTarget.
 
     Args:

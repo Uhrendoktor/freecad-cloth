@@ -18,8 +18,8 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 from tests.support.assertions import require
 
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")

@@ -199,7 +199,11 @@ class ClothSystem:
             self.particles[index].inv_mass = 0.0
 
     def _validate_constraint_indices(self, constraint: DistanceConstraint) -> None:
-        """Reject constraints that reference missing particles."""
+        """Reject constraints that reference missing particles.
+
+    Raises:
+        ValueError: If either endpoint index is outside the particle collection.
+    """
         count = len(self.particles)
         if constraint.a >= count or constraint.b >= count:
             msg = "constraint particle index outside system"

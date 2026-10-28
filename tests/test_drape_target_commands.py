@@ -77,7 +77,7 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
         recompute=lambda: None,
     )
     freecad_module = ModuleType("FreeCAD")
-    freecad_module.ActiveDocument = document
+    freecad_module.__dict__["ActiveDocument"] = document
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
     registered_commands: dict[str, object] = {}
