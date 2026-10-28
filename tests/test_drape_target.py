@@ -25,6 +25,8 @@ EXPECTED_TARGET_TRIANGLE_COUNT = 12
 EXPECTED_DEFAULT_DEFLECTION_MM = 0.5
 EXPECTED_DEFAULT_THICKNESS_MM = 1.5
 INVALID_TARGET_NAME = "Unknown"
+INVALID_DEFLECTION_MM = 0.0
+INVALID_THICKNESS_MM = -1.0
 GEOMETRY_TARGET_TYPE = "FreeCAD Geometry"
 MANNEQUIN_TARGET_TYPE = "Mannequin"
 TARGET_NAME = "Chair"
@@ -101,8 +103,17 @@ def _shape(value: int) -> SimpleNamespace:
         A host-shaped object exposing the methods consumed by SourceSignature.
     """
     shape = SimpleNamespace(value=value, BoundBox=_bound_box())
-    shape.isNull = lambda: False
-    shape.hashCode = lambda: shape.value
+
+    def is_null() -> bool:
+        """Report that the synthetic shape is not null."""
+        return False
+
+    def hash_code() -> int:
+        """Return the current synthetic content hash."""
+        return shape.value
+
+    shape.isNull = is_null
+    shape.hashCode = hash_code
     return shape
 
 
@@ -116,9 +127,22 @@ def _brep_shape(payload: str) -> SimpleNamespace:
         A shape-like object with a stable hash and variable serialized content.
     """
     shape = SimpleNamespace(payload=payload, BoundBox=_bound_box())
-    shape.isNull = lambda: False
-    shape.hashCode = lambda: FIXED_BREP_HASH
-    shape.exportBrepToString = lambda: shape.payload
+
+    def is_null() -> bool:
+        """Report that the synthetic BRep shape is not null."""
+        return False
+
+    def hash_code() -> int:
+        """Return the stable metadata hash shared by both BRep fixtures."""
+        return FIXED_BREP_HASH
+
+    def export_brep() -> str:
+        """Return the current serialized synthetic shape content."""
+        return shape.payload
+
+    shape.isNull = is_null
+    shape.hashCode = hash_code
+    shape.exportBrepToString = export_brep
     return shape
 
 
@@ -193,11 +217,13 @@ def test_target_spec_rejects_invalid_settings() -> None:
         (DrapeTargetSpec(INVALID_TARGET_NAME, TARGET_NAME), "unsupported drape target type"),
         (DrapeTargetSpec(GEOMETRY_TARGET_TYPE, ""), "drape target source must not be empty"),
         (
-            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, 0.0),
+            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, INVALID_DEFLECTION_MM),
             "drape target deflection must be positive",
         ),
         (
-            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, -1.0),
+            DrapeTargetSpec(
+                GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, INVALID_THICKNESS_MM
+            ),
             "drape target thickness must not be negative",
         ),
     )

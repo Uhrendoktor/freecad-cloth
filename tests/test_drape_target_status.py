@@ -12,6 +12,7 @@ BUILT_VERTEX_COUNT = 8
 BUILT_TRIANGLE_COUNT = 12
 SHAPE_HASH_INITIAL = 1
 SHAPE_HASH_CHANGED = 2
+ALTERNATE_DEFLECTION_MM = 0.5
 BODY_NAME = "Body"
 TARGET_TYPE = "FreeCAD Geometry"
 EXPECTED_MISSING_CACHE_STATUS = {
@@ -32,8 +33,17 @@ def _shape(value: int) -> SimpleNamespace:
         A shape-like object consumed by the source signature implementation.
     """
     shape = SimpleNamespace(value=value)
-    shape.isNull = lambda: False
-    shape.hashCode = lambda: shape.value
+
+    def is_null() -> bool:
+        """Report that the synthetic source shape is not null."""
+        return False
+
+    def hash_code() -> int:
+        """Return the current synthetic source hash."""
+        return shape.value
+
+    shape.isNull = is_null
+    shape.hashCode = hash_code
     return shape
 
 
@@ -85,7 +95,7 @@ def test_target_status_detects_geometry_change_without_silent_retargeting() -> N
         message="An unchanged target signature must be ready.",
     )
 
-    source.Shape = _shape(SHAPE_HASH_CHANGED)
+    source.__dict__["Shape"] = _shape(SHAPE_HASH_CHANGED)
     status = target_status(target)
     require(
         condition=status["state"] == "stale",
@@ -128,7 +138,7 @@ def test_target_status_detects_collision_parameter_change() -> None:
     """Detect changed collision tessellation settings against the persisted signature."""
     source = SimpleNamespace(Name=BODY_NAME, Label=BODY_NAME, Shape=_shape(SHAPE_HASH_INITIAL))
     target = _target(source)
-    target.CollisionDeflection = 0.5
+    target.CollisionDeflection = ALTERNATE_DEFLECTION_MM
     status = target_status(target)
     require(
         condition=status["state"] == "stale",

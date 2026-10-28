@@ -189,7 +189,14 @@ class ClothSystem:
             self.stitches.append(constraint)
 
     def pin(self, indices: Iterable[int]) -> None:
-        """Record pinned particles and set their inverse mass to zero."""
+        """Pin selected particles by setting their inverse mass to zero.
+
+        Args:
+            indices: Particle indices that should remain fixed during solving.
+
+        Raises:
+            ValueError: If an index is outside the particle collection.
+        """
         for raw_index in indices:
             index = ParticleIndexInput.model_validate({"index": raw_index}).index
             if index >= len(self.particles):
