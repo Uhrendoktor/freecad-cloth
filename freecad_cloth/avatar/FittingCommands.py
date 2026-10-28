@@ -8,9 +8,19 @@ import json
 import sys
 from collections.abc import Callable, Mapping, Sequence
 from importlib import import_module
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarFitting import (
+        ArrangementPoint,
+        BodyMeasurements,
+        BoundingVolume,
+        FittingScene,
+        PiecePlacement,
+    )
+    from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -31,7 +41,7 @@ def _drape_target_source(doc: _FittingDocument | None) -> object | None:
     return getattr(doc.getObject("DrapeTarget"), "SourceObject", None)
 
 
-def _scene(doc: _FittingDocument | None) -> object | None:
+def _scene(doc: _FittingDocument | None) -> _FittingScene | None:
     """Find the fitting-scene feature stored in a document.
 
     Args:
@@ -42,10 +52,11 @@ def _scene(doc: _FittingDocument | None) -> object | None:
     """
     if doc is None:
         return None
-    return next(
+    scene = next(
         (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
         None,
     )
+    return cast("_FittingScene | None", scene)
 
 
 def _safe_name(value: object) -> str:
@@ -130,7 +141,7 @@ def _point_xyz(point: object) -> Point3:
     """
     try:
         values = cast("Sequence[object]", point)
-        return cast("Point3", tuple(float(value) for value in values[:3]))
+        return cast("Point3", tuple(float(cast("float", value)) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
         return (
             float(getattr(point, "x")),
@@ -237,7 +248,7 @@ def _mesh_topology_from_parts(
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
-    faces = tuple(tuple(int(index) for index in face) for face in triangles)
+    faces = tuple(tuple(int(cast("int", index)) for index in face) for face in triangles)
     return _validated_mesh_topology(points, faces)
 
 
@@ -481,7 +492,7 @@ def _vector_subtract(left: Point3, right: Point3) -> Point3:
     Returns:
         The component-wise difference.
     """
-    return tuple(left[index] - right[index] for index in range(3))
+    return (left[0] - right[0], left[1] - right[1], left[2] - right[2])
 
 
 def _vector_dot(left: Point3, right: Point3) -> float:
@@ -713,26 +724,56 @@ def _closest_triangle_weights(
     )
 
 
-def _weighted_triangle_point(vertices, triangle, weights):
-    """Interpolate the current mesh position associated with saved triangle weights."""
+def _weighted_triangle_point(
+    vertices: Sequence[Point3], triangle: Triangle, weights: Point3
+) -> Point3:
+    """Interpolate a mesh point from its triangle vertices and barycentric weights.
+
+    Args:
+        vertices: Current mesh vertices in object-local coordinates.
+        triangle: Indices of the triangle that contains the anchor.
+        weights: Three barycentric weights associated with the saved anchor.
+
+    Returns:
+        The interpolated point in object-local coordinates.
+    """
     return tuple(
-        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3)) for axis in range(3)
+        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3))
+        for axis in range(3)
     )
 
 
 def _mesh_anchor_local_position(
-    target, anchor, *, vector_factory: Callable[..., object] | None = None
-):
-    """Resolve a mesh anchor against current vertices, preserving its material location."""
+    target: object,
+    anchor: Mapping[str, object],
+    *,
+    vector_factory: Callable[..., object] | None = None,
+) -> Point3:
+    """Resolve a saved mesh anchor against the target's current vertex topology.
+
+    Args:
+        target: Mesh-like FreeCAD object whose current topology is inspected.
+        anchor: Persisted triangle index, barycentric weights, and local fallback.
+        vector_factory: Optional host vector constructor used for placement normalization.
+
+    Returns:
+        The anchor's current object-local point, interpolated from its triangle when
+        stable topology metadata is present, or the saved local point as a fallback.
+
+    Raises:
+        ValueError: If the saved triangle index or barycentric weights are invalid.
+    """
     topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
-        return tuple(float(value) for value in anchor.get("local_point", (0.0, 0.0, 0.0)))
+        values = cast("Sequence[object]", anchor.get("local_point", (0.0, 0.0, 0.0)))
+        return cast("Point3", tuple(float(cast("float", value)) for value in values))
     vertices, triangles = topology
-    triangle_index = int(anchor["triangle_index"])
+    triangle_index = int(cast("int", anchor["triangle_index"]))
     if triangle_index < 0 or triangle_index >= len(triangles):
         msg = "anchored mesh triangle no longer exists"
         raise ValueError(msg)
-    weights = tuple(float(value) for value in anchor["barycentric"])
+    stored_weights = cast("Sequence[object]", anchor["barycentric"])
+    weights = cast("Point3", tuple(float(cast("float", value)) for value in stored_weights))
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
         msg = "stored mesh-anchor barycentric coordinates are invalid"
         raise ValueError(msg)
@@ -740,9 +781,25 @@ def _mesh_anchor_local_position(
 
 
 def _mesh_anchor_coordinates(
-    target, local_point, *, vector_factory: Callable[..., object] | None = None
-):
-    """Find the closest mesh triangle and retain its barycentric hit coordinate."""
+    target: object,
+    local_point: Point3,
+    *,
+    vector_factory: Callable[..., object] | None = None,
+) -> tuple[int, Point3, Point3] | None:
+    """Find the nearest mesh triangle and its projected anchor coordinates.
+
+    Args:
+        target: Mesh-like FreeCAD object whose surface is queried.
+        local_point: Query point in target-local coordinates.
+        vector_factory: Optional host vector constructor used for placement normalization.
+
+    Returns:
+        Triangle index, barycentric weights, and projected local point, or None when
+        the target does not expose a usable mesh topology.
+
+    Raises:
+        ValueError: If the mesh exposes no valid surface triangles to anchor against.
+    """
     topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None:
         return None
@@ -763,7 +820,24 @@ def _mesh_anchor_coordinates(
     return best
 
 
-def _anchor_record_status(scene, target, anchor, document=None):
+def _anchor_record_status(
+    scene: _FittingScene | None,
+    target: object | None,
+    anchor: Mapping[str, object],
+    document: _FittingDocument | None = None,
+) -> str:
+    """Classify a persisted anchor against its current target and document.
+
+    Args:
+        scene: Fitting scene owning the anchor, when available.
+        target: Current target object resolved from the persisted target name.
+        anchor: Saved geometry signature and target-local anchor metadata.
+        document: Optional owning document used to validate the assigned drape target.
+
+    Returns:
+        One of the stable values valid, stale, missing target, wrong target,
+        unconfigured target, or invalid.
+    """
     if target is None:
         return "missing target"
     if document is None:
@@ -784,20 +858,41 @@ def _anchor_record_status(scene, target, anchor, document=None):
         return "invalid"
 
 
-def _anchor_world_position(target, anchor):
-    """Resolve a persistent local/mesh anchor into the document's world coordinates."""
+def _anchor_world_position(target: object, anchor: Mapping[str, object]) -> Point3:
+    """Resolve a persistent local/mesh anchor into world coordinates.
+
+    Args:
+        target: FreeCAD object providing the persisted anchor's target geometry.
+        anchor: Saved target-local position and optional mesh-triangle metadata.
+
+    Returns:
+        Anchor coordinates transformed through the target placement when available,
+        otherwise the target-local point.
+    """
     import FreeCAD as App
 
     local = _mesh_anchor_local_position(target, anchor)
-    placement = getattr(target, "Placement", None)
+    placement = cast("_TargetPlacement | None", getattr(target, "Placement", None))
     if placement is not None:
-        world = placement.multVec(App.Vector(*local))
+        local_vector = cast("_FreeCADVector", App.Vector(*local))
+        world = placement.multVec(local_vector)
         return float(world.x), float(world.y), float(world.z)
-    return tuple(float(value) for value in local)
+    return local
 
 
-def _refresh_anchor_positions(scene, update_visuals=False):
-    """Follow valid anchors after a target deforms or its object Placement changes."""
+def _refresh_anchor_positions(
+    scene: _FittingScene | None, update_visuals: bool = False
+) -> tuple[str, ...]:
+    """Follow valid anchors after a target deforms or its placement changes.
+
+    Args:
+        scene: Fitting scene whose saved anchors and arrangement points are updated.
+        update_visuals: Whether associated display objects should be rebuilt in place.
+
+    Returns:
+        Names of arrangement points whose positions changed; an empty tuple when
+        the scene is absent or no valid anchor has moved.
+    """
     if scene is None or getattr(scene, "Document", None) is None:
         return ()
     import FreeCAD as App
@@ -875,8 +970,15 @@ def _refresh_anchor_positions(scene, update_visuals=False):
     return tuple(name for name, _point in changed)
 
 
-def arrangement_anchor_status(point):
-    """Report whether a snap point's persisted surface reference is still current."""
+def arrangement_anchor_status(point: object) -> str:
+    """Report whether a snap point's persisted surface reference is still current.
+
+    Args:
+        point: Arrangement-point feature carrying its saved anchor signature and target.
+
+    Returns:
+        Persisted anchor status, or unanchored when no geometry signature exists.
+    """
     expected = str(getattr(point, "AnchorGeometrySignature", "") or "")
     if not expected:
         return "unanchored"
@@ -893,26 +995,120 @@ _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 
 
 class _FittingMarkerGroup(Protocol):
-    """Small structural interface for the FreeCAD presentation group."""
+    """Small structural interface for the FreeCAD presentation group.
+
+    Attributes:
+        TypeId: Native FreeCAD document-object type identifier.
+        Label: User-visible group label.
+        Name: Stable internal document-object name.
+        Group: Objects currently contained by the group.
+        addObject: Native method used to add a marker object to the group.
+    """
 
     TypeId: str
     Label: str
     Name: str
     Group: tuple[object, ...]
-
-    def addObject(self, obj: object) -> None: ...
+    addObject: Callable[[object], None]
 
 
 class _FittingDocument(Protocol):
-    """Document API used to organize generated marker features."""
+    """Document API used to organize generated marker features.
 
-    Objects: tuple[object, ...]
+    Attributes:
+        Name: Internal name used to compare document ownership.
+        Objects: Native objects owned by the document.
+        getObject: Native lookup function for an object's internal name.
+        addObject: Native factory for document objects and marker groups.
+        removeObject: Native deletion function for generated marker objects.
+        recompute: Native document recomputation function.
+    """
 
-    def getObject(self, name: str) -> object | None: ...
+    Name: str
+    Objects: Sequence[object]
+    getObject: Callable[[str], object | None]
+    addObject: Callable[[str, str], _FittingMarkerGroup]
+    removeObject: Callable[[str], None]
+    recompute: Callable[[], object]
 
-    def addObject(self, type_id: str, name: str) -> _FittingMarkerGroup: ...
 
-    def removeObject(self, name: str) -> None: ...
+class _FreeCADVector(Protocol):
+    """Coordinate fields shared by FreeCAD vector-like values."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _PieceRotation(Protocol):
+    """Angular value exposed by a native piece placement."""
+
+    Angle: float
+
+
+class _ObjectPlacement(Protocol):
+    """Position and rotation fields of a native FreeCAD object placement."""
+
+    Base: _FreeCADVector
+    Rotation: _PieceRotation
+
+
+class _PatternPiece(Protocol):
+    """Document object used as a pattern piece in a fitting scene."""
+
+    PieceId: str
+    Placement: object
+
+
+class _FittingScene(Protocol):
+    """Persistent fitting-scene properties used by command handlers.
+
+    Attributes:
+        Document: Owning document used for resolving linked FreeCAD objects.
+        MeasurementData: Serialized validated body measurements.
+        MeasurementUnit: Unit label associated with saved measurements.
+        FitStatus: User-visible readiness status for the fitting scene.
+        AvatarProxy: Optional source object assigned to the fitting scene.
+        PatternPieces: Pattern objects assigned to the scene.
+        PiecePlacements: Serialized current placements for assigned pieces.
+        HomePlacements: Serialized pre-arrangement placements for assigned pieces.
+        ArrangementPoints: Serialized named arrangement points.
+        BoundingVolumes: Serialized named bounding volumes.
+        SymmetryEnabled: Whether symmetric arrangement updates are enabled.
+        ArrangementAnchorData: Serialized target-local surface-anchor records.
+        ArrangementPointObjects: Names of generated arrangement-point visuals.
+        BoundingVolumeObjects: Names of generated bounding-volume visuals.
+    """
+
+    Document: _FittingDocument
+    FittingType: str
+    MeasurementData: str
+    MeasurementUnit: str
+    FitStatus: str
+    AvatarProxy: object | None
+    PatternPieces: Sequence[_PatternPiece]
+    PiecePlacements: Sequence[str]
+    HomePlacements: Sequence[str]
+    ArrangementPoints: Sequence[str]
+    BoundingVolumes: Sequence[str]
+    SymmetryEnabled: bool
+    ArrangementAnchorData: Sequence[str]
+    ArrangementPointObjects: Sequence[str]
+    BoundingVolumeObjects: Sequence[str]
+
+
+class _TargetPlacement(Protocol):
+    """Callable operations exposed by a FreeCAD target placement."""
+
+    inverse: Callable[[], _TargetPlacement]
+    multVec: Callable[[_FreeCADVector], _FreeCADVector]
+
+
+class _AnchorTarget(Protocol):
+    """Target fields accessed after validating the picked object's document."""
+
+    Name: str
+    Placement: _TargetPlacement
 
 
 def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
@@ -936,7 +1132,19 @@ def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[s
 def _fitting_marker_group(
     doc: _FittingDocument, create: bool = False
 ) -> _FittingMarkerGroup | None:
-    """Return the presentation-only container for generated fitting display aids."""
+    """Return the presentation-only container for generated fitting display aids.
+
+    Args:
+        doc: Document containing or receiving the marker group.
+        create: Whether to create the group if the reserved name is not present.
+
+    Returns:
+        Existing or newly created marker group, or None when not requested and no group
+        currently exists.
+
+    Raises:
+        RuntimeError: If the reserved marker-group name is occupied by a non-group object.
+    """
     group = doc.getObject(_FITTING_MARKER_GROUP_NAME)
     if group is None and create:
         group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
@@ -953,7 +1161,12 @@ def _fitting_marker_group(
 
 
 def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str]) -> None:
-    """Remove obsolete generated marker features, never authored geometry."""
+    """Remove obsolete generated marker features, never authored geometry.
+
+    Args:
+        doc: Document containing marker features created by this fitting adapter.
+        wanted_names: Internal names of generated markers that remain in use.
+    """
     for obj in tuple(doc.Objects or ()):
         name = str(getattr(obj, "Name", "") or "")
         role = str(getattr(obj, "FittingType", "") or "")
@@ -963,8 +1176,12 @@ def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str])
             doc.removeObject(name)
 
 
-def _sync_visuals(scene):
-    """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
+def _sync_visuals(scene: _FittingScene) -> None:
+    """Synchronize visible FreeCAD point/volume adapters from canonical strings.
+
+    Args:
+        scene: Persistent fitting scene whose points and volumes define the visuals.
+    """
     import FreeCAD as App
     import Part
 
@@ -1014,8 +1231,10 @@ def _sync_visuals(scene):
             obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
             obj.AnchorSubelement = str(anchor.get("subelement", ""))
             obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
-            local_point = tuple(anchor.get("local_point", (0.0, 0.0, 0.0)))
-            obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
+            local_point = tuple(
+                cast("Sequence[object]", anchor.get("local_point", (0.0, 0.0, 0.0)))
+            )
+            obj.AnchorLocalPoint = App.Vector(*(float(cast("float", v)) for v in local_point))
             obj.AnchorStatus = arrangement_anchor_status(obj)
         else:
             obj.AnchorTarget = None
@@ -1097,14 +1316,20 @@ def _sync_visuals(scene):
         obj.ViewObject.Visibility = True
 
 
-def create_fitting_scene():
+def create_fitting_scene() -> _FittingScene:
+    """Create or return the persistent fitting scene for the active document.
+
+    Returns:
+        The fitting scene with its measurement, placement, and anchor properties.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
+    existing_scene = _scene(doc)
+    if existing_scene is not None:
+        return existing_scene
     obj = doc.addObject("App::FeaturePython", "FittingScene")
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
@@ -1135,10 +1360,21 @@ def create_fitting_scene():
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
     doc.recompute()
-    return obj
+    return cast("_FittingScene", obj)
 
 
-def set_body_measurements(measurements, unit="mm"):
+def set_body_measurements(
+    measurements: Mapping[str, float], unit: str = "mm"
+) -> _FittingScene:
+    """Validate and persist the body's measurement table on the fitting scene.
+
+    Args:
+        measurements: Named body measurements in the selected unit.
+        unit: Unit label associated with every measurement value.
+
+    Returns:
+        The fitting scene after the measurement table and readiness status are updated.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements
@@ -1208,7 +1444,15 @@ def assign_avatar_source(source: object | None = None) -> object:
     return scene
 
 
-def add_selected_pattern_pieces():
+def add_selected_pattern_pieces() -> _FittingScene:
+    """Add selected pattern pieces and record their current/home placements.
+
+    Returns:
+        The fitting scene with selected pieces and their persisted placement records.
+
+    Raises:
+        ValueError: If the current GUI selection contains no pattern pieces.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -1217,7 +1461,9 @@ def add_selected_pattern_pieces():
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     pieces = [
-        o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"
+        cast("_PatternPiece", obj)
+        for obj in Gui.Selection.getSelection()
+        if getattr(obj, "PatternType", "") == "PatternPiece"
     ]
     if not pieces:
         msg = "select one or more pattern pieces before adding them to the fitting scene"
@@ -1227,7 +1473,7 @@ def add_selected_pattern_pieces():
     by_id = {p.piece_id: p for p in existing}
     home_by_id = {p.piece_id: p for p in homes}
     for piece in pieces:
-        placement = piece.Placement
+        placement = cast("_ObjectPlacement", piece.Placement)
         base = placement.Base
         value = PiecePlacement(
             str(piece.PieceId),
@@ -1252,7 +1498,28 @@ def add_selected_pattern_pieces():
     return scene
 
 
-def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
+def position_piece(
+    piece: _PatternPiece,
+    x: float,
+    y: float,
+    z: float = 0.0,
+    rotation_z: float = 0.0,
+) -> _PatternPiece:
+    """Apply a world-space placement to a pattern piece and persist the result.
+
+    Args:
+        piece: Native pattern-piece feature to move.
+        x: Target X coordinate in document units.
+        y: Target Y coordinate in document units.
+        z: Target Z coordinate in document units.
+        rotation_z: Rotation around the positive world Z axis in degrees.
+
+    Returns:
+        The same pattern-piece feature after its placement has been updated.
+
+    Raises:
+        ValueError: If the supplied feature is not a pattern piece.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
@@ -1279,8 +1546,33 @@ def position_piece(piece, x, y, z=0.0, rotation_z=0.0):
 
 
 def create_arrangement_point(
-    name, x, y, offset=0.0, wrap_direction="front", rotation_z=0.0, symmetry_group="", mirror=False
-):
+    name: str,
+    x: float,
+    y: float,
+    offset: float = 0.0,
+    wrap_direction: str = "front",
+    rotation_z: float = 0.0,
+    symmetry_group: str = "",
+    mirror: bool = False,
+) -> ArrangementPoint:
+    """Create or replace a named arrangement point and optionally its mirrored mate.
+
+    Args:
+        name: Stable name assigned to the arrangement point.
+        x: World X coordinate in document units.
+        y: World Y coordinate in document units.
+        offset: World Z coordinate saved as the point offset.
+        wrap_direction: Garment-facing direction used to orient a placed piece.
+        rotation_z: Additional rotation about the positive Z axis in degrees.
+        symmetry_group: Optional group name linking mirrored arrangement points.
+        mirror: Whether to also create the symmetric point.
+
+    Returns:
+        The primary arrangement point stored in the fitting scene.
+
+    Raises:
+        ValueError: If the point is invalid or mirroring is requested without a symmetry group.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -1316,8 +1608,31 @@ def create_arrangement_point(
 
 
 def set_arrangement_point(
-    name, x=None, y=None, offset=None, wrap_direction=None, rotation_z=None, symmetry_group=None
-):
+    name: str,
+    x: float | None = None,
+    y: float | None = None,
+    offset: float | None = None,
+    wrap_direction: str | None = None,
+    rotation_z: float | None = None,
+    symmetry_group: str | None = None,
+) -> ArrangementPoint:
+    """Update selected fields of an existing arrangement point.
+
+    Args:
+        name: Name of the persisted arrangement point to update.
+        x: Optional replacement world X coordinate.
+        y: Optional replacement world Y coordinate.
+        offset: Optional replacement world Z coordinate.
+        wrap_direction: Optional replacement facing direction.
+        rotation_z: Optional replacement rotation about the Z axis in degrees.
+        symmetry_group: Optional replacement name for the symmetry group.
+
+    Returns:
+        The updated arrangement point.
+
+    Raises:
+        ValueError: If no fitting scene exists, the name is unknown, or validation fails.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -1352,7 +1667,18 @@ def set_arrangement_point(
     return point
 
 
-def delete_arrangement_point(name):
+def delete_arrangement_point(name: str) -> _FittingScene:
+    """Delete a named arrangement point and its persisted surface anchor.
+
+    Args:
+        name: Name of the arrangement point to delete.
+
+    Returns:
+        The fitting scene after the point and any mirrored anchor record are removed.
+
+    Raises:
+        ValueError: If no document/scene is active or the point name is unknown.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -1378,7 +1704,21 @@ def delete_arrangement_point(name):
     return scene
 
 
-def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100.0)):
+def create_bounding_volume(
+    name: str,
+    center: Point3 = (0.0, 0.0, 0.0),
+    size: Point3 = (100.0, 100.0, 100.0),
+) -> BoundingVolume:
+    """Create or replace a validated axis-aligned fitting bounding volume.
+
+    Args:
+        name: Stable name assigned to the volume.
+        center: Center coordinate in document units.
+        size: Positive XYZ extent in document units.
+
+    Returns:
+        The validated bounding volume stored in the fitting scene.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BoundingVolume
@@ -1386,7 +1726,9 @@ def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     volume = BoundingVolume(
-        str(name), tuple(float(v) for v in center), tuple(float(v) for v in size)
+        str(name),
+        cast("Point3", tuple(float(v) for v in center)),
+        cast("Point3", tuple(float(v) for v in size)),
     )
     volume.validate()
     values = {v.name: v for v in (BoundingVolume.from_string(v) for v in scene.BoundingVolumes)}
@@ -1396,7 +1738,18 @@ def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100
     return volume
 
 
-def delete_bounding_volume(name):
+def delete_bounding_volume(name: str) -> _FittingScene:
+    """Delete a named bounding volume from the fitting scene.
+
+    Args:
+        name: Name of the bounding volume to remove.
+
+    Returns:
+        The fitting scene after its persisted volume list and visuals are updated.
+
+    Raises:
+        ValueError: If no document/scene is active or the volume name is unknown.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BoundingVolume
@@ -1419,7 +1772,18 @@ def delete_bounding_volume(name):
     return scene
 
 
-def set_symmetry_enabled(enabled=True):
+def set_symmetry_enabled(enabled: bool = True) -> _FittingScene:
+    """Set whether arrangement operations should mirror symmetric points.
+
+    Args:
+        enabled: Whether symmetric arrangement behavior should be enabled.
+
+    Returns:
+        The fitting scene after the flag has been saved.
+
+    Raises:
+        ValueError: If there is no active document or fitting scene.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -1435,8 +1799,24 @@ def set_symmetry_enabled(enabled=True):
     return scene
 
 
-def apply_arrangement_point(piece, point, mirror=None):
-    """Place a pattern piece at a named point, optionally using its symmetric mate."""
+def apply_arrangement_point(
+    piece: _PatternPiece,
+    point: str | ArrangementPoint,
+    mirror: bool | None = None,
+) -> _PatternPiece:
+    """Place a pattern piece at a named point, optionally using its symmetric mate.
+
+    Args:
+        piece: Native pattern-piece feature to position.
+        point: Arrangement-point name or validated point record.
+        mirror: Optional override that selects the symmetric arrangement point.
+
+    Returns:
+        The same pattern-piece feature after its target placement is applied.
+
+    Raises:
+        ValueError: If the piece is invalid, the scene is absent, or the point is unknown.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -1467,8 +1847,15 @@ def apply_arrangement_point(piece, point, mirror=None):
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
-def reset_arrangement():
-    """Restore every assigned piece to its saved pre-arrangement placement."""
+def reset_arrangement() -> _FittingScene:
+    """Restore every assigned piece to its saved pre-arrangement placement.
+
+    Returns:
+        The fitting scene after found pieces and saved placement records are restored.
+
+    Raises:
+        ValueError: If no active document or fitting scene is available.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
@@ -1534,8 +1921,18 @@ def create_simulation_from_fitting() -> object:
     )
 
 
-def open_interactive_arrange(scene=None):
-    """Open the direct-manipulation fitting panel for the active fitting scene."""
+def open_interactive_arrange(scene: _FittingScene | None = None) -> object:
+    """Open the direct-manipulation fitting panel for the active fitting scene.
+
+    Args:
+        scene: Optional fitting scene; the active document's scene is used by default.
+
+    Returns:
+        The GUI task panel that controls interactive piece arrangement.
+
+    Raises:
+        RuntimeError: If no FreeCAD document is active.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -1560,14 +1957,35 @@ def create_arrangement_point_from_viewport():
 
 
 def create_arrangement_anchor(
-    name, target, world_point, subelement="Face", wrap_direction="front", rotation_z=0.0
-):
+    name: str,
+    target: object,
+    world_point: object,
+    subelement: str = "Face",
+    wrap_direction: str = "front",
+    rotation_z: float = 0.0,
+) -> ArrangementPoint:
     """Create a named snap point from a pick on persistent target geometry.
 
-    The anchor keeps a target-local location. Mesh surfaces use triangle indices and
+    The anchor stores a target-local location. Mesh surfaces use triangle indices and
     barycentric weights so stable-topology deformations follow the same surface region;
     non-mesh surfaces follow their object's Placement. Incompatible geometry is marked
     stale instead of silently snapping to old world coordinates.
+
+    Args:
+        name: Stable name assigned to the new arrangement point.
+        target: FreeCAD geometry object on which the surface was picked.
+        world_point: Picked world coordinate as a FreeCAD vector or three-value sequence.
+        subelement: Face/edge name associated with the viewport selection.
+        wrap_direction: Facing direction used by the arrangement-point placement.
+        rotation_z: Additional rotation about the world Z axis in degrees.
+
+    Returns:
+        The created arrangement point after the persistent anchor metadata is stored.
+
+    Raises:
+        RuntimeError: If there is no active document.
+        ValueError: If the target is outside the active document, the coordinate is invalid,
+            or the resulting arrangement point fails validation.
     """
     import FreeCAD as App
 
@@ -1580,37 +1998,40 @@ def create_arrangement_anchor(
     if target_document is None or getattr(target_document, "Name", "") != doc.Name:
         msg = "select a surface on geometry in the active document"
         raise ValueError(msg)
-    signature = _target_signature(target)
+    anchor_target = cast("_AnchorTarget", target)
+    signature = _target_signature(anchor_target)
     try:
-        coords = (float(world_point.x), float(world_point.y), float(world_point.z))
+        picked_vector = cast("_FreeCADVector", world_point)
+        coords = (float(picked_vector.x), float(picked_vector.y), float(picked_vector.z))
     except AttributeError:
-        coords = tuple(float(value) for value in world_point[:3])
+        picked_values = cast("Sequence[object]", world_point)
+        coords = cast("Point3", tuple(float(cast("float", value)) for value in picked_values[:3]))
     if len(coords) != 3:
         msg = "picked surface location must contain three coordinates"
         raise ValueError(msg)
-    world = App.Vector(*coords)
+    world = cast("_FreeCADVector", App.Vector(*coords))
     try:
-        local = target.Placement.inverse().multVec(world)
+        local = anchor_target.Placement.inverse().multVec(world)
     except (AttributeError, RuntimeError, TypeError, ValueError):
         local = world
 
     local_coords = (float(local.x), float(local.y), float(local.z))
     anchor = {
         "name": str(name),
-        "target": str(target.Name),
+        "target": str(anchor_target.Name),
         "subelement": str(subelement),
         "local_point": list(local_coords),
         "geometry_signature": signature,
     }
-    mesh_hit = _mesh_anchor_coordinates(target, local_coords)
+    mesh_hit = _mesh_anchor_coordinates(anchor_target, local_coords)
     if mesh_hit is not None:
         triangle_index, barycentric, projected = mesh_hit
         anchor["triangle_index"] = int(triangle_index)
         anchor["barycentric"] = [float(value) for value in barycentric]
         anchor["local_point"] = [float(value) for value in projected]
-        local = App.Vector(*projected)
+        local = cast("_FreeCADVector", App.Vector(*projected))
         try:
-            world = target.Placement.multVec(local)
+            world = anchor_target.Placement.multVec(local)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             world = local
         coords = (float(world.x), float(world.y), float(world.z))
@@ -1636,9 +2057,16 @@ def create_arrangement_anchor(
 
 
 class _FittingProxy:
+    """Validate the saved fitting-scene schema when FreeCAD recomputes the feature."""
+
     Type = "ClothFittingScene"
 
-    def execute(self, obj):
+    def execute(self, obj: _FittingScene) -> None:
+        """Validate measurements, pieces, points, and volumes saved on the feature.
+
+        Args:
+            obj: Persisted FreeCAD fitting-scene feature being recomputed.
+        """
         from freecad_cloth.avatar.AvatarFitting import (
             ArrangementPoint,
             BodyMeasurements,
@@ -1679,7 +2107,21 @@ _COMMAND_HANDLERS = {
 }
 
 
-def _apply_selected_arrangement():
+class _ArrangementPointFeature(Protocol):
+    """Minimal display-object property used for arrangement-point selection."""
+
+    PointName: str
+
+
+def _apply_selected_arrangement() -> _PatternPiece:
+    """Apply the selected arrangement point to the selected pattern piece.
+
+    Returns:
+        The selected pattern-piece feature after its placement has been updated.
+
+    Raises:
+        ValueError: If no fitting scene, pattern piece, or arrangement point is selected.
+    """
     import FreeCADGui as Gui
 
     scene = _scene(Gui.activeDocument().Document)
@@ -1705,7 +2147,9 @@ def _apply_selected_arrangement():
     if piece is None or point is None:
         msg = "select a pattern piece and an arrangement point"
         raise ValueError(msg)
-    return apply_arrangement_point(piece, point.PointName)
+    return apply_arrangement_point(
+        cast("_PatternPiece", piece), cast("_ArrangementPointFeature", point).PointName
+    )
 
 
 try:
@@ -1713,6 +2157,6 @@ try:
 
     from freecad_cloth.common.CommandAdapter import register_commands
 
-    register_commands(Gui, _COMMAND_HANDLERS)
+    register_commands(cast("GuiCommandRegistrar", Gui), _COMMAND_HANDLERS)
 except (ImportError, AttributeError):
     pass
