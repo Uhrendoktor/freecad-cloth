@@ -413,11 +413,15 @@ def test_reject_closes_active_dialog() -> None:
     """Close an active FreeCAD dialog when the task panel is rejected."""
     panel = _panel()
     calls: list[str] = []
-    panel.Gui = SimpleNamespace(
-        activeDocument=lambda: object(),
-        Control=SimpleNamespace(
-            activeDialog=lambda: object(),
-            closeDialog=lambda: calls.append("close"),
+    setattr(
+        panel,
+        "Gui",
+        SimpleNamespace(
+            activeDocument=lambda: object(),
+            Control=SimpleNamespace(
+                activeDialog=lambda: object(),
+                closeDialog=lambda: calls.append("close"),
+            ),
         ),
     )
 
