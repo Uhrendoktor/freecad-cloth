@@ -2,6 +2,7 @@
 """Regression contract for mannequin drape-target attachment."""
 
 import sys
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 
 import pytest
@@ -61,3 +62,35 @@ def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.Monke
         condition=target.Label == "Drape Target (Mannequin)",
         message="The created target must retain its mannequin-specific label.",
     )
+
+def test_drape_command_exposes_freecad_callback_names() -> None:
+    """Keep the host's callback spellings available on the command instance."""
+    calls: list[str] = []
+    command = DrapeCommands._DrapeCommand(
+        "ClothDrape_Diagnostics",
+        lambda: calls.append("activated") or "done",
+        lambda: True,
+        "diagnostic command fixture",
+    )
+    activated = cast("Callable[[], object]", getattr(command, "Activated"))
+    is_active = cast("Callable[[], bool]", getattr(command, "IsActive"))
+    get_resources = cast("Callable[[], dict[str, object]]", getattr(command, "GetResources"))
+
+    require(
+        condition=activated() == "done" and calls == ["activated"],
+        message="FreeCAD's Activated callback must invoke the registered action.",
+    )
+    require(
+        condition=is_active() is True,
+        message="FreeCAD's IsActive callback must return the enabled state.",
+    )
+    resources = get_resources()
+    require(
+        condition=resources["MenuText"] == "Cloth Diagnostics",
+        message="FreeCAD's GetResources callback must preserve the diagnostic menu label.",
+    )
+    require(
+        condition=resources["ToolTip"] == "diagnostic command fixture",
+        message="FreeCAD's GetResources callback must preserve the action tooltip.",
+    )
+
