@@ -3,9 +3,8 @@
 
 import inspect
 import math
-from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -18,6 +17,9 @@ from freecad_cloth.simulation.ClothDiagnostics import (
     summarize,
 )
 from tests.support.assertions import require as _require
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 def _triangle(scale: float = 1.0, z: float = 0.0) -> list[tuple[float, float, float]]:
@@ -74,7 +76,10 @@ def test_stretch_is_normalized_against_fabric_limit() -> None:
     degenerate_result = analyze_mesh(degenerate_rest, deformed, ((0, 1, 2),))
     _require(
         condition=degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0),
-        message="A zero-length rest edge must contribute zero strain without affecting other edges.",
+        message=(
+            "A zero-length rest edge must contribute zero strain "
+            "without affecting other edges."
+        ),
     )
 
 
