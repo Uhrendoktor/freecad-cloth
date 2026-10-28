@@ -28,7 +28,11 @@ _ACTIVE_DIAGNOSTICS_TASK_PANEL: list[object | None] = [None]
 
 
 def get_active_diagnostics_task_panel() -> object | None:
-    """Return the diagnostics task panel opened by the public command."""
+    """Return the diagnostics task panel opened by the public command.
+
+    Returns:
+        The active task panel, or None if the diagnostics command has not run.
+    """
     return _ACTIVE_DIAGNOSTICS_TASK_PANEL[0]
 
 

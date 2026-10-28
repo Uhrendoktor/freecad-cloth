@@ -177,7 +177,7 @@ def test_pattern_construction_and_dxf_export() -> None:
 
 def test_invalid_pattern_mark_reference_is_rejected() -> None:
     """Reject a pattern mark that names a nonexistent segment."""
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="pattern mark references unknown segment"):
         add_marks(
             derive_cut_boundary(rectangle(10, 10), 1),
             [PatternMark("bad", "Fold", segment_id="missing")],
