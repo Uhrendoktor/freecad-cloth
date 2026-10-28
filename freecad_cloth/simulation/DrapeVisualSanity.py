@@ -394,7 +394,7 @@ def assert_drape_diagnostics(
         allowed_diagnostics: Fatal diagnostic identifiers explicitly accepted for this audit.
 
     Raises:
-        RuntimeError: If any record contains a fatal classification or unallowed diagnostic.
+        RuntimeError: If a record has a fatal classification or a fatal diagnostic not listed in allowed_diagnostics.
     """
     failures = []
     allowed = {str(item) for item in allowed_diagnostics}
