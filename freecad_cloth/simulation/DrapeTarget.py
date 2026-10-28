@@ -1,14 +1,18 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
-from collections.abc import Callable
-from typing import ClassVar, Protocol, cast
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar, Protocol, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.SourceSignature import source_signature
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 class _DrapeTargetFeature(Protocol):
     """Persisted FreeCAD feature fields written by target lifecycle operations."""
@@ -27,18 +31,14 @@ class _DrapeTargetFeature(Protocol):
     addProperty: Callable[[str, str, str], object]
 
 
-class _DrapeTargetDocument(Protocol):
-    """Document factory used to create the persistent target feature."""
-
-    addObject: Callable[[str, str], object]
-
-
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
+_MINIMUM_COLLISION_DIMENSION_MM = 0.0
+_EMPTY_COLLISION_COUNT = 0
 
 
 @pydantic_dataclass(frozen=True)
 class DrapeTargetSpec:
-    """Public data model or service class for DrapeTargetSpec."""
+    """Validated parameters for constructing a persistent drape collision target."""
 
     target_type: str
     source_name: str
@@ -59,10 +59,10 @@ class DrapeTargetSpec:
         if not self.source_name.strip():
             msg = "drape target source must not be empty"
             raise ValueError(msg)
-        if self.deflection <= 0:
+        if self.deflection <= _MINIMUM_COLLISION_DIMENSION_MM:
             msg = "drape target deflection must be positive"
             raise ValueError(msg)
-        if self.thickness < 0:
+        if self.thickness < _MINIMUM_COLLISION_DIMENSION_MM:
             msg = "drape target thickness must not be negative"
             raise ValueError(msg)
 
@@ -219,18 +219,16 @@ def create_drape_target(
     if target_type not in DrapeTargetSpec.VALID_TYPES:
         msg = "unsupported drape target type"
         raise ValueError(msg)
-    if deflection <= 0 or thickness < 0:
+    if deflection <= _MINIMUM_COLLISION_DIMENSION_MM or thickness < _MINIMUM_COLLISION_DIMENSION_MM:
         msg = "invalid collision tessellation or thickness"
         raise ValueError(msg)
     if source is None and target_type != "Mannequin":
         msg = "a FreeCAD Geometry target requires a source object"
         raise ValueError(msg)
-    document = cast("_DrapeTargetDocument", doc)
-    target = cast(
-        "_DrapeTargetFeature",
-        document.addObject("App::FeaturePython", "DrapeTarget"),
-    )
+    add_object = cast("Callable[[str, str], object]", getattr(doc, "addObject"))
+    target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
+    add_property = cast("Callable[[str, str, str], object]", getattr(target, "addProperty"))
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
         ("App::PropertyLink", "SourceObject", "Draping"),
@@ -243,7 +241,7 @@ def create_drape_target(
         ("App::PropertyString", "TargetStatus", "State"),
         ("App::PropertyString", "InvalidationReason", "State"),
     ):
-        target.addProperty(type_name, name, group)
+        add_property(type_name, name, group)
     target.TargetType = target_type
     target.CollisionDeflection = float(deflection)
     target.CollisionThickness = float(thickness)
