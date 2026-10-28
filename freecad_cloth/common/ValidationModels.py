@@ -28,7 +28,18 @@ if TYPE_CHECKING:
 
 
 def _finite_real(value: object) -> float:
-    """Normalize a real number to float while rejecting bools and non-finite values."""
+    """
+    Normalize a real number to float while rejecting booleans and non-finite values.
+    
+    Args:
+        value: Candidate numeric value received at the validation boundary.
+    
+    Returns:
+        The finite real value normalized to a Python float.
+    
+    Raises:
+        ValueError: If the input is not a supported real number or is not finite.
+    """
     if isinstance(value, bool) or not isinstance(value, Real):
         msg = "value must be a finite real number"
         raise ValueError(msg)
@@ -76,7 +87,15 @@ class RectangleDimensions(InputModel):
 
     @model_validator(mode="after")
     def dimensions_are_positive(self) -> RectangleDimensions:
-        """Reject zero or negative dimensions."""
+        """
+    Reject zero or negative rectangle dimensions.
+    
+    Returns:
+        The same rectangle model after both dimensions pass validation.
+    
+    Raises:
+        ValueError: If either dimension is not strictly positive.
+    """
         if self.width <= 0.0 or self.height <= 0.0:
             msg = "rectangle dimensions must be positive and finite"
             raise ValueError(msg)
@@ -91,7 +110,15 @@ class SeamAllowanceOptions(InputModel):
 
     @model_validator(mode="after")
     def allowance_is_nonnegative(self) -> SeamAllowanceOptions:
-        """Reject negative offsets."""
+        """
+    Reject negative seam offsets.
+    
+    Returns:
+        The same seam-allowance model after its offset passes validation.
+    
+    Raises:
+        ValueError: If the seam allowance is negative.
+    """
         if self.allowance < 0.0:
             msg = "seam allowance cannot be negative"
             raise ValueError(msg)
@@ -106,7 +133,15 @@ class TriangulationOptions(InputModel):
 
     @model_validator(mode="after")
     def area_is_positive(self) -> TriangulationOptions:
-        """Require positive finite maximum triangle area when set."""
+        """
+    Require positive finite maximum triangle area when it is set.
+    
+    Returns:
+        The same triangulation options after the optional area limit is checked.
+    
+    Raises:
+        ValueError: If a configured maximum triangle area is not positive.
+    """
         if self.max_area is not None and self.max_area <= 0.0:
             msg = "max_area must be positive and finite"
             raise ValueError(msg)
@@ -121,7 +156,15 @@ class MeshArrays(InputModel):
 
     @model_validator(mode="after")
     def face_indices_are_in_range(self) -> MeshArrays:
-        """Reject references to vertices outside the supplied array."""
+        """
+    Reject references to vertices outside the supplied array.
+    
+    Returns:
+        The same mesh arrays after every triangle index has been checked.
+    
+    Raises:
+        ValueError: If a triangle refers to a vertex outside the vertex array.
+    """
         for face in self.triangles:
             if any(index < 0 or index >= len(self.vertices) for index in face):
                 msg = "mesh triangle index is out of range"
@@ -137,7 +180,15 @@ class NormalizedRange(InputModel):
 
     @model_validator(mode="after")
     def interval_is_valid(self) -> NormalizedRange:
-        """Require a strictly increasing normalized interval."""
+        """
+    Require a strictly increasing interval inside the normalized range.
+    
+    Returns:
+        The same normalized-range model after its endpoints are checked.
+    
+    Raises:
+        ValueError: If the interval is empty, reversed, or outside [0, 1].
+    """
         if not 0.0 <= self.start < self.end <= 1.0:
             msg = "seam parameter ranges must satisfy 0 <= start < end <= 1"
             raise ValueError(msg)
@@ -155,7 +206,15 @@ class ArcLengthSamplingInput(InputModel):
 
     @model_validator(mode="after")
     def topology_and_range_are_valid(self) -> ArcLengthSamplingInput:
-        """Validate paired coordinates and dimensional consistency."""
+        """
+    Validate paired coordinates and dimensional consistency.
+    
+    Returns:
+        The same arc-length sampling input after its topology and range are checked.
+    
+    Raises:
+        ValueError: If point/index counts, point dimensions, or range endpoints are invalid.
+    """
         if len(self.values) != len(self.points):
             msg = "arc-length sampling points must match edge vertices"
             raise ValueError(msg)
@@ -182,7 +241,12 @@ class CorrespondenceSamplesInput(InputModel):
 
     @model_validator(mode="after")
     def both_ranges_are_valid(self) -> CorrespondenceSamplesInput:
-        """Reject invalid ranges before generating parameter pairs."""
+        """
+    Reject invalid ranges before generating parameter pairs.
+    
+    Returns:
+        The same correspondence-sampling input after both ranges are validated.
+    """
         NormalizedRange(start=self.start_a, end=self.end_a)
         NormalizedRange(start=self.start_b, end=self.end_b)
         return self
@@ -202,7 +266,15 @@ class CorrespondenceAnalysisInput(InputModel):
 
     @model_validator(mode="after")
     def lengths_and_tolerance_are_valid(self) -> CorrespondenceAnalysisInput:
-        """Reject invalid lengths/tolerances without rejecting classifiable ranges."""
+        """
+    Reject invalid lengths and tolerance while preserving range classification.
+    
+    Returns:
+        The same correspondence-analysis input after length and tolerance checks.
+    
+    Raises:
+        ValueError: If either seam length is non-positive or tolerance is outside [0, 1).
+    """
         if self.length_a <= 0.0 or self.length_b <= 0.0:
             msg = "seam lengths must be positive"
             raise ValueError(msg)
@@ -222,7 +294,15 @@ class ParticleInput(InputModel):
 
     @model_validator(mode="after")
     def inverse_mass_is_nonnegative(self) -> ParticleInput:
-        """Reject a negative inverse mass."""
+        """
+    Reject a negative inverse mass.
+    
+    Returns:
+        The same particle model after its inverse mass is checked.
+    
+    Raises:
+        ValueError: If inverse mass is negative.
+    """
         if self.inv_mass < 0.0:
             msg = "inverse mass must be non-negative"
             raise ValueError(msg)
@@ -240,7 +320,15 @@ class GridInput(InputModel):
 
     @model_validator(mode="after")
     def dimensions_are_positive(self) -> GridInput:
-        """Require positive dimensions and a finite three-dimensional origin."""
+        """
+    Require positive dimensions and a finite three-dimensional origin.
+    
+    Returns:
+        The same grid input after dimension constraints are checked.
+    
+    Raises:
+        ValueError: If width or height is not strictly positive.
+    """
         if self.width <= 0.0 or self.height <= 0.0:
             msg = "grid dimensions must be positive and finite"
             raise ValueError(msg)
@@ -257,7 +345,15 @@ class DistanceConstraintInput(InputModel):
 
     @model_validator(mode="after")
     def physical_parameters_are_nonnegative(self) -> DistanceConstraintInput:
-        """Reject negative rest lengths or compliance."""
+        """
+    Reject negative rest lengths or compliance.
+    
+    Returns:
+        The same distance-constraint input after physical values are checked.
+    
+    Raises:
+        ValueError: If rest length or compliance is negative.
+    """
         if self.rest < 0.0:
             msg = "constraint rest length must be non-negative"
             raise ValueError(msg)
@@ -287,7 +383,15 @@ class TransformMatrixInput(InputModel):
 
     @model_validator(mode="after")
     def matrix_shape_and_scale_are_valid(self) -> TransformMatrixInput:
-        """Require sixteen finite entries and a usable homogeneous scale."""
+        """
+    Require sixteen finite entries and a usable homogeneous scale.
+    
+    Returns:
+        The same transform model after matrix dimensions and scale are checked.
+    
+    Raises:
+        ValueError: If the matrix has the wrong length or a near-zero homogeneous scale.
+    """
         if len(self.matrix) != 16:
             msg = "assembly transform must contain 16 values"
             raise ValueError(msg)
@@ -307,7 +411,15 @@ class CollisionSurfaceInput(InputModel):
 
     @model_validator(mode="after")
     def surface_is_valid(self) -> CollisionSurfaceInput:
-        """Reject empty surfaces, invalid connectivity, and invalid thickness."""
+        """
+    Reject empty surfaces, invalid connectivity, and invalid thickness or region.
+    
+    Returns:
+        The same collision-surface model after geometry and topology validation.
+    
+    Raises:
+        ValueError: If vertices/faces are missing, indices are invalid, or thickness/region is invalid.
+    """
         if len(self.vertices) < 3 or not self.triangles:
             msg = "collision surface needs vertices and triangles"
             raise ValueError(msg)
@@ -333,7 +445,15 @@ class PBDStepInput(InputModel):
 
     @model_validator(mode="after")
     def timestep_is_positive(self) -> PBDStepInput:
-        """Reject non-positive timesteps."""
+        """
+    Reject non-positive simulation timesteps.
+    
+    Returns:
+        The same PBD step input after its timestep is checked.
+    
+    Raises:
+        ValueError: If the timestep is not strictly positive.
+    """
         if self.dt <= 0.0:
             msg = "dt must be positive and finite"
             raise ValueError(msg)
@@ -356,7 +476,15 @@ class SimulationMeshQualityInput(InputModel):
 
     @model_validator(mode="after")
     def spacing_is_positive(self) -> SimulationMeshQualityInput:
-        """Require a positive particle spacing."""
+        """
+    Require a positive particle spacing for simulation mesh generation.
+    
+    Returns:
+        The same mesh-quality input after its particle spacing is checked.
+    
+    Raises:
+        ValueError: If particle spacing is not strictly positive.
+    """
         if self.particle_distance <= 0.0:
             msg = "particle_distance must be positive and finite"
             raise ValueError(msg)
@@ -374,7 +502,15 @@ class PatternPieceInput(InputModel):
 
     @model_validator(mode="after")
     def piece_is_valid(self) -> PatternPieceInput:
-        """Require identity, a usable outline, and non-negative allowance."""
+        """
+    Require identity, a usable outline, and a non-negative seam allowance.
+    
+    Returns:
+        The same pattern-piece model after its boundary invariants are checked.
+    
+    Raises:
+        ValueError: If name/ID are empty, the outline has fewer than three points, or allowance is negative.
+    """
         if not self.name.strip() or not self.id.strip():
             msg = "pattern piece name and id must not be empty"
             raise ValueError(msg)
@@ -410,7 +546,15 @@ class PngCaptureMetrics(InputModel):
 
     @model_validator(mode="after")
     def pixel_counts_are_consistent(self) -> PngCaptureMetrics:
-        """Reject impossible image metrics before returning them to acceptance tests."""
+        """
+    Reject impossible image metrics before acceptance checks consume them.
+    
+    Returns:
+        The same PNG metric model after pixel counts are checked for consistency.
+    
+    Raises:
+        ValueError: If any pixel count exceeds the dimensions or other counts.
+    """
         total_pixels = self.width * self.height
         if self.opaque_pixels > total_pixels:
             msg = "opaque pixel count exceeds image dimensions"
@@ -445,7 +589,15 @@ class MeshHealthMetrics(InputModel):
 
     @model_validator(mode="after")
     def mesh_metrics_are_consistent(self) -> MeshHealthMetrics:
-        """Enforce topology/count/bounds invariants on library-produced metrics."""
+        """
+    Enforce topology, count, and bounds invariants on library-produced metrics.
+    
+    Returns:
+        The same mesh-health model after its bounds and counts are checked.
+    
+    Raises:
+        ValueError: If bounds are unordered or component/degenerate counts exceed face count.
+    """
         xmin, xmax, ymin, ymax, zmin, zmax = self.bounds
         if xmin > xmax or ymin > ymax or zmin > zmax:
             msg = "mesh bounds must be ordered minimum/maximum pairs"
@@ -465,20 +617,52 @@ Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
 
 
 def validate_finite_number(value: object) -> float:
-    """Return a finite real input as float, rejecting bool/string coercion."""
+    """
+    Return a finite real input as float, rejecting bool/string coercion.
+    
+    Args:
+        value: Candidate value to validate as a finite real number.
+    
+    Returns:
+        The validated numeric value normalized to a Python float.
+    """
     return FiniteScalar(value=cast("FiniteNumber", value)).value
 
 
 def validate_point2d(value: object) -> Point2D:
-    """Validate and normalize one two-dimensional point."""
+    """
+    Validate and normalize one two-dimensional point.
+    
+    Args:
+        value: Candidate point value supplied by an external caller.
+    
+    Returns:
+        A finite point containing exactly two normalized coordinates.
+    """
     return Point2DAdapter.validate_python(value)
 
 
 def validate_points2d(values: Iterable[object]) -> tuple[Point2D, ...]:
-    """Validate and normalize a sequence of two-dimensional points."""
+    """
+    Validate and normalize a sequence of two-dimensional points.
+    
+    Args:
+        values: Iterable of candidate points supplied by an external caller.
+    
+    Returns:
+        An immutable tuple of finite two-dimensional points.
+    """
     return Points2DAdapter.validate_python(values)
 
 
 def validate_points3d(values: Iterable[object]) -> tuple[Point3D, ...]:
-    """Validate and normalize a sequence of three-dimensional points."""
+    """
+    Validate and normalize a sequence of three-dimensional points.
+    
+    Args:
+        values: Iterable of candidate points supplied by an external caller.
+    
+    Returns:
+        An immutable tuple of finite three-dimensional points.
+    """
     return Points3DAdapter.validate_python(values)
