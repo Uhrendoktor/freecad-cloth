@@ -28,8 +28,7 @@ if TYPE_CHECKING:
 
 
 def _finite_real(value: object) -> float:
-    """
-        Normalize a real number to float while rejecting booleans and non-finite values.
+    """Normalize a real number to float while rejecting booleans and non-finite values.
         
         Args:
             value: Candidate numeric value received at the validation boundary.
@@ -87,8 +86,7 @@ class RectangleDimensions(InputModel):
 
     @model_validator(mode="after")
     def dimensions_are_positive(self) -> RectangleDimensions:
-        """
-        Reject zero or negative rectangle dimensions.
+        """Reject zero or negative rectangle dimensions.
         
         Returns:
             The same rectangle model after both dimensions pass validation.
@@ -110,8 +108,7 @@ class SeamAllowanceOptions(InputModel):
 
     @model_validator(mode="after")
     def allowance_is_nonnegative(self) -> SeamAllowanceOptions:
-        """
-        Reject negative seam offsets.
+        """Reject negative seam offsets.
         
         Returns:
             The same seam-allowance model after its offset passes validation.
@@ -133,8 +130,7 @@ class TriangulationOptions(InputModel):
 
     @model_validator(mode="after")
     def area_is_positive(self) -> TriangulationOptions:
-        """
-        Require positive finite maximum triangle area when it is set.
+        """Require positive finite maximum triangle area when it is set.
         
         Returns:
             The same triangulation options after the optional area limit is checked.
@@ -156,8 +152,7 @@ class MeshArrays(InputModel):
 
     @model_validator(mode="after")
     def face_indices_are_in_range(self) -> MeshArrays:
-        """
-        Reject references to vertices outside the supplied array.
+        """Reject references to vertices outside the supplied array.
         
         Returns:
             The same mesh arrays after every triangle index has been checked.
@@ -180,8 +175,7 @@ class NormalizedRange(InputModel):
 
     @model_validator(mode="after")
     def interval_is_valid(self) -> NormalizedRange:
-        """
-        Require a strictly increasing interval inside the normalized range.
+        """Require a strictly increasing interval inside the normalized range.
         
         Returns:
             The same normalized-range model after its endpoints are checked.
@@ -206,8 +200,7 @@ class ArcLengthSamplingInput(InputModel):
 
     @model_validator(mode="after")
     def topology_and_range_are_valid(self) -> ArcLengthSamplingInput:
-        """
-        Validate paired coordinates and dimensional consistency.
+        """Validate paired coordinates and dimensional consistency.
         
         Returns:
             The same arc-length sampling input after its topology and range are checked.
@@ -241,8 +234,7 @@ class CorrespondenceSamplesInput(InputModel):
 
     @model_validator(mode="after")
     def both_ranges_are_valid(self) -> CorrespondenceSamplesInput:
-        """
-        Reject invalid ranges before generating parameter pairs.
+        """Reject invalid ranges before generating parameter pairs.
         
         Returns:
             The same correspondence-sampling input after both ranges are validated.
@@ -266,8 +258,7 @@ class CorrespondenceAnalysisInput(InputModel):
 
     @model_validator(mode="after")
     def lengths_and_tolerance_are_valid(self) -> CorrespondenceAnalysisInput:
-        """
-        Reject invalid lengths and tolerance while preserving range classification.
+        """Reject invalid lengths and tolerance while preserving range classification.
         
         Returns:
             The same correspondence-analysis input after length and tolerance checks.
@@ -294,8 +285,7 @@ class ParticleInput(InputModel):
 
     @model_validator(mode="after")
     def inverse_mass_is_nonnegative(self) -> ParticleInput:
-        """
-        Reject a negative inverse mass.
+        """Reject a negative inverse mass.
         
         Returns:
             The same particle model after its inverse mass is checked.
@@ -320,8 +310,7 @@ class GridInput(InputModel):
 
     @model_validator(mode="after")
     def dimensions_are_positive(self) -> GridInput:
-        """
-        Require positive dimensions and a finite three-dimensional origin.
+        """Require positive dimensions and a finite three-dimensional origin.
         
         Returns:
             The same grid input after dimension constraints are checked.
@@ -345,8 +334,7 @@ class DistanceConstraintInput(InputModel):
 
     @model_validator(mode="after")
     def physical_parameters_are_nonnegative(self) -> DistanceConstraintInput:
-        """
-        Reject negative rest lengths or compliance.
+        """Reject negative rest lengths or compliance.
         
         Returns:
             The same distance-constraint input after physical values are checked.
@@ -383,8 +371,7 @@ class TransformMatrixInput(InputModel):
 
     @model_validator(mode="after")
     def matrix_shape_and_scale_are_valid(self) -> TransformMatrixInput:
-        """
-        Require sixteen finite entries and a usable homogeneous scale.
+        """Require sixteen finite entries and a usable homogeneous scale.
         
         Returns:
             The same transform model after matrix dimensions and scale are checked.
@@ -411,8 +398,7 @@ class CollisionSurfaceInput(InputModel):
 
     @model_validator(mode="after")
     def surface_is_valid(self) -> CollisionSurfaceInput:
-        """
-        Reject empty surfaces, invalid connectivity, and invalid thickness or region.
+        """Reject empty surfaces, invalid connectivity, and invalid thickness or region.
         
         Returns:
             The same collision-surface model after geometry and topology validation.
@@ -446,8 +432,7 @@ class PBDStepInput(InputModel):
 
     @model_validator(mode="after")
     def timestep_is_positive(self) -> PBDStepInput:
-        """
-        Reject non-positive simulation timesteps.
+        """Reject non-positive simulation timesteps.
         
         Returns:
             The same PBD step input after its timestep is checked.
@@ -477,8 +462,7 @@ class SimulationMeshQualityInput(InputModel):
 
     @model_validator(mode="after")
     def spacing_is_positive(self) -> SimulationMeshQualityInput:
-        """
-        Require a positive particle spacing for simulation mesh generation.
+        """Require a positive particle spacing for simulation mesh generation.
         
         Returns:
             The same mesh-quality input after its particle spacing is checked.
@@ -503,8 +487,7 @@ class PatternPieceInput(InputModel):
 
     @model_validator(mode="after")
     def piece_is_valid(self) -> PatternPieceInput:
-        """
-        Require identity, a usable outline, and a non-negative seam allowance.
+        """Require identity, a usable outline, and a non-negative seam allowance.
         
         Returns:
             The same pattern-piece model after its boundary invariants are checked.
@@ -548,8 +531,7 @@ class PngCaptureMetrics(InputModel):
 
     @model_validator(mode="after")
     def pixel_counts_are_consistent(self) -> PngCaptureMetrics:
-        """
-        Reject impossible image metrics before acceptance checks consume them.
+        """Reject impossible image metrics before acceptance checks consume them.
         
         Returns:
             The same PNG metric model after pixel counts are checked for consistency.
@@ -591,8 +573,7 @@ class MeshHealthMetrics(InputModel):
 
     @model_validator(mode="after")
     def mesh_metrics_are_consistent(self) -> MeshHealthMetrics:
-        """
-        Enforce topology, count, and bounds invariants on library-produced metrics.
+        """Enforce topology, count, and bounds invariants on library-produced metrics.
         
         Returns:
             The same mesh-health model after its bounds and counts are checked.
@@ -619,8 +600,7 @@ Points3DAdapter = TypeAdapter(tuple[Point3D, ...])
 
 
 def validate_finite_number(value: object) -> float:
-    """
-        Return a finite real input as float, rejecting bool/string coercion.
+    """Return a finite real input as float, rejecting bool/string coercion.
         
         Args:
             value: Candidate value to validate as a finite real number.
@@ -632,8 +612,7 @@ def validate_finite_number(value: object) -> float:
 
 
 def validate_point2d(value: object) -> Point2D:
-    """
-        Validate and normalize one two-dimensional point.
+    """Validate and normalize one two-dimensional point.
         
         Args:
             value: Candidate point value supplied by an external caller.
@@ -645,8 +624,7 @@ def validate_point2d(value: object) -> Point2D:
 
 
 def validate_points2d(values: Iterable[object]) -> tuple[Point2D, ...]:
-    """
-        Validate and normalize a sequence of two-dimensional points.
+    """Validate and normalize a sequence of two-dimensional points.
         
         Args:
             values: Iterable of candidate points supplied by an external caller.
@@ -658,8 +636,7 @@ def validate_points2d(values: Iterable[object]) -> tuple[Point2D, ...]:
 
 
 def validate_points3d(values: Iterable[object]) -> tuple[Point3D, ...]:
-    """
-        Validate and normalize a sequence of three-dimensional points.
+    """Validate and normalize a sequence of three-dimensional points.
         
         Args:
             values: Iterable of candidate points supplied by an external caller.
