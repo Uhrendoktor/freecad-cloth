@@ -1179,6 +1179,7 @@ class _FittingMarkerGroup(Protocol):
 class _FittingDocument(Protocol):
     """Document API used to organize generated marker features."""
 
+    Name: str
     Objects: Sequence[object]
 
     def getObject(self, name: str) -> object | None:
