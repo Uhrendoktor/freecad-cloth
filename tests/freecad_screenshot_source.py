@@ -694,8 +694,10 @@ def _seam_lateral_snapshot(
         Returns:
             The X coordinate converted to a Python float.
         """
-        return float(cast("_Vector3", point).x) if hasattr(point, "x") else float(
-            cast("Sequence[float]", point)[0]
+        return (
+            float(cast("_Vector3", point).x)
+            if hasattr(point, "x")
+            else float(cast("Sequence[float]", point)[0])
         )
 
     snapshot = {}

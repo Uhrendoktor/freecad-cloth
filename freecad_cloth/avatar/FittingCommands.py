@@ -401,8 +401,7 @@ def _mesh_topology_from_parts(
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
     faces = tuple(
-        tuple(int(cast("SupportsInt | str | bytes", index)) for index in face)
-        for face in triangles
+        tuple(int(cast("SupportsInt | str | bytes", index)) for index in face) for face in triangles
     )
     return _validated_mesh_topology(points, faces)
 
