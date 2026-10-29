@@ -38,7 +38,11 @@ class _NativePlacement(Protocol):
     Rotation: _NativeRotation
 
     def inverse(self) -> "_NativePlacement":
-        """Return the inverse placement transform."""
+        """Return the inverse placement transform.
+
+        Returns:
+            Placement that reverses this transform.
+        """
         ...
 
     def multVec(self, vector: object) -> _NativeVector:
@@ -76,7 +80,11 @@ class _ArrangementPointRef(Protocol):
         ...
 
     def mirrored(self) -> "_ArrangementPointRef":
-        """Return the point reflected across its authored symmetry plane."""
+        """Return the point reflected across its authored symmetry plane.
+
+        Returns:
+            Validated arrangement-point record positioned at the symmetric location.
+        """
         ...
 
 
@@ -110,7 +118,18 @@ class _FittingSceneFeature(Protocol):
     AvatarProxy: object | None
     Proxy: object
 
-    def addProperty(self, property_type: str, name: str, group: str = "") -> object: ...
+    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
+        """Register a custom FreeCAD property on the native feature.
+
+        Args:
+            property_type: FreeCAD property type identifier.
+            name: Property name persisted in the document.
+            group: Property editor category used to group related fields.
+
+        Returns:
+            Native feature/property-registration result from the FreeCAD host.
+        """
+        ...
 
 
 class _FittingVisualView(Protocol):
@@ -146,7 +165,18 @@ class _FittingVisualFeature(Protocol):
     Center: object
     Size: object
 
-    def addProperty(self, property_type: str, name: str, group: str = "") -> object: ...
+    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
+        """Register a custom FreeCAD property on the native feature.
+
+        Args:
+            property_type: FreeCAD property type identifier.
+            name: Property name persisted in the document.
+            group: Property editor category used to group related fields.
+
+        Returns:
+            Native feature/property-registration result from the FreeCAD host.
+        """
+        ...
 
 
 def _drape_target_source(doc: _FittingDocument | None) -> object | None:
@@ -853,26 +883,65 @@ def _closest_triangle_weights(
     )
 
 
-def _weighted_triangle_point(vertices, triangle, weights):
-    """Interpolate the current mesh position associated with saved triangle weights."""
-    return tuple(
-        sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3)) for axis in range(3)
+def _weighted_triangle_point(
+    vertices: tuple[Point3, ...],
+    triangle: Triangle,
+    weights: Point3,
+) -> Point3:
+    """Interpolate a mesh point from its triangle's barycentric weights.
+
+    Args:
+        vertices: Ordered mesh vertices in object-local coordinates.
+        triangle: Three vertex indices for the selected mesh face.
+        weights: Barycentric weights associated with the three triangle vertices.
+
+    Returns:
+        Three-dimensional interpolated point in object-local coordinates.
+    """
+    return cast(
+        "Point3",
+        tuple(
+            sum(vertices[triangle[i]][axis] * float(weights[i]) for i in range(3))
+            for axis in range(3)
+        ),
     )
 
 
 def _mesh_anchor_local_position(
-    target, anchor, *, vector_factory: Callable[..., object] | None = None
-):
-    """Resolve a mesh anchor against current vertices, preserving its material location."""
+    target: object,
+    anchor: Mapping[str, object],
+    *,
+    vector_factory: Callable[..., object] | None = None,
+) -> Point3:
+    """Resolve a mesh anchor against current vertices, preserving its material location.
+
+    Args:
+        target: Native mesh-bearing target whose current topology is inspected.
+        anchor: Decoded surface-anchor record with triangle and barycentric fields.
+        vector_factory: Optional native vector constructor used by headless tests.
+
+    Returns:
+        Object-local point reconstructed from the saved material location.
+
+    Raises:
+        ValueError: If saved triangle indices or barycentric weights are no longer valid.
+    """
     topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
-        return tuple(float(value) for value in anchor.get("local_point", (0.0, 0.0, 0.0)))
+        values = cast(
+            "Iterable[SupportsFloat | str | bytes]",
+            anchor.get("local_point", (0.0, 0.0, 0.0)),
+        )
+        return cast("Point3", tuple(float(value) for value in values))
     vertices, triangles = topology
-    triangle_index = int(anchor["triangle_index"])
+    triangle_index = int(cast("SupportsInt | str | bytes", anchor["triangle_index"]))
     if triangle_index < 0 or triangle_index >= len(triangles):
         msg = "anchored mesh triangle no longer exists"
         raise ValueError(msg)
-    weights = tuple(float(value) for value in anchor["barycentric"])
+    weights = tuple(
+        float(value)
+        for value in cast("Iterable[SupportsFloat | str | bytes]", anchor["barycentric"])
+    )
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
         msg = "stored mesh-anchor barycentric coordinates are invalid"
         raise ValueError(msg)
@@ -880,9 +949,25 @@ def _mesh_anchor_local_position(
 
 
 def _mesh_anchor_coordinates(
-    target, local_point, *, vector_factory: Callable[..., object] | None = None
-):
-    """Find the closest mesh triangle and retain its barycentric hit coordinate."""
+    target: object,
+    local_point: Point3,
+    *,
+    vector_factory: Callable[..., object] | None = None,
+) -> tuple[int, Point3, Point3] | None:
+    """Find the closest mesh triangle and retain its barycentric hit coordinate.
+
+    Args:
+        target: Native mesh-bearing target whose current topology is inspected.
+        local_point: Point to project in the target object's local coordinate frame.
+        vector_factory: Optional native vector constructor used by headless tests.
+
+    Returns:
+        Triangle index, barycentric weights, and closest point; None when the target
+        is not a usable mesh.
+
+    Raises:
+        ValueError: If the target contains no usable mesh triangles.
+    """
     topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None:
         return None
@@ -1153,7 +1238,18 @@ def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[s
 def _fitting_marker_group(
     doc: _FittingDocument, create: bool = False
 ) -> _FittingMarkerGroup | None:
-    """Return the presentation-only container for generated fitting display aids."""
+    """Return the presentation-only container for generated fitting display aids.
+
+    Args:
+        doc: FreeCAD document that owns the generated marker group.
+        create: Whether to create the group when it does not exist.
+
+    Returns:
+        Marker group, or None when it is absent and creation was not requested.
+
+    Raises:
+        RuntimeError: If the reserved marker-group name belongs to a non-group object.
+    """
     group = doc.getObject(_FITTING_MARKER_GROUP_NAME)
     if group is None and create:
         group = doc.addObject("App::DocumentObjectGroup", _FITTING_MARKER_GROUP_NAME)
@@ -1170,7 +1266,12 @@ def _fitting_marker_group(
 
 
 def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str]) -> None:
-    """Remove obsolete generated marker features, never authored geometry."""
+    """Remove obsolete generated marker features, never authored geometry.
+
+    Args:
+        doc: Document whose generated fitting markers are reconciled.
+        wanted_names: Internal names of current marker features that must be retained.
+    """
     for obj in tuple(doc.Objects or ()):
         name = str(getattr(obj, "Name", "") or "")
         role = str(getattr(obj, "FittingType", "") or "")
@@ -1870,8 +1971,15 @@ def apply_arrangement_point(
     return position_piece(piece, point.x, point.y, point.offset, rotations[point.wrap_direction])
 
 
-def reset_arrangement():
-    """Restore every assigned piece to its saved pre-arrangement placement."""
+def reset_arrangement() -> _FittingSceneFeature:
+    """Restore every assigned piece to its saved pre-arrangement placement.
+
+    Returns:
+        Updated fitting scene after restoring home placements and recomputing the document.
+
+    Raises:
+        ValueError: If no active document or fitting scene exists.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import PiecePlacement
@@ -1937,8 +2045,20 @@ def create_simulation_from_fitting() -> object:
     )
 
 
-def open_interactive_arrange(scene=None):
-    """Open the direct-manipulation fitting panel for the active fitting scene."""
+def open_interactive_arrange(
+    scene: _FittingSceneFeature | None = None,
+) -> object:
+    """Open the direct-manipulation fitting panel for the active fitting scene.
+
+    Args:
+        scene: Optional fitting scene to display; otherwise the active document's scene is used.
+
+    Returns:
+        Native fitting task panel that exposes direct-manipulation arrangement controls.
+
+    Raises:
+        RuntimeError: If no active FreeCAD document exists.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -1955,8 +2075,12 @@ def open_interactive_arrange(scene=None):
     return panel
 
 
-def create_arrangement_point_from_viewport():
-    """Open Interactive Arrange and arm the viewport surface-pick workflow."""
+def create_arrangement_point_from_viewport() -> object:
+    """Open Interactive Arrange and arm the viewport surface-pick workflow.
+
+    Returns:
+        Fitting task panel after its viewport surface-pick action is armed.
+    """
     panel = open_interactive_arrange()
     panel.start_anchor_pick()
     return panel
