@@ -1333,16 +1333,38 @@ def _make_tunic_sketch(
     return sketch, points
 
 
-def _adopt_sketch(sketch, name, allowance, grainline):
+def _adopt_sketch(
+    sketch: _NativeSketch,
+    name: str,
+    allowance: float,
+    grainline: object,
+) -> _PatternPiece:
+    """Adopt an authored Sketcher profile as the persistent Cloth PatternPiece source.
+
+    Args:
+        sketch: Native Sketcher profile created for the garment panel.
+        name: Stable display name assigned to the resulting pattern piece.
+        allowance: Seam allowance distance in millimetres.
+        grainline: Grainline setting forwarded unchanged to the pattern command.
+
+    Returns:
+        PatternPiece retaining the selected native sketch as its source.
+
+    Raises:
+        RuntimeError: If the created piece does not retain the selected source sketch.
+    """
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 
     Gui.Selection.clearSelection()
     Gui.Selection.addSelection(sketch)
-    piece = create_pattern_piece_from_selected_sketch(
-        name=name, allowance=allowance, grainline=grainline
+    piece = cast(
+        "_PatternPiece",
+        create_pattern_piece_from_selected_sketch(
+            name=name, allowance=allowance, grainline=grainline
+        ),
     )
     piece.Label = name
-    doc = App.ActiveDocument
+    doc = cast("_RecomputableDocument", App.ActiveDocument)
     doc.recompute()
     if piece.Sketch is not sketch:
         msg = "Cloth PatternPiece did not retain the selected native Sketcher source"
@@ -1350,7 +1372,13 @@ def _adopt_sketch(sketch, name, allowance, grainline):
     return piece
 
 
-def style_mesh(obj, label):
+def style_mesh(obj: _PatternPiece | _DrapePanel, label: str) -> None:
+    """Apply consistent shaded display properties to a native pattern or drape mesh.
+
+    Args:
+        obj: Native pattern piece or evaluated drape panel to display.
+        label: Human-readable label shown in the FreeCAD model tree.
+    """
     obj.Label = label
     try:
         obj.ViewObject.DisplayMode = "Shaded"
@@ -1629,9 +1657,22 @@ def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
 
 
 def _projected_point_within_outline_margin(
-    x: float, z: float, points: list[tuple[float, float]], margin: float
+    x: float,
+    z: float,
+    points: list[tuple[float, float]],
+    margin: float,
 ) -> bool:
-    """Return whether a projected point lies in or near a closed 2D outline."""
+    """Test whether a projected point is inside or near a closed outline.
+
+    Args:
+        x: Horizontal coordinate of the projected point.
+        z: Vertical coordinate of the projected point.
+        points: Ordered closed outline vertices in the same coordinate frame.
+        margin: Allowed Euclidean distance from the outline boundary.
+
+    Returns:
+        True when the point is inside the polygon or within the boundary margin.
+    """
     px = float(x)
     pz = float(z)
     margin_sq = float(margin) * float(margin)
@@ -1659,9 +1700,18 @@ def _projected_point_within_outline_margin(
 
 
 def _validate_authoritative_tunic_seams(
-    scene: object, seam_records: list[tuple[object, object, object]]
+    scene: _SimulationScene,
+    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
 ) -> None:
-    """Fail unless every authored seam's actual solver stitch pairs converge."""
+    """Require every authored seam's exact solver stitch pairs to converge.
+
+    Args:
+        scene: Native simulation scene whose proxy owns the current backend.
+        seam_records: Authored seam objects paired with their source PatternPieces.
+
+    Raises:
+        RuntimeError: If a seam lacks exact solver pairs or exceeds the gap contract.
+    """
     positions = tuple(scene.Proxy._base_or_restore().backend.positions())
     if not positions:
         msg = "PositionBasedDynamics backend returned no simulated particle positions"
@@ -1753,6 +1803,19 @@ def _run_production_tunic_drape(
     view: object,
     seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
 ) -> None:
+    """Exercise realtime preview, validate collision settings, and capture a 90-step drape.
+
+    Args:
+        simulation_panel: GUI panel whose step action advances the production solver.
+        scene: Native scene whose authored settings and evaluated state are audited.
+        doc: FreeCAD document containing the scene and generated cloth panels.
+        task_dock: Active task dock hidden during screenshot capture and restored afterwards.
+        view: Native active view used to frame and capture drape progression.
+        seam_records: Authored seams paired with their source pattern pieces.
+
+    Raises:
+        RuntimeError: If preview, collision configuration, or drape progression violates its contract.
+    """
     """Exercise realtime preview, validate collision settings, and capture the 90-step drape."""
     from math import ceil
     from time import monotonic, perf_counter, sleep
@@ -1960,6 +2023,15 @@ def _run_production_tunic_drape(
 
 
 def simulation() -> None:
+    """Build, simulate, and capture the canonical two-panel tunic in FreeCAD.
+
+    The fixture keeps native Sketcher profiles and semantic seam references
+    authoritative, validates target/collision boundaries, and writes visual and
+    numeric evidence for the evaluated cloth.
+
+    Raises:
+        RuntimeError: If the authored pattern, target, seam, solver, or drape contract fails.
+    """
     import os
 
     os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
@@ -2025,7 +2097,18 @@ def simulation() -> None:
         raise RuntimeError(msg)
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
-    def arrangement_world(name):
+    def arrangement_world(name: str) -> _Vector3:
+        """Resolve a named avatar arrangement point into world coordinates.
+
+        Args:
+            name: Stable arrangement-point identifier stored on the avatar.
+
+        Returns:
+            World-space vector corresponding to the requested arrangement point.
+
+        Raises:
+            RuntimeError: If the avatar does not contain the named arrangement point.
+        """
         raw = next(
             (
                 value
@@ -2045,7 +2128,18 @@ def simulation() -> None:
     hip_point = arrangement_world("hip")
     if TUNIC_PRODUCTION_AUDIT:
 
-        def landmark_world(name: str) -> object:
+        def landmark_world(name: str) -> _Vector3:
+            """Resolve a persisted forward-kinematic landmark into world coordinates.
+
+            Args:
+                name: Stable landmark identifier stored on the posed avatar.
+
+            Returns:
+                World-space landmark vector after applying the avatar placement.
+
+            Raises:
+                RuntimeError: If the landmark is missing or its coordinates are malformed.
+            """
             raw = next(
                 (
                     value
@@ -2113,7 +2207,23 @@ def simulation() -> None:
     clearance = max(20.0, 0.08 * body_depth)
     rot = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def target_relative_piece_placement(side: str, outline: list[tuple[float, float]]) -> object:
+    def target_relative_piece_placement(
+        side: str,
+        outline: list[tuple[float, float]],
+    ) -> object:
+        """Place a panel in front of or behind the avatar using target geometry.
+
+        Args:
+            side: Panel side, restricted to "front" or "back".
+            outline: Authored two-dimensional panel outline in local coordinates.
+
+        Returns:
+            Native FreeCAD placement for the requested panel side.
+
+        Raises:
+            RuntimeError: If the authored outline does not overlap the target projection.
+            ValueError: If side is neither "front" nor "back".
+        """
         if TUNIC_PRODUCTION_AUDIT:
             panel_origin_x = x_mid - hem_width / 2.0
             torso_half_width = max(80.0, 0.30 * shoulder_width)
@@ -2164,7 +2274,23 @@ def simulation() -> None:
             raise ValueError(msg)
         return App.Placement(App.Vector(x_mid - hem_width / 2.0, y, hem_z), rot)
 
-    def make_piece(name, side, neckline_ratio, neckline_drop):
+    def make_piece(
+        name: str,
+        side: str,
+        neckline_ratio: float,
+        neckline_drop: float,
+    ) -> tuple[_PatternPiece, list[tuple[float, float]]]:
+        """Create one native Sketcher panel and adopt it as a Cloth PatternPiece.
+
+        Args:
+            name: Stable front/back panel identifier.
+            side: Target-relative side used to calculate piece placement.
+            neckline_ratio: Fractional half-width for the authored neckline opening.
+            neckline_drop: Fraction of garment height used for the neckline scoop.
+
+        Returns:
+            Persistent PatternPiece and its ordered authored two-dimensional outline.
+        """
         sketch, outline = _make_tunic_sketch(
             doc,
             name + "Source",
@@ -2967,7 +3093,12 @@ def simulation() -> None:
     App.closeDocument(doc.Name)
 
 
-def main():
+def main() -> None:
+    """Run the configured GUI acceptance scenarios and save their evidence.
+
+    Raises:
+        RuntimeError: If FreeCAD GUI startup or a requested acceptance scenario fails.
+    """
     log("script-start")
     if Gui.getMainWindow() is None or not Gui.getMainWindow().isVisible():
         msg = "FreeCAD GUI did not launch"
