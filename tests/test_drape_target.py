@@ -221,9 +221,7 @@ def test_target_spec_rejects_invalid_settings() -> None:
             "drape target deflection must be positive",
         ),
         (
-            DrapeTargetSpec(
-                GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, INVALID_THICKNESS_MM
-            ),
+            DrapeTargetSpec(GEOMETRY_TARGET_TYPE, TARGET_NAME, DEFLECTION_MM, INVALID_THICKNESS_MM),
             "drape target thickness must not be negative",
         ),
     )

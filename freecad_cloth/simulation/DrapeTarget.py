@@ -14,6 +14,7 @@ from freecad_cloth.shared.SourceSignature import source_signature
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+
 class _DrapeTargetFeature(Protocol):
     """Persisted FreeCAD feature fields written by target lifecycle operations."""
 

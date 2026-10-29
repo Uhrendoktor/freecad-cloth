@@ -145,10 +145,7 @@ def _artifact_response_error_message(
         A diagnostic message with safe response metadata and redacted body preview.
     """
     header_suffix, response_suffix = _response_header_suffixes(response, error_body)
-    status = (
-        f"HTTP {response.status} {response.reason}"
-        f"{header_suffix}{response_suffix}"
-    )
+    status = f"HTTP {response.status} {response.reason}{header_suffix}{response_suffix}"
     detail = _github_error_detail(error_body)
     if detail is not None:
         return f"GitHub artifact API request failed: {status}: {detail}"

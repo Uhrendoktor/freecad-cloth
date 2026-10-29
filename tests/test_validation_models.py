@@ -6,9 +6,9 @@ from __future__ import annotations
 import math
 from typing import cast
 
-import pytest
 from pydantic import ValidationError
-from tests.support.assertions import require
+
+import pytest
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
 from freecad_cloth.common.ValidationModels import (
@@ -40,6 +40,8 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     correspondence_samples,
 )
 from freecad_cloth.simulation.ClothSolver import ClothSystem, DistanceConstraint, Particle
+from tests.support.assertions import require
+
 EXPECTED_CLEARANCE_MM = 2.0
 EXPECTED_DISCONNECTED_COMPONENTS = 2
 EXPECTED_PNG_WIDTH = 800
