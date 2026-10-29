@@ -163,6 +163,134 @@ class _TaskDockProxy:
         """Accept a raise request when no real task dock is available."""
 
 
+class _Vector3(Protocol):
+    """World-space FreeCAD vector coordinates used by landmark checks."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _RecomputableDocument(Protocol):
+    """Document operation required by the FreeCAD visual acceptance harness."""
+
+    def recompute(self) -> None: ...
+
+
+class _NativeCurve(Protocol):
+    """Native sketch curve parameters used to validate authored arc geometry."""
+
+    FirstParameter: float
+    LastParameter: float
+
+
+class _NativeSketch(Protocol):
+    """Native Sketcher object contract used by persistent pattern-piece sources."""
+
+    Name: str
+    Geometry: Sequence[_NativeCurve]
+    Placement: object
+    SemanticEdgeIds: Sequence[str]
+
+
+class _ViewObject(Protocol):
+    """Display properties used to present native pattern and drape objects."""
+
+    DisplayMode: str
+    ShapeColor: tuple[float, float, float]
+    Transparency: float
+    LineWidth: float
+    SpecularColor: tuple[float, float, float]
+    Shininess: float
+    Visibility: bool
+
+
+class _PatternPiece(Protocol):
+    """Pattern-piece properties retained by the authoritative Sketcher model."""
+
+    Name: str
+    Label: str
+    PieceId: str
+    Placement: object
+    Sketch: _NativeSketch
+    ViewObject: _ViewObject
+
+
+class _SceneMesh(Protocol):
+    """Mesh measurement used to validate generated drape panels."""
+
+    CountFacets: int
+
+
+class _DrapePanel(Protocol):
+    """Native drape panel properties used to style and inspect simulation results."""
+
+    Name: str
+    Label: str
+    Mesh: _SceneMesh
+    ViewObject: _ViewObject
+
+
+class _SimulationBackend(Protocol):
+    """Solver observations consumed by visual acceptance and seam-gap audits."""
+
+    name: str
+
+    def positions(self) -> Sequence[Sequence[float]]: ...
+
+
+class _SimulationBaseProxy(Protocol):
+    """Base scene proxy state exposed while creating or invalidating its backend."""
+
+    backend: _SimulationBackend
+    source_signature: object | None
+
+
+class _SimulationProxy(Protocol):
+    """Native simulation proxy operations required by the drape audit."""
+
+    backend: _SimulationBackend
+    seam_stitch_pairs: dict[str, Sequence[tuple[int, int]]]
+
+    def _base_or_restore(self) -> _SimulationBaseProxy: ...
+
+    def execute(self, scene: "_SimulationScene") -> None: ...
+
+
+class _SteppableSimulationPanel(Protocol):
+    """Quality-panel action used to advance deterministic batches of simulation steps."""
+
+    def step(self, count: int) -> None: ...
+
+
+class _SimulationScene(Protocol):
+    """Authored native scene properties asserted by the canonical tunic audit."""
+
+    Document: _RecomputableDocument
+    DrapeTarget: object | None
+    Proxy: _SimulationProxy
+    StartHeight: float
+    QualityPreset: str
+    ParticleDistance: float
+    SolverIterations: int
+    SolverSubsteps: int
+    TimeStep: float
+    GravityX: float
+    GravityY: float
+    GravityZ: float
+    FabricFriction: float
+    PinMode: str
+    PinSelection: list[int]
+    ClothPieces: list[_PatternPiece]
+    ParticleCount: int
+    Steps: int
+    DrapePanels: Sequence[_DrapePanel]
+    SimulatedTime: float
+    FiniteState: bool
+
+    def touch(self) -> None: ...
+
+
 def validate_task(panel: object | None, name: str, required: Sequence[str]) -> _TaskDock:
     """Verify that a task panel exposes each required piece of visible text.
 
@@ -1439,12 +1567,12 @@ def _validate_authoritative_tunic_seams(
 
 
 def _run_production_tunic_drape(
-    simulation_panel: object,
-    scene: object,
-    doc: object,
-    task_dock: object,
+    simulation_panel: _SteppableSimulationPanel,
+    scene: _SimulationScene,
+    doc: _RecomputableDocument,
+    task_dock: _TaskDock,
     view: object,
-    seam_records: list[tuple[object, object, object]],
+    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
 ) -> None:
     """Exercise realtime preview, validate collision settings, and capture the 90-step drape."""
     from math import ceil
@@ -1652,7 +1780,7 @@ def _run_production_tunic_drape(
     log("tunic-simulation-total-ms=%.1f" % (1000.0 * (perf_counter() - started)))
 
 
-def simulation():
+def simulation() -> None:
     import os
 
     os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
@@ -1667,7 +1795,7 @@ def simulation():
     from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 
     doc = App.newDocument("ClothSimulationVisualRegression")
-    scene = create_quality_simulation_scene(doc)
+    scene = cast("_SimulationScene", create_quality_simulation_scene(doc))
     avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     target = scene.DrapeTarget
     if avatar is None or str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
