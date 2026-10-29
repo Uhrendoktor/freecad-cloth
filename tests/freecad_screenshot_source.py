@@ -175,7 +175,9 @@ class _Vector3(Protocol):
 class _RecomputableDocument(Protocol):
     """Document operation required by the FreeCAD visual acceptance harness."""
 
-    def recompute(self) -> None: ...
+    def recompute(self) -> None:
+        """Recompute the owning FreeCAD document after geometry edits."""
+        ...
 
 
 class _NativeCurve(Protocol):
@@ -192,6 +194,14 @@ class _NativeSketch(Protocol):
     Geometry: Sequence[_NativeCurve]
     Placement: object
     SemanticEdgeIds: Sequence[str]
+
+
+class _PatternBoundary(Protocol):
+    """Sampled PatternIR edge contract used by neckline correspondence validation."""
+
+    id: str
+    samples: Sequence[tuple[float, float]]
+    parameter_range: tuple[float, float]
 
 
 class _ViewObject(Protocol):
@@ -237,7 +247,13 @@ class _SimulationBackend(Protocol):
 
     name: str
 
-    def positions(self) -> Sequence[Sequence[float]]: ...
+    def positions(self) -> Sequence[Sequence[float]]:
+        """Return current world-space solver particle positions in stable index order.
+
+        Returns:
+            Three-dimensional particle coordinates in backend index order.
+        """
+        ...
 
 
 class _SimulationBaseProxy(Protocol):
@@ -253,15 +269,29 @@ class _SimulationProxy(Protocol):
     backend: _SimulationBackend
     seam_stitch_pairs: dict[str, Sequence[tuple[int, int]]]
 
-    def _base_or_restore(self) -> _SimulationBaseProxy: ...
+    def _base_or_restore(self) -> _SimulationBaseProxy:
+        """Return or restore the base proxy that owns the active solver backend."""
+        ...
 
-    def execute(self, scene: "_SimulationScene") -> None: ...
+    def execute(self, scene: "_SimulationScene") -> None:
+        """Rebuild the evaluated scene state for the current authored properties.
+
+        Args:
+            scene: Simulation scene whose current properties should be evaluated.
+        """
+        ...
 
 
 class _SteppableSimulationPanel(Protocol):
     """Quality-panel action used to advance deterministic batches of simulation steps."""
 
-    def step(self, count: int) -> None: ...
+    def step(self, count: int) -> None:
+        """Advance the GUI simulation by the requested number of solver steps.
+
+        Args:
+            count: Number of fixed simulation steps to execute.
+        """
+        ...
 
 
 class _SimulationScene(Protocol):
@@ -289,7 +319,9 @@ class _SimulationScene(Protocol):
     SimulatedTime: float
     FiniteState: bool
 
-    def touch(self) -> None: ...
+    def touch(self) -> None:
+        """Mark scene inputs dirty so the proxy recomputes its cached state."""
+        ...
 
 
 def validate_task(panel: object | None, name: str, required: Sequence[str]) -> _TaskDock:
@@ -734,8 +766,26 @@ def _seam_coherence(
     }
 
 
-def _inside_target_count(points, target, collision_surface=None, solver_collision_surface=None):
-    """Count cloth vertices inside the authoritative FreeCAD mannequin target."""
+def _inside_target_count(
+    points: Sequence[tuple[float, float, float]],
+    target: object,
+    collision_surface: object | None = None,
+    solver_collision_surface: object | None = None,
+) -> int:
+    """Count cloth vertices inside the authoritative FreeCAD mannequin target.
+
+    Args:
+        points: Evaluated cloth vertices in world-space millimetres.
+        target: Native avatar object whose shape or mesh may provide containment.
+        collision_surface: Authoritative target surface used when native containment is unavailable.
+        solver_collision_surface: Optional collision surface actually consumed by the solver.
+
+    Returns:
+        Number of input vertices contained by the selected target representation.
+
+    Raises:
+        RuntimeError: If the target exposes no usable containment surface.
+    """
     shape = getattr(target, "Shape", None)
     shape_is_inside = getattr(shape, "isInside", None) if shape is not None else None
     if callable(shape_is_inside):
@@ -964,9 +1014,19 @@ def write_drape_metrics(
 
 
 def _polyline_distance_fraction(
-    point: tuple[float, float], samples: tuple[tuple[float, float], ...]
+    point: tuple[float, float],
+    samples: tuple[tuple[float, float], ...],
 ) -> tuple[float, float]:
-    """Return nearest 2D polyline distance and its normalized arc-length position."""
+    """Measure a 2D point's nearest distance to a polyline and normalized arc fraction.
+
+    Args:
+        point: Candidate two-dimensional point in the same local coordinate frame.
+        samples: Ordered sampled vertices describing the polyline.
+
+    Returns:
+        Nearest Euclidean distance and its normalized along-line position.
+        A zero-length polyline returns infinite distance and fraction zero.
+    """
     import math
 
     spans = []
@@ -997,13 +1057,27 @@ def _polyline_distance_fraction(
 
 
 def _neckline_boundary_particles(
-    piece: object,
-    boundary: object,
-    piece_indices: object,
-    boundary_chains: object,
-    particle_positions: object,
+    piece: _PatternPiece,
+    boundary: _PatternBoundary,
+    piece_indices: Sequence[int],
+    boundary_chains: Sequence[Sequence[int]],
+    particle_positions: Sequence[Sequence[float]],
 ) -> tuple[tuple[int, ...], str, float]:
-    """Resolve neckline mesh particles from semantic endpoints, with geometric fallback."""
+    """Resolve neckline mesh particles using semantic endpoints and a local-plane fallback.
+
+    Args:
+        piece: Authoritative source PatternPiece providing the local placement.
+        boundary: Sampled PatternIR boundary whose endpoints define the authored edge.
+        piece_indices: Solver particle indices belonging to this source piece.
+        boundary_chains: Candidate indexed edge chains exposed by the simulation proxy.
+        particle_positions: World-space particle coordinates in solver index order.
+
+    Returns:
+        Ordered matching particle indices, the matching method name, and endpoint error.
+
+    Raises:
+        RuntimeError: If fewer than two particles can be matched to the authored edge.
+    """
     import math
 
     import FreeCAD as App
@@ -1083,12 +1157,38 @@ def _neckline_boundary_particles(
 
 
 def _make_tunic_sketch(
-    doc, name, panel_width, garment_height, hem_width, neckline_ratio, neckline_drop=0.03
-):
+    doc: object,
+    name: str,
+    panel_width: float,
+    garment_height: float,
+    hem_width: float,
+    neckline_ratio: float,
+    neckline_drop: float = 0.03,
+) -> tuple[_NativeSketch, list[tuple[float, float]]]:
+    """Author a deterministic native Sketcher tunic panel with checked curved edges.
+
+    Args:
+        doc: Open FreeCAD document receiving the source sketch.
+        name: Stable panel name used to identify the sketch.
+        panel_width: Authored shoulder/body width in millimetres.
+        garment_height: Authored hem-to-neckline height in millimetres.
+        hem_width: Width of the bottom hem in millimetres.
+        neckline_ratio: Fractional half-width used to place neckline endpoints.
+        neckline_drop: Fraction of garment height used to scoop the neckline inward.
+
+    Returns:
+        Native Sketcher source object and the ordered authored outline points.
+
+    Raises:
+        RuntimeError: If the outline loses symmetry or a required curve degenerates.
+    """
     import Part
     import Sketcher
 
-    sketch = doc.addObject("Sketcher::SketchObject", name + "Sketch")
+    sketch = cast(
+        "_NativeSketch",
+        getattr(doc, "addObject")("Sketcher::SketchObject", name + "Sketch"),
+    )
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
     armhole_z = 0.62 * float(garment_height)
@@ -1159,14 +1259,16 @@ def _make_tunic_sketch(
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
 
-    sketch.addGeometry(geometry, False)
+    getattr(sketch, "addGeometry")(geometry, False)
     # This fixture authors every segment explicitly; preserve each segment's
     # coordinates so an underconstrained Sketcher solve cannot fold the straight
     # shoulders/sides/hem across the outline while retaining the two fixed arcs.
     # Shared endpoints are authored from the same point tuples, so no coincidence
     # solver movement is needed to close this deterministic test profile.
-    sketch.addConstraint([Sketcher.Constraint("Block", index) for index in range(len(geometry))])
-    doc.recompute()
+    getattr(sketch, "addConstraint")(
+        [Sketcher.Constraint("Block", index) for index in range(len(geometry))]
+    )
+    cast("_RecomputableDocument", doc).recompute()
     for index in (2, 6):
         curve = sketch.Geometry[index]
         first = float(curve.FirstParameter)
@@ -1186,7 +1288,10 @@ def _make_tunic_sketch(
         native_samples = tuple(
             evaluator(first + parameter_span * fraction / 8.0) for fraction in range(9)
         )
-        native_xy = tuple((float(sample.x), float(sample.y)) for sample in native_samples)
+        native_xy = tuple(
+            (float(cast("_Vector3", sample).x), float(cast("_Vector3", sample).y))
+            for sample in native_samples
+        )
         start_xy, end_xy = native_xy[0], native_xy[-1]
         vertical_span = end_xy[1] - start_xy[1]
         if abs(vertical_span) <= 1e-9:
