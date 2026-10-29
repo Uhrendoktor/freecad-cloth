@@ -5,6 +5,7 @@ import re
 import sys
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Protocol, TypedDict, cast
 from unittest import TestCase
 from xml.etree import ElementTree
 
@@ -18,6 +19,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
     add_marks,
     add_notches,
     derive_cut_boundary,
+    DerivedPattern,
 )
 from freecad_cloth.pattern.PatternExport import (
     export_pattern_piece,
@@ -42,7 +44,66 @@ from freecad_cloth.pattern.PatternGeometry import (
 )
 
 
-def _curved_pattern():
+class _ExportOptions(TypedDict):
+    """Typed keyword controls shared by SVG, DXF, and export validation."""
+
+    curve_samples: int
+    derived: DerivedPattern
+    piece_id: str
+    seam_ids: tuple[str, ...]
+
+
+class _RenderReport(TypedDict):
+    """Validated raster evidence returned by the SVG rendering check."""
+
+    valid: bool
+    renderer: str
+    physical_width_mm: float
+    physical_height_mm: float
+    viewbox: list[float]
+    raster_width_px: int
+    raster_height_px: int
+    ink_pixel_count: int
+    ink_bounds_px: list[int]
+    png_path: str
+
+
+class _NativeSketch(Protocol):
+    """Native or test-double sketch properties read by the export adapter."""
+
+    SemanticEdgeIds: tuple[str, ...]
+
+
+class _PieceSeed(Protocol):
+    """Minimum properties required to attach a Sketcher boundary to a piece."""
+
+    PieceId: str
+    Width: float
+    Height: float
+
+
+class _ExportDocument(Protocol):
+    """Document collection used to discover persisted seams and marks."""
+
+    Objects: tuple[object, ...]
+
+
+class _PatternPiece(_PieceSeed, Protocol):
+    """Pattern-piece fields consumed by export after Sketcher adoption."""
+
+    PatternType: str
+    Name: str
+    Label: str
+    SeamAllowance: float
+    GrainlineAngle: float
+    GeometryAuthority: str
+    Sketch: _NativeSketch
+    Document: _ExportDocument
+
+
+
+def _curved_pattern() -> ParametricPattern:
+    """Create a deterministic curved pattern used by the export contract tests."""
     return ParametricPattern(
         [
             LineSegment("bottom", (0.0, 0.0), (100.0, 0.0)),
@@ -53,7 +114,15 @@ def _curved_pattern():
     )
 
 
-def _derived(pattern):
+def _derived(pattern: ParametricPattern) -> DerivedPattern:
+    """Build the cut contour, notch, and grainline used by export tests.
+
+    Args:
+        pattern: Authored sewing boundary from which cut geometry is derived.
+
+    Returns:
+        Derived contour with one notch and one grainline mark.
+    """
     result = derive_cut_boundary(pattern, 5.0, curve_samples=9)
     result = add_notches(result, [Notch("notch-1", "right", 0.5)])
     return add_marks(
@@ -109,14 +178,17 @@ def _native_sketch(
         LineSegment(start, outline[(index + 1) % len(outline)])
         for index, start in enumerate(outline)
     )
-    return SimpleNamespace(
-        Geometry=geometry,
-        SemanticEdgeIds=tuple(f"{piece_id}:edge:{index}" for index in range(len(geometry))),
-        getConstruction=lambda _index: False,
+    return cast(
+        "_NativeSketch",
+        SimpleNamespace(
+            Geometry=geometry,
+            SemanticEdgeIds=tuple(f"{piece_id}:edge:{index}" for index in range(len(geometry))),
+            getConstruction=lambda _index: False,
+        ),
     )
 
 
-def _native_piece(piece: object) -> object:
+def _native_piece(piece: _PieceSeed) -> _PatternPiece:
     """Attach a native rectangular Sketcher boundary to an export test fixture.
 
     Args:
@@ -126,12 +198,13 @@ def _native_piece(piece: object) -> object:
         The same test object with Sketcher as its geometry authority.
     """
     width, height = float(piece.Width), float(piece.Height)
-    piece.GeometryAuthority = "Sketcher"
-    piece.Sketch = _native_sketch(
-        str(piece.PieceId),
+    adopted_piece = cast("_PatternPiece", piece)
+    adopted_piece.GeometryAuthority = "Sketcher"
+    adopted_piece.Sketch = _native_sketch(
+        str(adopted_piece.PieceId),
         ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height)),
     )
-    return piece
+    return adopted_piece
 
 
 def test_svg_and_dxf_preserve_piece_and_construction_semantics():
@@ -224,12 +297,12 @@ def test_standalone_export_uses_complete_current_metadata_schema() -> None:
 def test_release_gate_validates_deterministic_svg_and_dxf_round_trip():
     pattern = _curved_pattern()
     derived = _derived(pattern)
-    kwargs = dict(
-        curve_samples=9,
-        derived=derived,
-        piece_id="bodice-front",
-        seam_ids=("seam-neck", "seam-side"),
-    )
+    kwargs: _ExportOptions = {
+        "curve_samples": 9,
+        "derived": derived,
+        "piece_id": "bodice-front",
+        "seam_ids": ("seam-neck", "seam-side"),
+    }
 
     svg = to_svg(pattern, **kwargs)
     result = validate_export(pattern, svg, "svg", **kwargs)
@@ -328,7 +401,7 @@ def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Pat
     )
 
     assert result["valid"] is True
-    report = result["render"]
+    report = cast("_RenderReport", result["render"])
     assert report["valid"] is True
     assert report["renderer"] == "QtSvg"
     assert report["physical_width_mm"] == 110.0
@@ -482,7 +555,9 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
         GrainlineAngle = 90.0
 
     class Document:
-        Objects = ()
+        """Minimal document double that exposes its persisted object collection."""
+
+        Objects: tuple[object, ...] = ()
 
     piece = _native_piece(Piece())
     piece.Document = Document()
