@@ -625,13 +625,13 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
         condition=(
             math.isclose(previous[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
         ),
-        message="Export contract failed: math.isclose(previous[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)",
+        message="Exported perimeter width must match the expected cut size.",
     )
     require(
         condition=(
             math.isclose(following[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
         ),
-        message="Export contract failed: math.isclose(following[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)",
+        message="Exported perimeter width must match the expected cut size.",
     )
     require(
         condition=((previous[1] - 35.0) * (following[1] - 35.0) < 0),
@@ -922,13 +922,13 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
         condition=(
             math.isclose(max(xs) - min(xs), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
         ),
-        message="Export contract failed: math.isclose(max(xs) - min(xs), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)",
+        message="Cut-contour width must match the expected cut size.",
     )
     require(
         condition=(
             math.isclose(max(ys) - min(ys), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
         ),
-        message="Export contract failed: math.isclose(max(ys) - min(ys), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)",
+        message="Cut-contour height must match the expected cut size.",
     )
     require(
         condition=(
@@ -1237,7 +1237,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             )
             require(
                 condition=("10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload),
-                message="Export contract failed: \"10\\n30.000000\\n20\\n0.000000\\n10\\n70.000000\\n",
+                message="DXF export must preserve the expected entity coordinates.",
             )
 
 
