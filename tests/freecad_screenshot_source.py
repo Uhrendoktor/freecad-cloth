@@ -228,9 +228,10 @@ class _PatternPiece(Protocol):
 
 
 class _SceneMesh(Protocol):
-    """Mesh measurement used to validate generated drape panels."""
+    """Native simulation mesh measurements used by the drape visual audit."""
 
     CountFacets: int
+    BoundBox: "_BoundBox"
 
 
 class _BoundBox(Protocol):
@@ -265,6 +266,27 @@ class _DrapePanel(Protocol):
     ViewObject: _ViewObject
 
 
+class _SeamRecord(Protocol):
+    """Native seam properties inspected by the visual and solver acceptance harness."""
+
+    Name: str
+    Label: str
+    SeamId: str
+    Status: str
+    Shape: object
+    EdgeAId: str
+    EdgeBId: str
+    EdgeASignature: str
+    EdgeBSignature: str
+    ViewObject: _ViewObject
+
+
+class _SewingOperationView(Protocol):
+    """Native Sewing feature display properties used during screenshot cleanup."""
+
+    ViewObject: _ViewObject
+
+
 class _SimulationBackend(Protocol):
     """Solver observations consumed by visual acceptance and seam-gap audits."""
 
@@ -291,6 +313,7 @@ class _SimulationProxy(Protocol):
 
     backend: _SimulationBackend
     seam_stitch_pairs: dict[str, Sequence[tuple[int, int]]]
+    source_signature: object | None
 
     def _base_or_restore(self) -> _SimulationBaseProxy:
         """Return or restore the base proxy that owns the active solver backend.
@@ -736,7 +759,7 @@ def _post_drape_seam_gap(
 
 def _seam_coherence(
     _panels: Sequence[_DrapePanel],
-    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+    seam_records: Sequence[tuple[_SeamRecord, _PatternPiece, _PatternPiece]],
     proxy: _SimulationProxy | None = None,
 ) -> dict[str, object]:
     """Summarize seam gaps using the exact particle pairs passed to the solver.
@@ -897,7 +920,7 @@ def write_drape_metrics(
     center_x: float | None = None,
     shoulder_z: float | None = None,
     hem_z: float | None = None,
-    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]] = (),
+    seam_records: Sequence[tuple[_SeamRecord, _PatternPiece, _PatternPiece]] = (),
     proxy: _SimulationProxy | None = None,
     collision_surface: object | None = None,
 ) -> None:
@@ -1578,7 +1601,7 @@ def capture_tunic_sewing_view(
     front: _PatternPiece,
     back: _PatternPiece,
     hem_width: float,
-    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+    seam_records: Sequence[tuple[_SeamRecord, _PatternPiece, _PatternPiece]],
 ) -> None:
     """Capture the Sewing workbench using the canonical tunic pieces and seams.
 
@@ -1744,7 +1767,7 @@ def capture_tunic_sewing_view(
     finally:
         close_task()
         if sewing is not None:
-            sewing.ViewObject.Visibility = False
+            cast("_SewingOperationView", sewing).ViewObject.Visibility = False
         for preview in preview_sketches:
             if doc.getObject(preview.Name) is not None:
                 doc.removeObject(preview.Name)
@@ -1803,7 +1826,7 @@ def _projected_point_within_outline_margin(
 
 def _validate_authoritative_tunic_seams(
     scene: _SimulationScene,
-    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+    seam_records: Sequence[tuple[_SeamRecord, _PatternPiece, _PatternPiece]],
 ) -> None:
     """Require every authored seam's exact solver stitch pairs to converge.
 
@@ -1917,7 +1940,7 @@ def _run_production_tunic_drape(
     doc: _RecomputableDocument,
     task_dock: _TaskDock,
     view: object,
-    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+    seam_records: Sequence[tuple[_SeamRecord, _PatternPiece, _PatternPiece]],
 ) -> None:
     """Exercise realtime preview, validate collision settings, and capture a 90-step drape.
 
