@@ -293,7 +293,11 @@ class _SimulationProxy(Protocol):
     seam_stitch_pairs: dict[str, Sequence[tuple[int, int]]]
 
     def _base_or_restore(self) -> _SimulationBaseProxy:
-        """Return or restore the base proxy that owns the active solver backend."""
+        """Return or restore the base proxy that owns the active solver backend.
+
+        Returns:
+            Proxy boundary that exposes the current backend and its source signature.
+        """
         ...
 
     def execute(self, scene: "_SimulationScene") -> None:
@@ -1462,8 +1466,20 @@ def style_mesh(obj: _PatternPiece | _DrapePanel, label: str) -> None:
         pass
 
 
-def capture_tunic_pattern_view(doc, front, back, hem_width):
-    """Capture the exact Sketcher profiles that are subsequently used by the 3D audit."""
+def capture_tunic_pattern_view(
+    doc: _RecomputableDocument,
+    front: _PatternPiece,
+    back: _PatternPiece,
+    hem_width: float,
+) -> None:
+    """Capture the exact Sketcher profiles used by the subsequent 3D audit.
+
+    Args:
+        doc: FreeCAD document containing the two authoritative source pieces.
+        front: Front pattern piece whose source sketch defines the audited profile.
+        back: Back pattern piece whose source sketch defines the audited profile.
+        hem_width: Authored bottom-hem width in millimetres.
+    """
     from freecad_cloth.pattern.PatternGui import PatternPieceTaskPanel
 
     pieces = (front, back)
@@ -1557,8 +1573,25 @@ def capture_tunic_pattern_view(doc, front, back, hem_width):
         events()
 
 
-def capture_tunic_sewing_view(doc, front, back, hem_width, seam_records):
-    """Capture the Sewing workbench using the canonical simulation's tunic pieces and seams."""
+def capture_tunic_sewing_view(
+    doc: _RecomputableDocument,
+    front: _PatternPiece,
+    back: _PatternPiece,
+    hem_width: float,
+    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+) -> None:
+    """Capture the Sewing workbench using the canonical tunic pieces and seams.
+
+    Args:
+        doc: FreeCAD document containing the authoritative pattern pieces and seam objects.
+        front: Front PatternPiece retained as the persistent source sketch.
+        back: Back PatternPiece retained as the persistent source sketch.
+        hem_width: Authored bottom-hem width in millimetres.
+        seam_records: Authored seam objects paired with their two source pieces.
+
+    Raises:
+        RuntimeError: If a seam reference is invalid or the Sewing operation cannot be validated.
+    """
     from freecad_cloth.sewing.SewingCommands import create_sewing_operation
     from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 
@@ -1994,7 +2027,11 @@ def _run_production_tunic_drape(
     )
 
     def log_seam_progress(stage: str) -> None:
-        """Record read-only exact solver stitch gaps to localize seam divergence."""
+        """Record exact solver stitch gaps to localize seam divergence.
+
+        Args:
+            stage: Short label identifying the current simulation step or checkpoint.
+        """
         positions = tuple(active_backend.positions())
         pairs_by_seam = getattr(scene.Proxy, "seam_stitch_pairs", {})
         for seam, _piece_a, _piece_b in seam_records:
@@ -2381,8 +2418,12 @@ def simulation() -> None:
     front, front_outline = make_piece("VisualTunicFront", front_side, 0.72, 0.03)
     back, back_outline = make_piece("VisualTunicBack", back_side, 0.72, 0.03)
 
-    def log_tunic_outline_topology(piece):
-        """Log the actual sampled boundary and crossing edges before sewing or draping."""
+    def log_tunic_outline_topology(piece: _PatternPiece) -> None:
+        """Log sampled boundary and crossing-edge evidence before sewing or draping.
+
+        Args:
+            piece: Authored PatternPiece whose native sketch and PatternIR are inspected.
+        """
         import ast
         import re
 
