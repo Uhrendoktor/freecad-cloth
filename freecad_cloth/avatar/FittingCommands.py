@@ -17,6 +17,77 @@ Triangle = tuple[int, int, int]
 MeshTopology = tuple[tuple[Point3, ...], tuple[Triangle, ...]]
 
 
+class _NativeVector(Protocol):
+    """Three-dimensional vector properties exposed by FreeCAD's native geometry."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _NativeRotation(Protocol):
+    """Rotation field used by native pattern placements."""
+
+    Angle: float
+
+
+class _NativePlacement(Protocol):
+    """Native object placement operations used by fitting and anchor geometry."""
+
+    Base: _NativeVector
+    Rotation: _NativeRotation
+
+    def inverse(self) -> "_NativePlacement":
+        """Return the inverse placement transform."""
+        ...
+
+    def multVec(self, vector: object) -> _NativeVector:
+        """Transform a vector through the placement into the target coordinate frame.
+
+        Args:
+            vector: Native vector accepted by FreeCAD's placement API.
+
+        Returns:
+            Transformed three-dimensional vector.
+        """
+        ...
+
+
+class _PatternPieceRef(Protocol):
+    """Native pattern-piece fields used by the fitting placement commands."""
+
+    PatternType: str
+    PieceId: str
+    Placement: _NativePlacement
+
+
+class _ArrangementPointRef(Protocol):
+    """Geometry and validation methods of a saved arrangement-point record."""
+
+    name: str
+    x: float
+    y: float
+    offset: float
+    wrap_direction: str
+    rotation_z: float
+
+    def validate(self) -> None:
+        """Validate the point's numeric and semantic fitting contract."""
+        ...
+
+    def mirrored(self) -> "_ArrangementPointRef":
+        """Return the point reflected across its authored symmetry plane."""
+        ...
+
+
+class _FittingAnchorTarget(Protocol):
+    """Native target fields needed to persist a surface-local arrangement anchor."""
+
+    Name: str
+    Document: "_FittingDocument | None"
+    Placement: _NativePlacement
+
+
 class _FittingSceneFeature(Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
@@ -26,7 +97,7 @@ class _FittingSceneFeature(Protocol):
     FittingType: str
     MeasurementData: str
     MeasurementUnit: str
-    PatternPieces: list[object]
+    PatternPieces: list[_PatternPieceRef]
     PiecePlacements: list[str]
     HomePlacements: list[str]
     ArrangementPoints: list[str]
@@ -1409,7 +1480,9 @@ def add_selected_pattern_pieces() -> _FittingSceneFeature:
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     pieces = [
-        o for o in Gui.Selection.getSelection() if getattr(o, "PatternType", "") == "PatternPiece"
+        cast("_PatternPieceRef", selected)
+        for selected in Gui.Selection.getSelection()
+        if getattr(selected, "PatternType", "") == "PatternPiece"
     ]
     if not pieces:
         msg = "select one or more pattern pieces before adding them to the fitting scene"
@@ -1429,7 +1502,8 @@ def add_selected_pattern_pieces() -> _FittingSceneFeature:
         by_id[value.piece_id] = value
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(
-        set(list(scene.PatternPieces) + pieces), key=lambda o: str(o.PieceId)
+        set(list(scene.PatternPieces) + pieces),
+        key=lambda piece: str(cast("_PatternPieceRef", piece).PieceId),
     )
     scene.PiecePlacements = [by_id[k].to_string() for k in sorted(by_id)]
     scene.HomePlacements = [home_by_id[k].to_string() for k in sorted(home_by_id)]
@@ -1445,7 +1519,7 @@ def add_selected_pattern_pieces() -> _FittingSceneFeature:
 
 
 def position_piece(
-    piece: object,
+    piece: _PatternPieceRef,
     x: float,
     y: float,
     z: float = 0.0,
@@ -1748,8 +1822,24 @@ def set_symmetry_enabled(enabled: bool = True) -> _FittingSceneFeature:
     return scene
 
 
-def apply_arrangement_point(piece, point, mirror=None):
-    """Place a pattern piece at a named point, optionally using its symmetric mate."""
+def apply_arrangement_point(
+    piece: _PatternPieceRef,
+    point: _ArrangementPointRef | str,
+    mirror: bool | None = None,
+) -> _PatternPieceRef:
+    """Place a pattern piece at a named point, optionally using its symmetric mate.
+
+    Args:
+        piece: Native PatternPiece whose placement is updated.
+        point: Saved arrangement-point record or its stable name.
+        mirror: Whether to use the symmetric mate when scene symmetry is enabled.
+
+    Returns:
+        The same PatternPiece after applying its new placement.
+
+    Raises:
+        ValueError: If the piece or fitting scene is invalid, or the point name is unknown.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
@@ -1873,14 +1963,32 @@ def create_arrangement_point_from_viewport():
 
 
 def create_arrangement_anchor(
-    name, target, world_point, subelement="Face", wrap_direction="front", rotation_z=0.0
-):
+    name: str,
+    target: _FittingAnchorTarget | None,
+    world_point: object,
+    subelement: str = "Face",
+    wrap_direction: str = "front",
+    rotation_z: float = 0.0,
+) -> object:
     """Create a named snap point from a pick on persistent target geometry.
 
-    The anchor keeps a target-local location. Mesh surfaces use triangle indices and
-    barycentric weights so stable-topology deformations follow the same surface region;
-    non-mesh surfaces follow their object's Placement. Incompatible geometry is marked
-    stale instead of silently snapping to old world coordinates.
+    The saved target-local position and geometry signature allow the anchor to follow
+    stable mesh topology and detect when referenced geometry changes.
+
+    Args:
+        name: Stable arrangement-point identifier assigned to the new anchor.
+        target: Native target object selected in the active FreeCAD document.
+        world_point: Picked native vector or indexed coordinate sequence in world space.
+        subelement: FreeCAD subelement reference, such as a face identifier.
+        wrap_direction: Target-relative direction used to orient the arrangement point.
+        rotation_z: Initial rotation around the vertical axis, in radians.
+
+    Returns:
+        The created arrangement-point record.
+
+    Raises:
+        RuntimeError: If no active document exists.
+        ValueError: If the target is absent, belongs to another document, or coordinates are invalid.
     """
     import FreeCAD as App
 
@@ -1889,25 +1997,32 @@ def create_arrangement_anchor(
         msg = "open a document before creating a surface anchor"
         raise RuntimeError(msg)
     scene = _scene(doc) or create_fitting_scene()
-    target_document = getattr(target, "Document", None) if target is not None else None
+    if target is None:
+        msg = "select a surface on geometry in the active document"
+        raise ValueError(msg)
+    target_document = getattr(target, "Document", None)
     if target_document is None or getattr(target_document, "Name", "") != doc.Name:
         msg = "select a surface on geometry in the active document"
         raise ValueError(msg)
     signature = _target_signature(target)
     try:
-        coords = (float(world_point.x), float(world_point.y), float(world_point.z))
+        native_point = cast("_NativeVector", world_point)
+        coords = (float(native_point.x), float(native_point.y), float(native_point.z))
     except AttributeError:
-        coords = tuple(float(value) for value in world_point[:3])
+        point_values = cast("Sequence[SupportsFloat | str | bytes]", world_point)
+        coords = tuple(float(value) for value in point_values[:3])
     if len(coords) != 3:
         msg = "picked surface location must contain three coordinates"
         raise ValueError(msg)
+    coords = cast("Point3", coords)
     world = App.Vector(*coords)
     try:
         local = target.Placement.inverse().multVec(world)
     except (AttributeError, RuntimeError, TypeError, ValueError):
-        local = world
+        local = cast("_NativeVector", world)
 
-    local_coords = (float(local.x), float(local.y), float(local.z))
+    local_vector = cast("_NativeVector", local)
+    local_coords = (float(local_vector.x), float(local_vector.y), float(local_vector.z))
     anchor = {
         "name": str(name),
         "target": str(target.Name),
@@ -1923,10 +2038,11 @@ def create_arrangement_anchor(
         anchor["local_point"] = [float(value) for value in projected]
         local = App.Vector(*projected)
         try:
-            world = target.Placement.multVec(local)
+            world = target.Placement.multVec(local_vector)
         except (AttributeError, RuntimeError, TypeError, ValueError):
-            world = local
-        coords = (float(world.x), float(world.y), float(world.z))
+            world = local_vector
+        world_vector = cast("_NativeVector", world)
+        coords = (float(world_vector.x), float(world_vector.y), float(world_vector.z))
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint
 
