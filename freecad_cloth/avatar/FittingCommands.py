@@ -6,15 +6,38 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from importlib import import_module
-from typing import Protocol, cast
+from typing import Protocol, SupportsFloat, SupportsInt, cast
 
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 MeshTopology = tuple[tuple[Point3, ...], tuple[Triangle, ...]]
+
+
+class _FittingSceneFeature(Protocol):
+    """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
+
+    Name: str
+    Label: str
+    Document: "_FittingDocument"
+    FittingType: str
+    MeasurementData: str
+    MeasurementUnit: str
+    PatternPieces: list[object]
+    PiecePlacements: list[str]
+    HomePlacements: list[str]
+    ArrangementPoints: list[str]
+    ArrangementAnchorData: list[str]
+    BoundingVolumes: list[str]
+    ArrangementPointObjects: list[str]
+    BoundingVolumeObjects: list[str]
+    SymmetryEnabled: bool
+    FitStatus: str
+    AvatarProxy: object | None
+    Proxy: object
 
 
 def _drape_target_source(doc: _FittingDocument | None) -> object | None:
@@ -31,7 +54,7 @@ def _drape_target_source(doc: _FittingDocument | None) -> object | None:
     return getattr(doc.getObject("DrapeTarget"), "SourceObject", None)
 
 
-def _scene(doc: _FittingDocument | None) -> object | None:
+def _scene(doc: _FittingDocument | None) -> _FittingSceneFeature | None:
     """Find the fitting-scene feature stored in a document.
 
     Args:
@@ -42,10 +65,11 @@ def _scene(doc: _FittingDocument | None) -> object | None:
     """
     if doc is None:
         return None
-    return next(
+    selected = next(
         (obj for obj in doc.Objects if getattr(obj, "FittingType", "") == "FittingScene"),
         None,
     )
+    return cast("_FittingSceneFeature | None", selected)
 
 
 def _safe_name(value: object) -> str:
@@ -129,7 +153,7 @@ def _point_xyz(point: object) -> Point3:
         The first three coordinates converted to floats.
     """
     try:
-        values = cast("Sequence[object]", point)
+        values = cast("Sequence[SupportsFloat | str | bytes]", point)
         return cast("Point3", tuple(float(value) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
         return (
@@ -237,7 +261,10 @@ def _mesh_topology_from_parts(
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
-    faces = tuple(tuple(int(index) for index in face) for face in triangles)
+    faces = tuple(
+        tuple(int(cast("SupportsInt | str | bytes", index)) for index in face)
+        for face in triangles
+    )
     return _validated_mesh_topology(points, faces)
 
 
@@ -481,7 +508,11 @@ def _vector_subtract(left: Point3, right: Point3) -> Point3:
     Returns:
         The component-wise difference.
     """
-    return tuple(left[index] - right[index] for index in range(3))
+    return (
+        left[0] - right[0],
+        left[1] - right[1],
+        left[2] - right[2],
+    )
 
 
 def _vector_dot(left: Point3, right: Point3) -> float:
@@ -906,11 +937,11 @@ class _FittingMarkerGroup(Protocol):
 class _FittingDocument(Protocol):
     """Document API used to organize generated marker features."""
 
-    Objects: tuple[object, ...]
+    Objects: Sequence[object]
 
     def getObject(self, name: str) -> object | None: ...
 
-    def addObject(self, type_id: str, name: str) -> _FittingMarkerGroup: ...
+    def addObject(self, type_id: str, name: str) -> object: ...
 
     def removeObject(self, name: str) -> None: ...
 
@@ -963,8 +994,12 @@ def _remove_stale_fitting_markers(doc: _FittingDocument, wanted_names: set[str])
             doc.removeObject(name)
 
 
-def _sync_visuals(scene):
-    """Synchronize visible FreeCAD point/volume adapters from canonical strings."""
+def _sync_visuals(scene: _FittingSceneFeature) -> None:
+    """Synchronize visible FreeCAD point/volume adapters from canonical fitting records.
+
+    Args:
+        scene: Persistent scene whose arrangement points and bounding volumes drive markers.
+    """
     import FreeCAD as App
     import Part
 
@@ -1014,7 +1049,9 @@ def _sync_visuals(scene):
             obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
             obj.AnchorSubelement = str(anchor.get("subelement", ""))
             obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
-            local_point = tuple(anchor.get("local_point", (0.0, 0.0, 0.0)))
+            local_point = tuple(
+                cast("Iterable[object]", anchor.get("local_point", (0.0, 0.0, 0.0)))
+            )
             obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
             obj.AnchorStatus = arrangement_anchor_status(obj)
         else:
@@ -1097,15 +1134,21 @@ def _sync_visuals(scene):
         obj.ViewObject.Visibility = True
 
 
-def create_fitting_scene():
+def create_fitting_scene() -> _FittingSceneFeature:
+    """Create the persistent fitting scene, or return its existing instance.
+
+    Returns:
+        Canonical fitting-scene feature stored in the active FreeCAD document.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements, FittingScene
 
-    doc = App.ActiveDocument or App.newDocument("ClothSewing")
-    if _scene(doc) is not None:
-        return _scene(doc)
-    obj = doc.addObject("App::FeaturePython", "FittingScene")
+    doc = cast("_FittingDocument", App.ActiveDocument or App.newDocument("ClothSewing"))
+    existing_scene = _scene(doc)
+    if existing_scene is not None:
+        return existing_scene
+    obj = cast("_FittingSceneFeature", doc.addObject("App::FeaturePython", "FittingScene"))
     obj.Label = "Avatar Fitting Scene"
     obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
     obj.addProperty(
@@ -1138,12 +1181,27 @@ def create_fitting_scene():
     return obj
 
 
-def set_body_measurements(measurements, unit="mm"):
+def set_body_measurements(
+    measurements: Mapping[str, float],
+    unit: str = "mm",
+) -> _FittingSceneFeature:
+    """Validate and persist the body's measured dimensions on the fitting scene.
+
+    Args:
+        measurements: Named positive measurements expressed in the selected unit.
+        unit: Measurement unit restricted by the body-measurement schema.
+
+    Returns:
+        Updated fitting-scene feature after storing the canonical measurement JSON.
+
+    Raises:
+        ValueError: If the unit or any named measurement violates the schema.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BodyMeasurements
 
-    doc = App.ActiveDocument or App.newDocument("ClothSewing")
+    doc = cast("_FittingDocument", App.ActiveDocument or App.newDocument("ClothSewing"))
     scene = _scene(doc) or create_fitting_scene()
     data = BodyMeasurements(dict(measurements), unit)
     data.validate()
