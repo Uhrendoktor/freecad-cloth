@@ -71,6 +71,92 @@ def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     return total
 
 
+def _github_error_detail(error_body: bytes) -> str | None:
+    """Extract a bounded human-readable message from a GitHub JSON error body.
+
+    Args:
+        error_body: Bounded response bytes read from a failed API request.
+
+    Returns:
+        A trimmed GitHub error message, or None when the body has no usable message.
+    """
+    try:
+        payload = json.loads(error_body)
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    detail = payload.get("message")
+    if not isinstance(detail, str) or not detail.strip():
+        return None
+    return detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
+
+
+def _response_header_suffixes(
+    response: http.client.HTTPResponse,
+    error_body: bytes,
+) -> tuple[str, str]:
+    """Format bounded response-header diagnostics for an HTTP API error.
+
+    Args:
+        response: HTTP response carrying status and diagnostic headers.
+        error_body: Bounded response body read from the failed request.
+
+    Returns:
+        Header suffixes for safe, bounded request diagnostics.
+    """
+    header_details = []
+    for header, label in (
+        ("X-GitHub-Request-Id", "request_id"),
+        ("X-Accepted-GitHub-Permissions", "accepted_permissions"),
+        ("X-RateLimit-Resource", "rate_limit_resource"),
+        ("X-RateLimit-Remaining", "rate_limit_remaining"),
+    ):
+        value = response.getheader(header)
+        if isinstance(value, str) and value.strip():
+            bounded_value = value.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
+            header_details.append(f"{label}={bounded_value}")
+    response_header_names = sorted(
+        {
+            name.strip().lower()
+            for name, _value in response.getheaders()
+            if isinstance(name, str) and name.strip()
+        }
+    )[:20]
+    header_suffix = f" headers=[{'; '.join(header_details)}]" if header_details else ""
+    response_suffix = (
+        f" response_header_names=[{', '.join(response_header_names)}]"
+        f" error_body_bytes_read={len(error_body)}"
+    )
+    return header_suffix, response_suffix
+
+
+def _artifact_response_error_message(
+    response: http.client.HTTPResponse,
+    error_body: bytes,
+) -> str:
+    """Build the bounded diagnostic for a non-success artifact API response.
+
+    Args:
+        response: HTTP response returned by the GitHub API.
+        error_body: Bounded response bytes read from the failed request.
+
+    Returns:
+        A diagnostic message with safe response metadata and redacted body preview.
+    """
+    header_suffix, response_suffix = _response_header_suffixes(response, error_body)
+    status = (
+        f"HTTP {response.status} {response.reason}"
+        f"{header_suffix}{response_suffix}"
+    )
+    detail = _github_error_detail(error_body)
+    if detail is not None:
+        return f"GitHub artifact API request failed: {status}: {detail}"
+    preview = _safe_error_body_preview(error_body)
+    body_suffix = f": response_body_preview={preview!r}" if preview else ""
+    return f"GitHub artifact API request failed: {status}{body_suffix}"
+
+
 def request_artifact_payload(
     connection: http.client.HTTPSConnection,
     request_path: str,
@@ -95,42 +181,7 @@ def request_artifact_payload(
     response = connection.getresponse()
     if response.status != http.client.OK:
         error_body = response.read(API_ERROR_BODY_BYTES)
-        try:
-            error_payload = json.loads(error_body)
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            error_payload = None
-        detail = error_payload.get("message") if isinstance(error_payload, dict) else None
-        header_details = []
-        for header, label in (
-            ("X-GitHub-Request-Id", "request_id"),
-            ("X-Accepted-GitHub-Permissions", "accepted_permissions"),
-            ("X-RateLimit-Resource", "rate_limit_resource"),
-            ("X-RateLimit-Remaining", "rate_limit_remaining"),
-        ):
-            value = response.getheader(header)
-            if isinstance(value, str) and value.strip():
-                bounded_value = value.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
-                header_details.append(f"{label}={bounded_value}")
-        response_header_names = sorted(
-            {
-                name.strip().lower()
-                for name, _value in response.getheaders()
-                if isinstance(name, str) and name.strip()
-            }
-        )[:20]
-        header_suffix = f" headers=[{'; '.join(header_details)}]" if header_details else ""
-        response_suffix = (
-            f" response_header_names=[{', '.join(response_header_names)}]"
-            f" error_body_bytes_read={len(error_body)}"
-        )
-        status = f"HTTP {response.status} {response.reason}{header_suffix}{response_suffix}"
-        if isinstance(detail, str) and detail.strip():
-            bounded_detail = detail.strip()[:API_ERROR_MESSAGE_CHAR_LIMIT]
-            msg = f"GitHub artifact API request failed: {status}: {bounded_detail}"
-        else:
-            preview = _safe_error_body_preview(error_body)
-            body_suffix = f": response_body_preview={preview!r}" if preview else ""
-            msg = f"GitHub artifact API request failed: {status}{body_suffix}"
+        msg = _artifact_response_error_message(response, error_body)
         raise RuntimeError(msg)
     return cast("JSONValue", json.loads(response.read()))
 
