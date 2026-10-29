@@ -95,8 +95,9 @@ class _Label:
 def test_set_status_sets_text_semantic_state_and_wrap() -> None:
     """Check text, semantic state, wrapping, and style refresh behavior."""
     label = _Label()
+    status_setter = cast(Callable[..., None], set_status)
 
-    cast(Callable[..., None], set_status)(label, "Select two edges, then Preview.", state="warning")
+    status_setter(label, "Select two edges, then Preview.", state="warning")
 
     require(
         condition=(label.text == "Select two edges, then Preview."),
@@ -123,8 +124,9 @@ def test_set_status_sets_text_semantic_state_and_wrap() -> None:
 def test_set_status_falls_back_to_info_for_unknown_states() -> None:
     """Use the informational state for an unrecognized status value."""
     label = _Label()
+    status_setter = cast(Callable[..., None], set_status)
 
-    cast(Callable[..., None], set_status)(label, "Ready", state="unexpected")
+    status_setter(label, "Ready", state="unexpected")
 
     require(
         condition=(label.properties["clothState"] == "info"),
@@ -325,7 +327,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.margins = (left, top, right, bottom)
 
-        def setSpacing(self, spacing: int) -> None:
+        def set_spacing(self, spacing: int) -> None:
             """Record the spacing value applied to the disclosure layout.
 
             Args:
