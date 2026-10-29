@@ -29,13 +29,24 @@ class _ArcGeometryModule(Protocol):
 
     def arc_through_midpoint(
         self,
+        part_module: object,
+        app_module: object,
         start: object,
-        midpoint: object,
         end: object,
-        start_angle: object,
-        end_angle: object,
+        midpoint: object,
     ) -> object:
-        """Return a native arc geometry from the source points and angle controls."""
+        """Construct the native minor arc through three authored planar points.
+
+        Args:
+            part_module: FreeCAD Part module providing the arc constructor.
+            app_module: FreeCAD application module providing vector constructors.
+            start: Authored two-dimensional arc start point.
+            end: Authored two-dimensional arc end point.
+            midpoint: Authored on-arc point selecting the intended minor sweep.
+
+        Returns:
+            Native FreeCAD circular-arc geometry preserving the authored points.
+        """
 
 
 _arc_geometry = cast(
@@ -89,7 +100,9 @@ def _dialog_text(dialog: object) -> str:
     widgets = [form]
     find_children = getattr(form, "findChildren", None)
     if callable(find_children):
-        widgets.extend(find_children(QtWidgets.QWidget))
+        children = find_children(QtWidgets.QWidget)
+        if isinstance(children, Sequence):
+            widgets.extend(children)
     return " | ".join(
         str(getter())
         for widget in widgets
@@ -98,7 +111,20 @@ def _dialog_text(dialog: object) -> str:
     )
 
 
-def ensure_task_view_visible() -> object:
+class _TaskDock(Protocol):
+    """Structural interface for the task-dock actions used by the GUI audit."""
+
+    def hide(self) -> None:
+        """Hide the task dock."""
+
+    def show(self) -> None:
+        """Show the task dock."""
+
+    def raise_(self) -> None:
+        """Raise the task dock above other widgets."""
+
+
+def ensure_task_view_visible() -> _TaskDock:
     """Show the FreeCAD task dock and return it or a no-op fallback proxy.
 
     Returns:
@@ -137,7 +163,7 @@ class _TaskDockProxy:
         """Accept a raise request when no real task dock is available."""
 
 
-def validate_task(panel: object | None, name: str, required: Sequence[str]) -> object:
+def validate_task(panel: object | None, name: str, required: Sequence[str]) -> _TaskDock:
     """Verify that a task panel exposes each required piece of visible text.
 
     Args:
@@ -173,7 +199,7 @@ def validate_task(panel: object | None, name: str, required: Sequence[str]) -> o
     return dock
 
 
-def show_task(panel: object, name: str, required: Sequence[str] = ()) -> object:
+def show_task(panel: object, name: str, required: Sequence[str] = ()) -> _TaskDock:
     """Open a task panel and check its required public text.
 
     Args:
