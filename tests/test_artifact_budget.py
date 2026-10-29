@@ -8,13 +8,14 @@ import pytest
 
 from tests.support.assertions import require as _require
 from tools.ci.check_artifact_budget import (
-    accumulated_size,
     API_USER_AGENT,
     MAX_ARTIFACT_BYTES,
+    accumulated_size,
     request_artifact_payload,
 )
 
 EXPECTED_ACCUMULATED_BYTES = 9_500_000
+MAX_EXPECTED_ERROR_MESSAGE_LENGTH = 700
 
 
 def test_accumulated_size_sums_all_artifacts() -> None:
@@ -127,7 +128,7 @@ def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
         message="the body preview must redact credential-shaped strings",
     )
     _require(
-        condition=len(message) < 700,
+        condition=len(message) < MAX_EXPECTED_ERROR_MESSAGE_LENGTH,
         message="the error report must remain bounded",
     )
 
