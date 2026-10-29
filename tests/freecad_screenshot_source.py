@@ -1897,6 +1897,20 @@ def _validate_authoritative_tunic_seams(
     )
 
 
+def _call_host_method(target: object, method_name: str, *args: object) -> object:
+    """Call a dynamically named native FreeCAD/Qt method across the host boundary.
+
+    Args:
+        target: Native host object exposing the requested method.
+        method_name: Exact API method name provided by FreeCAD or Qt.
+        *args: Positional argument values forwarded unchanged to that method.
+
+    Returns:
+        The native method's return value, left uninterpreted by the test harness.
+    """
+    return getattr(target, method_name)(*args)
+
+
 def _run_production_tunic_drape(
     simulation_panel: _SteppableSimulationPanel,
     scene: _SimulationScene,
@@ -2082,9 +2096,9 @@ def _run_production_tunic_drape(
     )
     task_dock.hide()
     events()
-    view.setCameraType("Orthographic")
-    view.viewAxonometric()
-    view.fitAll()
+    _call_host_method(view, "setCameraType", "Orthographic")
+    _call_host_method(view, "viewAxonometric")
+    _call_host_method(view, "fitAll")
     events()
     save_view(
         "cloth-tunic-mannequin-motion-frames/motion-000.png",
@@ -2099,8 +2113,8 @@ def _run_production_tunic_drape(
         doc.recompute()
         events()
         log_seam_progress("step-%d" % int(scene.Steps))
-        view.viewAxonometric()
-        view.fitAll()
+        _call_host_method(view, "viewAxonometric")
+        _call_host_method(view, "fitAll")
         events()
         save_view(
             "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
