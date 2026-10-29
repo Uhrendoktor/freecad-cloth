@@ -39,6 +39,44 @@ class _FittingSceneFeature(Protocol):
     AvatarProxy: object | None
     Proxy: object
 
+    def addProperty(self, property_type: str, name: str, group: str = "") -> object: ...
+
+
+class _FittingVisualView(Protocol):
+    """Display properties used by generated fitting marker features."""
+
+    Visibility: bool
+    ShapeColor: tuple[float, float, float]
+    LineColor: tuple[float, float, float]
+    LineWidth: float
+
+
+class _FittingVisualFeature(Protocol):
+    """Native display object contract for generated fitting point/volume markers."""
+
+    Name: str
+    Label: str
+    FittingType: str
+    ViewObject: _FittingVisualView
+    Shape: object
+    PointName: str
+    WrapDirection: str
+    SymmetryGroup: str
+    X: float
+    Y: float
+    Offset: float
+    RotationZ: float
+    AnchorTarget: object | None
+    AnchorSubelement: str
+    AnchorLocalPoint: object
+    AnchorGeometrySignature: str
+    AnchorStatus: str
+    VolumeName: str
+    Center: object
+    Size: object
+
+    def addProperty(self, property_type: str, name: str, group: str = "") -> object: ...
+
 
 def _drape_target_source(doc: _FittingDocument | None) -> object | None:
     """Return the source object linked by the document's persistent drape target.
@@ -929,7 +967,7 @@ class _FittingMarkerGroup(Protocol):
     TypeId: str
     Label: str
     Name: str
-    Group: tuple[object, ...]
+    Group: Sequence[object]
 
     def addObject(self, obj: object) -> None: ...
 
@@ -944,6 +982,8 @@ class _FittingDocument(Protocol):
     def addObject(self, type_id: str, name: str) -> object: ...
 
     def removeObject(self, name: str) -> None: ...
+
+    def recompute(self) -> None: ...
 
 
 def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
@@ -1015,15 +1055,22 @@ def _sync_visuals(scene: _FittingSceneFeature) -> None:
     _remove_stale_fitting_markers(scene.Document, wanted_names)
     point_objects = []
     volume_objects = []
-    existing = {o.Name: o for o in scene.Document.Objects}
+    existing = {
+        marker.Name: marker
+        for marker in (
+            cast("_FittingVisualFeature", candidate) for candidate in scene.Document.Objects
+        )
+    }
     for point in points:
         name = "ArrangementPoint_" + _safe_name(point.name)
-        obj = existing.get(name) or scene.Document.addObject("Part::Feature", name)
+        obj = cast(
+            "_FittingVisualFeature",
+            existing.get(name) or scene.Document.addObject("Part::Feature", name),
+        )
         obj.Label = "Snap target: " + point.name
         if not hasattr(obj, "FittingType"):
-            obj.addProperty(
-                "App::PropertyString", "FittingType", "Fitting"
-            ).FittingType = "ArrangementPoint"
+            obj.addProperty("App::PropertyString", "FittingType", "Fitting")
+            obj.FittingType = "ArrangementPoint"
         for prop, value in (
             ("PointName", point.name),
             ("WrapDirection", point.wrap_direction),
@@ -1052,7 +1099,9 @@ def _sync_visuals(scene: _FittingSceneFeature) -> None:
             local_point = tuple(
                 cast("Iterable[object]", anchor.get("local_point", (0.0, 0.0, 0.0)))
             )
-            obj.AnchorLocalPoint = App.Vector(*(float(v) for v in local_point))
+            obj.AnchorLocalPoint = App.Vector(
+                *(float(cast("SupportsFloat | str | bytes", value)) for value in local_point)
+            )
             obj.AnchorStatus = arrangement_anchor_status(obj)
         else:
             obj.AnchorTarget = None
@@ -1093,12 +1142,14 @@ def _sync_visuals(scene: _FittingSceneFeature) -> None:
         point_objects.append(obj)
     for volume in volumes:
         name = "BoundingVolume_" + _safe_name(volume.name)
-        obj = existing.get(name) or scene.Document.addObject("Part::Feature", name)
+        obj = cast(
+            "_FittingVisualFeature",
+            existing.get(name) or scene.Document.addObject("Part::Feature", name),
+        )
         obj.Label = "Bounding Volume: " + volume.name
         if not hasattr(obj, "FittingType"):
-            obj.addProperty(
-                "App::PropertyString", "FittingType", "Fitting"
-            ).FittingType = "BoundingVolume"
+            obj.addProperty("App::PropertyString", "FittingType", "Fitting")
+            obj.FittingType = "BoundingVolume"
         if not hasattr(obj, "VolumeName"):
             obj.addProperty("App::PropertyString", "VolumeName", "Fitting")
             obj.addProperty("App::PropertyVector", "Center", "Volume")
@@ -1150,31 +1201,31 @@ def create_fitting_scene() -> _FittingSceneFeature:
         return existing_scene
     obj = cast("_FittingSceneFeature", doc.addObject("App::FeaturePython", "FittingScene"))
     obj.Label = "Avatar Fitting Scene"
-    obj.addProperty("App::PropertyString", "FittingType", "Fitting").FittingType = "FittingScene"
-    obj.addProperty(
-        "App::PropertyString", "MeasurementData", "Measurements"
-    ).MeasurementData = BodyMeasurements().to_json()
-    obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements").MeasurementUnit = "mm"
+    obj.addProperty("App::PropertyString", "FittingType", "Fitting")
+    obj.FittingType = "FittingScene"
+    obj.addProperty("App::PropertyString", "MeasurementData", "Measurements")
+    obj.MeasurementData = BodyMeasurements().to_json()
+    obj.addProperty("App::PropertyString", "MeasurementUnit", "Measurements")
+    obj.MeasurementUnit = "mm"
     obj.addProperty("App::PropertyLinkListGlobal", "PatternPieces", "Fitting")
-    obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting").PiecePlacements = []
-    obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting").HomePlacements = []
-    obj.addProperty(
-        "App::PropertyStringList", "ArrangementPoints", "Arrangement"
-    ).ArrangementPoints = []
-    obj.addProperty(
-        "App::PropertyStringList", "ArrangementAnchorData", "Arrangement"
-    ).ArrangementAnchorData = []
-    obj.addProperty(
-        "App::PropertyStringList", "BoundingVolumes", "Arrangement"
-    ).BoundingVolumes = []
-    obj.addProperty(
-        "App::PropertyStringList", "ArrangementPointObjects", "Arrangement"
-    ).ArrangementPointObjects = []
-    obj.addProperty(
-        "App::PropertyStringList", "BoundingVolumeObjects", "Arrangement"
-    ).BoundingVolumeObjects = []
-    obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement").SymmetryEnabled = True
-    obj.addProperty("App::PropertyString", "FitStatus", "Fitting").FitStatus = "Unassigned"
+    obj.addProperty("App::PropertyStringList", "PiecePlacements", "Fitting")
+    obj.PiecePlacements = []
+    obj.addProperty("App::PropertyStringList", "HomePlacements", "Fitting")
+    obj.HomePlacements = []
+    obj.addProperty("App::PropertyStringList", "ArrangementPoints", "Arrangement")
+    obj.ArrangementPoints = []
+    obj.addProperty("App::PropertyStringList", "ArrangementAnchorData", "Arrangement")
+    obj.ArrangementAnchorData = []
+    obj.addProperty("App::PropertyStringList", "BoundingVolumes", "Arrangement")
+    obj.BoundingVolumes = []
+    obj.addProperty("App::PropertyStringList", "ArrangementPointObjects", "Arrangement")
+    obj.ArrangementPointObjects = []
+    obj.addProperty("App::PropertyStringList", "BoundingVolumeObjects", "Arrangement")
+    obj.BoundingVolumeObjects = []
+    obj.addProperty("App::PropertyBool", "SymmetryEnabled", "Arrangement")
+    obj.SymmetryEnabled = True
+    obj.addProperty("App::PropertyString", "FitStatus", "Fitting")
+    obj.FitStatus = "Unassigned"
     obj.Proxy = _FittingProxy()
     FittingScene().validate()
     doc.recompute()
@@ -1436,7 +1487,24 @@ def delete_arrangement_point(name):
     return scene
 
 
-def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100.0)):
+def create_bounding_volume(
+    name: str,
+    center: Sequence[float] = (0.0, 0.0, 0.0),
+    size: Sequence[float] = (100.0, 100.0, 100.0),
+) -> object:
+    """Create and persist a validated bounding volume for garment arrangement.
+
+    Args:
+        name: Stable identifier for the volume.
+        center: Three-dimensional center in millimetres.
+        size: Three positive extent values in millimetres.
+
+    Returns:
+        Created canonical bounding-volume record.
+
+    Raises:
+        ValueError: If the volume name, dimensions, or extents violate the fitting schema.
+    """
     import FreeCAD as App
 
     from freecad_cloth.avatar.AvatarFitting import BoundingVolume
@@ -1444,7 +1512,9 @@ def create_bounding_volume(name, center=(0.0, 0.0, 0.0), size=(100.0, 100.0, 100
     doc = App.ActiveDocument or App.newDocument("ClothSewing")
     scene = _scene(doc) or create_fitting_scene()
     volume = BoundingVolume(
-        str(name), tuple(float(v) for v in center), tuple(float(v) for v in size)
+        str(name),
+        cast("Point3", tuple(float(v) for v in center)),
+        cast("Point3", tuple(float(v) for v in size)),
     )
     volume.validate()
     values = {v.name: v for v in (BoundingVolume.from_string(v) for v in scene.BoundingVolumes)}
@@ -1696,7 +1766,12 @@ def create_arrangement_anchor(
 class _FittingProxy:
     Type = "ClothFittingScene"
 
-    def execute(self, obj):
+    def execute(self, obj: _FittingSceneFeature) -> None:
+        """Validate canonical fitting records whenever FreeCAD recomputes the scene.
+
+        Args:
+            obj: Persistent fitting-scene feature containing serialized fitting state.
+        """
         from freecad_cloth.avatar.AvatarFitting import (
             ArrangementPoint,
             BodyMeasurements,
@@ -1769,8 +1844,8 @@ def _apply_selected_arrangement():
 try:
     import FreeCADGui as Gui
 
-    from freecad_cloth.common.CommandAdapter import register_commands
+    from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar, register_commands
 
-    register_commands(Gui, _COMMAND_HANDLERS)
+    register_commands(cast("GuiCommandRegistrar", Gui), _COMMAND_HANDLERS)
 except (ImportError, AttributeError):
     pass
