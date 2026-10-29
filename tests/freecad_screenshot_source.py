@@ -233,6 +233,29 @@ class _SceneMesh(Protocol):
     CountFacets: int
 
 
+class _BoundBox(Protocol):
+    """Axis-aligned native mesh bounds used to normalize drape metrics."""
+
+    XMax: float
+    XMin: float
+    YMax: float
+    YMin: float
+    ZMax: float
+    ZMin: float
+
+
+class _AvatarMesh(Protocol):
+    """Avatar mesh exposing its native axis-aligned bounding box."""
+
+    BoundBox: _BoundBox
+
+
+class _AvatarWithMesh(Protocol):
+    """Avatar properties needed to compute target-relative cloth metrics."""
+
+    Mesh: _AvatarMesh
+
+
 class _DrapePanel(Protocol):
     """Native drape panel properties used to style and inspect simulation results."""
 
@@ -578,8 +601,15 @@ def _mesh_points(mesh: object) -> tuple[tuple[float, float, float], ...]:
     return _mesh_geometry(mesh)[0]
 
 
-def _camera_snapshot(view):
-    """Return the actual world-space camera axes used for screenshot projection."""
+def _camera_snapshot(view: object) -> dict[str, list[float]]:
+    """Record the actual world-space camera axes used for screenshot projection.
+
+    Args:
+        view: Active native FreeCAD view exposing the camera orientation.
+
+    Returns:
+        Quaternion and world-space right, up, and forward vectors rounded for evidence.
+    """
     rotation = view.getCameraOrientation()
     right = rotation.multVec(App.Vector(1.0, 0.0, 0.0))
     up = rotation.multVec(App.Vector(0.0, 1.0, 0.0))
@@ -665,8 +695,22 @@ def _seam_lateral_snapshot(
     return snapshot
 
 
-def _post_drape_seam_gap(stitch_pairs, positions):
-    """Measure the gap on the exact particle pairs passed to the solver."""
+def _post_drape_seam_gap(
+    stitch_pairs: Sequence[tuple[int, int]],
+    positions: Sequence[Sequence[float]],
+) -> float:
+    """Measure the maximum gap on the exact particle pairs passed to the solver.
+
+    Args:
+        stitch_pairs: Ordered pairs of global solver particle indices for one seam.
+        positions: Current world-space solver positions indexed by global particle id.
+
+    Returns:
+        Maximum Euclidean separation in millimetres across the supplied stitch pairs.
+
+    Raises:
+        ValueError: If there are no stitch pairs or an index is outside the positions array.
+    """
     if not stitch_pairs:
         msg = "solver stitch pair provenance is required"
         raise ValueError(msg)
@@ -844,15 +888,30 @@ def _inside_target_count(
 
 
 def write_drape_metrics(
-    panels,
-    avatar,
-    center_x=None,
-    shoulder_z=None,
-    hem_z=None,
-    seam_records=(),
-    proxy=None,
-    collision_surface=None,
-):
+    panels: Sequence[_DrapePanel],
+    avatar: _AvatarWithMesh,
+    center_x: float | None = None,
+    shoulder_z: float | None = None,
+    hem_z: float | None = None,
+    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]] = (),
+    proxy: _SimulationProxy | None = None,
+    collision_surface: object | None = None,
+) -> None:
+    """Write deterministic panel geometry and seam diagnostics to the visual audit manifest.
+
+    Args:
+        panels: Native evaluated simulation panels whose meshes are being audited.
+        avatar: Authoritative target avatar used to normalize drape metrics.
+        center_x: Optional world-X center used to measure lateral displacement.
+        shoulder_z: Optional world-space shoulder reference height.
+        hem_z: Optional world-space hem reference height.
+        seam_records: Authored seams paired with their authoritative source pattern pieces.
+        proxy: Active simulation proxy providing actual solver stitch-pair provenance.
+        collision_surface: Authoritative target surface used for vertex-inside checks.
+
+    Raises:
+        RuntimeError: If a panel is non-finite, empty, penetrating, or cannot be assessed.
+    """
     from freecad_cloth.common.MeshValidation import validate_mesh
     from freecad_cloth.simulation.DrapeFailureClassifier import (
         classify_drape,
@@ -932,8 +991,14 @@ def write_drape_metrics(
 
                 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
-                target_points = tuple(getattr(collision_surface, "vertices", ()) or ())
-                target_triangles = tuple(getattr(collision_surface, "triangles", ()) or ())
+                target_points = cast(
+                    "tuple[tuple[float, float, float], ...]",
+                    tuple(getattr(collision_surface, "vertices", ()) or ()),
+                )
+                target_triangles = cast(
+                    "tuple[tuple[int, int, int], ...]",
+                    tuple(getattr(collision_surface, "triangles", ()) or ()),
+                )
                 backend = getattr(proxy, "backend", None) if proxy is not None else None
                 solver_surface = (
                     getattr(backend, "solver_collision_surface", None)
@@ -953,7 +1018,11 @@ def write_drape_metrics(
                 inside_points = []
                 if target_points and target_triangles:
                     for point in vertices:
-                        point_tuple = tuple(float(value) for value in point)
+                        point_tuple = (
+                            float(point[0]),
+                            float(point[1]),
+                            float(point[2]),
+                        )
                         try:
                             authoritative_inside = points_inside_closed_mesh(
                                 (point_tuple,),
