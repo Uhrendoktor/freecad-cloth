@@ -8,8 +8,8 @@ import os
 import pathlib
 import sys
 import traceback
-from collections.abc import Callable
-from typing import cast
+from collections.abc import Callable, Sequence
+from typing import Protocol, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -22,39 +22,74 @@ except ImportError:
 ROOT = "/workspace"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-_arc_through_midpoint: Callable[[object, object, object, object, object], object] = cast(
-    "Callable[[object, object, object, object, object], object]",
-    getattr(
-        importlib.import_module("tests.support.freecad_arc_geometry"),
-        "arc_through_midpoint",
-    ),
+
+
+class _ArcGeometryModule(Protocol):
+    """Lazy helper-module contract for constructing an arc through three points."""
+
+    def arc_through_midpoint(
+        self,
+        start: object,
+        midpoint: object,
+        end: object,
+        start_angle: object,
+        end_angle: object,
+    ) -> object:
+        """Return a native arc geometry from the source points and angle controls."""
+
+
+_arc_geometry = cast(
+    "_ArcGeometryModule", importlib.import_module("tests.support.freecad_arc_geometry")
+)
+_arc_through_midpoint: Callable[[object, object, object, object, object], object] = (
+    _arc_geometry.arc_through_midpoint
 )
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
-LOG = os.path.join(OUT, "gui-progress.log")
-MANIFEST = os.path.join(OUT, "gui-screenshot-manifest.txt")
-METRICS = os.path.join(OUT, "drape-visual-metrics.json")
+LOG = str(pathlib.Path(OUT) / "gui-progress.log")
+MANIFEST = str(pathlib.Path(OUT) / "gui-screenshot-manifest.txt")
+METRICS = str(pathlib.Path(OUT) / "drape-visual-metrics.json")
+SCREENSHOT_WIDTH_PX = 1280
+SCREENSHOT_HEIGHT_PX = 720
+SCREENSHOT_SIZE_PX = (SCREENSHOT_WIDTH_PX, SCREENSHOT_HEIGHT_PX)
+MIN_WINDOW_SCREENSHOT_BYTES = 20_000
+MIN_VIEW_SCREENSHOT_BYTES = 5_000
 TUNIC_PRODUCTION_AUDIT = os.environ.get("CLOTH_TUNIC_AUDIT_PROFILE") == "production"
 
 
-def log(message):
+def log(message: str) -> None:
+    """Append one diagnostic message to the GUI audit log.
+
+    Args:
+        message: Single-line progress message to persist.
+    """
     with pathlib.Path(LOG).open("a", encoding="utf-8") as handle:
         handle.write(message + "\n")
 
 
-def events():
+def events() -> None:
+    """Refresh FreeCAD's GUI and process pending Qt events."""
     Gui.updateGui()
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.processEvents()
 
 
-def _dialog_text(dialog):
+def _dialog_text(dialog: object) -> str:
+    """Collect visible text from a public task dialog and its child widgets.
+
+    Args:
+        dialog: Active FreeCAD task dialog or panel-like widget.
+
+    Returns:
+        Visible text entries joined in deterministic widget traversal order.
+    """
     form = getattr(dialog, "form", dialog)
     widgets = [form]
-    if hasattr(form, "findChildren"):
-        widgets.extend(form.findChildren(QtWidgets.QWidget))
+    find_children = getattr(form, "findChildren", None)
+    if callable(find_children):
+        widgets.extend(find_children(QtWidgets.QWidget))
     return " | ".join(
         str(getter())
         for widget in widgets
@@ -63,7 +98,15 @@ def _dialog_text(dialog):
     )
 
 
-def ensure_task_view_visible():
+def ensure_task_view_visible() -> object:
+    """Show the FreeCAD task dock and return it or a no-op fallback proxy.
+
+    Returns:
+        Visible task dock widget, or a proxy when no matching dock exists.
+
+    Raises:
+        RuntimeError: If the FreeCAD main window is unavailable.
+    """
     window = Gui.getMainWindow()
     if window is None:
         msg = "FreeCAD main window is unavailable"
@@ -79,17 +122,35 @@ def ensure_task_view_visible():
 
 
 class _TaskDockProxy:
-    def hide(self):
-        return None
+    """No-op task dock used when the host GUI has no visible task panel."""
 
-    def show(self):
-        return None
+    @staticmethod
+    def hide() -> None:
+        """Accept a hide request when no real task dock is available."""
 
-    def raise_(self):
-        return None
+    @staticmethod
+    def show() -> None:
+        """Accept a show request when no real task dock is available."""
+
+    @staticmethod
+    def raise_() -> None:
+        """Accept a raise request when no real task dock is available."""
 
 
-def validate_task(panel, name, required):
+def validate_task(panel: object | None, name: str, required: Sequence[str]) -> object:
+    """Verify that a task panel exposes each required piece of visible text.
+
+    Args:
+        panel: Panel instance whose public interface is being validated.
+        name: Short panel identifier used in diagnostic messages.
+        required: Visible text fragments that must appear in the active task UI.
+
+    Returns:
+        The active task dock widget or no-op fallback proxy.
+
+    Raises:
+        RuntimeError: If no task dialog is open or required text is missing.
+    """
     events()
     dock = ensure_task_view_visible()
     dialog = Gui.Control.activeDialog()
@@ -105,15 +166,24 @@ def validate_task(panel, name, required):
             texts.append(text)
     combined = " | ".join(texts)
     missing = [item for item in required if item not in combined]
-    log("task-panel={} visible=true missing={}".format(name, ",".join(missing)))
+    log(f"task-panel={name} visible=true missing={','.join(missing)}")
     if missing:
-        raise RuntimeError(
-            "task panel {} is missing visible text: {}".format(name, ",".join(missing))
-        )
+        msg = f"task panel {name} is missing visible text: {','.join(missing)}"
+        raise RuntimeError(msg)
     return dock
 
 
-def show_task(panel, name, required=()):
+def show_task(panel: object, name: str, required: Sequence[str] = ()) -> object:
+    """Open a task panel and check its required public text.
+
+    Args:
+        panel: Task panel passed to the FreeCAD GUI command system.
+        name: Short panel identifier used in diagnostic messages.
+        required: Visible text fragments that must appear after opening the panel.
+
+    Returns:
+        The task dock widget or no-op fallback proxy.
+    """
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         events()
@@ -121,13 +191,24 @@ def show_task(panel, name, required=()):
     return validate_task(panel, name, required)
 
 
-def close_task():
+def close_task() -> None:
+    """Close the active FreeCAD task dialog, if one is open."""
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         events()
 
 
-def activate(name, toolbar, commands):
+def activate(name: str, toolbar: str, commands: Sequence[str]) -> None:
+    """Activate a workbench and verify its toolbar and commands are available.
+
+    Args:
+        name: Registered FreeCAD workbench identifier.
+        toolbar: Toolbar title to make visible.
+        commands: Command identifiers that must be registered.
+
+    Raises:
+        RuntimeError: If the workbench, main window, or requested commands are unavailable.
+    """
     if name not in Gui.listWorkbenches():
         msg = f"workbench is not registered: {name}"
         raise RuntimeError(msg)
@@ -142,11 +223,22 @@ def activate(name, toolbar, commands):
             bar.show()
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
-        raise RuntimeError("commands are not registered: " + ",".join(missing))
+        msg = "commands are not registered: " + ",".join(missing)
+        raise RuntimeError(msg)
     log(f"workbench={name} toolbar={toolbar}")
 
 
-def save(name, state, proof):
+def save(name: str, state: str, proof: str) -> None:
+    """Capture the main FreeCAD window with enough pixels to prove the requested state.
+
+    Args:
+        name: Destination screenshot filename relative to the output directory.
+        state: Human-readable GUI state represented by the image.
+        proof: Evidence note written alongside the screenshot in the manifest.
+
+    Raises:
+        RuntimeError: If the main window or screenshot is unavailable or suspicious.
+    """
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
         msg = "FreeCAD main window unavailable for screenshot"
@@ -154,23 +246,32 @@ def save(name, state, proof):
     window.show()
     window.raise_()
     window.activateWindow()
-    window.resize(1280, 720)
+    window.resize(*SCREENSHOT_SIZE_PX)
     events()
     image = window.grab()
-    path = os.path.join(OUT, name)
-    if image.isNull() or (image.width(), image.height()) != (1280, 720):
+    path = pathlib.Path(OUT) / name
+    if image.isNull() or (image.width(), image.height()) != SCREENSHOT_SIZE_PX:
         msg = f"invalid GUI capture for {state}"
         raise RuntimeError(msg)
-    if not image.save(path) or pathlib.Path(path).stat().st_size < 20000:
+    if not image.save(str(path)) or path.stat().st_size < MIN_WINDOW_SCREENSHOT_BYTES:
         msg = f"failed or suspiciously small screenshot: {path}"
         raise RuntimeError(msg)
-    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    log(f"screenshot={path} state={state} bytes={path.stat().st_size}")
     with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
-def save_view(name, state, proof):
-    """Capture the active FreeCAD 3D view without task-dock chrome."""
+def save_view(name: str, state: str, proof: str) -> None:
+    """Capture the active FreeCAD 3D view without task-dock chrome.
+
+    Args:
+        name: Destination screenshot filename relative to the output directory.
+        state: Human-readable view state represented by the image.
+        proof: Evidence note written alongside the screenshot in the manifest.
+
+    Raises:
+        RuntimeError: If the active view is unavailable or the screenshot is suspicious.
+    """
     document = Gui.activeDocument()
     view = document.activeView() if document is not None else None
     if view is None:
@@ -179,18 +280,27 @@ def save_view(name, state, proof):
     events()
     view.redraw()
     events()
-    path = os.path.join(OUT, name)
-    pathlib.Path(os.path.dirname(path)).mkdir(exist_ok=True, parents=True)
-    view.saveImage(path, 1280, 720, "White")
-    if not pathlib.Path(path).is_file() or pathlib.Path(path).stat().st_size < 5000:
+    path = pathlib.Path(OUT) / name
+    path.parent.mkdir(exist_ok=True, parents=True)
+    view.saveImage(str(path), *SCREENSHOT_SIZE_PX, "White")
+    if not path.is_file() or path.stat().st_size < MIN_VIEW_SCREENSHOT_BYTES:
         msg = f"failed or suspiciously small 3D-view screenshot: {path}"
         raise RuntimeError(msg)
-    log("screenshot=%s state=%s bytes=%d" % (path, state, pathlib.Path(path).stat().st_size))
+    log(f"screenshot={path} state={state} bytes={path.stat().st_size}")
     with pathlib.Path(MANIFEST).open("a", encoding="utf-8") as handle:
         handle.write(f"{name}\t{state}\t{proof}\n")
 
 
-def load_and_run(path, module_name):
+def load_and_run(path: str, module_name: str) -> None:
+    """Load one acceptance module from a source file and execute its entry point.
+
+    Args:
+        path: Path to the acceptance script to load.
+        module_name: Stable module name used for loading and diagnostic output.
+
+    Raises:
+        RuntimeError: If the module source cannot be loaded from the requested path.
+    """
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         msg = f"cannot load acceptance module: {path}"
@@ -203,8 +313,9 @@ def load_and_run(path, module_name):
 GARMENT_E2E_LOG = os.environ.get("CLOTH_GARMENT_E2E_LOG", "/workspace/artifacts/garment-e2e.log")
 
 
-def run_canonical_acceptance():
-    pathlib.Path(os.path.dirname(GARMENT_E2E_LOG)).mkdir(exist_ok=True, parents=True)
+def run_canonical_acceptance() -> None:
+    """Run the canonical avatar, garment, and simulation acceptance scripts in order."""
+    pathlib.Path(GARMENT_E2E_LOG).parent.mkdir(exist_ok=True, parents=True)
     with pathlib.Path(GARMENT_E2E_LOG).open("w", encoding="utf-8"):
         pass
     for path, name, marker in (
@@ -229,9 +340,9 @@ def run_canonical_acceptance():
                 pathlib.Path(GARMENT_E2E_LOG).open("a", encoding="utf-8") as handle,
                 contextlib.redirect_stdout(handle),
             ):
-                load_and_run(os.path.join(ROOT, path), name)
+                load_and_run(str(pathlib.Path(ROOT) / path), name)
         else:
-            load_and_run(os.path.join(ROOT, path), name)
+            load_and_run(str(pathlib.Path(ROOT) / path), name)
         log(marker + "=passed")
 
 
