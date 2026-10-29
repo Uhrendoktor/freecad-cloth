@@ -2,7 +2,8 @@
 """Tests for the Qt UI design helpers that do not require a FreeCAD runtime."""
 
 from collections.abc import Callable
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+from typing import cast
 
 from tests.support.assertions import require
 
@@ -49,8 +50,11 @@ class _Label:
         self.wrap: bool = False
         self.events: list[str] = []
         self._style: _Style = _Style()
+        setattr(self, "setText", self.set_text)
+        setattr(self, "setWordWrap", self.set_word_wrap)
+        setattr(self, "setProperty", self.set_property)
 
-    def setText(self, value: str) -> None:
+    def set_text(self, value: str) -> None:
         """Store the visible status text for later assertions.
 
         Args:
@@ -58,15 +62,15 @@ class _Label:
         """
         self.text = value
 
-    def setWordWrap(self, value: bool) -> None:
+    def set_word_wrap(self, value: object) -> None:
         """Store whether status text should wrap across lines.
 
         Args:
             value: Whether the label wraps its text.
         """
-        self.wrap = value
+        self.wrap = bool(value)
 
-    def setProperty(self, name: str, value: str) -> None:
+    def set_property(self, name: str, value: str) -> None:
         """Store a dynamic property on the label stub.
 
         Args:
@@ -92,7 +96,7 @@ def test_set_status_sets_text_semantic_state_and_wrap() -> None:
     """Check text, semantic state, wrapping, and style refresh behavior."""
     label = _Label()
 
-    set_status(label, "Select two edges, then Preview.", state="warning")
+    cast(Callable[..., None], set_status)(label, "Select two edges, then Preview.", state="warning")
 
     require(
         condition=(label.text == "Select two edges, then Preview."),
@@ -120,7 +124,7 @@ def test_set_status_falls_back_to_info_for_unknown_states() -> None:
     """Use the informational state for an unrecognized status value."""
     label = _Label()
 
-    set_status(label, "Ready", state="unexpected")
+    cast(Callable[..., None], set_status)(label, "Ready", state="unexpected")
 
     require(
         condition=(label.properties["clothState"] == "info"),
@@ -132,10 +136,10 @@ def test_mark_button_assigns_role_and_refreshes_style() -> None:
     """Assign the requested emphasis role and refresh the button style."""
 
     class _Button(_Label):
-        pass
+        """Button stub reusing the status label's style-property behavior."""
 
     button = _Button()
-    mark_button(button, "primary")
+    cast(Callable[..., None], mark_button)(button, "primary")
 
     require(
         condition=(button.properties["clothEmphasis"] == "primary"),
@@ -151,15 +155,19 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     """Scope the panel stylesheet and normalize outer and nested layouts."""
 
     class _QtLayout:
-        pass
+        """Marker class representing the host Qt layout type."""
 
     class _Layout:
+        """Layout stub that records margin and spacing updates."""
+
         def __init__(self) -> None:
             """Initialize layout state used by panel-style contract checks."""
             self.margins: tuple[int, int, int, int] | None = None
             self.spacing: int | None = None
+            setattr(self, "setContentsMargins", self.set_contents_margins)
+            setattr(self, "setSpacing", self.set_spacing)
 
-        def setContentsMargins(self, left: int, top: int, right: int, bottom: int) -> None:
+        def set_contents_margins(self, left: int, top: int, right: int, bottom: int) -> None:
             """Record the four layout margins supplied by the styling helper.
 
             Args:
@@ -170,7 +178,7 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             """
             self.margins = (left, top, right, bottom)
 
-        def setSpacing(self, spacing: int) -> None:
+        def set_spacing(self, spacing: int) -> None:
             """Record the spacing value applied to a layout.
 
             Args:
@@ -187,8 +195,10 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             self.outer_layout = _Layout()
             self.nested_layouts = [_Layout()]
             self.requested_child_type: type[object] | None = None
+            setattr(self, "setStyleSheet", self.set_style_sheet)
+            setattr(self, "findChildren", self.find_children)
 
-        def setStyleSheet(self, stylesheet: str) -> None:
+        def set_style_sheet(self, stylesheet: str) -> None:
             """Store the stylesheet assigned to this panel stub.
 
             Args:
@@ -204,7 +214,7 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             """
             return self.outer_layout
 
-        def findChildren(self, widget_type: type[object]) -> list[_Layout]:
+        def find_children(self, widget_type: type[object]) -> list[_Layout]:
             """Return nested layouts matching the requested widget type.
 
             Args:
@@ -217,7 +227,7 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
             return self.nested_layouts
 
     panel = _Panel()
-    apply_panel_style(panel, layout_type=_QtLayout)
+    cast(Callable[..., None], apply_panel_style)(panel, layout_type=_QtLayout)
 
     require(
         condition=(panel.stylesheet == PANEL_STYLE),
@@ -259,46 +269,52 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.callback = callback
 
-        def emit(self, value: bool) -> None:
+        def emit(self, value: object) -> None:
             """Invoke the registered callback when one is connected.
 
             Args:
                 value: Boolean state forwarded to the callback.
             """
             if self.callback is not None:
-                self.callback(value)
+                self.callback(bool(value))
 
     class _Widget:
         """Widget stub that tracks visibility for disclosure-content tests."""
 
         def __init__(self, *_args: object) -> None:
             """Initialize the test widget as not yet shown.
+
             Args:
                 *_args: Constructor arguments received from the parent helper.
             """
             self.visible: bool | None = None
+            setattr(self, "setVisible", self.set_visible)
 
-        def setVisible(self, visible: bool) -> None:
+        def set_visible(self, visible: object) -> None:
             """Store whether the content widget is currently visible.
 
             Args:
                 visible: Visibility state assigned to the widget.
             """
-            self.visible = visible
+            self.visible = bool(visible)
 
     class _Layout:
         """Layout stub that records disclosure geometry and child widgets."""
 
         def __init__(self, _parent: object) -> None:
             """Initialize layout geometry and child-widget records.
+
             Args:
                 _parent: Parent object supplied by the disclosure helper.
             """
             self.margins: tuple[int, int, int, int] | None = None
             self.spacing: int | None = None
             self.widgets: list[object] = []
+            setattr(self, "setContentsMargins", self.set_contents_margins)
+            setattr(self, "setSpacing", self.set_spacing)
+            setattr(self, "addWidget", self.add_widget)
 
-        def setContentsMargins(self, left: int, top: int, right: int, bottom: int) -> None:
+        def set_contents_margins(self, left: int, top: int, right: int, bottom: int) -> None:
             """Record all four margins applied to the disclosure layout.
 
             Args:
@@ -317,7 +333,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.spacing = spacing
 
-        def addWidget(self, widget: object) -> None:
+        def add_widget(self, widget: object) -> None:
             """Record a widget added to the test layout.
 
             Args:
@@ -341,8 +357,15 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             self.tooltip = ""
             self.style: object | None = None
             self.toggled = _Signal()
+            setattr(self, "setText", self.set_text)
+            setattr(self, "setCheckable", self.set_checkable)
+            setattr(self, "setChecked", self.set_checked)
+            setattr(self, "setArrowType", self.set_arrow_type)
+            setattr(self, "setToolButtonStyle", self.set_tool_button_style)
+            setattr(self, "setToolTip", self.set_tool_tip)
+            setattr(self, "setProperty", self.set_property)
 
-        def setText(self, text: str) -> None:
+        def set_text(self, text: str) -> None:
             """Store the disclosure caption shown on the toggle button.
 
             Args:
@@ -350,15 +373,15 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.text = text
 
-        def setCheckable(self, checkable: bool) -> None:
+        def set_checkable(self, checkable: object) -> None:
             """Store whether the toggle control supports checked state.
 
             Args:
                 checkable: Whether the button can be checked.
             """
-            self.checkable = checkable
+            self.checkable = bool(checkable)
 
-        def setChecked(self, checked: bool) -> None:
+        def set_checked(self, checked: object) -> None:
             """Update checked state and notify listeners when it changes.
 
             Args:
@@ -369,7 +392,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
                 self.checked = checked
                 self.toggled.emit(checked)
 
-        def setArrowType(self, arrow: object) -> None:
+        def set_arrow_type(self, arrow: object) -> None:
             """Store the arrow direction presented by the toggle button.
 
             Args:
@@ -377,7 +400,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.arrow = arrow
 
-        def setToolButtonStyle(self, style: object) -> None:
+        def set_tool_button_style(self, style: object) -> None:
             """Store the text-and-icon presentation mode of the button.
 
             Args:
@@ -385,7 +408,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.style = style
 
-        def setToolTip(self, tooltip: str) -> None:
+        def set_tool_tip(self, tooltip: str) -> None:
             """Store the help text displayed for the disclosure toggle.
 
             Args:
@@ -393,32 +416,38 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
             """
             self.tooltip = tooltip
 
-        def setProperty(self, _name: str, _value: str) -> None:
-            """Accept the dynamic property update issued by the disclosure helper.
+        @staticmethod
+        def set_property(_name: str, _value: str) -> None:
+            """Accept a dynamic property update sent to the disclosure toggle.
 
             Args:
                 _name: Dynamic property key supplied by the helper.
                 _value: String value supplied with that key.
             """
-            return None
+            pass
 
-    qt_core = SimpleNamespace(
-        Qt=SimpleNamespace(
+    qt_core = ModuleType("qt_core_stub")
+    setattr(
+        qt_core,
+        "Qt",
+        SimpleNamespace(
             ToolButtonTextOnly="text-only",
             DownArrow="down",
             RightArrow="right",
-        )
+        ),
     )
-    qt_widgets = SimpleNamespace(
-        QWidget=_Widget,
-        QVBoxLayout=_Layout,
-        QToolButton=_ToolButton,
-    )
+    qt_widgets = ModuleType("qt_widgets_stub")
+    setattr(qt_widgets, "QWidget", _Widget)
+    setattr(qt_widgets, "QVBoxLayout", _Layout)
+    setattr(qt_widgets, "QToolButton", _ToolButton)
     content = _Widget()
 
-    wrapper, toggle = make_disclosure(
+    disclosure_factory = cast(Callable[..., tuple[object, object]], make_disclosure)
+    wrapper_value, toggle_value = disclosure_factory(
         "Advanced settings", content, qt_core, qt_widgets, expanded=False
     )
+    wrapper = cast(_Widget, wrapper_value)
+    toggle = cast(_ToolButton, toggle_value)
 
     require(
         condition=(isinstance(wrapper, _Widget)),
@@ -449,7 +478,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
         message="The disclosure should provide the expected tooltip.",
     )
 
-    toggle.setChecked(True)
+    toggle.set_checked(True)
     require(
         condition=(content.visible is True),
         message="Disclosure content visibility should follow toggle state.",
@@ -459,7 +488,7 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
         message="The disclosure arrow should reflect its expanded or collapsed state.",
     )
 
-    toggle.setChecked(False)
+    toggle.set_checked(False)
     require(
         condition=(content.visible is False),
         message="Disclosure content visibility should follow toggle state.",
