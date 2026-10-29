@@ -1,14 +1,18 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pillow- and Pydantic-backed validation for FreeCAD screenshot captures."""
 
 from __future__ import annotations
 
 import warnings
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from PIL import Image
 
 from freecad_cloth.common.ValidationModels import PngCaptureMetrics, PngCaptureOptions
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _capture_metrics(
@@ -17,13 +21,26 @@ def _capture_metrics(
     *,
     track_colors: bool = True,
 ) -> PngCaptureMetrics:
-    """Decode a PNG using Pillow and validate pixel statistics with Pydantic."""
+    """Decode a PNG and measure its visible pixel statistics.
+
+    Args:
+        path: PNG filename or path-like value to decode.
+        options: Validated dimensions and pixel thresholds for the capture.
+        track_colors: Whether to count distinct opaque RGB colours.
+
+    Returns:
+        Validated pixel metrics for the decoded image.
+
+    Raises:
+        ValueError: If image decoding fails or the PNG format or dimensions are invalid.
+    """
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
         try:
             with Image.open(path) as probe:
                 if probe.format != "PNG":
-                    raise ValueError("invalid PNG signature")
+                    msg = "invalid PNG signature"
+                    raise ValueError(msg)
                 width, height = probe.size
                 if (
                     options.expected_width is not None
@@ -35,15 +52,18 @@ def _capture_metrics(
                         % (width, height, options.expected_width, options.expected_height)
                     )
                 if options.expected_width is not None and width != options.expected_width:
-                    raise ValueError(f"PNG width is {width}, expected {options.expected_width}")
+                    msg = f"PNG width is {width}, expected {options.expected_width}"
+                    raise ValueError(msg)
                 if options.expected_height is not None and height != options.expected_height:
-                    raise ValueError(f"PNG height is {height}, expected {options.expected_height}")
+                    msg = f"PNG height is {height}, expected {options.expected_height}"
+                    raise ValueError(msg)
                 probe.verify()
 
             # Pillow must reopen the image after verify(); load() detects truncated pixel data.
             with Image.open(path) as image:
                 if image.format != "PNG":
-                    raise ValueError("invalid PNG signature")
+                    msg = "invalid PNG signature"
+                    raise ValueError(msg)
                 image.load()
                 pixels = np.array(image.convert("RGBA"), dtype=np.uint8, copy=True)
         except (
@@ -52,7 +72,8 @@ def _capture_metrics(
             OSError,
             SyntaxError,
         ) as exc:
-            raise ValueError("invalid or unreadable PNG capture") from exc
+            msg = "invalid or unreadable PNG capture"
+            raise ValueError(msg) from exc
 
     rgb = pixels[..., :3]
     opaque = pixels[..., 3] > 8
@@ -91,6 +112,17 @@ def png_has_visible_content(
     Unsupported, truncated, or incorrectly sized captures return False so GUI retry
     loops can reject the frame without duplicating image decoding code. Invalid options
     raise Pydantic ValidationError instead of being mistaken for a bad captured frame.
+
+    Args:
+        path: PNG capture path or path-like value to inspect.
+        minimum_pixels: Smallest permitted count of visible, non-background pixels.
+        expected_width: Required image width, when the capture contract specifies one.
+        expected_height: Required image height, when the capture contract specifies one.
+        pixel_threshold: Channel threshold used to distinguish foreground from background.
+        require_all_channels_below: Whether every colour channel must be below the threshold.
+
+    Returns:
+        Whether at least the configured number of visible pixels passes the threshold.
     """
     options = PngCaptureOptions(
         expected_width=expected_width,
@@ -115,7 +147,22 @@ def validate_png_capture(
     min_distinct_rgb: int = 8,
     min_opaque_pixels: int = 64,
 ) -> dict[str, int]:
-    """Reject unreadable, transparent, blank, or effectively uniform PNG captures."""
+    """Validate readability, opacity, foreground content, and colour variation.
+
+    Args:
+        path: PNG filename or path-like value to validate.
+        expected_width: Required image width in pixels.
+        expected_height: Required image height in pixels.
+        min_nonwhite_pixels: Minimum count of visible foreground pixels.
+        min_distinct_rgb: Minimum number of distinct opaque RGB colours.
+        min_opaque_pixels: Minimum count of sufficiently opaque pixels.
+
+    Returns:
+        Pixel metrics as a dictionary with integer values.
+
+    Raises:
+        ValueError: If the image is unreadable, blank, transparent, uniform, or mis-sized.
+    """
     options = PngCaptureOptions(
         expected_width=expected_width,
         expected_height=expected_height,

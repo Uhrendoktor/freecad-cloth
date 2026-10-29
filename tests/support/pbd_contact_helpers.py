@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Import-safe shared FreeCAD/PBD diagnostic and ladder helpers.
 
 The module provides callable infrastructure only. It does not launch tests,
@@ -6,11 +7,24 @@ create documents, start timers, or open output files during import.
 
 from __future__ import annotations
 
+import json
 import math
-from collections.abc import Callable
+import os
+import time
+from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
-from typing import Protocol
+from numbers import Real
+from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Mapping, Sequence
+    from types import ModuleType
+
+Point3 = tuple[float, float, float]
+Triangle3 = tuple[int, int, int]
+
+LADDER_STITCH_SAMPLES = 8
+LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
@@ -36,16 +50,15 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
     if gui is None:
         import FreeCADGui as gui
 
-    qt_widgets = None
     if application is None:
         try:
-            from PySide import QtWidgets as qt_widgets
+            from PySide import QtWidgets
         except ImportError:
-            from PySide2 import QtWidgets as qt_widgets
+            from PySide2 import QtWidgets
 
     gui.updateGui()
     if application is None:
-        application = qt_widgets.QApplication.instance()
+        application = QtWidgets.QApplication.instance()
     if application is not None:
         application.processEvents()
 
@@ -56,7 +69,8 @@ def ensure_gui_ready() -> None:
 
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
+        msg = "FreeCAD GUI did not launch"
+        raise RuntimeError(msg)
     window.show()
     events()
 
@@ -154,13 +168,25 @@ def connected_components(vertices, triangles):
     return len({find(i) for i in range(len(vertices))})
 
 
-def nearest_surface_observation(garment_points, surface):
-    """Return the exact nearest target vertex distance and corresponding world point."""
+def nearest_surface_observation(
+    garment_points: Sequence[Point3],
+    surface: object | None,
+) -> tuple[float | None, Point3 | None]:
+    """Return the nearest target vertex and distance using the shared spatial index.
+
+    Args:
+        garment_points: Garment points in the target's coordinate frame.
+        surface: Collision-surface-like object exposing vertex coordinates.
+
+    Returns:
+        The minimum distance and nearest target vertex, or (None, None) for absent data.
+    """
     if not garment_points or surface is None:
         return None, None
-    vertices = tuple(getattr(surface, "vertices", ()) or ())
-    if not vertices:
+    raw_vertices = tuple(getattr(surface, "vertices", ()) or ())
+    if not raw_vertices:
         return None, None
+    vertices = cast("tuple[Point3, ...]", raw_vertices)
     from freecad_cloth.common.MeshValidation import nearest_target_observation
 
     return nearest_target_observation(garment_points, vertices)
@@ -206,20 +232,26 @@ def inside_outside(points, source):
         return "unknown"
     raw_vertices, raw_faces = topology
     vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    triangles = tuple(tuple(int(i) for i in face) for face in raw_faces)
-    if not vertices or not triangles:
+    if not vertices or not raw_faces:
         return "unknown"
     try:
         import numpy as np
         import trimesh
 
+        face_array = np.asarray(raw_faces, dtype=np.int64)
+        if face_array.ndim != 2 or face_array.shape[1] != 3:
+            return "unknown"
+        triangles: tuple[Triangle3, ...] = tuple(
+            (int(face[0]), int(face[1]), int(face[2])) for face in face_array
+        )
         target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=float),
-            faces=np.asarray(triangles, dtype=int),
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=face_array,
             process=False,
         )
         if not target_mesh.is_watertight:
-            raise RuntimeError("target mesh is not watertight")
+            msg = "target mesh is not watertight"
+            raise RuntimeError(msg)
         states = [
             bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
         ]
@@ -236,24 +268,57 @@ def inside_outside(points, source):
     return "mixed"
 
 
-def bounds(points):
-    """Return axis-aligned bounds for a non-empty point set."""
+def bounds(points: Sequence[Sequence[float]]) -> tuple[float, float, float, float, float, float]:
+    """Return axis-aligned bounds using vectorized NumPy reductions.
+
+    Args:
+        points: Non-empty 3D coordinates.
+
+    Returns:
+        Minimum and maximum coordinates ordered as X, Y, and Z pairs.
+
+    Raises:
+        RuntimeError: If no points are supplied.
+        ValueError: If the coordinates cannot be represented as an (N, 3) array.
+    """
     if not points:
-        raise RuntimeError("cannot measure empty point set")
+        msg = "cannot measure empty point set"
+        raise RuntimeError(msg)
+    import numpy as np
+
+    coordinates = np.asarray(points, dtype=np.float64).reshape((-1, 3))
+    minimums = np.min(coordinates, axis=0)
+    maximums = np.max(coordinates, axis=0)
     return (
-        min(p[0] for p in points),
-        max(p[0] for p in points),
-        min(p[1] for p in points),
-        max(p[1] for p in points),
-        min(p[2] for p in points),
-        max(p[2] for p in points),
+        float(minimums[0]),
+        float(maximums[0]),
+        float(minimums[1]),
+        float(maximums[1]),
+        float(minimums[2]),
+        float(maximums[2]),
     )
 
 
-def centroid(points):
-    """Return the arithmetic centroid of a non-empty point set."""
-    n = float(len(points))
-    return tuple(sum(p[i] for p in points) / n for i in range(3))
+def centroid(points: Sequence[Sequence[float]]) -> tuple[float, float, float]:
+    """Return the component-wise arithmetic mean using NumPy.
+
+    Args:
+        points: Non-empty 3D coordinates.
+
+    Returns:
+        The arithmetic mean of the coordinates.
+
+    Raises:
+        RuntimeError: If no points are supplied.
+        ValueError: If the coordinates cannot be represented as an (N, 3) array.
+    """
+    if not points:
+        msg = "cannot measure an empty point set"
+        raise RuntimeError(msg)
+    import numpy as np
+
+    mean = np.mean(np.asarray(points, dtype=np.float64).reshape((-1, 3)), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def nearest_surface_distance(
@@ -306,7 +371,8 @@ def target_signature(target):
     """Return stable target/source identity and topology metrics for diagnostic evidence."""
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise RuntimeError("diagnostic target has no source")
+        msg = "diagnostic target has no source"
+        raise RuntimeError(msg)
     mesh = getattr(source, "Mesh", None)
     return {
         "target_type": str(getattr(target, "TargetType", "")),
@@ -332,6 +398,171 @@ def target_signature(target):
     }
 
 
+class PBDRuntimeSnapshot(NamedTuple):
+    """Validated state shared by avatar and cube diagnostic ladders."""
+
+    base: object
+    collision_surface: object
+    solver_triangles: int
+    positions: tuple[tuple[float, ...], ...]
+    panel_triangles: tuple[tuple[int, ...], ...]
+    target_signature: dict[str, object]
+    source_shape: object | None
+
+
+def inspect_pbd_runtime(
+    scene: object,
+    source_object: object,
+    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    case_id: str,
+    require_source_shape: bool,
+) -> PBDRuntimeSnapshot:
+    """Validate common native PBD state before diagnostic measurement.
+
+    Args:
+        scene: Production simulation scene built by the case fixture.
+        source_object: Avatar or collision cube used as the target source.
+        positions_converter: Adapter that copies native backend positions.
+        case_id: Stable diagnostic identifier for contextual error messages.
+        require_source_shape: Whether a missing or null source shape is fatal.
+
+    Returns:
+        Validated backend, collision surface, particle positions, panel topology,
+        target signature, and source shape for subsequent diagnostics.
+
+    Raises:
+        RuntimeError: If the PBD backend, collision triangles, or required
+            source shape is missing or invalid.
+    """
+    proxy = getattr(scene, "Proxy", None)
+    restore_base = getattr(proxy, "_base_or_restore", None)
+    if not callable(restore_base):
+        msg = f"{case_id} does not expose a production simulation proxy"
+        raise RuntimeError(msg)
+    base = restore_base()
+    backend = getattr(base, "backend", None)
+    if backend is None:
+        msg = f"{case_id} did not build a PositionBasedDynamics backend"
+        raise RuntimeError(msg)
+    collision_surface = getattr(
+        backend,
+        "solver_collision_surface",
+        getattr(base, "collision_surface", None),
+    )
+    if collision_surface is None:
+        msg = f"{case_id} did not expose a collision surface"
+        raise RuntimeError(msg)
+    solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
+    if solver_triangles <= 0:
+        msg = f"{case_id} has no solver collision triangles"
+        raise RuntimeError(msg)
+
+    positions = positions_converter(backend)
+    panel_triangles = tuple(
+        triangle
+        for triangles in getattr(base, "panel_triangles", {}).values()
+        for triangle in triangles
+    )
+    signature = target_signature(getattr(scene, "DrapeTarget", None))
+    source_shape = getattr(source_object, "Shape", None)
+    if require_source_shape:
+        if source_shape is None or source_shape.isNull():
+            msg = f"{case_id} cube source shape is invalid"
+            raise RuntimeError(msg)
+    elif source_shape is not None:
+        try:
+            if source_shape.isNull():
+                source_shape = None
+        except (AttributeError, TypeError, ValueError):
+            source_shape = None
+
+    return PBDRuntimeSnapshot(
+        base,
+        collision_surface,
+        solver_triangles,
+        positions,
+        panel_triangles,
+        signature,
+        source_shape,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class LadderCheckpointCapture:
+    """Capture a diagnostic checkpoint with injected FreeCAD view behavior."""
+
+    scene: object
+    document: object
+    view: object
+    case_id: str
+    boot: Callable[[str], None]
+    process_events: Callable[[], None]
+    orient_view: Callable[[], None]
+    reveal_objects: Callable[[], None]
+    capture_image: Callable[[object, Path], None]
+
+    def capture(self, step: int, image: Path) -> None:
+        """Recompute the requested step and persist its screenshot.
+
+        Args:
+            step: Solver step count to apply before capturing evidence.
+            image: Destination path for the checkpoint image.
+        """
+        self.boot(f"checkpoint-before-recompute case={self.case_id} step={step}")
+        setattr(self.scene, "Steps", int(step))
+        getattr(self.document, "recompute")()
+        self.boot(f"checkpoint-after-recompute case={self.case_id} step={step}")
+        self.process_events()
+        image.parent.mkdir(parents=True, exist_ok=True)
+        self.orient_view()
+        self.process_events()
+        self.reveal_objects()
+        self.boot(f"checkpoint-before-screenshot case={self.case_id} step={step}")
+        self.capture_image(self.view, image)
+        self.boot(f"checkpoint-after-screenshot case={self.case_id} step={step}")
+
+
+def configure_diagnostic_cube_target(
+    doc: object,
+    scene: object,
+    app: ModuleType,
+    part: ModuleType,
+) -> object:
+    """Create the diagnostic cube and make it the scene's collision target.
+
+    Args:
+        doc: FreeCAD document receiving the collision-cube object.
+        scene: Production simulation scene whose target is replaced by the cube.
+        app: FreeCAD application module supplying native vectors.
+        part: FreeCAD Part module supplying box geometry.
+
+    Returns:
+        The configured cube document object.
+
+    Raises:
+        RuntimeError: If the scene has no drape target to configure.
+    """
+    target = getattr(scene, "DrapeTarget", None)
+    if target is None:
+        msg = "diagnostic collision scene has no DrapeTarget"
+        raise RuntimeError(msg)
+    previous_source = getattr(target, "SourceObject", None)
+    cube = getattr(doc, "addObject")("Part::Feature", "DiagnosticCube")
+    cube.Label = "Diagnostic Collision Cube"
+    cube.Shape = part.makeBox(180.0, 180.0, 60.0, app.Vector(-90.0, -90.0, 0.0))
+    getattr(doc, "recompute")()
+
+    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+
+    set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
+    if previous_source is not None and previous_source is not cube:
+        if hasattr(previous_source, "ViewObject"):
+            previous_source.ViewObject.Visibility = False
+    cube.ViewObject.Visibility = True
+    getattr(doc, "recompute")()
+    return cube
+
+
 def screenshot(view, path):
     """Capture a fixed-size diagnostic PNG and reject missing or empty artifacts."""
     view.setCameraType("Orthographic")
@@ -339,7 +570,8 @@ def screenshot(view, path):
     events()
     view.saveImage(str(path), 640, 360, "White")
     if not path.is_file() or path.stat().st_size <= 0:
-        raise RuntimeError(f"screenshot missing: {path}")
+        msg = f"screenshot missing: {path}"
+        raise RuntimeError(msg)
 
 
 def build_scene(doc, particle_distance=24.0):
@@ -360,7 +592,6 @@ def build_scene(doc, particle_distance=24.0):
     avatar.Label = "Cloth Human Avatar (MakeHuman)"
     avatar.ViewObject.Visibility = True
     set_drape_target_source(scene, avatar, float(getattr(avatar, "SkinOffset", 3.0)), 1.0)
-    scene.AvatarProxy.SourceObject = avatar
     scene.DrapeTarget = doc.getObject("DrapeTarget")
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
@@ -480,3 +711,540 @@ def schedule_freecad_main(callback: Callable[[], None]) -> None:
     except ImportError:
         from PySide2 import QtCore
     QtCore.QTimer.singleShot(0, callback)
+
+
+class LadderCaseMeasurements(NamedTuple):
+    """Validated state and measurements collected before a ladder case steps."""
+
+    runtime: PBDRuntimeSnapshot
+    seam_pre: list[dict[str, object]]
+    proximity_mesh: object | None
+    signed_before: float | None
+    unsigned_before: float | None
+    bounds: dict[str, float]
+
+
+def capture_ladder_checkpoints(
+    *,
+    capture: LadderCheckpointCapture,
+    output_directory: Path,
+    target_name: str,
+    case_id: str,
+    runtime: PBDRuntimeSnapshot,
+    record_checkpoint: Callable[[int, str, tuple[tuple[float, ...], ...]], dict[str, object]],
+    progress: Callable[[str], None],
+) -> tuple[dict[int, str], list[dict[str, object]]]:
+    """Capture the shared checkpoint schedule and collect target-specific measurements.
+
+    Args:
+        capture: Configured view/document capture service.
+        output_directory: Root for this run's diagnostic artifacts.
+        target_name: Stable target name used in the artifact subdirectory.
+        case_id: Case identifier included in image paths and progress messages.
+        runtime: Validated PBD state supplying current particle positions.
+        record_checkpoint: Target-specific callback adding signed clearance and diagnostics.
+        progress: Progress logger for the owning ladder.
+
+    Returns:
+        Image paths keyed by solver step and the corresponding checkpoint records.
+    """
+    images: dict[int, str] = {}
+    checkpoints: list[dict[str, object]] = []
+    for step in LADDER_CHECKPOINTS:
+        image = output_directory / f"{target_name}-ladder" / case_id / f"step-{step:03d}.png"
+        capture.capture(step, image)
+        positions = positions_tuple(getattr(runtime.base, "backend"))
+        relative_image = str(image.relative_to(output_directory))
+        checkpoints.append(record_checkpoint(step, relative_image, positions))
+        images[step] = relative_image
+        progress(f"{case_id}: checkpoint={step}")
+    return images, checkpoints
+
+
+def build_ladder_case_record(
+    *,
+    target: str,
+    case_id: str,
+    spec: Mapping[str, object],
+    scene: object,
+    runtime: PBDRuntimeSnapshot,
+    measurements: LadderCaseMeasurements,
+    images: Mapping[int, str],
+    checkpoints: Sequence[Mapping[str, object]],
+    started: float,
+    target_bounds: Mapping[str, float],
+    contact_mode: str,
+    extra_control: Mapping[str, object],
+    notes: str,
+) -> dict[str, object]:
+    """Assemble the canonical evidence record shared by cube and avatar ladders.
+
+    Args:
+        target: Stable target class used in manifest records.
+        case_id: Unique ladder case identifier.
+        spec: Case configuration, including rung, piece count, pin mode, and seam mode.
+        scene: Production simulation scene whose actual settings are recorded.
+        runtime: Validated target, solver topology, and simulation state.
+        measurements: Pre-step measurements collected from authoritative scene geometry.
+        images: Checkpoint image paths keyed by solver step.
+        checkpoints: Per-step mesh, seam, and clearance evidence.
+        started: Monotonic time at which the case began.
+        target_bounds: Six axis-aligned bounds measured for the target.
+        contact_mode: Diagnostic contact label written to the manifest.
+        extra_control: Target-specific control fields beyond shared seam and bounds data.
+        notes: Human-readable explanation of the diagnostic case.
+
+    Returns:
+        A schema-compatible case record preserving solver settings and measured evidence.
+    """
+    final = checkpoints[-1]
+    penetration_values = []
+    for checkpoint in checkpoints:
+        penetration = checkpoint["penetration_mm"]
+        if isinstance(penetration, Real) and not isinstance(penetration, bool):
+            penetration_values.append(float(penetration))
+    maximum_penetration = max(penetration_values, default=0.0)
+    seam_pairs_by_id = getattr(runtime.base, "seam_stitch_pairs")
+    seam_pairs = [
+        [int(left), int(right)] for pairs in seam_pairs_by_id.values() for left, right in pairs
+    ]
+    seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
+    case_record: dict[str, object] = {
+        "rung": int(cast(int, spec["rung"])),
+        "id": case_id,
+        "target": target,
+        "piece_count": int(cast(int, spec["piece_count"])),
+        "pin_mode": str(cast(str, spec["pin_mode"])),
+        "seam_mode": str(cast(str, spec["seam_mode"])),
+    }
+    signature = runtime.target_signature
+    record: dict[str, object] = {
+        "case_id": case_id,
+        "predecessor_case_id": None,
+        "case": case_record,
+        "solver": {
+            "backend": "pbd",
+            "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
+            "iterations": int(getattr(scene, "SolverIterations", 0)),
+            "substeps": int(getattr(scene, "SolverSubsteps", 0)),
+            "timestep_s": float(getattr(scene, "TimeStep", 0.0)),
+            "gravity_z_mm_s2": float(getattr(scene, "GravityZ", 0.0)),
+        },
+        "collision": {
+            "source_signature": signature,
+            "source_triangles": int(cast(int, signature["source_triangles"])),
+            "solver_triangles": int(runtime.solver_triangles),
+            "target_bounds": dict(target_bounds),
+            "target_topology_summary": {
+                "vertices": int(cast(int, signature["source_vertices"])),
+                "triangles": int(cast(int, signature["source_triangles"])),
+                "solver_triangles": int(runtime.solver_triangles),
+            },
+        },
+        "pre_step": {
+            "piece_bounds": [list(measurements.bounds.values())],
+            "unsigned_clearance_mm": measurements.unsigned_before,
+            "signed_clearance_mm": measurements.signed_before,
+            "seam_pairs": seam_pairs,
+            "seam_world_spans_mm": measurements.seam_pre,
+        },
+        "checkpoints": list(checkpoints),
+        "finite": all(bool(checkpoint["finite"]) for checkpoint in checkpoints),
+        "connected_components": int(cast(int, final["components"])),
+        "max_seam_gap_mm": float(cast(float, final["max_seam_gap_mm"])),
+        "final_clearance_mm": final["target_clearance_mm"],
+        "max_penetration_mm": round(maximum_penetration, 6),
+        "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
+        "first_contact_step": next(
+            (
+                int(checkpoint["step"])
+                for checkpoint in checkpoints
+                if isinstance(checkpoint["target_clearance_mm"], Real)
+                and not isinstance(checkpoint["target_clearance_mm"], bool)
+                and float(checkpoint["target_clearance_mm"]) < 0.0
+                and isinstance(checkpoint["step"], int)
+                and not isinstance(checkpoint["step"], bool)
+            ),
+            None,
+        ),
+        "contact_mode": contact_mode,
+        "control": {
+            "pre_step_seam_count": len(seam_pairs_by_id),
+            "pre_step_seam_pair_count": seam_pair_count,
+            "pre_step_bounds_mm": measurements.bounds,
+            **extra_control,
+        },
+        "images": [images[step] for step in LADDER_CHECKPOINTS],
+        "notes": notes,
+    }
+    return record
+
+
+def structural_ladder_checks(
+    records: Sequence[Mapping[str, object]],
+    ordered_cases: Sequence[tuple[str, int]],
+    single_piece_rungs: Sequence[int],
+    no_seam_two_piece_rungs: Sequence[int],
+) -> dict[str, object]:
+    """Validate required rung configurations and stop interpretation at the first failure.
+
+    Args:
+        records: Manifest case records already produced by the simulation.
+        ordered_cases: Expected case identifiers paired with their numeric rung.
+        single_piece_rungs: Rungs that must contain exactly one unseamed piece.
+        no_seam_two_piece_rungs: Rungs that require two pieces without seams.
+
+    Returns:
+        Validation results and the first failing rung, if any.
+    """
+    by_id = {str(cast("Mapping[str, object]", record["case"])["id"]): record for record in records}
+    checks: list[dict[str, object]] = []
+    for case_id, rung in ordered_cases:
+        record = by_id[case_id]
+        case_data = cast(Mapping[str, object], record["case"])
+        solver = cast("Mapping[str, object]", record["solver"])
+        collision = cast("Mapping[str, object]", record["collision"])
+        pre_step = cast("Mapping[str, object]", record["pre_step"])
+        checkpoints = cast("Sequence[Mapping[str, object]]", record["checkpoints"])
+        ok = (
+            bool(record["finite"])
+            and int(cast(int, case_data["rung"])) == rung
+            and solver["backend"] == "pbd"
+            and int(cast(int, solver["iterations"])) == 1
+            and int(cast(int, solver["substeps"])) == 1
+            and abs(float(cast(float, solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
+            and float(cast(float, solver["gravity_z_mm_s2"])) == 0.0
+            and int(cast(int, collision["solver_triangles"])) > 0
+            and len(checkpoints) == len(LADDER_CHECKPOINTS)
+            and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
+        )
+        piece_count = int(cast(int, case_data["piece_count"]))
+        seams = cast("Sequence[object]", pre_step["seam_pairs"])
+        seam_spans = cast("Sequence[object]", pre_step["seam_world_spans_mm"])
+        if rung in single_piece_rungs:
+            ok = ok and piece_count == 1 and not seams
+        elif rung in no_seam_two_piece_rungs:
+            ok = ok and piece_count == 2 and not seams
+        else:
+            ok = ok and piece_count == 2 and len(seam_spans) == 1
+        checks.append({"rung": rung, "case_id": case_id, "passed": bool(ok)})
+        if not ok:
+            break
+    first_failure = next(
+        (int(cast(int, item["rung"])) for item in checks if not bool(item["passed"])),
+        None,
+    )
+    return {
+        "checks": checks,
+        "first_failing_rung": first_failure,
+        "stop_interpretation_at_first_failure": True,
+    }
+
+
+def write_ladder_manifest(
+    *,
+    target: str,
+    purpose: str,
+    manifest_name: str,
+    strongest_alternative: str,
+    case_ids: Sequence[str],
+    ordered_cases: Sequence[tuple[str, int]],
+    single_piece_rungs: Sequence[int],
+    no_seam_two_piece_rungs: Sequence[int],
+    run_case: Callable[[str], dict[str, object]],
+    output_directory: Path,
+    boot: Callable[[str], None],
+    progress: Callable[[str], None],
+) -> int:
+    """Run the requested cases and persist the common schema-1 diagnostic manifest.
+
+    Args:
+        target: Target label used in the progress stream.
+        purpose: Schema purpose identifying the kind of ladder.
+        manifest_name: Destination filename within the diagnostic directory.
+        strongest_alternative: Competing causal explanation recorded for reviewers.
+        case_ids: Ordered rung case IDs to execute.
+        ordered_cases: Expected case identifiers paired with numeric rung values.
+        single_piece_rungs: Rungs requiring exactly one unseamed panel.
+        no_seam_two_piece_rungs: Rungs requiring two panels without a seam.
+        run_case: Callable that runs one case and returns its evidence record.
+        output_directory: Directory for diagnostic manifest and checkpoint evidence.
+        boot: Append-only bootstrap trace callback.
+        progress: Human-readable progress logger.
+
+    Returns:
+        Zero after the complete manifest has been written.
+    """
+    boot("main-entered")
+    progress(f"{target}-ladder: start")
+    records = [run_case(case_id) for case_id in case_ids]
+    manifest = {
+        "schema": 1,
+        "purpose": purpose,
+        "release_gate_effect": "gate",
+        "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
+        "solver_settings_frozen": {
+            "backend_requested": "pbd",
+            "particle_distance_mm": 24.0,
+            "iterations": 1,
+            "substeps": 1,
+            "timestep_s": 1.0 / 120.0,
+            "gravity_z_mm_s2": 0.0,
+            "gravity_mm_s2": [0.0, 0.0, 0.0],
+        },
+        "checkpoint_steps": list(LADDER_CHECKPOINTS),
+        "stop_rule": {
+            "first_failing_rung": True,
+            "human_visual_review_required": True,
+            "strongest_alternative": strongest_alternative,
+        },
+        "cases": records,
+        "structural_validation": structural_ladder_checks(
+            records,
+            ordered_cases,
+            single_piece_rungs,
+            no_seam_two_piece_rungs,
+        ),
+    }
+    path = output_directory / manifest_name
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    boot("all-cases-complete")
+    progress(f"{target}-ladder: manifest-written")
+    print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
+    return 0
+
+
+def append_optional_ladder_piece(
+    spec: Mapping[str, object],
+    pieces: list[object],
+    create_right_piece: Callable[[], object],
+    add_seam: Callable[[object, object], None],
+) -> None:
+    """Append the optional right piece and seam specified by a ladder case.
+
+    Args:
+        spec: Manifest record defining piece count and seam mode.
+        pieces: Mutable list already containing the left panel.
+        create_right_piece: Factory for the case-specific second panel.
+        add_seam: Callback that creates a seam between two panels.
+
+    Raises:
+        ValueError: If a two-piece case has no left panel.
+    """
+    if spec.get("piece_count") != 2:
+        return
+    if not pieces:
+        msg = "two-piece ladder case requires an existing left panel"
+        raise ValueError(msg)
+    right_piece = create_right_piece()
+    pieces.append(right_piece)
+    if spec.get("seam_mode") in {"small", "large"}:
+        add_seam(pieces[0], right_piece)
+
+
+def configure_ladder_scene(
+    scene: object,
+    pieces: list[object],
+    spec: Mapping[str, object],
+) -> None:
+    """Apply common cloth, pinning, seam, and step settings to a ladder scene.
+
+    Args:
+        scene: Production simulation scene document object.
+        pieces: Case-specific one- or two-panel cloth pieces.
+        spec: Manifest record supplying the pin mode.
+    """
+    setattr(scene, "ClothPieces", pieces)
+    setattr(scene, "SeamSelection", [])
+    setattr(scene, "PinMode", str(spec["pin_mode"]))
+    setattr(scene, "PinSelection", [])
+    setattr(scene, "StitchSamples", LADDER_STITCH_SAMPLES)
+    setattr(scene, "Steps", 0)
+
+
+def build_proximity_mesh(collision_surface: object) -> object | None:
+    """Build an optional Trimesh acceleration mesh for surface-distance queries.
+
+    Args:
+        collision_surface: Validated surface exposing vertices and triangles.
+
+    Returns:
+        A Trimesh object when available and constructible; otherwise None.
+    """
+    try:
+        import numpy as np
+        import trimesh
+
+        return trimesh.Trimesh(
+            vertices=np.asarray(getattr(collision_surface, "vertices", ()), dtype=np.float64),
+            faces=np.asarray(getattr(collision_surface, "triangles", ()), dtype=np.int64),
+            process=False,
+        )
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def position_bounds(points: Sequence[Sequence[float]]) -> dict[str, float]:
+    """Compute axis-aligned coordinate bounds using vectorized NumPy reductions.
+
+    Args:
+        points: Particle or vertex coordinates in X, Y, Z order.
+
+    Returns:
+        Minimum and maximum coordinates for each axis.
+
+    Raises:
+        ValueError: If the sequence is empty or cannot form an N-by-3 coordinate array.
+    """
+    import numpy as np
+
+    coordinates = np.asarray(points, dtype=np.float64).reshape((-1, 3))
+    if not coordinates.size:
+        msg = "cannot compute bounds for an empty PBD position set"
+        raise ValueError(msg)
+    minimum = np.min(coordinates, axis=0)
+    maximum = np.max(coordinates, axis=0)
+    return {
+        "x_min": float(minimum[0]),
+        "x_max": float(maximum[0]),
+        "y_min": float(minimum[1]),
+        "y_max": float(maximum[1]),
+        "z_min": float(minimum[2]),
+        "z_max": float(maximum[2]),
+    }
+
+
+def surface_signed_clearance(
+    points: Sequence[Sequence[float]],
+    source_shape: object | None,
+    collision_surface: object,
+    proximity_mesh: object | None = None,
+    *,
+    vector_factory: Callable[..., object] | None = None,
+    trace: Callable[[str], None] | None = None,
+) -> tuple[float | None, float | None]:
+    """Measure mesh distance and use the native target shape to infer its sign.
+
+    Args:
+        points: Particle coordinates to test against the target surface.
+        source_shape: Optional native FreeCAD shape used for inside/outside checks.
+        collision_surface: Shared collision surface used by fallback queries.
+        proximity_mesh: Optional Trimesh acceleration object.
+        vector_factory: Native point constructor required by shape.isInside.
+        trace: Optional callback for diagnostic trace markers.
+
+    Returns:
+        Signed and unsigned target clearance in millimetres, or (None, None) when
+        neither distance-query path can provide a value.
+    """
+
+    def mark(message: str) -> None:
+        if trace is not None:
+            trace(message)
+
+    mark(f"start points={len(points)} source_shape={source_shape is not None}")
+    unsigned: float | None = None
+    if proximity_mesh is not None:
+        try:
+            import numpy as np
+            from trimesh import Trimesh
+
+            if not callable(Trimesh):
+                msg = "trimesh.Trimesh is unavailable"
+                raise ImportError(msg)
+            nearest = getattr(proximity_mesh, "nearest", None)
+            on_surface = getattr(nearest, "on_surface", None)
+            if not callable(on_surface):
+                msg = "Trimesh nearest-surface query is unavailable"
+                raise ImportError(msg)
+            if points:
+                mark("before-trimesh-nearest")
+                _, distances, _ = on_surface(np.asarray(points, dtype=np.float64))
+                mark("after-trimesh-nearest")
+                unsigned = float(np.min(distances)) if len(distances) else float("inf")
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            mark(f"trimesh-nearest-fallback exception={exc!r}")
+            unsigned = None
+    if unsigned is None:
+        mark("before-shared-nearest-surface-fallback")
+        unsigned = nearest_surface_distance(points, collision_surface)
+        mark(f"after-shared-nearest-surface-fallback unsigned={unsigned!r}")
+    if unsigned is None:
+        mark("clearance-unavailable")
+        return None, None
+
+    inside = False
+    if source_shape is not None and vector_factory is not None:
+        for index, point in enumerate(points):
+            try:
+                mark(f"before-shape-isInside index={index}")
+                point_inside = bool(
+                    getattr(source_shape, "isInside")(vector_factory(*point), 1e-6, True)
+                )
+                mark(f"after-shape-isInside index={index} result={point_inside}")
+                if point_inside:
+                    inside = True
+                    if trace is None:
+                        break
+            except (AttributeError, TypeError, ValueError):
+                break
+    return float(-unsigned if inside else unsigned), float(unsigned)
+
+
+def prepare_ladder_case(
+    scene: object,
+    source_object: object,
+    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    case_id: str,
+    require_source_shape: bool,
+    clearance_measure: Callable[
+        [Sequence[Sequence[float]], object | None, object, object | None],
+        tuple[float | None, float | None],
+    ],
+) -> LadderCaseMeasurements:
+    """Prepare common runtime state and measurements before a ladder case steps.
+
+    Args:
+        scene: Production simulation scene with the case-specific cloth settings.
+        source_object: Avatar or collision cube serving as collision target.
+        positions_converter: Adapter that copies native backend positions.
+        case_id: Stable identifier used in validation error messages.
+        require_source_shape: Whether the native target shape must be present.
+        clearance_measure: Case wrapper around the shared signed-clearance helper.
+
+    Returns:
+        Validated runtime, seam measurements, proximity mesh, initial clearance,
+        and vectorized particle bounds.
+
+    Raises:
+        RuntimeError: If the production PBD runtime or required target shape is invalid.
+        ValueError: If the runtime contains no particle positions.
+    """
+    runtime = inspect_pbd_runtime(
+        scene=scene,
+        source_object=source_object,
+        positions_converter=positions_converter,
+        case_id=case_id,
+        require_source_shape=require_source_shape,
+    )
+    base = runtime.base
+    seam_pre = seam_geometry(
+        getattr(base, "backend"),
+        getattr(base, "seam_stitch_pairs"),
+    )
+    proximity_mesh = build_proximity_mesh(runtime.collision_surface)
+    signed_before, unsigned_before = clearance_measure(
+        runtime.positions,
+        runtime.source_shape,
+        runtime.collision_surface,
+        proximity_mesh,
+    )
+    bounds = position_bounds(runtime.positions)
+    return LadderCaseMeasurements(
+        runtime,
+        seam_pre,
+        proximity_mesh,
+        signed_before,
+        unsigned_before,
+        bounds,
+    )

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Block increases in missing-annotation debt for every changed Python file.
 
 The repository has existing annotation debt. This gate compares Ruff's annotation
@@ -10,12 +11,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
+import shutil
 import sys
 from collections import Counter
-from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
 
+if __package__:
+    from tools.ci.command_runner import CommandContext, run_command
+else:
+    from command_runner import CommandContext, run_command
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+EXPECTED_RUFF_RETURN_CODES = {0, 1}
 RULES = (
     "ANN001",
     "ANN002",
@@ -29,12 +39,35 @@ RULES = (
 )
 
 
+def _git_executable() -> str:
+    """Locate Git for source comparison commands.
+
+    Returns:
+        Absolute path of the Git executable.
+
+    Raises:
+        RuntimeError: If Git is not installed or not available on PATH.
+    """
+    executable = shutil.which("git")
+    if executable is None:
+        msg = "git executable is required to compare changed Python files"
+        raise RuntimeError(msg)
+    return executable
+
+
 def changed_python_sources(base: str) -> dict[str, str | None]:
-    """Map each changed Python path to its base path, or None for newly added files."""
+    """Map each changed Python path to its base path, or None for newly added files.
+
+    Args:
+        base: Target branch name used to compute the source diff.
+
+    Returns:
+        Changed Python paths mapped to their previous names or None when newly added.
+    """
     base_ref = f"origin/{base}"
-    result = subprocess.run(
+    result = run_command(
         [
-            "git",
+            _git_executable(),
             "diff",
             "--name-status",
             "--find-renames",
@@ -45,7 +78,6 @@ def changed_python_sources(base: str) -> dict[str, str | None]:
         ],
         check=True,
         capture_output=True,
-        text=True,
     )
     fields = result.stdout.split("\0")
     changed: dict[str, str | None] = {}
@@ -73,7 +105,15 @@ def annotation_regressions(
     current: Mapping[str, int],
     baseline: Mapping[str, int],
 ) -> tuple[tuple[str, int, int], ...]:
-    """Return rules whose current violation count exceeds the base count."""
+    """Return rules whose current violation count exceeds the base count.
+
+    Args:
+        current: Ruff annotation diagnostic counts for the changed source.
+        baseline: Ruff annotation diagnostic counts from the target branch.
+
+    Returns:
+        Rule names and baseline/current counts for every annotation regression.
+    """
     return tuple(
         (rule, baseline.get(rule, 0), current.get(rule, 0))
         for rule in RULES
@@ -82,7 +122,18 @@ def annotation_regressions(
 
 
 def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
-    """Count selected annotation diagnostics in source using a stable isolated Ruff run."""
+    """Count selected annotation diagnostics in source using a stable isolated Ruff run.
+
+    Args:
+        source: Python source text analyzed by Ruff.
+        filename: Logical source path used for Ruff's stdin filename.
+
+    Returns:
+        Counts of the selected annotation rules found in the source.
+
+    Raises:
+        RuntimeError: When Ruff cannot analyze the source or returns invalid JSON.
+    """
     command = [
         sys.executable,
         "-m",
@@ -99,14 +150,21 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
         filename,
         "-",
     ]
-    result = subprocess.run(command, input=source, check=False, capture_output=True, text=True)
-    if result.returncode not in (0, 1):
+    result = run_command(
+        command,
+        check=False,
+        capture_output=True,
+        context=CommandContext(input_text=source),
+    )
+    if result.returncode not in EXPECTED_RUFF_RETURN_CODES:
         detail = result.stderr.strip() or result.stdout.strip()
-        raise RuntimeError(f"Ruff could not analyze {filename}: {detail}")
+        msg = f"Ruff could not analyze {filename}: {detail}"
+        raise RuntimeError(msg)
     try:
         diagnostics = json.loads(result.stdout or "[]")
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Ruff returned invalid JSON for {filename}") from exc
+        msg = f"Ruff returned invalid JSON for {filename}"
+        raise RuntimeError(msg) from exc
     counts: Counter[str] = Counter()
     for diagnostic in diagnostics:
         code = diagnostic.get("code")
@@ -116,12 +174,19 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
 
 
 def _base_source(base: str, path: str) -> str | None:
-    """Read a file from the target branch; return None when it did not exist there."""
-    result = subprocess.run(
-        ["git", "show", f"origin/{base}:{path}"],
+    """Read a file from the target branch; return None when it did not exist there.
+
+    Args:
+        base: Target branch name containing the comparison source.
+        path: Repository-relative path to read from that branch.
+
+    Returns:
+        Source text from the target branch, or None when the path is absent.
+    """
+    result = run_command(
+        [_git_executable(), "show", f"origin/{base}:{path}"],
         check=False,
         capture_output=True,
-        text=True,
     )
     if result.returncode != 0:
         return None
@@ -129,7 +194,14 @@ def _base_source(base: str, path: str) -> str | None:
 
 
 def main() -> int:
-    """Fail when a changed Python file adds missing-annotation violations."""
+    """Fail when a changed Python file adds missing-annotation violations.
+
+    Returns:
+        Process status indicating whether changed files avoid annotation regressions.
+
+    Raises:
+        SystemExit: When a changed Python source file cannot be read as UTF-8 text.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--base",
@@ -138,7 +210,8 @@ def main() -> int:
     args = parser.parse_args()
     changed = changed_python_sources(args.base)
     if not changed:
-        print("changed-python-annotations=skipped files=0", flush=True)
+        sys.stdout.write("changed-python-annotations=skipped files=0\n")
+        sys.stdout.flush()
         return 0
 
     regressions: list[str] = []
@@ -149,7 +222,8 @@ def main() -> int:
         try:
             current_source = current_path.read_text(encoding="utf-8")
         except (OSError, UnicodeError) as exc:
-            raise SystemExit(f"unable to read changed Python source {path}: {exc}") from exc
+            msg = f"unable to read changed Python source {path}: {exc}"
+            raise SystemExit(msg) from exc
 
         current_counts = _ruff_annotation_counts(current_source, path)
         previous_source = _base_source(args.base, base_path) if base_path is not None else None
@@ -162,15 +236,15 @@ def main() -> int:
             regressions.append(f"{path}: {rule} increased from {previous_count} to {current_count}")
 
     if regressions:
-        print("changed-python-annotations=failed", file=sys.stderr)
-        print("\n".join(regressions), file=sys.stderr)
+        sys.stderr.write("changed-python-annotations=failed\n")
+        sys.stderr.write("\n".join(regressions) + "\n")
         return 1
 
-    print(
+    sys.stdout.write(
         f"changed-python-annotations=passed files={len(changed)} "
-        "policy=no per-file annotation debt increase",
-        flush=True,
+        "policy=no per-file annotation debt increase\n"
     )
+    sys.stdout.flush()
     return 0
 
 

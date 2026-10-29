@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
@@ -11,14 +12,14 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import contextlib
+import importlib
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 from pivy import coin
 
-import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
+importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
@@ -31,6 +32,7 @@ from tests.support.freecad_input import (
     _qt_modules,
     click_widget,
     focus_main_window,
+    wait_for_task_dialog_close as wait_for_task_dialog_close_common,
 )
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
@@ -307,7 +309,8 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
                 set_seam_highlights_enabled(enabled)
             controller = refresh_seam_overlay(document) if enabled else None
             if enabled:
-                assert controller is not None and controller.root is not None
+                assert controller is not None
+                assert controller.root is not None
                 controller.refresh(
                     document,
                     active_seam_id=hovered,
@@ -387,20 +390,13 @@ def save_seam_overlay_options_evidence(filename):
         process_events()
 
 
-def wait_for_task_close():
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtWidgets
-    for _ in range(80):
-        active = Gui.Control.activeDialog()
-        if active is None or not bool(active):
-            return
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(0, loop.quit)
-        loop.exec()
-        QtWidgets.QApplication.processEvents()
-    raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
+def wait_for_task_close() -> None:
+    """Require the staged sewing task to close after the requested user action."""
+    wait_for_task_dialog_close_common(
+        Gui,
+        "task dialog did not close after the requested Commit/Cancel action",
+        failure_type=AssertionError,
+    )
 
 
 def select_edges(*items):
@@ -529,7 +525,8 @@ try:
     view_size = view.getSize()
     view_width, view_height = float(view_size[0]), float(view_size[1])
     if view_width <= 0.0 or view_height <= 0.0:
-        raise RuntimeError("seam-assignment GIF has an invalid viewport size")
+        msg = "seam-assignment GIF has an invalid viewport size"
+        raise RuntimeError(msg)
     aspect = view_width / view_height
     extent_x, extent_y = xmax - xmin, ymax - ymin
     # Reserve a clear strip on the right for FreeCAD's staged sewing task panel.
@@ -561,10 +558,11 @@ try:
         view.getCamera(),
     )
     if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
-        raise RuntimeError(
+        msg = (
             "seam-assignment GIF camera did not apply the requested world-space framing: "
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
+        raise RuntimeError(msg)
     record(
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
         "height=%.2f viewport=%dx%d"
@@ -782,9 +780,11 @@ try:
         ),
         None,
     )
-    assert curved_preview is not None and curved_preview.Status == "Valid"
+    assert curved_preview is not None
+    assert curved_preview.Status == "Valid"
     assert len(curved_preview.Seams) == 3
-    assert curved_preview.SideACount == 2 and curved_preview.SideBCount == 2
+    assert curved_preview.SideACount == 2
+    assert curved_preview.SideBCount == 2
 
     curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (-5.0, 40.0)])
     curved_a.Shape = _curved_shape(100.0, 105.0, 90.0)
@@ -945,7 +945,8 @@ try:
 
     network_panel = get_active_network_task_panel()
     assert network_panel is not None
-    assert getattr(network_panel, "form", None) is not None and network_panel.form.isVisible()
+    assert getattr(network_panel, "form", None) is not None
+    assert network_panel.form.isVisible()
     evidence_label = getattr(network_panel, "correspondence", None)
     assert evidence_label is not None
     assert str(evidence_label.objectName()) == "ClothSewingNetworkCorrespondenceEvidence"

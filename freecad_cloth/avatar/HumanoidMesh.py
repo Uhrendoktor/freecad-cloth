@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """MakeHuman-backed humanoid mesh provider.
 
 The avatar is a real polygonal human base mesh rather than a collection of
@@ -14,13 +15,15 @@ import json
 import math
 import os
 import tempfile
-from collections.abc import Callable, Iterable, Mapping, Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Self, TypedDict, cast
+from typing import TYPE_CHECKING, Self, cast
 from urllib.request import Request, urlopen
 
 from pydantic import StrictInt
+
+import numpy as np
+import trimesh
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -28,6 +31,8 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     resolve_target,
     target_directory,
 )
+from freecad_cloth.avatar.SkeletonTypes import BoneData, SkeletonData
+from freecad_cloth.shared.MeshTopology import triangle_indices_are_valid
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"
 MAKEHUMAN_BASE_URL = (
@@ -49,6 +54,14 @@ MAKEHUMAN_SKELETON_URL = (
 )
 MAKEHUMAN_SKELETON_SIZE = 117790
 MAKEHUMAN_BODY_VERTEX_COUNT = 13380
+_SHOULDER_START_HEIGHT_RATIO = 0.68
+_SHOULDER_END_HEIGHT_RATIO = 0.82
+_ARM_START_HEIGHT_RATIO = 0.50
+_ARM_END_HEIGHT_RATIO = 0.78
+_ARM_PIVOT_SEPARATION_FACTOR = 1.05
+_ARM_MIN_INFLUENCE = 0.05
+_ARM_MIN_LEVER_ARM_MM = 0.1
+_ARM_MIN_RADIAL_DISTANCE_MM = 1e-6
 CACHE_ENV = "FREECAD_CLOTH_AVATAR_MESH"
 MAKEHUMAN_DATA_ENV = "FREECAD_CLOTH_MAKEHUMAN_DATA"
 CACHE_DIR_ENV = "FREECAD_CLOTH_AVATAR_CACHE"
@@ -59,24 +72,12 @@ DEFAULT_WEIGHTS_NAME = "makehuman-default-weights.mhw"
 DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
 if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping, Sequence
+
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
 Triangle = tuple[int, int, int]
-
-
-class BoneData(TypedDict):
-    """Minimal authored bone fields used by the avatar fitting pipeline."""
-
-    head: str
-    tail: str
-
-
-class SkeletonData(TypedDict):
-    """Authored MakeHuman joint index lists and their referencing bones."""
-
-    bones: dict[str, BoneData]
-    joints: dict[str, list[int]]
 
 
 class HumanoidMeshError(RuntimeError):
@@ -91,33 +92,36 @@ class MeshData:
     triangles: tuple[tuple[StrictInt, StrictInt, StrictInt], ...]
 
     def validate(self) -> Self:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this mesh's finite coordinates and triangle indices.
+
+        Returns:
+            The same mesh after validation.
+
+        Raises:
+            HumanoidMeshError: If the mesh is empty, has invalid coordinates, or
+                contains a face with an invalid vertex index.
+        """
         if len(self.vertices) < 3 or not self.triangles:
-            raise HumanoidMeshError("humanoid mesh is empty")
+            msg = "humanoid mesh is empty"
+            raise HumanoidMeshError(msg)
 
-        for vertex in self.vertices:
-            try:
-                valid_vertex = len(vertex) == 3 and all(
-                    isinstance(value, (int, float))
-                    and not isinstance(value, bool)
-                    and math.isfinite(value)
-                    for value in vertex
-                )
-            except (TypeError, OverflowError):
-                valid_vertex = False
-            if not valid_vertex:
-                raise HumanoidMeshError("humanoid mesh contains invalid vertex coordinates")
+        vertices: np.ndarray | None = None
+        valid_vertices = False
+        try:
+            vertices = np.asarray(self.vertices, dtype=np.float64)
+            valid_vertices = vertices.shape == (len(self.vertices), 3) and bool(
+                np.isfinite(vertices).all()
+            )
+        except (TypeError, ValueError, OverflowError):
+            valid_vertices = False
+        if vertices is None or not valid_vertices:
+            msg = "humanoid mesh contains invalid vertex coordinates"
+            raise HumanoidMeshError(msg)
 
-        count = len(self.vertices)
-        for tri in self.triangles:
-            try:
-                valid_triangle = len(tri) == 3 and all(
-                    type(index) is int and 0 <= index < count for index in tri
-                )
-            except TypeError:
-                valid_triangle = False
-            if not valid_triangle:
-                raise HumanoidMeshError("humanoid mesh contains an invalid face")
+        valid_triangles = triangle_indices_are_valid(self.triangles, len(vertices))
+        if not valid_triangles:
+            msg = "humanoid mesh contains an invalid face"
+            raise HumanoidMeshError(msg)
         return self
 
 
@@ -243,11 +247,12 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
                         break
                     handle.write(chunk)
         if not verifier(Path(temporary)):
-            raise HumanoidMeshError("downloaded MakeHuman asset failed verification")
-        os.replace(temporary, destination)
+            msg = "downloaded MakeHuman asset failed verification"
+            raise HumanoidMeshError(msg)
+        Path(temporary).replace(destination)
     except Exception:
         with contextlib.suppress(OSError):
-            os.unlink(temporary)
+            Path(temporary).unlink()
         raise
 
 
@@ -358,12 +363,14 @@ def ensure_makehuman_base(
     if path is not None:
         destination = Path(path).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(f"explicit humanoid mesh path does not exist: {destination}")
+            msg = f"explicit humanoid mesh path does not exist: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
     if override:
         destination = Path(override).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(f"{CACHE_ENV} points to a missing humanoid mesh: {destination}")
+            msg = f"{CACHE_ENV} points to a missing humanoid mesh: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
 
     destination = _default_cache_path(settings)
@@ -375,11 +382,12 @@ def ensure_makehuman_base(
     try:
         download(MAKEHUMAN_BASE_URL, destination, check)
     except Exception as exc:
-        raise HumanoidMeshError(
+        msg = (
             "unable to obtain the pinned MakeHuman HM08 base mesh; set "
             f"{MAKEHUMAN_DATA_ENV} to a MakeHuman install/data directory, set "
             f"{CACHE_ENV} to a local OBJ file, or allow network access ({exc})"
-        ) from exc
+        )
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -389,16 +397,14 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
     if path is not None:
         destination = Path(path).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(
-                f"explicit MakeHuman weights path does not exist: {destination}"
-            )
+            msg = f"explicit MakeHuman weights path does not exist: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
     if override:
         destination = Path(override).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(
-                f"{WEIGHTS_ENV} points to missing MakeHuman weights: {destination}"
-            )
+            msg = f"{WEIGHTS_ENV} points to missing MakeHuman weights: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
 
     destination = _weights_cache_path()
@@ -407,10 +413,11 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
     try:
         _download(MAKEHUMAN_WEIGHTS_URL, destination, _verified_weights)
     except Exception as exc:
-        raise HumanoidMeshError(
+        msg = (
             "unable to obtain the pinned MakeHuman default weights; "
             f"set {WEIGHTS_ENV} to a local MHW file or allow network access ({exc})"
-        ) from exc
+        )
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -420,16 +427,14 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
     if path is not None:
         destination = Path(path).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(
-                f"explicit MakeHuman skeleton path does not exist: {destination}"
-            )
+            msg = f"explicit MakeHuman skeleton path does not exist: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
     if override:
         destination = Path(override).expanduser()
         if not destination.is_file():
-            raise HumanoidMeshError(
-                f"{SKELETON_ENV} points to missing MakeHuman skeleton: {destination}"
-            )
+            msg = f"{SKELETON_ENV} points to missing MakeHuman skeleton: {destination}"
+            raise HumanoidMeshError(msg)
         return destination
 
     destination = _skeleton_cache_path()
@@ -438,10 +443,11 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
     try:
         _download(MAKEHUMAN_SKELETON_URL, destination, _verified_skeleton)
     except Exception as exc:
-        raise HumanoidMeshError(
+        msg = (
             "unable to obtain the pinned MakeHuman default skeleton; "
             f"set {SKELETON_ENV} to a local MHSkel file or allow network access ({exc})"
-        ) from exc
+        )
+        raise HumanoidMeshError(msg) from exc
     return destination
 
 
@@ -454,15 +460,16 @@ def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
             if fields and fields[0] == "v" and len(fields) >= 4:
                 point = (float(fields[1]), float(fields[2]), float(fields[3]))
                 if not all(math.isfinite(value) for value in point):
-                    raise ValueError("source vertex coordinates must be finite")
+                    msg = "source vertex coordinates must be finite"
+                    raise ValueError(msg)
                 vertices.append(point)
         if len(vertices) < 3:
-            raise ValueError("source mesh contains fewer than three vertices")
+            msg = "source mesh contains fewer than three vertices"
+            raise ValueError(msg)
         return tuple(vertices)
     except (OSError, UnicodeError, ValueError) as exc:
-        raise HumanoidMeshError(
-            f"unable to parse MakeHuman source vertices {source}: {exc}"
-        ) from exc
+        msg = f"unable to parse MakeHuman source vertices {source}: {exc}"
+        raise HumanoidMeshError(msg) from exc
 
 
 @lru_cache(maxsize=4)
@@ -472,10 +479,12 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
     except (OSError, UnicodeError, ValueError) as exc:
-        raise HumanoidMeshError(f"unable to parse MakeHuman skeleton {source}: {exc}") from exc
+        msg = f"unable to parse MakeHuman skeleton {source}: {exc}"
+        raise HumanoidMeshError(msg) from exc
     if not _valid_skeleton_payload(payload):
-        raise HumanoidMeshError(f"MakeHuman skeleton has invalid bones or joints: {source}")
-    return cast(SkeletonData, payload)
+        msg = f"MakeHuman skeleton has invalid bones or joints: {source}"
+        raise HumanoidMeshError(msg)
+    return cast("SkeletonData", payload)
 
 
 def _joint_point(
@@ -483,24 +492,32 @@ def _joint_point(
     indices: Iterable[int],
     mapper: Callable[[Point], Point] | None = None,
 ) -> Point:
-    """Average authored joint vertices, optionally after fitting each vertex.
+    """Average authored joint vertices after optional per-vertex fitting.
 
-    Fitting the average source point is not equivalent to averaging the fitted
-    points when the mapping is nonlinear. The latter keeps rest-joint
-    locations aligned with the actual fitted surface.
+    Fitting the average source point is not equivalent to averaging fitted
+    points when the mapping is nonlinear; averaging mapped vertices keeps
+    joint locations aligned with the actual fitted surface.
+
+    Args:
+        source_vertices: Authored MakeHuman vertex coordinates.
+        indices: Indices defining the joint's contributing source vertices.
+        mapper: Optional source-to-fitted-coordinate transform.
+
+    Returns:
+        The mean mapped joint coordinate.
+
+    Raises:
+        HumanoidMeshError: If no valid source vertices define the joint.
     """
     points = [
         source_vertices[int(index)] for index in indices if 0 <= int(index) < len(source_vertices)
     ]
     if not points:
-        raise HumanoidMeshError("MakeHuman skeleton references missing joint vertices")
+        msg = "MakeHuman skeleton references missing joint vertices"
+        raise HumanoidMeshError(msg)
     fitted = [mapper(point) for point in points] if mapper is not None else points
-    count = float(len(fitted))
-    return (
-        sum(point[0] for point in fitted) / count,
-        sum(point[1] for point in fitted) / count,
-        sum(point[2] for point in fitted) / count,
-    )
+    mean = np.mean(np.asarray(fitted, dtype=np.float64), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def _bone_source_endpoints(
@@ -512,7 +529,8 @@ def _bone_source_endpoints(
     """Return authored endpoints, optionally fitted vertex-by-vertex."""
     bone = skeleton["bones"].get(bone_name)
     if not bone:
-        raise HumanoidMeshError(f"MakeHuman skeleton has no bone {bone_name}")
+        msg = f"MakeHuman skeleton has no bone {bone_name}"
+        raise HumanoidMeshError(msg)
     return (
         _joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=mapper),
         _joint_point(source_vertices, skeleton["joints"][bone["tail"]], mapper=mapper),
@@ -559,7 +577,8 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
     try:
         return parse_obj(source.read_text(encoding="utf-8", errors="strict"))
     except (OSError, UnicodeError, ValueError, HumanoidMeshError) as exc:
-        raise HumanoidMeshError(f"unable to parse MakeHuman base mesh {source}: {exc}") from exc
+        msg = f"unable to parse MakeHuman base mesh {source}: {exc}"
+        raise HumanoidMeshError(msg) from exc
 
 
 def _lerp(a: float, b: float, t: float) -> float:
@@ -573,16 +592,23 @@ def _smoothstep(a: float, b: float, x: float) -> float:
     return t * t * (3.0 - 2.0 * t)
 
 
-def _axis_bounds(vertices: Sequence[Point], axis: int) -> tuple[float, float]:
-    values = [v[axis] for v in vertices]
-    return min(values), max(values)
-
-
 def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
-    """Convert MakeHuman's Y-up coordinates to FreeCAD RH-Z-up coordinates."""
-    ymin, ymax = _axis_bounds(vertices, 1)
+    """Convert MakeHuman coordinates to FreeCAD's right-handed Z-up system.
+
+    Args:
+        vertices: Finite MakeHuman coordinates in the source Y-up system.
+
+    Returns:
+        Coordinates with the source Y axis mapped to vertical Z and normalized
+        to a unit height, preserving X and mapping source Z to FreeCAD Y.
+    """
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    heights = coordinates[:, 1]
+    ymin = float(np.min(heights))
+    ymax = float(np.max(heights))
     span = max(1e-9, ymax - ymin)
-    return [(float(x), float(z), float(y - ymin) / span) for x, y, z in vertices]
+    mapped = np.column_stack((coordinates[:, 0], coordinates[:, 2], (heights - ymin) / span))
+    return [(float(x), float(y), float(z)) for x, y, z in mapped]
 
 
 def _reoriented_triangles(triangles: Sequence[Triangle]) -> tuple[Triangle, ...]:
@@ -645,8 +671,8 @@ def _measurement_axis_profiles(
         ("underbust", 0.64, 1.15),
         ("chest", 0.69, 1.15),
     )
-    # Reuse the canonical per-measurement ratios so clamping and band placement
-    # stay identical for both the legacy profile and its anisotropic version.
+    # Reuse canonical measurement ratios so clamping and band placement remain
+    # identical between isotropic and anisotropic scaling.
     ratios = _measurement_profile(parameters)
     lateral = [(0.42, 1.0)]
     depth = [(0.42, 1.0)]
@@ -689,24 +715,81 @@ def _gender_axis_profiles(
 
 
 def _estimate_shoulder_pivots(
-    vertices: Sequence[Point], shoulder_half: float, shoulder_z: float, height_mm: float
+    vertices: Sequence[Point], shoulder_half: float, height_mm: float
 ) -> dict[float, float]:
-    """Infer the shoulder rotation pivots from the fitted body surface."""
+    """Infer shoulder pivots from the fitted body surface.
+
+    Args:
+        vertices: Fitted body mesh coordinates.
+        shoulder_half: Expected half-width of the shoulder measurement.
+        height_mm: Fitted mannequin height in millimetres.
+
+    Returns:
+        A mapping from side (-1 or +1) to the estimated shoulder X coordinate.
+    """
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
+    x_coordinates = coordinates[:, 0]
+    height_ratios = coordinates[:, 2] / max(1.0, height_mm)
     pivots = {}
     for side in (-1.0, 1.0):
-        lateral = sorted(
-            side * x
-            for x, _y, z in vertices
-            if side * x >= shoulder_half * 0.55 and 0.68 <= z / max(1.0, height_mm) <= 0.82
+        side_coordinates = side * x_coordinates
+        selection = (
+            (side_coordinates >= shoulder_half * 0.55)
+            & (height_ratios >= _SHOULDER_START_HEIGHT_RATIO)
+            & (height_ratios <= _SHOULDER_END_HEIGHT_RATIO)
         )
-        if not lateral:
+        lateral = np.sort(side_coordinates[selection])
+        if not lateral.size:
             pivots[side] = side * shoulder_half
             continue
-        count = max(1, int(math.ceil(len(lateral) * 0.15)))
-        medial = sum(lateral[:count]) / float(count)
+        count = max(1, int(np.ceil(lateral.size * 0.15)))
+        medial = float(np.mean(lateral[:count], dtype=np.float64))
         medial = max(shoulder_half * 0.70, min(shoulder_half * 0.99, medial))
         pivots[side] = side * medial
     return pivots
+
+
+def _estimate_side_rest_arm_angle(
+    coordinates: np.ndarray,
+    side: float,
+    rig: tuple[float, float, float],
+    influences: np.ndarray,
+) -> float:
+    """Estimate one side's downward arm angle from its weighted mesh envelope.
+
+    Args:
+        coordinates: Fitted three-dimensional mesh coordinates.
+        side: Sign identifying the left (-1) or right (+1) arm.
+        rig: Shoulder X coordinate, shoulder Z coordinate, and total height.
+        influences: Per-vertex arm-chain weights.
+
+    Returns:
+        The estimated downward arm angle in degrees, or zero when no vertices
+        qualify as part of the arm envelope.
+    """
+    pivot_x, shoulder_z, height_mm = rig
+    height_ratios = coordinates[:, 2] / max(1.0, height_mm)
+    selected = (
+        (side * coordinates[:, 0] > side * pivot_x * _ARM_PIVOT_SEPARATION_FACTOR)
+        & (height_ratios >= _ARM_START_HEIGHT_RATIO)
+        & (height_ratios <= _ARM_END_HEIGHT_RATIO)
+        & (influences > _ARM_MIN_INFLUENCE)
+    )
+    if not bool(np.any(selected)):
+        return 0.0
+    samples = coordinates[selected][:, (0, 2)]
+    lever_arms = np.maximum(
+        _ARM_MIN_LEVER_ARM_MM,
+        side * (samples[:, 0] - pivot_x),
+    )
+    weight_factors = influences[selected] * lever_arms
+    center = np.average(samples, axis=0, weights=weight_factors)
+    radial_x = max(
+        _ARM_MIN_RADIAL_DISTANCE_MM,
+        side * (float(center[0]) - pivot_x),
+    )
+    downward = max(0.0, shoulder_z - float(center[1]))
+    return math.degrees(math.atan2(downward, radial_x))
 
 
 def _estimate_rest_arm_angles(
@@ -716,37 +799,40 @@ def _estimate_rest_arm_angles(
     height_mm: float,
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> dict[float, float]:
-    """Estimate each HM08 arm's unposed angle from its actual A-pose geometry."""
+    """Estimate each HM08 arm's unposed angle from its actual A-pose geometry.
+
+    Args:
+        vertices: Fitted mesh vertex coordinates.
+        shoulder_pivots: Estimated shoulder X coordinate for each side.
+        shoulder_z: Shoulder height in millimetres.
+        height_mm: Fitted mannequin height in millimetres.
+        arm_weights: Optional per-vertex influence weights for the left and
+            right arm chains.
+
+    Returns:
+        Unposed downward arm angles in degrees, keyed by side.
+
+    Raises:
+        HumanoidMeshError: If supplied arm weights do not match the vertex count.
+    """
+    coordinates = np.asarray(vertices, dtype=np.float64).reshape((-1, 3))
     result = {}
     for side_index, side in enumerate((-1.0, 1.0)):
         pivot_x = shoulder_pivots.get(side, side * 0.0)
-        weights = None if arm_weights is None else arm_weights[side_index]
-        samples = []
-        for index, (x, _y, z) in enumerate(vertices):
-            if side * x <= side * pivot_x * 1.05:
-                continue
-            if not 0.50 <= z / max(1.0, height_mm) <= 0.78:
-                continue
-            influence = 1.0 if weights is None else weights[index]
-            if influence <= 0.05:
-                continue
-            samples.append((x, z, influence))
-        if not samples:
-            result[side] = 0.0
-            continue
-        weighted_x = 0.0
-        weighted_z = 0.0
-        total = 0.0
-        for x, z, influence in samples:
-            weight = influence * max(0.1, side * (x - pivot_x))
-            weighted_x += x * weight
-            weighted_z += z * weight
-            total += weight
-        center_x = weighted_x / total
-        center_z = weighted_z / total
-        radial_x = max(1e-6, side * (center_x - pivot_x))
-        downward = max(0.0, shoulder_z - center_z)
-        result[side] = math.degrees(math.atan2(downward, radial_x))
+        influences = (
+            np.ones(len(coordinates), dtype=np.float64)
+            if arm_weights is None
+            else np.asarray(arm_weights[side_index], dtype=np.float64)
+        )
+        if influences.shape != (len(coordinates),):
+            msg = "MakeHuman arm weights must match the fitted vertex count"
+            raise HumanoidMeshError(msg)
+        result[side] = _estimate_side_rest_arm_angle(
+            coordinates,
+            side,
+            (pivot_x, shoulder_z, height_mm),
+            influences,
+        )
     return result
 
 
@@ -786,7 +872,8 @@ def load_makehuman_arm_weights(
                     target[index] = min(1.0, target[index] + max(0.0, float(weight)))
         return tuple(left), tuple(right)
     except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
-        raise HumanoidMeshError(f"unable to parse MakeHuman arm weights {source}: {exc}") from exc
+        msg = f"unable to parse MakeHuman arm weights {source}: {exc}"
+        raise HumanoidMeshError(msg) from exc
 
 
 def load_makehuman_weights(
@@ -809,68 +896,73 @@ def load_makehuman_weights(
             if filtered:
                 result[str(bone_name)] = tuple(filtered)
         if not result:
-            raise HumanoidMeshError("MakeHuman weights contain no visible vertices")
+            msg = "MakeHuman weights contain no visible vertices"
+            raise HumanoidMeshError(msg)
         return result
     except (KeyError, OSError, UnicodeError, ValueError, TypeError) as exc:
-        raise HumanoidMeshError(
-            f"unable to parse MakeHuman skinning weights {source}: {exc}"
-        ) from exc
+        msg = f"unable to parse MakeHuman skinning weights {source}: {exc}"
+        raise HumanoidMeshError(msg) from exc
 
 
 def _section_circumference(
-    vertices: Sequence[Point],
-    triangles: Sequence[Triangle],
+    mesh: trimesh.Trimesh,
     plane: float,
     vertical_axis: int = 2,
     max_width: float | None = None,
 ) -> float:
     """Measure a closed mesh-section perimeter at a horizontal height plane.
 
-    Triangle/plane intersections form a graph of contour segments. The largest
-    centrally located closed loop is selected so disconnected limb sections do
-    not accidentally become the body circumference.
+    Trimesh performs triangle/plane intersections in vectorized code. The
+    remaining graph pass connects the smaller set of section segments,
+    selecting the largest centered closed loop so disconnected limb sections
+    do not accidentally become the body circumference.
+
+    Args:
+        mesh: Triangulated fitted body mesh to intersect with the section plane.
+        plane: Coordinate of the section plane on the chosen vertical axis.
+        vertical_axis: Coordinate axis normal to the section plane.
+        max_width: Optional maximum lateral span for an accepted loop.
+
+    Returns:
+        Perimeter of the largest centered closed contour, or zero when no valid
+        closed contour meets the selection constraints.
+
+    Raises:
+        ValueError: If vertical_axis is not one of the three coordinate axes.
     """
     if vertical_axis not in (0, 1, 2):
-        raise ValueError("vertical_axis must be 0, 1, or 2")
+        msg = "vertical_axis must be 0, 1, or 2"
+        raise ValueError(msg)
     axes = tuple(axis for axis in range(3) if axis != vertical_axis)
+    plane_normal = np.zeros(3, dtype=np.float64)
+    plane_normal[vertical_axis] = 1.0
+    plane_origin = np.zeros(3, dtype=np.float64)
+    plane_origin[vertical_axis] = plane
+    segments = trimesh.intersections.mesh_plane(
+        mesh,
+        plane_normal=plane_normal,
+        plane_origin=plane_origin,
+    )
+    if not len(segments):
+        return 0.0
+
     node_points: dict[tuple[int, int], tuple[float, float]] = {}
     graph: dict[tuple[int, int], set[tuple[int, int]]] = {}
     segment_seen: set[tuple[tuple[int, int], tuple[int, int]]] = set()
 
-    for tri in triangles:
-        if len(tri) != 3 or any(index < 0 or index >= len(vertices) for index in tri):
-            continue
-        tri_points = [vertices[index] for index in tri]
-        hits: dict[tuple[int, int], tuple[float, float]] = {}
-        for start, end in ((0, 1), (1, 2), (2, 0)):
-            first, second = tri_points[start], tri_points[end]
-            z0, z1 = first[vertical_axis], second[vertical_axis]
-            if (z0 < plane < z1) or (z1 < plane < z0):
-                fraction = (plane - z0) / (z1 - z0)
-            elif math.isclose(z0, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
-                z1, plane, rel_tol=0.0, abs_tol=1e-8
-            ):
-                fraction = 0.0
-            elif math.isclose(z1, plane, rel_tol=0.0, abs_tol=1e-8) and not math.isclose(
-                z0, plane, rel_tol=0.0, abs_tol=1e-8
-            ):
-                fraction = 1.0
-            else:
-                continue
-            point = tuple(first[axis] + fraction * (second[axis] - first[axis]) for axis in axes)
-            key = (round(point[0] * 10000), round(point[1] * 10000))
-            hits.setdefault(key, point)
-        if len(hits) != 2:
-            continue
-        first_key, second_key = hits
+    for segment in segments:
+        first = (float(segment[0, axes[0]]), float(segment[0, axes[1]]))
+        second = (float(segment[1, axes[0]]), float(segment[1, axes[1]]))
+        first_key = (round(first[0] * 10000), round(first[1] * 10000))
+        second_key = (round(second[0] * 10000), round(second[1] * 10000))
         if first_key == second_key:
             continue
-        edge = tuple(sorted((first_key, second_key)))
+        edge = (min(first_key, second_key), max(first_key, second_key))
         if edge in segment_seen:
             continue
         segment_seen.add(edge)
-        node_points.setdefault(first_key, hits[first_key])
-        node_points.setdefault(second_key, hits[second_key])
+        node_points.setdefault(first_key, first)
+        node_points.setdefault(second_key, second)
         graph.setdefault(first_key, set()).add(second_key)
         graph.setdefault(second_key, set()).add(first_key)
 
@@ -912,22 +1004,17 @@ def _section_circumference(
             previous, current = current, following
         if not closed or len(ordered) < 3:
             continue
-        points = [node_points[key] for key in ordered]
-        perimeter = sum(
-            math.hypot(
-                points[(index + 1) % len(points)][0] - point[0],
-                points[(index + 1) % len(points)][1] - point[1],
-            )
-            for index, point in enumerate(points)
+        point_array = np.asarray([node_points[key] for key in ordered], dtype=np.float64)
+        following_points = np.roll(point_array, -1, axis=0)
+        edges = following_points - point_array
+        perimeter = float(np.sum(np.linalg.norm(edges, axis=1), dtype=np.float64))
+        twice_area = np.sum(
+            point_array[:, 0] * following_points[:, 1] - following_points[:, 0] * point_array[:, 1],
+            dtype=np.float64,
         )
-        twice_area = sum(
-            points[index][0] * points[(index + 1) % len(points)][1]
-            - points[(index + 1) % len(points)][0] * points[index][1]
-            for index in range(len(points))
-        )
-        area = abs(twice_area) * 0.5
-        centroid_x = sum(point[0] for point in points) / len(points)
-        width = max(point[0] for point in points) - min(point[0] for point in points)
+        area = abs(float(twice_area)) * 0.5
+        centroid_x = float(np.mean(point_array[:, 0], dtype=np.float64))
+        width = float(np.ptp(point_array[:, 0]))
         if area > 1e-5 and perimeter > 1e-5:
             loops.append((area, perimeter, abs(centroid_x), width))
 
@@ -955,14 +1042,26 @@ def _make_source_fitted_mapper(
     padding is reserved for the visible surface. When the source topology is
     supplied, a section-contour pass iteratively calibrates the named torso
     rings to their requested circumference in millimetres.
+
+    Args:
+        source_vertices: Source mesh vertices used to calibrate the fit.
+        parameters: Authoritative mannequin measurements and pose settings.
+        skin_offset: Outward offset in millimetres for the visible surface.
+        source_triangles: Optional source topology for contour-based calibration.
+
+    Returns:
+        A callable mapping one source coordinate to its fitted 3D coordinate.
     """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
-    ymin, ymax = _axis_bounds(body, 1)
+    body_coordinates = np.asarray(body, dtype=np.float64).reshape((-1, 3))
+    body_minimums = np.min(body_coordinates, axis=0)
+    body_maximums = np.max(body_coordinates, axis=0)
+    ymin, ymax = float(body_minimums[1]), float(body_maximums[1])
     y_span = max(1e-9, ymax - ymin)
-    x_min, x_max = _axis_bounds(body, 0)
-    depth_min, depth_max = _axis_bounds(body, 2)
+    x_min, x_max = float(body_minimums[0]), float(body_maximums[0])
+    depth_min, depth_max = float(body_minimums[2]), float(body_maximums[2])
     source_width = max(1e-9, x_max - x_min)
     source_depth = max(1e-9, depth_max - depth_min)
 
@@ -1019,6 +1118,14 @@ def _make_source_fitted_mapper(
     shoulder_half = float(DEFAULT_MEASUREMENTS["shoulder"]) / 2.0
 
     def transform(point: Point) -> Point:
+        """Map one source coordinate into the fitted mannequin frame.
+
+        Args:
+            point: Source-space XYZ coordinate using MakeHuman's Y-up convention.
+
+        Returns:
+            Fitted XYZ coordinate in millimetres using FreeCAD's Z-up convention.
+        """
         x, y, z = point
         normalized_z = (y - ymin) / y_span
 
@@ -1099,6 +1206,11 @@ def _make_source_fitted_mapper(
         )
         for _iteration in range(7):
             fitted_body = tuple(transform(point) for point in body)
+            section_mesh = trimesh.Trimesh(
+                vertices=np.asarray(fitted_body, dtype=np.float64),
+                faces=np.asarray(source_triangles, dtype=np.int64),
+                process=False,
+            )
             max_relative_error = 0.0
             for index, (name, normalized_height, lateral_exponent) in enumerate(
                 profile_parameters, start=1
@@ -1109,8 +1221,7 @@ def _make_source_fitted_mapper(
                     2.0 * _profile_scale(normalized_height, core_width_profile) + 250.0,
                 )
                 actual = _section_circumference(
-                    fitted_body,
-                    source_triangles,
+                    section_mesh,
                     normalized_height * height_mm,
                     vertical_axis=2,
                     max_width=contour_limit,
@@ -1137,6 +1248,17 @@ def _make_source_fitted_mapper(
 
 
 def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
+    """Return fitted shoulder and wrist positions from authored MakeHuman bones.
+
+    Args:
+        parameters: Authoritative avatar measurements used to fit the source mesh.
+
+    Returns:
+        Left/right mappings with fitted shoulder and wrist coordinates.
+
+    Raises:
+        HumanoidMeshError: If required bones or their source vertices are missing.
+    """
     source = apply_measurement_targets(_load_source_vertices(), parameters)
     skeleton = load_makehuman_skeleton()
     triangles = load_makehuman_mesh().triangles
@@ -1159,7 +1281,19 @@ def fit_makehuman_mesh(
     parameters: AvatarParameters,
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> MeshData:
-    """Fit HM08 and pose arms using source-authored bones and skinning weights."""
+    """Fit HM08 and pose arms using source-authored bones and skinning weights.
+
+    Args:
+        mesh: Validated source mesh and triangle topology.
+        parameters: Authoritative anthropometric measurements and pose controls.
+        arm_weights: Optional per-vertex left/right arm-chain influence arrays.
+
+    Returns:
+        Fitted and posed mesh with source topology preserved.
+
+    Raises:
+        HumanoidMeshError: If mesh, authored rig data, or fitted geometry is invalid.
+    """
     mesh.validate()
     height_mm = float(parameters.measurement("height"))
     source_vertices = apply_measurement_targets(mesh.vertices, parameters)
@@ -1176,7 +1310,7 @@ def fit_makehuman_mesh(
     pose = parameters.pose
     shoulder_half = float(parameters.measurement("shoulder")) / 2.0
     shoulder_z = height_mm * 0.76
-    shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, shoulder_z, height_mm)
+    shoulder_pivots = _estimate_shoulder_pivots(fitted, shoulder_half, height_mm)
     if arm_weights is not None:
         try:
             authored = _authored_arm_rig_points(parameters)
@@ -1203,22 +1337,34 @@ def fit_makehuman_mesh(
         "sewing": 55.0,
         "sitting": 25.0,
     }.get(pose.preset, 12.0)
+    left_pose_angle = pose.left_arm_angle
+    right_pose_angle = pose.right_arm_angle
+    if left_pose_angle is None or right_pose_angle is None:
+        from freecad_cloth.avatar.AvatarModel import DEFAULT_POSE_ARM_ANGLES
+
+        default_pose_angle = DEFAULT_POSE_ARM_ANGLES.get(
+            pose.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
+        )
+        if left_pose_angle is None:
+            left_pose_angle = default_pose_angle
+        if right_pose_angle is None:
+            right_pose_angle = default_pose_angle
     left_angle = (
         default_angle
-        if pose.preset != "standing" and float(pose.left_arm_angle) == 12.0
-        else float(pose.left_arm_angle)
+        if pose.preset != "standing" and left_pose_angle == 12.0
+        else float(left_pose_angle)
     )
     right_angle = (
         default_angle
-        if pose.preset != "standing" and float(pose.right_arm_angle) == 12.0
-        else float(pose.right_arm_angle)
+        if pose.preset != "standing" and right_pose_angle == 12.0
+        else float(right_pose_angle)
     )
     posed = []
     for index, (x, y, z) in enumerate(fitted):
         side = -1.0 if x < 0.0 else 1.0
         pivot_x = shoulder_pivots.get(side, side * shoulder_half)
         source_weight = None if arm_weights is None else arm_weights[0 if side < 0 else 1][index]
-        weight = _arm_pose_weight(x, z, pivot_x, height_mm, source_weight)
+        weight = arm_pose_weight(x, z, pivot_x, height_mm, source_weight)
         if weight <= 1e-9:
             posed.append((x, y, z))
             continue
@@ -1240,21 +1386,36 @@ def fit_makehuman_mesh(
     return MeshData(tuple(posed), _reoriented_triangles(mesh.triangles)).validate()
 
 
-def _arm_pose_weight(
+def arm_pose_weight(
     x: float,
     z: float,
     shoulder_pivot_x: float,
     height_mm: float,
     source_weight: float | None = None,
 ) -> float:
-    """Return source-authored arm influence, with a geometric legacy fallback."""
+    """Return normalized arm-chain influence for one fitted mesh vertex.
+
+    Authored skin weights are authoritative when provided. Otherwise, lateral
+    distance from the shoulder pivot and normalized vertex height produce a
+    smooth geometric fallback.
+
+    Args:
+        x: Vertex X coordinate in millimetres.
+        z: Vertex height in millimetres.
+        shoulder_pivot_x: Shoulder pivot X coordinate in millimetres.
+        height_mm: Fitted mannequin height used to normalize vertex height.
+        source_weight: Optional authored arm-chain influence.
+
+    Returns:
+        A finite influence value between zero and one.
+    """
     if source_weight is not None:
         return max(0.0, min(1.0, float(source_weight)))
     pivot = abs(shoulder_pivot_x)
     lateral = _smoothstep(pivot * 0.98, pivot * 1.12, abs(x))
     nz = z / max(1.0, height_mm)
     # The articulated hand/wrist can hang well below chest height; keep the
-    # geometric fallback active through the lower arm envelope while preserving
+    # the estimated influence active through the lower arm envelope while preserving
     # the upper torso cutoff.
     vertical = _smoothstep(0.28, 0.34, nz) * (1.0 - _smoothstep(0.88, 0.96, nz))
     return lateral * vertical
@@ -1263,7 +1424,18 @@ def _arm_pose_weight(
 def build_humanoid_mesh(
     parameters: AvatarParameters, source_path: str | os.PathLike[str] | None = None
 ) -> MeshData:
-    """Load, fit and return the real MakeHuman mannequin mesh for Cloth."""
+    """Load and fit the pinned MakeHuman mannequin for Cloth.
+
+    Args:
+        parameters: Authoritative mannequin measurements and pose settings.
+        source_path: Optional explicit mesh path for controlled imports or tests.
+
+    Returns:
+        Fitted, posed humanoid mesh in FreeCAD coordinates.
+
+    Raises:
+        HumanoidMeshError: If the source mesh cannot be loaded, validated, or fitted.
+    """
     source = load_makehuman_mesh(str(source_path) if source_path is not None else None)
     arm_weights = (
         None if source_path is not None else load_makehuman_arm_weights(len(source.vertices))

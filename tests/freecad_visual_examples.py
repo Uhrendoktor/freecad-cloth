@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic basic cloth example: a blanket draped over a cube."""
 
 import os
@@ -6,8 +7,15 @@ import sys
 import traceback
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path[:] = [entry for entry in sys.path if entry not in ("", str(ROOT))]
+TESTS_DIR = Path(__file__).resolve().parent
+if str(TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(TESTS_DIR))
+
+from support.freecad_bootstrap import prepare_repository_root
+
+ROOT = prepare_repository_root(__file__)
+
+from support.freecad_mesh_geometry import opposite_top_edge_vertices
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -41,7 +49,8 @@ def events():
 def save_png(view, path, state):
     view.saveImage(str(path), 640, 480, "White")
     if not path.is_file():
-        raise RuntimeError(f"failed screenshot: {state}")
+        msg = f"failed screenshot: {state}"
+        raise RuntimeError(msg)
     try:
         metrics = validate_png_capture(
             path,
@@ -49,7 +58,8 @@ def save_png(view, path, state):
             expected_height=480,
         )
     except (OSError, ValueError) as exc:
-        raise RuntimeError(f"failed screenshot: {state} ({exc})") from exc
+        msg = f"failed screenshot: {state} ({exc})"
+        raise RuntimeError(msg) from exc
     log(
         "screenshot=passed state=%s width=%d height=%d nonwhite_pixels=%d distinct_rgb=%d"
         % (
@@ -90,7 +100,8 @@ def adopt_sketch(doc, sketch):
     Gui.Selection.addSelection(sketch)
     piece = create_pattern_piece_from_selected_sketch(name="Blanket", allowance=0.0, grainline=0.0)
     if piece.Sketch is not sketch:
-        raise RuntimeError("Blanket PatternPiece did not retain native Sketcher authority")
+        msg = "Blanket PatternPiece did not retain native Sketcher authority"
+        raise RuntimeError(msg)
     doc.recompute()
     return piece
 
@@ -251,11 +262,19 @@ def render_motion(
 
 
 def _load_cloth_modules():
-    global inspect_drape, maximum_box_penetration, mesh_shape_sanity
-    global validate_mesh, rectangle, quality_piece_mesh
-    global create_pattern_piece_from_selected_sketch
-    global create_simulation_scene, set_drape_target_source
-    global QualitySimulationProxy, ensure_quality_properties, validate_png_capture
+    global \
+        inspect_drape, \
+        maximum_box_penetration, \
+        mesh_shape_sanity, \
+        validate_mesh, \
+        rectangle, \
+        quality_piece_mesh, \
+        create_pattern_piece_from_selected_sketch, \
+        create_simulation_scene, \
+        set_drape_target_source, \
+        QualitySimulationProxy, \
+        ensure_quality_properties, \
+        validate_png_capture
 
     site.addsitedir(str(ROOT))
 
@@ -280,7 +299,8 @@ def _load_cloth_modules():
 def main():
     window = Gui.getMainWindow()
     if window is None or not window.isVisible():
-        raise RuntimeError("FreeCAD GUI did not launch")
+        msg = "FreeCAD GUI did not launch"
+        raise RuntimeError(msg)
     window.show()
     events()
     _load_cloth_modules()
@@ -293,7 +313,8 @@ def main():
         )
     events()
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        raise RuntimeError("ClothPatternWorkbench was not registered by visual acceptance startup")
+        msg = "ClothPatternWorkbench was not registered by visual acceptance startup"
+        raise RuntimeError(msg)
     doc = App.newDocument("ClothBlanketExample")
     try:
         blanket_width = 200.0
@@ -336,28 +357,7 @@ def main():
         scene.FabricTransparency = 12
 
         mesh_positions, _, boundary = quality_piece_mesh(piece, 0.0, scene.ParticleDistance)
-        boundary_vertices = tuple(
-            sorted(set(index for chain in boundary for index in chain), key=lambda index: index)
-        )
-        if not boundary_vertices:
-            raise RuntimeError("blanket quality mesh has no boundary vertices")
-        top_y = max(float(mesh_positions[index][1]) for index in boundary_vertices)
-        top_edge = tuple(
-            index
-            for index in boundary_vertices
-            if abs(float(mesh_positions[index][1]) - top_y) <= 1e-9
-        )
-        if len(top_edge) < 2:
-            raise RuntimeError("blanket top edge has fewer than two boundary vertices")
-        top = (
-            min(top_edge, key=lambda index: float(mesh_positions[index][0])),
-            max(top_edge, key=lambda index: float(mesh_positions[index][0])),
-        )
-        pin_span = abs(float(mesh_positions[top[1]][0]) - float(mesh_positions[top[0]][0]))
-        if pin_span < 0.75 * blanket_width:
-            raise RuntimeError(
-                f"blanket pins are not opposite top-edge corners: span={pin_span:.3f}"
-            )
+        top, pin_span = opposite_top_edge_vertices(mesh_positions, boundary, 0.75 * blanket_width)
         scene.PinSelection = [str(int(index)) for index in top]
         log(f"blanket-pins=passed opposite-corners span={pin_span:.3f} indices={top}")
 
@@ -377,7 +377,8 @@ def main():
         cube.ViewObject.ShapeColor = (0.62, 0.62, 0.62)
         panels = list(scene.DrapePanels)
         if len(panels) != 1:
-            raise RuntimeError("blanket scenario must create one drape panel")
+            msg = "blanket scenario must create one drape panel"
+            raise RuntimeError(msg)
         panel = panels[0]
         for obj in doc.Objects:
             if obj is not panel:
@@ -428,7 +429,8 @@ def main():
         doc.recompute()
         first_step_ms = 1000.0 * (time.perf_counter() - first_step_started)
         if not bool(scene.FiniteState):
-            raise RuntimeError("blanket simulation became non-finite at first step")
+            msg = "blanket simulation became non-finite at first step"
+            raise RuntimeError(msg)
         prewarm_vertices, _ = mesh_snapshot(panel)
         prewarm_drape = inspect_drape(
             prewarm_vertices,
@@ -481,14 +483,16 @@ def main():
             for point in scene.Proxy._base_or_restore().backend.positions()
         )
         if not initial_points or not final_points:
-            raise RuntimeError("blanket simulation produced no particles")
+            msg = "blanket simulation produced no particles"
+            raise RuntimeError(msg)
         max_displacement = max(
             sum((final_points[index][axis] - initial_points[index][axis]) ** 2 for axis in range(3))
             ** 0.5
             for index in range(min(len(initial_points), len(final_points)))
         )
         if max_displacement <= 1.0:
-            raise RuntimeError("blanket simulation did not materially move the cloth")
+            msg = "blanket simulation did not materially move the cloth"
+            raise RuntimeError(msg)
 
         vertices, triangles = mesh_snapshot(panel)
         mesh_result = validate_mesh(vertices, triangles, prefer_trimesh=False)
@@ -509,31 +513,38 @@ def main():
         )
         log(f"collision=passed max_penetration_mm={max_penetration:.3f}")
         if max_penetration > 3.0:
-            raise RuntimeError(f"blanket penetrated collision cube by {max_penetration:.2f} mm")
+            msg = f"blanket penetrated collision cube by {max_penetration:.2f} mm"
+            raise RuntimeError(msg)
         log(
             f"drape-terminal state={final_drape.state} clearance_mm={final_clearance:.2f} cube_top_z={cube_top_z:.2f} cloth_min_z={final_min_z:.2f}"
         )
         if best_drape is None:
-            raise RuntimeError("blanket did not satisfy drape gate at any simulated frame")
+            msg = "blanket did not satisfy drape gate at any simulated frame"
+            raise RuntimeError(msg)
         if best_drape.state != "structurally-plausible":
-            raise RuntimeError(f"blanket drape gate produced unexpected state: {best_drape.state}")
+            msg = f"blanket drape gate produced unexpected state: {best_drape.state}"
+            raise RuntimeError(msg)
         if best_drape_clearance > 35.0:
             raise RuntimeError(
                 "blanket drape gate exceeded clearance threshold: step=%d clearance=%.2f"
                 % (best_drape_step, best_drape_clearance)
             )
         if not mesh_result.finite or mesh_result.components != 1 or mesh_result.degenerate_faces:
-            raise RuntimeError(f"blanket mesh failed structural validation: {mesh_result!r}")
+            msg = f"blanket mesh failed structural validation: {mesh_result!r}"
+            raise RuntimeError(msg)
         if (
             not shape["finite"]
             or shape["edge_spike_ratio"] > 4.0
             or shape["spike_edge_fraction"] > 0.02
         ):
-            raise RuntimeError(f"blanket mesh has spike outliers: {shape!r}")
+            msg = f"blanket mesh has spike outliers: {shape!r}"
+            raise RuntimeError(msg)
         if shape["footprint_aspect_ratio"] > 4.0:
-            raise RuntimeError(f"blanket footprint became excessively elongated: {shape!r}")
+            msg = f"blanket footprint became excessively elongated: {shape!r}"
+            raise RuntimeError(msg)
         if not bool(scene.FiniteState):
-            raise RuntimeError("blanket final simulation state is non-finite")
+            msg = "blanket final simulation state is non-finite"
+            raise RuntimeError(msg)
         log(
             "mesh=passed vertices=%d faces=%d components=%d spikes=%.3f aspect=%.3f"
             % (
@@ -558,11 +569,14 @@ def main():
         applied_color = tuple(float(value) for value in panel.ViewObject.ShapeColor[:3])
         expected_color = (0.14, 0.32, 0.78)
         if any(abs(applied_color[index] - expected_color[index]) > 0.02 for index in range(3)):
-            raise RuntimeError("simulation viewport did not apply persisted fabric color")
+            msg = "simulation viewport did not apply persisted fabric color"
+            raise RuntimeError(msg)
         if int(panel.ViewObject.Transparency) != 12:
-            raise RuntimeError("simulation viewport did not apply persisted fabric transparency")
+            msg = "simulation viewport did not apply persisted fabric transparency"
+            raise RuntimeError(msg)
         if str(panel.ViewObject.DisplayMode) != "Shaded":
-            raise RuntimeError("simulation viewport did not use shaded cloth presentation")
+            msg = "simulation viewport did not use shaded cloth presentation"
+            raise RuntimeError(msg)
         log(
             "material-presentation=passed viewport=true mode=Shaded "
             "color=0.14,0.32,0.78 transparency=12"

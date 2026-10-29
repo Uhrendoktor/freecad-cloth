@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral post-simulation diagnostics for the Cloth workbenches.
 
 The diagnostics layer consumes rest/current mesh data and optional material/target
@@ -5,13 +6,56 @@ measurements. It never advances or modifies the solver and can therefore be used
 by GUI, export, or headless validation code.
 """
 
+import json
+import pathlib
 from collections.abc import Sequence
-from math import sqrt
+from inspect import Parameter, Signature
+from typing import TypedDict, Unpack
+
+import numpy as np
+from numpy.typing import NDArray
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+class AnalyzeMeshOptions(TypedDict, total=False):
+    """Optional keyword controls accepted by analyze_mesh."""
+
+    stretch_limit: float
+    clearances: Sequence[float] | None
+    fit_tolerance: float
+    pressures: Sequence[float] | None
+
+
+class DiagnosticMetricPayload(TypedDict):
+    """Describe the per-face arrays in an exported diagnostic payload."""
+
+    fit: list[float]
+    pressure: list[float]
+    strain: list[float]
+    stress: list[float]
+
+
+class DiagnosticRangePayload(TypedDict):
+    """Describe the global extrema recorded by diagnostic export."""
+
+    minimum: float
+    maximum: float
+
+
+class DiagnosticPayload(TypedDict):
+    """Describe the stable JSON schema emitted by diagnostic export."""
+
+    schema: int
+    faces: int
+    metrics: DiagnosticMetricPayload
+    range: DiagnosticRangePayload
+    summary: dict[str, int | float]
+
+
+DIAGNOSTIC_EPSILON = 1e-12
 
 METRIC_DEFINITIONS = {
     "strain": {"formula": "ΔL / L₀", "units": "dimensionless"},
@@ -21,19 +65,41 @@ METRIC_DEFINITIONS = {
 }
 
 
-def metric_definition(name: str) -> dict:
-    """Provide the public metric definition operation."""
+def metric_definition(name: str) -> dict[str, str]:
+    """Return the formula and units defined for one diagnostic metric.
+
+    Args:
+        name: Name of the metric whose definition is requested.
+
+    Returns:
+        A copy of the metric's formula and unit labels.
+
+    Raises:
+        ValueError: If the requested metric name is not recognized.
+    """
     key = str(name).strip().lower()
     try:
         return dict(METRIC_DEFINITIONS[key])
     except KeyError as exc:
-        raise ValueError(f"unknown diagnostic metric: {name}") from exc
+        msg = f"unknown diagnostic metric: {name}"
+        raise ValueError(msg) from exc
 
 
-def export_payload(result: "DiagnosticResult") -> dict:
-    """Return a deterministic, solver-neutral JSON-ready diagnostic payload."""
+def export_payload(result: "DiagnosticResult") -> DiagnosticPayload:
+    """Build the JSON-ready payload for a completed diagnostics result.
+
+    Args:
+        result: Per-face metrics and global ranges produced by mesh analysis.
+
+    Returns:
+        A deterministic dictionary containing metric arrays, ranges, and a summary.
+
+    Raises:
+        TypeError: If the supplied value is not a DiagnosticResult.
+    """
     if not isinstance(result, DiagnosticResult):
-        raise TypeError("result must be a DiagnosticResult")
+        msg = "result must be a DiagnosticResult"
+        raise TypeError(msg)
     return {
         "schema": 1,
         "faces": len(result.strain),
@@ -48,14 +114,19 @@ def export_payload(result: "DiagnosticResult") -> dict:
     }
 
 
-def export_json(result: "DiagnosticResult", path) -> dict:
-    """Write deterministic diagnostic data without mutating the FreeCAD model."""
-    import json
+def export_json(result: "DiagnosticResult", path: str | pathlib.Path) -> DiagnosticPayload:
+    """Write the diagnostic payload as stable, formatted JSON.
 
+    Args:
+        result: Per-face metrics and global ranges to export.
+        path: Destination filename or path-like object for the JSON document.
+
+    Returns:
+        The same JSON-ready payload written to the destination.
+    """
     payload = export_payload(result)
     content = json.dumps(payload, indent=2, sort_keys=True) + "\n"
-    with open(str(path), "w", encoding="utf-8", newline="") as handle:
-        handle.write(content)
+    pathlib.Path(str(path)).write_text(content, encoding="utf-8", newline="")
     return payload
 
 
@@ -71,32 +142,90 @@ class DiagnosticResult:
     maximum: float
 
     def metric(self, name: str) -> tuple[float, ...]:
-        """Return the diagnostic metric represented by this result."""
+        """Get one per-face metric array by name.
+
+        Args:
+            name: Metric attribute to retrieve, such as strain or pressure.
+
+        Returns:
+            Values for the requested metric in face order.
+
+        Raises:
+            ValueError: If the name does not identify a metric on this result.
+        """
         try:
             return getattr(self, str(name))
         except AttributeError as exc:
-            raise ValueError(f"unknown diagnostic metric: {name}") from exc
+            msg = f"unknown diagnostic metric: {name}"
+            raise ValueError(msg) from exc
 
 
-def _distance(a: Point3, b: Point3) -> float:
-    return sqrt(sum((float(x) - float(y)) ** 2 for x, y in zip(a, b, strict=False)))
+def _average_edge_strains(
+    rest_vertices: NDArray[np.float64],
+    current_vertices: NDArray[np.float64],
+    faces: NDArray[np.intp],
+) -> NDArray[np.float64]:
+    """Compute mean safe edge strain for all faces in one NumPy operation.
+
+    Args:
+        rest_vertices: Reference coordinates with shape (N, 3).
+        current_vertices: Evaluated coordinates with shape (N, 3).
+        faces: Triangle vertex indices with shape (M, 3).
+
+    Returns:
+        One mean relative edge-length change per face. Degenerate rest edges
+        contribute zero strain, matching the scalar diagnostic contract.
+    """
+    if not faces.size:
+        return np.empty(0, dtype=np.float64)
+
+    rest_points = rest_vertices[faces]
+    current_points = current_vertices[faces]
+    rest_edges = np.stack(
+        (
+            rest_points[:, 1] - rest_points[:, 0],
+            rest_points[:, 2] - rest_points[:, 1],
+            rest_points[:, 0] - rest_points[:, 2],
+        ),
+        axis=1,
+    )
+    current_edges = np.stack(
+        (
+            current_points[:, 1] - current_points[:, 0],
+            current_points[:, 2] - current_points[:, 1],
+            current_points[:, 0] - current_points[:, 2],
+        ),
+        axis=1,
+    )
+    rest_lengths = np.linalg.norm(rest_edges, axis=2)
+    current_lengths = np.linalg.norm(current_edges, axis=2)
+    valid_edges = rest_lengths > DIAGNOSTIC_EPSILON
+    edge_strains = np.zeros_like(rest_lengths, dtype=np.float64)
+    np.divide(current_lengths, rest_lengths, out=edge_strains, where=valid_edges)
+    edge_strains[valid_edges] -= 1.0
+    return np.mean(edge_strains, axis=1, dtype=np.float64)
 
 
-def _triangle_edges(vertices: Sequence[Point3], tri: Triangle):
-    a, b, c = (vertices[int(i)] for i in tri)
-    return _distance(a, b), _distance(b, c), _distance(c, a)
+def _fit_score_array(
+    clearances: NDArray[np.float64],
+    tolerance: float,
+    ideal: float = 0.0,
+) -> NDArray[np.float64]:
+    """Compute normalized fit scores for an array of clearances.
 
+    Args:
+        clearances: Per-face or per-vertex clearance values.
+        tolerance: Absolute distance over which the score falls to zero.
+        ideal: Clearance value representing a perfect fit.
 
-def _safe_strain(current: float, rest: float) -> float:
-    if rest <= 1e-12:
-        return 0.0
-    return current / rest - 1.0
-
-
-def _average_edge_strain(rest_vertices, current_vertices, tri: Triangle) -> float:
-    rest = _triangle_edges(rest_vertices, tri)
-    current = _triangle_edges(current_vertices, tri)
-    return sum(_safe_strain(c, r) for r, c in zip(rest, current, strict=False)) / 3.0
+    Returns:
+        Fit scores in [0, 1], with the same shape as the input array.
+    """
+    tolerance = abs(float(tolerance))
+    errors = np.abs(clearances - float(ideal))
+    if tolerance <= DIAGNOSTIC_EPSILON:
+        return (errors <= DIAGNOSTIC_EPSILON).astype(np.float64)
+    return np.clip(1.0 - errors / tolerance, 0.0, 1.0)
 
 
 def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
@@ -105,68 +234,225 @@ def fit_score(clearance: float, tolerance: float, ideal: float = 0.0) -> float:
     A score of 1 means the measured clearance equals ``ideal``; it falls
     linearly to zero at ``tolerance``. This intentionally avoids assuming a
     particular avatar representation: callers supply the target measurement.
+
+    Args:
+        clearance: Measured distance between the simulated cloth and the target surface.
+        tolerance: Absolute distance over which the score falls to zero.
+        ideal: Clearance value that represents the best possible fit score.
+
+    Returns:
+        A normalized fit score between zero and one, inclusive.
     """
-    tolerance = abs(float(tolerance))
-    if tolerance <= 1e-12:
-        return 1.0 if abs(float(clearance) - float(ideal)) <= 1e-12 else 0.0
-    error = abs(float(clearance) - float(ideal))
-    return max(0.0, min(1.0, 1.0 - error / tolerance))
+    values = np.asarray([float(clearance)], dtype=np.float64)
+    return float(_fit_score_array(values, tolerance, ideal)[0])
+
+
+def _mesh_arrays(
+    rest_vertices: Sequence[Point3],
+    current_vertices: Sequence[Point3],
+    triangles: Sequence[Triangle],
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.intp]]:
+    """Convert input mesh sequences to shaped NumPy arrays.
+
+    Args:
+        rest_vertices: Reference vertex coordinates before simulation.
+        current_vertices: Vertex coordinates from the evaluated cloth mesh.
+        triangles: Faces expressed as triples of vertex indices.
+
+    Returns:
+        Reference vertices, evaluated vertices, and indexed triangle arrays.
+    """
+    rest_array = np.asarray(rest_vertices, dtype=np.float64).reshape((-1, 3))
+    current_array = np.asarray(current_vertices, dtype=np.float64).reshape((-1, 3))
+    face_indices = np.asarray(triangles, dtype=np.intp).reshape((-1, 3))
+    return rest_array, current_array, face_indices
+
+
+def _fit_values(
+    clearances: Sequence[float] | None,
+    fit_tolerance: float,
+    face_indices: NDArray[np.intp],
+) -> NDArray[np.float64]:
+    """Calculate a normalized fit score for each triangle.
+
+    Args:
+        clearances: Optional clearance values supplied per face or per vertex.
+        fit_tolerance: Absolute distance over which the score falls to zero.
+        face_indices: Triangle vertex indices with shape (M, 3).
+
+    Returns:
+        One bounded fit score per triangle.
+    """
+    if clearances is None:
+        return np.ones(len(face_indices), dtype=np.float64)
+    clearance_values = np.asarray(clearances, dtype=np.float64)
+    face_clearances = (
+        clearance_values
+        if len(clearances) == len(face_indices)
+        else np.mean(clearance_values[face_indices], axis=1, dtype=np.float64)
+    )
+    return _fit_score_array(face_clearances, fit_tolerance)
+
+
+def _build_diagnostic_result(
+    strain_values: NDArray[np.float64],
+    stress_values: NDArray[np.float64],
+    fit_values: NDArray[np.float64],
+    pressure_values: NDArray[np.float64],
+) -> DiagnosticResult:
+    """Build immutable metric tuples and global extrema from computed arrays.
+
+    Args:
+        strain_values: Per-face relative edge-length change values.
+        stress_values: Per-face strain utilization relative to the fabric limit.
+        fit_values: Per-face normalized fit scores.
+        pressure_values: Per-face solver-provided pressure values.
+
+    Returns:
+        Immutable diagnostic metrics and their combined minimum and maximum.
+    """
+    all_values = np.concatenate((strain_values, stress_values, fit_values, pressure_values))
+    return DiagnosticResult(
+        strain=tuple(float(value) for value in strain_values),
+        stress=tuple(float(value) for value in stress_values),
+        fit=tuple(float(value) for value in fit_values),
+        pressure=tuple(float(value) for value in pressure_values),
+        minimum=float(np.min(all_values)) if all_values.size else 0.0,
+        maximum=float(np.max(all_values)) if all_values.size else 0.0,
+    )
 
 
 def analyze_mesh(
     rest_vertices: Sequence[Point3],
     current_vertices: Sequence[Point3],
     triangles: Sequence[Triangle],
-    *,
-    stretch_limit: float = 0.02,
-    clearances: Sequence[float] | None = None,
-    fit_tolerance: float = 5.0,
-    pressures: Sequence[float] | None = None,
+    **options: Unpack[AnalyzeMeshOptions],
 ) -> DiagnosticResult:
     """Compute deterministic strain/stress/fit/pressure maps per triangle.
 
     ``stretch_limit`` is the fabric's authored allowable stretch. Stress is
     represented as normalized utilization (absolute strain / limit), which is
     solver-independent and safe to compare across materials.
+
+    Args:
+        rest_vertices: Reference vertex coordinates before simulation.
+        current_vertices: Vertex coordinates from the evaluated cloth mesh.
+        triangles: Faces expressed as triples of vertex indices.
+        options: Optional fabric stretch, clearances, fit tolerance, and solver pressure controls.
+            Defaults are a 0.02 stretch limit, no clearances, a 5.0 fit tolerance,
+            and zero pressure.
+
+    Returns:
+        Per-face strain, stress, fit and pressure metrics with global extrema.
+
+    Raises:
+        TypeError: If an unsupported keyword option is supplied.
+        ValueError: If vertex counts differ, the stretch limit is nonpositive,
+            or optional clearance and pressure arrays have unsupported lengths.
     """
+    unknown_options = options.keys() - AnalyzeMeshOptions.__annotations__.keys()
+    if unknown_options:
+        unexpected_option = min(unknown_options)
+        msg = f"analyze_mesh() got an unexpected keyword argument {unexpected_option!r}"
+        raise TypeError(msg)
+
+    stretch_limit = options.get("stretch_limit", 0.02)
+    clearances = options.get("clearances")
+    fit_tolerance = options.get("fit_tolerance", 5.0)
+    pressures = options.get("pressures")
+
     if len(rest_vertices) != len(current_vertices):
-        raise ValueError("rest and current meshes must have equal vertex counts")
+        msg = "rest and current meshes must have equal vertex counts"
+        raise ValueError(msg)
     if stretch_limit <= 0:
-        raise ValueError("stretch_limit must be positive")
-    if clearances is not None and len(clearances) not in (len(triangles), len(current_vertices)):
-        raise ValueError("clearances must be per-face or per-vertex")
+        msg = "stretch_limit must be positive"
+        raise ValueError(msg)
+    if clearances is not None and len(clearances) not in {len(triangles), len(current_vertices)}:
+        msg = "clearances must be per-face or per-vertex"
+        raise ValueError(msg)
     if pressures is not None and len(pressures) != len(triangles):
-        raise ValueError("pressures must be per-face")
+        msg = "pressures must be per-face"
+        raise ValueError(msg)
 
-    strain = tuple(_average_edge_strain(rest_vertices, current_vertices, tri) for tri in triangles)
-    stress = tuple(abs(value) / float(stretch_limit) for value in strain)
-    if clearances is None:
-        fit = tuple(1.0 for _ in triangles)
-    elif len(clearances) == len(triangles):
-        fit = tuple(fit_score(value, fit_tolerance) for value in clearances)
-    else:
-        fit = tuple(
-            fit_score(sum(float(clearances[int(i)]) for i in tri) / 3.0, fit_tolerance)
-            for tri in triangles
-        )
-    pressure = (
-        tuple(float(value) for value in pressures)
+    rest_array, current_array, face_indices = _mesh_arrays(
+        rest_vertices, current_vertices, triangles
+    )
+    strain_values = _average_edge_strains(rest_array, current_array, face_indices)
+    stress_values = np.abs(strain_values) / float(stretch_limit)
+    fit_values = _fit_values(clearances, fit_tolerance, face_indices)
+    pressure_values = (
+        np.asarray(pressures, dtype=np.float64)
         if pressures is not None
-        else tuple(0.0 for _ in triangles)
+        else np.zeros(len(face_indices), dtype=np.float64)
     )
-    values = strain + stress + fit + pressure
-    return DiagnosticResult(
-        strain=strain,
-        stress=stress,
-        fit=fit,
-        pressure=pressure,
-        minimum=min(values) if values else 0.0,
-        maximum=max(values) if values else 0.0,
+    return _build_diagnostic_result(strain_values, stress_values, fit_values, pressure_values)
+
+
+def _public_mesh_analysis_signature() -> Signature:
+    """Build inspection metadata for the stable public mesh-analysis API.
+
+    Returns:
+        An explicit signature with keyword-only controls and their public defaults.
+    """
+    return Signature(
+        parameters=(
+            Parameter(
+                "rest_vertices",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Point3],
+            ),
+            Parameter(
+                "current_vertices",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Point3],
+            ),
+            Parameter(
+                "triangles",
+                Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=Sequence[Triangle],
+            ),
+            Parameter(
+                "stretch_limit",
+                Parameter.KEYWORD_ONLY,
+                default=0.02,
+                annotation=float,
+            ),
+            Parameter(
+                "clearances",
+                Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Sequence[float] | None,
+            ),
+            Parameter(
+                "fit_tolerance",
+                Parameter.KEYWORD_ONLY,
+                default=5.0,
+                annotation=float,
+            ),
+            Parameter(
+                "pressures",
+                Parameter.KEYWORD_ONLY,
+                default=None,
+                annotation=Sequence[float] | None,
+            ),
+        ),
+        return_annotation=DiagnosticResult,
     )
 
 
-def summarize(result: DiagnosticResult) -> dict:
-    """Return a compact UI/export summary for a diagnostic result."""
+# Keep Ruff's argument limit without changing the public inspection signature.
+analyze_mesh.__dict__["__signature__"] = _public_mesh_analysis_signature()
+
+
+def summarize(result: DiagnosticResult) -> dict[str, int | float]:
+    """Summarize aggregate face counts and diagnostic extrema.
+
+    Args:
+        result: Per-face metric arrays and global ranges to summarize.
+
+    Returns:
+        A compact mapping of the face count and metric minimum/maximum values.
+    """
     return {
         "faces": len(result.strain),
         "strain_min": min(result.strain) if result.strain else 0.0,

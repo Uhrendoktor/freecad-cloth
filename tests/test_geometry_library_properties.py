@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Hypothesis properties for library-backed geometry invariants."""
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from freecad_cloth.common.MeshValidation import (
     nearest_target_clearance,
 )
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 
 
 @settings(max_examples=40, deadline=None)
@@ -31,20 +33,7 @@ def test_closed_mesh_containment_is_translation_invariant(dx: float, dy: float, 
         (1.0, 1.0, 1.0),
         (0.0, 1.0, 1.0),
     )
-    triangles: tuple[tuple[int, int, int], ...] = (
-        (0, 2, 1),
-        (0, 3, 2),
-        (4, 5, 6),
-        (4, 6, 7),
-        (0, 1, 5),
-        (0, 5, 4),
-        (1, 2, 6),
-        (1, 6, 5),
-        (2, 3, 7),
-        (2, 7, 6),
-        (3, 0, 4),
-        (3, 4, 7),
-    )
+    triangles = CUBE_TRIANGLES
     points: tuple[tuple[float, float, float], ...] = (
         (0.5, 0.5, 0.5),
         (1.5, 0.5, 0.5),

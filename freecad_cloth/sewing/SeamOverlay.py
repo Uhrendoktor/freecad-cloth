@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient viewport overlays for semantic sewing relationships.
 
 Unlike view-property color assignment, this module draws an explicit, disposable
@@ -8,23 +9,26 @@ correspondence. No overlay node is persisted in the FreeCAD document.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from contextlib import suppress
 from hashlib import sha1
-from types import ModuleType
+from typing import TYPE_CHECKING
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
-from freecad_cloth.shared.seam_colors import (
+from freecad_cloth.shared.SeamColors import (
     register_seam_refresh_callback,
     seam_color_map,
     set_seam_color_highlighting_enabled,
 )
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from types import ModuleType
 
 _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False
@@ -61,7 +65,8 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
     """Return stable, short, unique viewport labels for semantic seam IDs."""
     identities = sorted({str(value).strip() for value in seam_ids})
     if any(not identity for identity in identities):
-        raise ValueError("seam identity must not be empty")
+        msg = "seam identity must not be empty"
+        raise ValueError(msg)
 
     labels = {
         identity: "S" + identity[5:]
@@ -119,7 +124,8 @@ def _xyz(point: object) -> tuple[float, float, float]:
         return float(point.x), float(point.y), float(point.z)
     value = tuple(point)  # type: ignore[arg-type]
     if len(value) != 3:
-        raise ValueError("seam overlay points must contain three coordinates")
+        msg = "seam overlay points must contain three coordinates"
+        raise ValueError(msg)
     return float(value[0]), float(value[1]), float(value[2])
 
 
@@ -133,7 +139,8 @@ def _label_anchor(
     """Offset a label from its edge and into a deterministic seam-specific lane."""
     coordinates = [_xyz(point) for point in points]
     if not coordinates:
-        raise ValueError("label anchor requires at least one point")
+        msg = "label anchor requires at least one point"
+        raise ValueError(msg)
     center_index = max(0, min(int(index), len(coordinates) - 1))
     point = coordinates[center_index]
     before = coordinates[max(0, center_index - 1)]

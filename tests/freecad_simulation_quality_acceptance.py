@@ -1,21 +1,34 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD/Xvfb acceptance for simulation quality/material controls."""
 
 import contextlib
 import os
 import tempfile
 import time
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
+try:
+    from PySide import QtWidgets
+except ImportError:
+    from PySide2 import QtWidgets
+
 
 def _progress(message: str) -> None:
-    """Persist milestones so CI timeouts show where native FreeCAD stopped."""
-    directory = os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts")
-    os.makedirs(directory, exist_ok=True)
-    path = os.path.join(directory, "simulation-quality-progress.log")
-    with open(path, "a", encoding="utf-8") as stream:
+    """Persist milestones so CI timeouts show where native FreeCAD stopped.
+
+    Args:
+        message: One progress marker to append to the simulation log.
+    """
+    directory = Path(os.environ.get("CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR", "artifacts"))
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "simulation-quality-progress.log"
+    with path.open("a", encoding="utf-8") as stream:
         stream.write(message + "\n")
         stream.flush()
 
@@ -23,22 +36,25 @@ def _progress(message: str) -> None:
 _progress("fixture-imported")
 
 
-def _events():
+def _events() -> None:
+    """Process pending FreeCAD and Qt events before inspecting GUI state."""
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
 
 
 def _capture_readiness_screen(path: str) -> dict[str, int]:
-    """Capture the visible native Simulation Quality task panel at a stable size."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    """Capture and validate the visible Simulation Quality task panel.
 
+    Args:
+        path: Destination path for the 1280-by-720 PNG screenshot.
+
+    Returns:
+        Pixel metrics reported by the shared visual-capture contract validator.
+
+    Raises:
+        RuntimeError: If FreeCAD's window or screen is unavailable, the capture has
+            invalid dimensions, the screenshot is empty, or saving fails.
+    """
     app = QtWidgets.QApplication.instance()
     screen = None if app is None else app.primaryScreen()
     window = Gui.getMainWindow()
@@ -48,8 +64,7 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
         raise RuntimeError(
-            "Simulation readiness screenshot requires a 1280x720-capable screen, got %dx%d"
-            % (geometry.width(), geometry.height())
+            f"Simulation readiness screenshot requires a 1280x720-capable screen, got {geometry.width()}x{geometry.height()}"
         )
 
     window.resize(1280, 720)
@@ -68,10 +83,9 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     width, height = int(pixmap.width()), int(pixmap.height())
     if (width, height) != (1280, 720):
         raise RuntimeError(
-            "Simulation readiness screenshot dimensions are %dx%d, expected 1280x720"
-            % (width, height)
+            f"Simulation readiness screenshot dimensions are {width}x{height}, expected 1280x720"
         )
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
     if not pixmap.save(path):
         raise RuntimeError("failed to save Simulation Quality readiness screenshot")
 
@@ -87,31 +101,90 @@ def _capture_readiness_screen(path: str) -> dict[str, int]:
     )
 
 
-def _close_task():
+def _close_task() -> None:
+    """Close an active FreeCAD task dialog and process its close events."""
     if Gui.Control.activeDialog():
         Gui.Control.closeDialog()
         _events()
 
 
-def _activate(name, commands):
+def _activate(name: str, commands: Sequence[str]) -> None:
+    """Activate a workbench and verify its required command registrations.
+
+    Args:
+        name: Registered FreeCAD workbench name to activate.
+        commands: Command identifiers that must be available afterward.
+
+    Raises:
+        RuntimeError: If the workbench cannot be activated or a command is missing.
+    """
     Gui.activateWorkbench(name)
     _events()
     if Gui.activeWorkbench().name() != name:
-        raise RuntimeError(f"failed to activate {name}")
+        msg = f"failed to activate {name}"
+        raise RuntimeError(msg)
     missing = [command for command in commands if command not in Gui.listCommands()]
     if missing:
         raise RuntimeError("commands are not registered: {}".format(",".join(missing)))
 
 
-def _find_pieces(doc):
+class _PlacementBase(Protocol):
+    """Expose the X coordinate read by the acceptance fixture."""
+
+    x: float
+
+
+class _PatternPlacement(Protocol):
+    """Expose the placement base used by a pattern piece."""
+
+    Base: _PlacementBase
+
+
+class _PatternPieceObject(Protocol):
+    """Describe the pattern-piece properties used by acceptance setup."""
+
+    PatternType: str
+    Placement: _PatternPlacement
+
+
+class _DocumentObjects(Protocol):
+    """Expose the native document object's pattern inventory."""
+
+    Objects: Sequence[_PatternPieceObject]
+
+
+def _find_pieces(doc: _DocumentObjects) -> list[_PatternPieceObject]:
+    """Return the native document's pattern-piece objects.
+
+    Args:
+        doc: FreeCAD document exposing its object inventory.
+
+    Returns:
+        Objects marked with the persistent PatternPiece type identifier.
+    """
     return [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
-def _panel_value(panel, widget_name):
-    return getattr(panel, widget_name).value()
+def _panel_value(panel: object, widget_name: str) -> float:
+    """Read a numeric value from a named Simulation Quality control.
+
+    Args:
+        panel: Task-panel instance containing the named widget.
+        widget_name: Attribute name of the numeric widget.
+
+    Returns:
+        Current widget value converted to a floating-point number.
+    """
+    return float(getattr(panel, widget_name).value())
 
 
-def run_acceptance():
+def run_acceptance() -> None:
+    """Exercise public workbench commands, persistence and quality readiness.
+
+    Raises:
+        RuntimeError: If any asserted workbench, target, material, persistence or
+            visual-readiness condition does not hold.
+    """
     _progress("acceptance-start")
     doc = App.newDocument("SimulationQualityAcceptance")
     _progress("document-created")
@@ -124,7 +197,8 @@ def run_acceptance():
         _progress("back-piece-command-finished")
         pieces = _find_pieces(doc)
         if len(pieces) != 2:
-            raise RuntimeError("public Pattern command did not create two PatternPiece objects")
+            msg = "public Pattern command did not create two PatternPiece objects"
+            raise RuntimeError(msg)
         front, back = pieces
         front.Placement.Base.x = -140
         back.Placement.Base.x = 20
@@ -141,9 +215,8 @@ def run_acceptance():
         _progress("simulation-create-command-finished")
         scene = doc.getObject("ClothSimulation")
         if scene is None:
-            raise RuntimeError(
-                "public Simulation Create command did not create a ClothSimulation object"
-            )
+            msg = "public Simulation Create command did not create a ClothSimulation object"
+            raise RuntimeError(msg)
         scene.ClothPieces = [front, back]
 
         target_body = doc.addObject("Part::Feature", "QualityAcceptanceTarget")
@@ -166,9 +239,8 @@ def run_acceptance():
         doc.recompute()
         target = doc.getObject("DrapeTarget")
         if target is None or scene.DrapeTarget != target:
-            raise RuntimeError(
-                "public DrapeTarget command did not attach the target to the simulation"
-            )
+            msg = "public DrapeTarget command did not attach the target to the simulation"
+            raise RuntimeError(msg)
         Gui.runCommand("ClothDrape_RefreshTarget", 0)
         doc.recompute()
 
@@ -193,20 +265,22 @@ def run_acceptance():
         }
         final = preset("Final")
         if fast["particle"] <= final.particle_distance:
-            raise RuntimeError("Fast preset did not use a coarser particle distance than Final")
+            msg = "Fast preset did not use a coarser particle distance than Final"
+            raise RuntimeError(msg)
         if fast["iterations"] >= final.solver_iterations:
-            raise RuntimeError("Fast preset did not use fewer solver iterations than Final")
+            msg = "Fast preset did not use fewer solver iterations than Final"
+            raise RuntimeError(msg)
         if fast["particles"] <= 0:
-            raise RuntimeError("Fast preset did not build a real simulation discretization")
+            msg = "Fast preset did not build a real simulation discretization"
+            raise RuntimeError(msg)
 
         panel = SimulationQualityTaskPanel(scene)
         Gui.Control.showDialog(panel)
         _events()
         _progress("ready-panel-shown")
         if not hasattr(panel, "arrange_fit_button") or not hasattr(panel, "snap_to_target_button"):
-            raise RuntimeError(
-                "simulation panel did not expose the Arrange / Fit / target-snap bridge"
-            )
+            msg = "simulation panel did not expose the Arrange / Fit / target-snap bridge"
+            raise RuntimeError(msg)
         if not hasattr(panel, "workflow_labels") or set(panel.workflow_labels) != {
             "patterns",
             "sewing",
@@ -232,21 +306,27 @@ def run_acceptance():
             flush=True,
         )
         if panel.reset_arrangement_button.isEnabled():
-            raise RuntimeError("reset arrangement should be disabled before fitting handoff")
+            msg = "reset arrangement should be disabled before fitting handoff"
+            raise RuntimeError(msg)
         _progress("ready-screenshot-saved")
         panel.quality.setCurrentText("Final")
         _events()
         doc.recompute()
         if str(scene.QualityPreset) != "Final":
-            raise RuntimeError("task panel did not persist the selected quality preset")
+            msg = "task panel did not persist the selected quality preset"
+            raise RuntimeError(msg)
         if abs(float(scene.ParticleDistance) - float(final.particle_distance)) > 1e-6:
-            raise RuntimeError("Final preset did not persist its particle distance")
+            msg = "Final preset did not persist its particle distance"
+            raise RuntimeError(msg)
         if int(scene.SolverIterations) != int(final.solver_iterations):
-            raise RuntimeError("Final preset did not persist its solver iterations")
+            msg = "Final preset did not persist its solver iterations"
+            raise RuntimeError(msg)
         if int(scene.SolverSubsteps) != int(final.substeps):
-            raise RuntimeError("Final preset did not persist its solver substeps")
+            msg = "Final preset did not persist its solver substeps"
+            raise RuntimeError(msg)
         if int(scene.ParticleCount) <= fast["particles"]:
-            raise RuntimeError("Final preset did not materially increase simulation discretization")
+            msg = "Final preset did not materially increase simulation discretization"
+            raise RuntimeError(msg)
         panel.density.setValue(225.0)
         panel.thickness.setValue(0.75)
         panel.skin_offset.setValue(2.5)
@@ -262,9 +342,8 @@ def run_acceptance():
             float(scene.FabricFriction),
         )
         if authored != ("Final", 225.0, 0.75, 2.5, 0.65):
-            raise RuntimeError(
-                "task-panel material/collision edits did not persist into document properties"
-            )
+            msg = "task-panel material/collision edits did not persist into document properties"
+            raise RuntimeError(msg)
 
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "simulation-quality-acceptance.FCStd")
@@ -277,7 +356,8 @@ def run_acceptance():
             target = reloaded.getObject("DrapeTarget")
             target_body = reloaded.getObject("QualityAcceptanceTarget")
             if scene is None or target is None or target_body is None:
-                raise RuntimeError("quality simulation did not survive save/reload")
+                msg = "quality simulation did not survive save/reload"
+                raise RuntimeError(msg)
             persisted = (
                 str(scene.QualityPreset),
                 float(scene.FabricDensity),
@@ -299,9 +379,8 @@ def run_acceptance():
                 int(final.substeps),
             )
             if persisted != expected:
-                raise RuntimeError(
-                    "quality, material, and collision controls did not persist across save/reload"
-                )
+                msg = "quality, material, and collision controls did not persist across save/reload"
+                raise RuntimeError(msg)
             _activate(
                 "ClothSimulationWorkbench",
                 [
@@ -315,14 +394,17 @@ def run_acceptance():
             Gui.Control.showDialog(panel)
             _events()
             if panel.quality.currentText() != "Final":
-                raise RuntimeError("reloaded task panel lost the authored quality preset")
+                msg = "reloaded task panel lost the authored quality preset"
+                raise RuntimeError(msg)
             if (
                 abs(_panel_value(panel, "density") - 225.0) > 1e-6
                 or abs(_panel_value(panel, "thickness") - 0.75) > 1e-6
             ):
-                raise RuntimeError("reloaded task panel lost authored fabric controls")
+                msg = "reloaded task panel lost authored fabric controls"
+                raise RuntimeError(msg)
             if abs(_panel_value(panel, "skin_offset") - 2.5) > 1e-6:
-                raise RuntimeError("reloaded task panel lost authored collision control")
+                msg = "reloaded task panel lost authored collision control"
+                raise RuntimeError(msg)
             _close_task()
 
             target_body.Placement.Base.x += 15.0
@@ -330,9 +412,8 @@ def run_acceptance():
             _progress("target-made-stale")
             status = target_status(target)
             if status["state"] != "stale" or not status["stale"]:
-                raise RuntimeError(
-                    "upstream CAD target edit did not produce deterministic stale state"
-                )
+                msg = "upstream CAD target edit did not produce deterministic stale state"
+                raise RuntimeError(msg)
             panel = SimulationQualityTaskPanel(scene)
             Gui.Control.showDialog(panel)
             _events()
@@ -341,13 +422,11 @@ def run_acceptance():
                 or panel.run_button.isEnabled()
                 or not panel.reset_button.isEnabled()
             ):
-                raise RuntimeError(
-                    "stale-target status did not block Step/Run while preserving Reset"
-                )
+                msg = "stale-target status did not block Step/Run while preserving Reset"
+                raise RuntimeError(msg)
             if "Simulation blocked" not in panel.status.text():
-                raise RuntimeError(
-                    "stale-target status did not expose a user-facing blocked reason"
-                )
+                msg = "stale-target status did not expose a user-facing blocked reason"
+                raise RuntimeError(msg)
             if panel.workflow_labels["target"].property("workflowState") != "blocked":
                 raise RuntimeError("workflow checklist did not mark a stale drape target blocked")
             if panel.workflow_labels["simulation"].property("workflowState") != "blocked":
@@ -370,15 +449,15 @@ def run_acceptance():
             reloaded.recompute()
             status = target_status(target)
             if status["state"] != "ready":
-                raise RuntimeError("public DrapeTarget refresh did not restore a ready target")
+                msg = "public DrapeTarget refresh did not restore a ready target"
+                raise RuntimeError(msg)
             _progress("target-refresh-finished")
             Gui.runCommand("ClothSimulation_Step", 0)
             reloaded.recompute()
             _progress("simulation-step-finished")
             if int(scene.Steps) != 1 or not bool(scene.FiniteState):
-                raise RuntimeError(
-                    "public Simulation Step did not recover after stale-target refresh"
-                )
+                msg = "public Simulation Step did not recover after stale-target refresh"
+                raise RuntimeError(msg)
             App.closeDocument(reloaded.Name)
             doc = None
         print("simulation quality persistence acceptance passed", flush=True)

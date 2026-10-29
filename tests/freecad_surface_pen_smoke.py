@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD Surface Pen acceptance, screenshot, and staged-workflow capture."""
 
 import contextlib
@@ -49,7 +50,8 @@ def _capture(name: str) -> Path:
     screen = None if application is None else application.primaryScreen()
     window = Gui.getMainWindow()
     if application is None or screen is None or window is None:
-        raise RuntimeError("FreeCAD main window/screen is unavailable for Surface Pen capture")
+        msg = "FreeCAD main window/screen is unavailable for Surface Pen capture"
+        raise RuntimeError(msg)
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
         raise RuntimeError(
@@ -65,16 +67,19 @@ def _capture(name: str) -> Path:
     document = Gui.activeDocument()
     view = document.activeView() if document is not None else None
     if view is None:
-        raise RuntimeError("FreeCAD active view is unavailable for Surface Pen capture")
+        msg = "FreeCAD active view is unavailable for Surface Pen capture"
+        raise RuntimeError(msg)
     view.redraw()
     time.sleep(0.10)
     _events()
     image = screen.grabWindow(int(window.winId()))
     if image.isNull() or (int(image.width()), int(image.height())) != (1280, 720):
-        raise RuntimeError(f"invalid FreeCAD Surface Pen screenshot: {name}")
+        msg = f"invalid FreeCAD Surface Pen screenshot: {name}"
+        raise RuntimeError(msg)
     path = ARTIFACTS / name
     if not image.save(str(path)):
-        raise RuntimeError(f"failed to save FreeCAD Surface Pen screenshot: {path}")
+        msg = f"failed to save FreeCAD Surface Pen screenshot: {path}"
+        raise RuntimeError(msg)
     metrics = validate_png_capture(
         path,
         expected_width=1280,
@@ -167,7 +172,8 @@ def main() -> None:
         _capture("surface-pen.png")
 
         if not panel.finish():
-            raise AssertionError(f"Surface Pen extraction failed: {panel.status.text()}")
+            msg = f"Surface Pen extraction failed: {panel.status.text()}"
+            raise AssertionError(msg)
         pieces = [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
         assert len(pieces) == 1
         piece = pieces[0]
@@ -251,7 +257,8 @@ def main() -> None:
         except ValueError as exc:
             assert "target changed" in str(exc)
         else:
-            raise AssertionError("changed target was accepted by a stale Surface Pen draft")
+            msg = "changed target was accepted by a stale Surface Pen draft"
+            raise AssertionError(msg)
         assert str(draft.Status) == "Stale surface target"
 
         (ARTIFACTS / "surface-pen.log").write_text(

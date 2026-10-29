@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Simulation workbench registration facade.
 
 Command implementations remain in the package tree; this module owns the
@@ -8,13 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
+from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
 from freecad_cloth.gui import ClothWorkbenchBase
-
-AVATAR_ENTRY_COMMANDS = (
-    "ClothFitting_CreateAvatar",
-    "ClothFitting_EditAvatar",
-    "ClothFitting_PoseAvatar",
-)
 
 
 class ClothSimulationWorkbench(ClothWorkbenchBase):
@@ -36,9 +32,9 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
     def Activated(self):
         import FreeCAD as App
 
-        import freecad_cloth.simulation.DrapeCommands as DrapeCommands
         from freecad_cloth.sewing.SeamOverlay import activate_seam_overlay
         from freecad_cloth.sewing.SewingView import apply_seam_colors
+        from freecad_cloth.simulation import DrapeCommands
 
         DrapeCommands.register_gui_commands()
         if App.ActiveDocument is not None:
@@ -55,9 +51,9 @@ class ClothSimulationWorkbench(ClothWorkbenchBase):
         if self.commands:
             return
         if drape_commands is None:
-            import freecad_cloth.simulation.DrapeCommands as drape_commands
+            from freecad_cloth.simulation import DrapeCommands as drape_commands
         if simulation_commands is None:
-            import freecad_cloth.simulation.SimulationCommands as simulation_commands
+            from freecad_cloth.simulation import SimulationCommands as simulation_commands
 
         drape_commands.register_gui_commands()
         register_groups = self.register if register_fn is None else register_fn

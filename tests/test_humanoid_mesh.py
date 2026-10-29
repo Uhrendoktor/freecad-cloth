@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import json
 import os
 import tempfile
@@ -5,6 +6,8 @@ import unittest
 from collections.abc import Callable
 from pathlib import Path
 
+import numpy as np
+import trimesh
 from pydantic import ValidationError
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
@@ -21,6 +24,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     _make_source_fitted_mapper,
     _map_makehuman_axes,
     _reoriented_triangles,
+    _section_circumference,
     _verified_skeleton,
     _verified_weights,
     ensure_makehuman_base,
@@ -29,6 +33,9 @@ from freecad_cloth.avatar.HumanoidMesh import (
     load_makehuman_skeleton,
     parse_obj,
 )
+from freecad_cloth.avatar.MeshSanity import compact_mesh
+from tests.support.assertions import require
+from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 
 
 class HumanoidMeshTests(unittest.TestCase):
@@ -55,7 +62,8 @@ class HumanoidMeshTests(unittest.TestCase):
     def _write_sized_json(path: Path, payload: object, size: int) -> None:
         encoded = json.dumps(payload, separators=(",", ":"))
         if len(encoded) > size:
-            raise AssertionError("test JSON payload is larger than the expected cache size")
+            msg = "test JSON payload is larger than the expected cache size"
+            raise AssertionError(msg)
         path.write_text(encoded + " " * (size - len(encoded)), encoding="utf-8")
 
     def test_mesh_data_rejects_non_finite_vertex_coordinates(self):
@@ -322,17 +330,64 @@ class HumanoidMeshTests(unittest.TestCase):
         self.assertAlmostEqual(max(v[2] for v in fitted.vertices), 1750.0)
         self.assertNotEqual(fitted.vertices, fitted_padded.vertices)
 
+    def test_section_circumference_uses_trimesh_plane_intersections(self) -> None:
+        """Measure a closed cube section using the vectorized Trimesh intersection API."""
+        vertices = (
+            (-1.0, -1.0, 0.0),
+            (1.0, -1.0, 0.0),
+            (1.0, 1.0, 0.0),
+            (-1.0, 1.0, 0.0),
+            (-1.0, -1.0, 1.0),
+            (1.0, -1.0, 1.0),
+            (1.0, 1.0, 1.0),
+            (-1.0, 1.0, 1.0),
+        )
+        triangles = CUBE_TRIANGLES
+        mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=np.asarray(triangles, dtype=np.int64),
+            process=False,
+        )
+
+        circumference = _section_circumference(mesh, 0.5)
+
+        require(
+            condition=abs(circumference - 8.0) < 1e-9,
+            message="unit cube section must have the expected square perimeter",
+        )
+
+    def test_compact_mesh_remaps_triangle_indices_with_numpy(self) -> None:
+        """Preserve sorted source-index order when compacting mesh connectivity."""
+        vertices = (
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+            (4.0, 0.0, 0.0),
+        )
+        triangles = ((3, 1, 2), (2, 3, 2))
+
+        compact_vertices, compact_triangles = compact_mesh(vertices, triangles)
+
+        require(
+            condition=compact_vertices == (vertices[1], vertices[2], vertices[3]),
+            message="compaction must preserve the sorted source index order",
+        )
+        require(
+            condition=compact_triangles == ((2, 0, 1), (1, 2, 1)),
+            message="compaction must remap every triangle through the inverse index array",
+        )
+
     def test_explicit_local_source_does_not_require_network(self):
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")
         os.close(fd)
         try:
-            with open(path, "w", encoding="utf-8") as handle:
-                handle.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+            Path(path).write_text("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
             loaded = load_makehuman_mesh(path)
             self.assertEqual(len(loaded.vertices), 3)
             self.assertEqual(loaded.triangles, ((0, 1, 2),))
         finally:
-            os.unlink(path)
+            Path(path).unlink()
 
 
 if __name__ == "__main__":

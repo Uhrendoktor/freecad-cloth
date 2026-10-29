@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Pattern workbench registration facade.
 
 Command implementations remain in the package tree; this module owns the
@@ -32,7 +33,6 @@ class ClothPatternWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import freecad_cloth.pattern.PatternCommands as PatternCommands
-        import freecad_cloth.pattern.PatternMarks as PatternMarks
+        from freecad_cloth.pattern import PatternCommands, PatternMarks
 
         self.register((("Pattern", PatternCommands.COMMANDS + PatternMarks.COMMANDS),))

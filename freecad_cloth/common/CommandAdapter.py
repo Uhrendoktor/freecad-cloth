@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Small headless-safe adapter for FreeCAD GUI command registration."""
 
 from collections.abc import Callable, Mapping

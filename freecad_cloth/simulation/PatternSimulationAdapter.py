@@ -1,11 +1,11 @@
-"""FreeCAD-facing PatternIR adapter for production simulation.
+# Copyright (C) 2026 FreeCAD Cloth contributors
+"""Resolve native Sketcher pattern geometry into solver-neutral PatternIR.
 
-Editable Sketcher geometry is resolved here and only solver-neutral PatternIR
-leaves this boundary. Legacy PatternPiece outlines remain an explicit
-compatibility path for documents without a native Sketcher authority.
+Editable Sketcher geometry is the only accepted source for production
+simulation. The adapter fails closed when authority or semantic edge provenance
+is absent instead of rebuilding geometry from cached outline or size fields.
 """
 
-import ast
 from collections.abc import Mapping, Sequence
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -16,6 +16,7 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
+    NATIVE_SIGNATURE_PREFIX,
     capture_edge_reference,
 )
 from freecad_cloth.sewing.SeamGraph import SeamGraph
@@ -37,16 +38,15 @@ class ResolvedSimulationPattern:
 
 
 def is_sketch_authoritative(piece) -> bool:
-    # The persisted authority flag is itself part of the fail-closed contract:
-    # a missing Sketch on a Sketcher-authoritative piece must not trigger legacy fallback.
-    """Provide the public is sketch authoritative operation."""
+    """Return whether this document object declares native Sketcher authority."""
     return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
 
 
 def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int = CURVE_SAMPLES):
     """Resolve document PatternPieces and canonical seams into one PatternIR."""
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
 
     pieces = tuple(pieces)
     piece_objects = {}
@@ -54,9 +54,11 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
     for piece in pieces:
         piece_id = str(getattr(piece, "PieceId", "")).strip()
         if not piece_id:
-            raise ValueError("simulation PatternPiece is missing PieceId")
+            msg = "simulation PatternPiece is missing PieceId"
+            raise ValueError(msg)
         if piece_id in piece_objects:
-            raise ValueError(f"simulation PatternPieces contain duplicate PieceId: {piece_id}")
+            msg = f"simulation PatternPieces contain duplicate PieceId: {piece_id}"
+            raise ValueError(msg)
         piece_objects[piece_id] = piece
         piece_irs.append(_resolve_piece_ir(piece, curve_samples))
 
@@ -72,7 +74,8 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
             continue
         status = str(getattr(seam_obj, "Status", "Valid"))
         if status != "Valid":
-            raise ValueError(f"cannot simulate invalid seam {seam_id}: {status}")
+            msg = f"cannot simulate invalid seam {seam_id}: {status}"
+            raise ValueError(msg)
         piece_a_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_a_id)
         piece_b_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_b_id)
         edge_a = _resolve_seam_edge(piece_objects[piece_a_id], seam_obj, "A", piece_a_ir)
@@ -117,7 +120,7 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
         tuple(
             (
                 piece_id,
-                "Sketcher" if is_sketch_authoritative(piece_objects[piece_id]) else "Legacy",
+                "Sketcher",
                 tuple(
                     (
                         boundary.id,
@@ -154,9 +157,10 @@ def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int
 
 
 def resolve_piece_ir(piece, curve_samples: int = CURVE_SAMPLES):
-    """Resolve one document PatternPiece for compatibility callers/tests."""
+    """Resolve one Sketcher-authoritative document PatternPiece."""
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
     return _resolve_piece_ir(piece, curve_samples)
 
 
@@ -173,152 +177,100 @@ def geometry_from_piece_ir(piece_ir):
 
 
 def _resolve_piece_ir(piece, curve_samples):
-    native = is_sketch_authoritative(piece)
-    model = _piece_model(piece, native=native)
+    if not is_sketch_authoritative(piece):
+        msg = (
+            f"pattern piece {getattr(piece, 'PieceId', '')} must declare "
+            "Sketcher as its geometry authority"
+        )
+        raise MissingEdgeReference(msg)
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None:
+        msg = f"Sketch-authoritative pattern piece {getattr(piece, 'PieceId', '')} has no Sketch"
+        raise MissingEdgeReference(msg)
+
+    model = _piece_model(piece)
     graph = SeamGraph()
     graph.add_piece(model)
-    if native:
-        sketch = getattr(piece, "Sketch", None)
-        if sketch is None:
-            raise MissingEdgeReference(
-                "Sketch-authoritative pattern piece {} has no Sketch object".format(
-                    getattr(piece, "PieceId", "")
-                )
-            )
-        return PatternIR.from_sketches(
-            graph,
-            {model.id: sketch},
-            curve_samples=curve_samples,
-        ).piece(model.id)
-
-    outline = _legacy_outline(piece)
-    geometry = ParametricPattern(
-        LineSegment(
-            "%s:edge:%d" % (model.id, index),
-            point,
-            outline[(index + 1) % len(outline)],
-        )
-        for index, point in enumerate(outline)
-    )
-    return PatternIR.from_graph(
+    return PatternIR.from_sketches(
         graph,
-        {model.id: geometry},
+        {model.id: sketch},
         curve_samples=curve_samples,
     ).piece(model.id)
 
 
-def _piece_model(piece, *, native):
-    piece_id = str(getattr(piece, "PieceId", "")).strip()
-    label = str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece_id)
-    outline = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)] if native else _legacy_outline(piece)
+def _piece_model(piece):
+    """Build PatternIR metadata; native Sketcher geometry supplies the boundary."""
     return PatternPiece(
-        label,
-        outline,
+        str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece.PieceId),
+        [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
         seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
         grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-        id=piece_id,
+        id=str(piece.PieceId),
     )
-
-
-def _legacy_outline(piece):
-    """Explicit compatibility geometry for non-Sketcher PatternPieces only."""
-    for attribute in ("SewingOutline", "DraftingBoundary"):
-        raw = getattr(piece, attribute, "")
-        if not raw:
-            continue
-        try:
-            values = ast.literal_eval(str(raw))
-            points = [(float(point[0]), float(point[1])) for point in values]
-        except (ValueError, SyntaxError, TypeError, IndexError) as exc:
-            raise ValueError(
-                "invalid legacy pattern boundary on {}".format(getattr(piece, "PieceId", ""))
-            ) from exc
-        if len(points) >= 3:
-            return points
-    width = float(piece.Width)
-    height = float(piece.Height)
-    return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
 
 
 def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
-    native = is_sketch_authoritative(piece)
+    if not is_sketch_authoritative(piece) or getattr(piece, "Sketch", None) is None:
+        msg = f"seam {getattr(seam_obj, 'SeamId', '')} references a piece without native Sketcher geometry"
+        raise MissingEdgeReference(msg)
+
     id_attribute = "EdgeAId" if prefix == "A" else "EdgeBId"
-    ordinal_attribute = "EdgeA" if prefix == "A" else "EdgeB"
     signature_attribute = "EdgeASignature" if prefix == "A" else "EdgeBSignature"
     semantic_id = str(getattr(seam_obj, id_attribute, "")).strip()
+    if not semantic_id:
+        msg = f"Sketcher-authoritative seam {getattr(seam_obj, 'SeamId', '')} is missing {id_attribute}"
+        raise MissingEdgeReference(msg)
 
-    if native and not semantic_id:
-        raise MissingEdgeReference(
-            "Sketch-authoritative seam {} is missing {}".format(
-                getattr(seam_obj, "SeamId", ""), id_attribute
-            )
-        )
-
-    if semantic_id:
-        boundary = next(
-            (value for value in piece_ir.boundaries if value.id == semantic_id),
-            None,
-        )
-        if boundary is None:
-            raise MissingEdgeReference(
-                "semantic edge reference {} is missing from pattern piece {}".format(
-                    semantic_id, getattr(piece, "PieceId", "")
-                )
-            )
-        _validate_edge_signature(
-            piece,
-            seam_obj,
-            semantic_id,
-            boundary,
-            signature_attribute,
-            native,
-        )
-        return semantic_id
-
-    ordinal = int(getattr(seam_obj, ordinal_attribute))
-    if ordinal < 0 or ordinal >= len(piece_ir.boundaries):
-        raise MissingEdgeReference(
-            "seam edge {} is outside pattern piece {}".format(
-                ordinal, getattr(piece, "PieceId", "")
-            )
-        )
-    boundary = piece_ir.boundaries[ordinal]
-    _validate_edge_signature(
-        piece,
-        seam_obj,
-        boundary.id,
-        boundary,
-        signature_attribute,
-        native,
+    boundary = next(
+        (value for value in piece_ir.boundaries if value.id == semantic_id),
+        None,
     )
-    return boundary.id
-
-
-def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute, native):
-    stored = str(getattr(seam_obj, signature_attribute, "")).strip()
-    if native and not stored.startswith("native-v1:"):
-        raise ChangedEdgeReference(
-            "native Sketcher seam {} lacks authoritative geometry provenance for {}".format(
-                getattr(seam_obj, "SeamId", ""), edge_id
-            )
+    if boundary is None:
+        msg = (
+            f"semantic edge reference {semantic_id} is missing from pattern piece "
+            f"{getattr(piece, 'PieceId', '')}"
         )
-    if not stored:
-        return
+        raise MissingEdgeReference(msg)
+    _validate_edge_signature(piece, seam_obj, semantic_id, boundary, signature_attribute)
+    return semantic_id
+
+
+def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute) -> None:
+    """Require the stored seam signature to match current native PatternIR provenance.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece that owns the edge.
+        seam_obj: Persisted semantic seam object with the signature property.
+        edge_id: Stable semantic identity found in the current PatternIR boundary.
+        boundary: Current PatternIR boundary record resolved by semantic identity.
+        signature_attribute: Name of the stored side-specific signature property.
+
+    Raises:
+        ChangedEdgeReference: If the stored native provenance is missing or changed.
+    """
+    stored = str(getattr(seam_obj, signature_attribute, "")).strip()
+    if not stored.startswith(NATIVE_SIGNATURE_PREFIX):
+        msg = (
+            f"native Sketcher seam {getattr(seam_obj, 'SeamId', '')} lacks "
+            f"authoritative geometry provenance for {edge_id}"
+        )
+        raise ChangedEdgeReference(msg)
 
     samples = tuple(tuple(point) for point in boundary.samples)
+    if len(samples) < 2:
+        msg = f"semantic edge reference {edge_id} has fewer than two current samples"
+        raise ChangedEdgeReference(msg)
     points = (
-        (samples[0][0], samples[0][1]),
-        (samples[-1][0], samples[-1][1]),
+        (float(samples[0][0]), float(samples[0][1])),
+        (float(samples[-1][0]), float(samples[-1][1])),
     )
-    provenance = None
-    if native:
-        provenance = (
-            "PatternIR",
-            "Sketcher",
-            boundary.kind,
-            tuple(float(value) for value in boundary.parameter_range),
-            samples,
-        )
+    provenance = (
+        "PatternIR",
+        "Sketcher",
+        boundary.kind,
+        tuple(float(value) for value in boundary.parameter_range),
+        samples,
+    )
     current = capture_edge_reference(
         str(getattr(piece, "PieceId", "")),
         edge_id,
@@ -326,7 +278,8 @@ def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attri
         provenance,
     ).signature
     if current != stored:
-        raise ChangedEdgeReference(f"semantic edge reference {edge_id} geometry/provenance changed")
+        msg = f"semantic edge reference {edge_id} geometry/provenance changed"
+        raise ChangedEdgeReference(msg)
 
 
 def _placement_signature(piece):

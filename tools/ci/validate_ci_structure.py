@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate the repository CI structure and hard runtime contracts."""
 
 from __future__ import annotations
@@ -6,9 +7,14 @@ import fnmatch
 import json
 import os
 import re
-import subprocess
+import sys
 import tomllib
 from pathlib import Path
+
+try:
+    from command_runner import run_command
+except ModuleNotFoundError:
+    from tools.ci.command_runner import run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -29,6 +35,8 @@ WORKFLOW_FILES = tuple(
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
 TY_CONFIG = ROOT / "ty.toml"
+MAX_REUSABLE_WORKFLOW_LINES = 750
+MAX_CI_TIMEOUT_SECONDS = 180
 REQUIRED = (
     ROOT / ".github/actions/freecad-test/action.yml",
     ROOT / ".github/actions/freecad-container/action.yml",
@@ -49,48 +57,26 @@ REQUIRED = (
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
-# Stage semantic type checking deliberately: these paths form the reviewed
-# blocking Pyright inventory. Add modules here only after their diagnostics
-# have been triaged. Changed-file annotation ratcheting still covers every
-# Python file, including GUI/command surfaces outside this inventory.
-PYRIGHT_EXPECTED_INCLUDE = (
-    "freecad_cloth/common",
-    "freecad_cloth/shared",
-    "freecad_cloth/pattern/PatternGeometry.py",
-    "freecad_cloth/pattern/PatternIR.py",
-    "freecad_cloth/pattern/PatternModel.py",
-    "freecad_cloth/pattern/PatternPdfExport.py",
-    "freecad_cloth/pattern/PatternSvgValidation.py",
-    "freecad_cloth/sewing/SeamGraph.py",
-    "freecad_cloth/sewing/SewingCorrespondence.py",
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-    "freecad_cloth/simulation/DrapeTarget.py",
-    "freecad_cloth/simulation/SimulationQuality.py",
-    "freecad_cloth/simulation/SimulationObjects.py",
-    "freecad_cloth/simulation/SimulationQualityRuntime.py",
-    "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
-    "freecad_cloth/simulation/MeshCollisionProjector.py",
-    "freecad_cloth/avatar/MakeHumanTargets.py",
-    "freecad_cloth/avatar/AnnyAvatarBackend.py",
-)
-PYRIGHT_EXPECTED_EXCLUDE = (
-    "**/*Gui.py",
-    "**/*Commands.py",
-    "**/workbench.py",
-    "freecad_cloth/bootstrap.py",
-)
+# Pyright's repository-root include covers every checked-in Python module by default.
+# Do not add an explicit exclusion inventory: tests, tooling, loaders and GUI/command
+# modules all participate in the blocking standard-mode analysis.
+PYRIGHT_EXPECTED_INCLUDE = (".",)
+PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/cloth_backend.py",
     "freecad_cloth/simulation/ClothSolver.py",
 )
 
 TYPECHECK_COMMANDS = (
     "python tools/ci/check_explicit_any_annotations.py",
     "pyright -p pyrightconfig.json",
-    "ty check --output-format github freecad_cloth/simulation/DrapeFailureClassifier.py freecad_cloth/simulation/ClothBackend.py freecad_cloth/simulation/ClothSolver.py",
+    (
+        "ty check --output-format github "
+        "freecad_cloth/simulation/DrapeFailureClassifier.py "
+        "freecad_cloth/simulation/cloth_backend.py "
+        "freecad_cloth/simulation/ClothSolver.py"
+    ),
     "python tools/ci/check_changed_python_types.py",
 )
 
@@ -112,19 +98,39 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
 
     Exact-line matching is intentional: a failing command inside an AND chain
     can be exempt from Bash errexit handling, allowing CI to continue.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Required blocking type-check commands absent as standalone lines.
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required repository Python policy gates missing from the canonical workflow."""
+    """Return required repository Python policy gates missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Python policy commands that are missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
 
 
 def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Require the blocking source-rewriting prohibition in the canonical workflow."""
+    """Require the blocking source-rewriting prohibition in the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Source-rewriting policy commands missing from the workflow.
+    """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(
         command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
@@ -132,18 +138,53 @@ def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, .
 
 
 def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
-    """Require policy regression tests in the blocking pytest step."""
+    """Require policy regression tests in the blocking pytest step.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Whether the policy regression test is run by a blocking test command.
+    """
     return any(
         "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
         for line in workflow_text.splitlines()
     )
 
 
+def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
+    """Return required standalone Ruff commands missing from the canonical workflow.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        Ruff commands that are absent as standalone shell lines.
+    """
+    command_lines: set[str] = set()
+    for line in workflow_text.splitlines():
+        command = line.strip()
+        if command.startswith("run: "):
+            command = command.removeprefix("run: ").strip()
+        command_lines.add(command)
+    return tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+
+
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:
-    """Return whether a source path is covered by one include entry."""
+    """Return whether a source path is covered by one include entry.
+
+    Args:
+        path: Repository-relative source path being checked.
+        include: Pyright include entries that define the checked scope.
+
+    Returns:
+        Whether an include entry covers the supplied source path.
+    """
     normalized = Path(path).as_posix()
     for entry in include:
         target = Path(entry).as_posix()
+        if target in {".", "**"}:
+            return True
         if normalized == target:
             return True
         if not target.endswith(".py") and normalized.startswith(target.rstrip("/") + "/"):
@@ -152,13 +193,28 @@ def _pyright_path_is_included(path: str, include: list[str]) -> bool:
 
 
 def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
-    """Return whether a source path is covered by a declared exclusion pattern."""
+    """Return whether a source path is covered by a declared exclusion pattern.
+
+    Args:
+        path: Repository-relative source path being checked.
+        exclude: Pyright exclusion patterns to compare against the path.
+
+    Returns:
+        Whether any exclusion pattern matches the source path.
+    """
     return any(fnmatch.fnmatchcase(Path(path).as_posix(), pattern) for pattern in exclude)
 
 
 def added_production_python_modules(base: str) -> tuple[str, ...]:
-    """Find new production Python modules added relative to a pull request base."""
-    result = subprocess.run(
+    """Find new production Python modules added relative to a pull request base.
+
+    Args:
+        base: Target branch used as the comparison base.
+
+    Returns:
+        Newly added production Python module paths.
+    """
+    result = run_command(
         [
             "git",
             "diff",
@@ -169,9 +225,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
             "--",
             "freecad_cloth",
         ],
-        check=True,
         capture_output=True,
-        text=True,
     )
     return tuple(
         sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py"))
@@ -182,12 +236,20 @@ def pyright_coverage_contract_violations(
     config_text: str,
     added_modules: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Require the reviewed staged Pyright include/exclude inventory to remain intact.
+    """Require Pyright to analyze the entire repository without explicit exclusions.
 
     The current production tree has a large pre-existing type-error backlog.
-    Semantic coverage is widened incrementally; changing the scope requires an
-    explicit inventory update alongside diagnostic triage. Every changed Python
-    file is independently subject to the annotation-debt non-regression gate.
+    Semantic coverage is widened incrementally; the root include intentionally applies
+    standard-mode analysis to every source file.
+    The strict path list adds stricter checks to selected core modules without narrowing
+    the overall analysis. Every changed Python file remains subject to the annotation gate.
+
+    Args:
+        config_text: Contents of the Pyright configuration file.
+        added_modules: Newly added production modules to verify against the scope.
+
+    Returns:
+        Pyright coverage-contract violations found in the configuration.
     """
     try:
         config = json.loads(config_text)
@@ -197,9 +259,9 @@ def pyright_coverage_contract_violations(
     include = config.get("include")
     exclude = config.get("exclude", [])
     if include != list(PYRIGHT_EXPECTED_INCLUDE):
-        return ("<Pyright include scope differs from the reviewed inventory>",)
+        return ("<Pyright include scope must cover the entire repository>",)
     if exclude != list(PYRIGHT_EXPECTED_EXCLUDE):
-        return ("<Pyright exclude scope differs from the reviewed inventory>",)
+        return ("<Pyright exclude scope must not narrow repository coverage>",)
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
     if missing_paths:
@@ -218,7 +280,14 @@ def pyright_coverage_contract_violations(
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
-    """Return whether ty is configured to fail when it emits warnings."""
+    """Return whether ty is configured to fail when it emits warnings.
+
+    Args:
+        config_text: TOML configuration consumed by the ty type checker.
+
+    Returns:
+        Whether warning diagnostics are configured to fail the command.
+    """
     try:
         config = tomllib.loads(config_text)
     except tomllib.TOMLDecodeError:
@@ -227,24 +296,36 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
     return isinstance(terminal, dict) and terminal.get("error-on-warning") is True
 
 
-def main() -> int:
-    """Validate the repository CI structure and hard runtime contracts."""
-    files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
-    if files != WORKFLOW_FILES:
-        raise SystemExit(
-            f"expected commit/merge/publication entry points plus one reusable workflow, found: {files}"
-        )
-    text = WORKFLOW.read_text(encoding="utf-8")
+def _validate_workflow_dispatch_contract(text: str) -> None:
+    """Validate the shared workflow's size and trigger boundaries.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If workflow structure or event ownership is invalid.
+    """
     lines = text.splitlines()
-    if len(lines) > 750:
-        raise SystemExit(f"reusable workflow is {len(lines)} lines; limit is 750")
+    if len(lines) > MAX_REUSABLE_WORKFLOW_LINES:
+        msg = f"reusable workflow is {len(lines)} lines; limit is {MAX_REUSABLE_WORKFLOW_LINES}"
+        raise SystemExit(msg)
     trigger_block = text.split("\nenv:", 1)[0]
     if "workflow_call:" not in trigger_block or re.search(
         r"(?m)^  (push|pull_request|merge_group|workflow_dispatch|schedule):", trigger_block
     ):
-        raise SystemExit(
-            "canonical-execution.yml must be callable only; event triggers belong in entry workflows"
+        msg = (
+            "canonical-execution.yml must be callable only; "
+            "event triggers belong in entry workflows"
         )
+        raise SystemExit(msg)
+
+
+def _validate_entrypoint_workflows() -> None:
+    """Require fast feedback, explicit full validation, merge gating, and publication ownership.
+
+    Raises:
+        SystemExit: If event-specific workflows do not preserve the required validation gates.
+    """
     commit_workflow = COMMIT_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     publication_workflow = MAIN_PUBLICATION_WORKFLOW.read_text(encoding="utf-8")
@@ -252,47 +333,89 @@ def main() -> int:
         "  required-pre-merge-validation:", 1
     )[0]
     merge_gate = merge_workflow.split("  required-pre-merge-validation:", 1)[1]
-    if (
-        "pull_request:" not in commit_workflow
+
+    required_commit_markers = (
+        "pull_request:",
+        "execution_mode: fast",
+        "explicit-full-validation:",
+        "[full-validation]",
+        "types: [opened, synchronize, reopened, ready_for_review, edited]",
+        "workflow_dispatch:",
+    )
+    invalid_commit_workflow = (
+        any(marker not in commit_workflow for marker in required_commit_markers)
         or "merge_group:" in commit_workflow
-        or "execution_mode: fast" not in commit_workflow
-        or "explicit-full-validation:" not in commit_workflow
-        or "[full-validation]" not in commit_workflow
-        or "types: [opened, synchronize, reopened, ready_for_review, edited]" not in commit_workflow
-        or "workflow_dispatch:" not in commit_workflow
-        or "merge_group:" not in merge_workflow
-        or "execution_mode: full" not in full_validation_workflow
+    )
+    required_merge_markers = (
+        "merge_group:",
+        "name: Required pre-merge validation",
+    )
+    invalid_merge_workflow = (
+        any(marker not in merge_workflow for marker in required_merge_markers)
         or "workflow_dispatch:" in merge_workflow
+        or "pull_request:" in merge_workflow
         or "if: ${{ always() }}" not in merge_gate
         or "needs: [full-validation]" not in merge_gate
-        or "name: Required pre-merge validation" not in merge_workflow
-        or "pull_request:" in merge_workflow
-    ):
-        raise SystemExit(
-            "commit-validation.yml must provide fast feedback; merge-validation.yml must gate merge-group full validation"
+    )
+    invalid_full_validation = "execution_mode: full" not in full_validation_workflow
+    if invalid_commit_workflow or invalid_merge_workflow or invalid_full_validation:
+        msg = (
+            "commit-validation.yml must provide fast feedback; "
+            "merge-validation.yml must gate merge-group full validation"
         )
-    if (
-        "push:" not in publication_workflow
-        or "branches: [main]" not in publication_workflow
-        or "execution_mode: publication" not in publication_workflow
+        raise SystemExit(msg)
+
+    required_publication_markers = (
+        "push:",
+        "branches: [main]",
+        "execution_mode: publication",
+    )
+    if any(marker not in publication_workflow for marker in required_publication_markers):
+        msg = "main-publication.yml must be main-only and call canonical publication mode"
+        raise SystemExit(msg)
+
+
+def _validate_reusable_workflow_trust(text: str) -> None:
+    """Reject duplicate concurrency ownership, unsafe triggers, and unvalidated publication.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If the reusable workflow bypasses its validation or trust boundaries.
+    """
+    required_markers = (
+        "Required validation gate",
+        "No successful full-validation run matched source tree",
+        '--event "${event}" --status success',
+        "Explicit full validation / Required validation gate",
+    )
+    merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+    if any(marker not in text for marker in required_markers) or (
+        "Required pre-merge validation" not in merge_workflow
     ):
-        raise SystemExit(
-            "main-publication.yml must be main-only and call canonical publication mode"
+        msg = (
+            "reusable workflow must enforce mode-specific validation "
+            "and refuse unvalidated publication"
         )
-    if (
-        "Required validation gate" not in text
-        or "No successful full-validation run matched source tree" not in text
-        or '--event "${event}" --status success' not in text
-        or "Explicit full validation / Required validation gate" not in text
-        or "Required pre-merge validation" not in merge_workflow
-    ):
-        raise SystemExit(
-            "reusable workflow must enforce mode-specific validation and refuse unvalidated publication"
-        )
+        raise SystemExit(msg)
     if "\nconcurrency:\n" in text.split("\njobs:\n", 1)[0]:
-        raise SystemExit("concurrency belongs to entry workflows, not the shared reusable workflow")
+        msg = "concurrency belongs to entry workflows, not the shared reusable workflow"
+        raise SystemExit(msg)
     if "pull_request_target" in text:
-        raise SystemExit("pull_request_target is forbidden")
+        msg = "pull_request_target is forbidden"
+        raise SystemExit(msg)
+
+
+def _validate_python_quality_contracts(text: str) -> None:
+    """Require blocking type, repository-policy, Ruff, and staged coverage gates.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If a required quality gate or reviewed type-check scope is missing.
+    """
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
@@ -306,21 +429,20 @@ def main() -> int:
             + ", ".join(missing_python_policies)
         )
     if PYRIGHT_LEGACY_CONFIG.exists():
-        raise SystemExit(
-            "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
-        )
+        msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
+        raise SystemExit(msg)
     try:
         pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     except json.JSONDecodeError as error:
-        raise SystemExit("pyrightconfig.json must be valid JSON") from error
+        msg = "pyrightconfig.json must be valid JSON"
+        raise SystemExit(msg) from error
     if pyright_config.get("typeCheckingMode") != "standard":
-        raise SystemExit(
-            "pyrightconfig.json must use a standard baseline with a focused strict path list"
-        )
+        msg = "pyrightconfig.json must use a standard baseline with a focused strict path list"
+        raise SystemExit(msg)
     if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
-        raise SystemExit("pyrightconfig.json strict paths must match the reviewed core inventory")
-    command_lines = {line.strip() for line in text.splitlines()}
-    missing_ruff = tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+        msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
+        raise SystemExit(msg)
+    missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
         raise SystemExit(
             "canonical workflow must run Ruff over every tracked Python file: "
@@ -333,69 +455,124 @@ def main() -> int:
     )
     if coverage_violations:
         raise SystemExit(
-            "Pyright coverage inventory changed without an explicit staged update: "
-            + ", ".join(coverage_violations)
+            "Pyright whole-repository coverage policy is invalid: " + ", ".join(coverage_violations)
         )
     if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
-        raise SystemExit("ty.toml must set [terminal].error-on-warning = true")
+        msg = "ty.toml must set [terminal].error-on-warning = true"
+        raise SystemExit(msg)
+
+
+def _validate_command_safety(text: str) -> None:
+    """Require reusable workflow calls to respect container and checkout boundaries.
+
+    Args:
+        text: Full canonical reusable workflow source.
+
+    Raises:
+        SystemExit: If workflow code manages Docker directly or skips the FreeCAD test action.
+    """
     if re.search(r"\bdocker\s+(run|create|cp)\b", text):
-        raise SystemExit("Docker lifecycle belongs in .github/actions/freecad-container")
-    if (
-        "uses: ./.github/actions/freecad-test" not in text
-        and "uses: $/.github/actions/freecad-test" not in text
-        and "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in text
-    ):
-        raise SystemExit("canonical workflow must use freecad-test")
+        msg = "Docker lifecycle belongs in .github/actions/freecad-container"
+        raise SystemExit(msg)
+    allowed_action_references = (
+        "uses: ./.github/actions/freecad-test",
+        "uses: $/.github/actions/freecad-test",
+        "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@",
+    )
+    if not any(reference in text for reference in allowed_action_references):
+        msg = "canonical workflow must use freecad-test"
+        raise SystemExit(msg)
+
+
+def _validate_required_components() -> None:
+    """Validate required CI files and immutable PBD/container/timeout policies.
+
+    Raises:
+        SystemExit: If a required action, policy marker, or CI helper is missing.
+    """
     for path in REQUIRED:
         if not path.is_file():
-            raise SystemExit(f"missing required CI component: {path}")
+            msg = f"missing required CI component: {path}"
+            raise SystemExit(msg)
     pbd_action = (ROOT / ".github/actions/pbd-image/action.yml").read_text(encoding="utf-8")
-    if (
-        "upload-artifact" in pbd_action
-        or "docker save" in pbd_action
-        or "pbd-validation-image" in pbd_action
-    ):
-        raise SystemExit("PBD validation image must never be serialized as a workflow artifact")
+    forbidden_pbd_markers = ("upload-artifact", "docker save", "pbd-validation-image")
+    if any(marker in pbd_action for marker in forbidden_pbd_markers):
+        msg = "PBD validation image must never be serialized as a workflow artifact"
+        raise SystemExit(msg)
     container_action = (ROOT / ".github/actions/freecad-container/action.yml").read_text(
         encoding="utf-8"
     )
     if "download-artifact" in container_action or "pbd-validation-image" in container_action:
-        raise SystemExit(
-            "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
-        )
+        msg = "FreeCAD container action must use GHCR only; workflow image artifacts are forbidden"
+        raise SystemExit(msg)
+    if "180s" not in container_action or "timeout-seconds" not in container_action:
+        msg = "FreeCAD container action must retain its 180-second pull contract"
+        raise SystemExit(msg)
+    freecad_action = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
+    if (
+        'default: "120"' not in freecad_action
+        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad_action
+    ):
+        msg = "freecad-test must pass its default-120 timeout to the container action"
+        raise SystemExit(msg)
+    if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad_action:
+        msg = "freecad-test must scope non-default budgets to the FreeCAD process"
+        raise SystemExit(msg)
+
+
+def _validate_action_pinning() -> None:
+    """Require external actions to use full commit SHAs and keep command timeouts bounded.
+
+    Raises:
+        SystemExit: If an action reference is mutable or a CI timeout exceeds the approved bound.
+    """
     ci_files = [*WORKFLOW_FILES, *sorted((ROOT / ".github/actions").rglob("action.yml"))]
     for ci_file in ci_files:
         ci_text = ci_file.read_text(encoding="utf-8")
         for match in re.finditer(r"uses:\s+([^\s#]+)", ci_text):
             value = match.group(1)
-            if (
-                value.startswith("./")
-                or value.startswith("$/")
-                or value.startswith("Uhrendoktor/freecad-cloth/")
-            ):
+            if value.startswith(("./", "$/", "Uhrendoktor/freecad-cloth/")):
                 continue
             if "@" not in value or not re.fullmatch(
                 r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9a-f]{40}", value
             ):
-                raise SystemExit(f"CI action is not pinned to a full SHA: {ci_file}: {value}")
+                msg = f"CI action is not pinned to a full SHA: {ci_file}: {value}"
+                raise SystemExit(msg)
 
         for match in re.finditer(r"timeout[^\n]*?\b(\d+)s\b", ci_text):
-            if int(match.group(1)) > 180:
-                raise SystemExit(
-                    f"CI timeout exceeds 180 seconds: {ci_file}: {match.group(0).strip()}"
+            if int(match.group(1)) > MAX_CI_TIMEOUT_SECONDS:
+                msg = (
+                    f"CI timeout exceeds {MAX_CI_TIMEOUT_SECONDS} seconds: "
+                    f"{ci_file}: {match.group(0).strip()}"
                 )
+                raise SystemExit(msg)
 
-    if "180s" not in container_action or "timeout-seconds" not in container_action:
-        raise SystemExit("FreeCAD container action must retain its 180-second pull contract")
-    freecad = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
-    if (
-        'default: "120"' not in freecad
-        or "timeout-seconds: ${{ inputs.timeout-seconds }}" not in freecad
-    ):
-        raise SystemExit("freecad-test must pass its default-120 timeout to the container action")
-    if "FREECAD_APPLICATION_TIMEOUT_SECONDS=" not in freecad:
-        raise SystemExit("freecad-test must scope non-default budgets to the FreeCAD process")
-    print(f"ci-structure=passed workflow_lines={len(lines)}")
+
+def main() -> int:
+    """Validate the repository CI structure and hard runtime contracts.
+
+    Returns:
+        Process status indicating whether the CI structure is valid.
+
+    Raises:
+        SystemExit: If a required workflow or type-check gate is missing.
+    """
+    files = tuple(sorted(WORKFLOW_DIR.glob("*.y*ml")))
+    if files != WORKFLOW_FILES:
+        msg = (
+            "expected commit/merge/publication entry points plus one reusable workflow, "
+            f"found: {files}"
+        )
+        raise SystemExit(msg)
+    text = WORKFLOW.read_text(encoding="utf-8")
+    _validate_workflow_dispatch_contract(text)
+    _validate_entrypoint_workflows()
+    _validate_reusable_workflow_trust(text)
+    _validate_python_quality_contracts(text)
+    _validate_command_safety(text)
+    _validate_required_components()
+    _validate_action_pinning()
+    sys.stdout.write(f"ci-structure=passed workflow_lines={len(text.splitlines())}\n")
     return 0
 
 

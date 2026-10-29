@@ -1,8 +1,9 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Neutral solver-facing collision-surface value objects."""
 
 from collections.abc import Iterable
-from numbers import Real
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import CollisionSurfaceInput
@@ -18,7 +19,11 @@ class CollisionSurface:
     thickness: float = 0.0
 
     def validate(self) -> "CollisionSurface":
-        """Validate the immutable collision surface and return it."""
+        """Validate the immutable collision surface and return it.
+
+        Returns:
+            CollisionSurface: The same surface after its values pass validation.
+        """
         CollisionSurfaceInput.model_validate(
             {
                 "vertices": self.vertices,
@@ -31,30 +36,48 @@ class CollisionSurface:
 
     @property
     def center(self) -> tuple[float, float, float]:
-        """Return the arithmetic center of the surface vertices."""
+        """Arithmetic center of the surface vertices.
+
+        Returns:
+            tuple[float, float, float]: Mean x, y, and z coordinates of the vertices.
+        """
         count = len(self.vertices)
         if not count:
             return (0.0, 0.0, 0.0)
-        return (
-            sum(vertex[0] for vertex in self.vertices) / count,
-            sum(vertex[1] for vertex in self.vertices) / count,
-            sum(vertex[2] for vertex in self.vertices) / count,
-        )
+        center = np.asarray(self.vertices, dtype=np.float64).mean(axis=0)
+        return tuple(float(value) for value in center)
 
     def with_thickness(self, thickness: float) -> "CollisionSurface":
-        """Return the same surface with a different collision thickness."""
+        """Return the same surface with a different collision thickness.
+
+        Args:
+            thickness: Replacement collision thickness in model units.
+
+        Returns:
+            CollisionSurface: Validated copy with the requested thickness.
+        """
         return CollisionSurface(
             self.vertices, self.triangles, self.region, float(thickness)
         ).validate()
 
 
 def surface_from_triangles(
-    vertices: Iterable[Iterable[Real]],
+    vertices: Iterable[Iterable[float]],
     triangles: Iterable[Iterable[int]],
     region: str = "body",
     thickness: float = 0.0,
 ) -> CollisionSurface:
-    """Build and validate a collision surface without a host dependency."""
+    """Build and validate a collision surface without a host dependency.
+
+    Args:
+        vertices: Iterable 3D points defining the collision surface.
+        triangles: Iterable triples of indices into the vertex sequence.
+        region: Semantic surface role, such as a body or garment region.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        CollisionSurface: Immutable surface normalized by the validation model.
+    """
     validated = CollisionSurfaceInput.model_validate(
         {
             "vertices": vertices,

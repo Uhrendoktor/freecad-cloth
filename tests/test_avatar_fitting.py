@@ -1,6 +1,9 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import contextlib
 import json
+import math
 import os
+import pathlib
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -42,7 +45,6 @@ class AvatarFittingTests(unittest.TestCase):
 
         obj = SimpleNamespace(
             MeasurementData=BodyMeasurements({"waist": 760, "hip": 960}).to_json(),
-            AvatarProxy=SimpleNamespace(Label="Avatar"),
             PiecePlacements=(),
             ArrangementPoints=(),
             BoundingVolumes=(),
@@ -55,7 +57,6 @@ class AvatarFittingTests(unittest.TestCase):
 
         obj = SimpleNamespace(
             MeasurementData="{not-json}",
-            AvatarProxy=None,
             PiecePlacements=(),
             ArrangementPoints=(),
             BoundingVolumes=(),
@@ -107,20 +108,10 @@ class AvatarFittingTests(unittest.TestCase):
         self.assertEqual(mirrored.wrap_direction, "right")
         self.assertEqual(mirrored.rotation_z, -10.0)
 
-    def test_arrangement_point_accepts_legacy_landmark_record(self):
+    def test_arrangement_point_rejects_unversioned_landmark_record(self):
         legacy = "shoulder_left|-210,0,1050"
-        point = ArrangementPoint.from_string(legacy)
-        self.assertEqual(point.name, "shoulder_left")
-        self.assertEqual(point.position(), (-210.0, 0.0, 1050.0))
-        self.assertEqual(point.wrap_direction, "front")
-        self.assertEqual(point.rotation_z, 0.0)
-        self.assertEqual(point.symmetry_group, "")
-        canonical = point.to_string()
-        self.assertEqual(
-            canonical,
-            "shoulder_left|-210,0,1050|front|0|",
-        )
-        self.assertEqual(ArrangementPoint.from_string(canonical), point)
+        with self.assertRaisesRegex(ValueError, "requires name"):
+            ArrangementPoint.from_string("shoulder_left|-210,0,1050")
 
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError):
@@ -186,7 +177,7 @@ class AvatarFittingTests(unittest.TestCase):
         z_span = max(v[2] for v in fitted.vertices) - min(v[2] for v in fitted.vertices)
         self.assertAlmostEqual(z_span, 1750.0)
         self.assertAlmostEqual(x_span, 440.0 + 1.5 * 310.0, delta=1e-6)
-        self.assertAlmostEqual(y_span, 980.0 / 3.141592653589793, delta=1e-6)
+        self.assertAlmostEqual(y_span, 980.0 / math.pi, delta=1e-6)
         self.assertLess(x_span / z_span, 0.6)
         self.assertLess(y_span / z_span, 0.25)
 
@@ -309,7 +300,7 @@ class AvatarFittingTests(unittest.TestCase):
         points = arrangement_points_from_landmarks(
             ["waist|0,0,900", "waist|0,0,905", "neck|0,0,1150"]
         )
-        self.assertEqual(points, ["neck|0,0,1150", "waist|0,0,905"])
+        self.assertEqual(points, ["neck|0,0,1150|front|0|", "waist|0,0,905|front|0|"])
 
     def test_avatar_apply_does_not_mutate_document_when_geometry_build_fails(self):
         try:
@@ -331,7 +322,8 @@ class AvatarFittingTests(unittest.TestCase):
             candidate = current.with_measurements(chest=original_chest + 80.0)
 
             def fail_provider_geometry(*_args: object) -> NoReturn:
-                raise RuntimeError("synthetic geometry failure")
+                msg = "synthetic geometry failure"
+                raise RuntimeError(msg)
 
             with self.assertRaisesRegex(RuntimeError, "synthetic geometry failure"):
                 AvatarCommands.apply_avatar_parameters(
@@ -416,7 +408,7 @@ class AvatarFittingTests(unittest.TestCase):
             original_revision = int(avatar.AvatarRevision)
 
             avatar.Chest = original_chest + 40.0
-            avatar.GenderBlend = 0.25
+            avatar.Gender = 0.25
             avatar.BreastSize = 0.75
             rebuild_avatar()
             rebuilt_mesh = tuple(
@@ -442,7 +434,7 @@ class AvatarFittingTests(unittest.TestCase):
             self.assertEqual(restored.AvatarMeshProvider, "makehuman-hm08")
             self.assertEqual(restored.AvatarStatus, "Valid")
             self.assertAlmostEqual(float(restored.Chest), original_chest + 40.0)
-            self.assertAlmostEqual(float(restored.GenderBlend), 0.25)
+            self.assertAlmostEqual(float(restored.Gender), 0.25)
             self.assertAlmostEqual(float(restored.BreastSize), 0.75)
             self.assertEqual(int(restored.AvatarRevision), original_revision + 1)
             self.assertEqual(len(restored.ArrangementPoints), len(restored.Landmarks))
@@ -453,7 +445,7 @@ class AvatarFittingTests(unittest.TestCase):
                 App.closeDocument(doc.Name)
             if path:
                 with contextlib.suppress(OSError):
-                    os.unlink(path)
+                    pathlib.Path(path).unlink()
 
 
 def test_fitting_stage_status_without_simulation_is_not_actionable():

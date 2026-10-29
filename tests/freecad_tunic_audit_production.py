@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Production tunic audit wrapper using the shared checked-in test implementation."""
 
 import importlib

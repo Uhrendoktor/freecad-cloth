@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for explicit semantic-edge topology repair."""
 
 

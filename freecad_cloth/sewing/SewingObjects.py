@@ -1,17 +1,21 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD document objects for sewing operations."""
 
 from __future__ import annotations
 
-import ast
-from collections.abc import Callable, Sequence
+import numpy as np
 from math import atan2, degrees, hypot
-from types import ModuleType
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
+from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     correspondence_status_label,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+    from types import ModuleType
 
 
 class _NativePoint(Protocol):
@@ -75,22 +79,6 @@ class _FreeCADDocument(Protocol):
     def addObject(self, _type_id: str, name: str) -> _SewingFeature: ...
 
 
-def _outline_points(piece: object) -> list[tuple[float, float]]:
-    """Return the ordered sewing boundary as 2D points."""
-    for attr in ("SewingOutline", "DraftingBoundary"):
-        raw = getattr(piece, attr, "")
-        if raw:
-            try:
-                values = ast.literal_eval(str(raw))
-                points = [(float(p[0]), float(p[1])) for p in values]
-                if len(points) >= 3:
-                    return points
-            except (ValueError, SyntaxError, TypeError, IndexError):
-                pass
-    width, height = float(piece.Width), float(piece.Height)
-    return [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)]
-
-
 def _edge_endpoint_pair(
     native_edge: _NativeEdge,
 ) -> tuple[tuple[float, float], tuple[float, float]] | None:
@@ -113,121 +101,202 @@ def _native_edge(
     edge: int,
     *,
     native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
-) -> _NativeEdge | None:
-    """Return the authoritative native Sketcher/Shape edge when available."""
-    try:
-        index = int(edge)
-        if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
-            sketch = getattr(piece, "Sketch", None)
-            geometry = tuple(getattr(sketch, "Geometry", ()) or ()) if sketch is not None else ()
-            if 0 <= index < len(geometry):
-                to_shape = getattr(geometry[index], "toShape", None)
-                if callable(to_shape):
-                    try:
-                        return to_shape()
-                    except (AttributeError, RuntimeError, TypeError, ValueError):
-                        pass
-            sketch_shape = getattr(sketch, "Shape", None) if sketch is not None else None
-            sketch_edges = tuple(getattr(sketch_shape, "Edges", ()) or ())
-            if sketch_edges:
-                try:
-                    if native_edge_record_fn is None:
-                        from freecad_cloth.pattern.PatternObjects import (
-                            _native_edge_record_for_sketch_index,
-                        )
+) -> _NativeEdge:
+    """Resolve an edge through the linked native Sketcher geometry.
 
-                        native_edge_record_fn = _native_edge_record_for_sketch_index
-                    record = native_edge_record_fn(piece, index)
-                    expected = record.get("points") if record is not None else None
-                    if expected is not None and len(expected) == 2:
-                        tolerance = 1e-7
+    Args:
+        piece: PatternPiece document object whose geometry authority is Sketcher.
+        edge: Index into the linked sketch's Geometry sequence.
+        native_edge_record_fn: Optional provenance reader used by focused tests.
 
-                        def matches(candidate: _NativeEdge) -> bool:
-                            endpoints = _edge_endpoint_pair(candidate)
-                            if endpoints is None:
-                                return False
-                            direct = max(
-                                abs(endpoints[0][0] - float(expected[0][0])),
-                                abs(endpoints[0][1] - float(expected[0][1])),
-                                abs(endpoints[1][0] - float(expected[1][0])),
-                                abs(endpoints[1][1] - float(expected[1][1])),
-                            )
-                            reverse = max(
-                                abs(endpoints[0][0] - float(expected[1][0])),
-                                abs(endpoints[0][1] - float(expected[1][1])),
-                                abs(endpoints[1][0] - float(expected[0][0])),
-                                abs(endpoints[1][1] - float(expected[0][1])),
-                            )
-                            return min(direct, reverse) <= tolerance
+    Returns:
+        The native shape edge corresponding to the requested sketch geometry.
 
-                        native_match = next(
-                            (candidate for candidate in sketch_edges if matches(candidate)), None
-                        )
-                        if native_match is not None:
-                            return native_match
-                except (AttributeError, KeyError, TypeError, ValueError, IndexError, RuntimeError):
-                    pass
-                if 0 <= index < len(sketch_edges):
-                    return sketch_edges[index]
+    Raises:
+        MissingEdgeReference: If Sketcher authority or an unambiguous native edge is absent.
+    """
+    if str(getattr(piece, "GeometryAuthority", "")).strip() != "Sketcher":
+        msg = f"pattern piece {getattr(piece, 'PieceId', '')} has no native Sketcher authority"
+        raise MissingEdgeReference(msg)
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None:
+        msg = f"pattern piece {getattr(piece, 'PieceId', '')} has no linked Sketcher object"
+        raise MissingEdgeReference(msg)
 
-        shape = getattr(piece, "Shape", None)
-        edges = getattr(shape, "Edges", None)
-        if edges is None:
-            return None
-        outline = _outline_points(piece)
-        if 0 <= index < len(edges) and len(edges) == len(outline):
-            return edges[index]
-    except (TypeError, ValueError, IndexError):
-        pass
-    return None
-
-
-def _edge_polyline(piece: object, edge: int, sample_count: int = 64) -> list[tuple[float, float]]:
-    """Return a local 2D polyline suitable for arc-length operations."""
-    edge = int(edge)
-    native = _native_edge(piece, edge)
-    if native is not None:
+    index = int(edge)
+    geometry = tuple(getattr(sketch, "Geometry", ()) or ())
+    if index < 0 or index >= len(geometry):
+        msg = f"native Sketcher edge index {index} is outside pattern piece {piece.PieceId}"
+        raise MissingEdgeReference(msg)
+    to_shape = getattr(geometry[index], "toShape", None)
+    if callable(to_shape):
         try:
-            values = native.discretize(max(2, int(sample_count)))
-            points = [(float(p.x), float(p.y)) for p in values]
-            if len(points) >= 2:
-                return points
-        except (AttributeError, TypeError, ValueError, RuntimeError):
+            native = to_shape()
+            if native is not None:
+                return cast("_NativeEdge", native)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
             pass
-    points = _outline_points(piece)
-    if edge < 0 or edge >= len(points):
-        raise ValueError(f"seam edge {edge} is outside the pattern boundary")
-    return [points[edge], points[(edge + 1) % len(points)]]
+
+    shape = getattr(sketch, "Shape", None)
+    candidates = tuple(getattr(shape, "Edges", ()) or ())
+    if not candidates:
+        msg = f"native Sketcher edge {index} has no resolvable shape"
+        raise MissingEdgeReference(msg)
+    read_record = native_edge_record_fn
+    if read_record is None:
+        from freecad_cloth.pattern.PatternObjects import _native_edge_record_for_sketch_index
+
+        read_record = _native_edge_record_for_sketch_index
+    try:
+        record = read_record(piece, index)
+    except (AttributeError, IndexError, KeyError, RuntimeError, TypeError, ValueError) as exc:
+        msg = f"native Sketcher edge {index} has no semantic provenance record"
+        raise MissingEdgeReference(msg) from exc
+    expected = record.get("points") if record is not None else None
+    if expected is None or len(expected) != 2:
+        msg = f"native Sketcher edge {index} has no authoritative endpoint pair"
+        raise MissingEdgeReference(msg)
+
+    def matches(candidate: _NativeEdge) -> bool:
+        endpoints = _edge_endpoint_pair(candidate)
+        if endpoints is None:
+            return False
+        direct = max(
+            abs(endpoints[0][0] - float(expected[0][0])),
+            abs(endpoints[0][1] - float(expected[0][1])),
+            abs(endpoints[1][0] - float(expected[1][0])),
+            abs(endpoints[1][1] - float(expected[1][1])),
+        )
+        reverse = max(
+            abs(endpoints[0][0] - float(expected[1][0])),
+            abs(endpoints[0][1] - float(expected[1][1])),
+            abs(endpoints[1][0] - float(expected[0][0])),
+            abs(endpoints[1][1] - float(expected[0][1])),
+        )
+        return min(direct, reverse) <= 1e-7
+
+    matching_edges = tuple(candidate for candidate in candidates if matches(candidate))
+    if len(matching_edges) != 1:
+        msg = (
+            f"native Sketcher edge {index} must match exactly one shape edge; "
+            f"found {len(matching_edges)}"
+        )
+        raise MissingEdgeReference(msg)
+    return cast("_NativeEdge", matching_edges[0])
+
+
+def _edge_polyline(
+    piece: object,
+    edge: int,
+    sample_count: int = 64,
+    *,
+    native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> list[tuple[float, float]]:
+    """Sample a native Sketcher edge for arc-length operations.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        edge: Index into the linked sketch's Geometry sequence.
+        sample_count: Number of discretization points requested from FreeCAD.
+        native_edge_record_fn: Optional native provenance reader for shape mapping.
+
+    Returns:
+        The native edge's local 2D samples in endpoint order.
+
+    Raises:
+        MissingEdgeReference: If the edge lacks native geometry or cannot be sampled.
+    """
+    native = _native_edge(piece, int(edge), native_edge_record_fn=native_edge_record_fn)
+    try:
+        values = native.discretize(max(2, int(sample_count)))
+        points = [(float(point.x), float(point.y)) for point in values]
+    except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
+        msg = f"native Sketcher edge {edge} could not be discretized"
+        raise MissingEdgeReference(msg) from exc
+    if len(points) < 2:
+        msg = f"native Sketcher edge {edge} needs at least two discretization points"
+        raise MissingEdgeReference(msg)
+    return points
 
 
 def _polyline_length(points: Sequence[tuple[float, float]]) -> float:
-    return sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
+    """Compute polyline length using vectorized Euclidean segment norms.
+
+    Args:
+        points: Ordered local 2D coordinates along a native edge.
+
+    Returns:
+        Sum of Euclidean segment lengths in model units.
+    """
+    coordinates = np.asarray(points, dtype=np.float64)
+    if coordinates.shape[0] < 2:
+        return 0.0
+    return float(np.linalg.norm(np.diff(coordinates, axis=0), axis=1).sum())
+
+
+def _sample_polyline_fractions(
+    points: Sequence[tuple[float, float]],
+    fractions: Sequence[float],
+) -> np.ndarray:
+    """Vectorize normalized arc-length sampling along an ordered polyline.
+
+    Args:
+        points: Ordered local 2D coordinates along a native edge.
+        fractions: Normalized arc-length positions to sample.
+
+    Returns:
+        Array of sampled coordinates with shape (len(fractions), 2).
+    """
+    coordinates = np.asarray(points, dtype=np.float64)
+    requested = np.asarray(fractions, dtype=np.float64)
+    if coordinates.ndim != 2 or coordinates.shape[1] != 2 or coordinates.shape[0] == 0:
+        msg = "polyline coordinates must be a non-empty sequence of 2D points"
+        raise ValueError(msg)
+    if coordinates.shape[0] == 1:
+        return np.repeat(coordinates, requested.size, axis=0)
+    segment_lengths = np.linalg.norm(np.diff(coordinates, axis=0), axis=1)
+    cumulative = np.concatenate((np.array((0.0,), dtype=np.float64), np.cumsum(segment_lengths)))
+    total = float(cumulative[-1])
+    if total <= 1e-12:
+        return np.repeat(coordinates[:1], requested.size, axis=0)
+    targets = np.clip(requested, 0.0, 1.0) * total
+    indexes = np.searchsorted(cumulative[1:], targets, side="left")
+    indexes = np.clip(indexes, 0, segment_lengths.size - 1)
+    spans = segment_lengths[indexes]
+    offsets = targets - cumulative[indexes]
+    ratios = np.divide(offsets, spans, out=np.zeros_like(offsets), where=spans > 1e-12)
+    return (
+        coordinates[indexes] + (coordinates[indexes + 1] - coordinates[indexes]) * ratios[:, None]
+    )
 
 
 def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> tuple[float, float]:
-    """Sample a polyline at normalized arc length."""
-    if not points:
-        raise ValueError("cannot sample an empty edge")
-    if len(points) == 1:
-        return points[0]
-    fraction = min(1.0, max(0.0, float(fraction)))
-    lengths = [0.0]
-    for a, b in zip(points, points[1:], strict=False):
-        lengths.append(lengths[-1] + hypot(b[0] - a[0], b[1] - a[1]))
-    total = lengths[-1]
-    if total <= 1e-12:
-        return points[0]
-    target = total * fraction
-    for i in range(1, len(points)):
-        if target <= lengths[i]:
-            span = lengths[i] - lengths[i - 1]
-            t = 0.0 if span <= 1e-12 else (target - lengths[i - 1]) / span
-            a, b = points[i - 1], points[i]
-            return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t)
-    return points[-1]
+    """Sample one point at normalized arc length.
+
+    Args:
+        points: Ordered 2D coordinates along a native edge.
+        fraction: Requested arc-length position, clipped to the unit interval.
+
+    Returns:
+        The sampled local 2D coordinate.
+    """
+    sample = _sample_polyline_fractions(points, (float(fraction),))[0]
+    return float(sample[0]), float(sample[1])
 
 
 def _edge_length(piece: object, edge: int) -> float:
+    """Measure a native Sketcher edge by its discretized arc length.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        edge: Index into the linked Sketch.Geometry sequence.
+
+    Returns:
+        Arc length in model units.
+
+    Raises:
+        MissingEdgeReference: If the native edge cannot be resolved or sampled.
+    """
     points = _edge_polyline(piece, edge)
     return _polyline_length(points)
 
@@ -239,46 +308,91 @@ def _seam_edge_index(
     *,
     resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
 ) -> int:
-    """Resolve a semantic edge to the index space used by the native geometry reader."""
-    edge_id = str(getattr(seam, "EdgeAId" if prefix == "A" else "EdgeBId", "")).strip()
-    if edge_id:
-        if resolve_document_edge_fn is None:
-            from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+    """Resolve a persistent seam ID to its native Sketch.Geometry index.
 
-            resolve_document_edge_fn = _resolve_document_edge
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        seam: Persisted seam carrying a semantic edge ID and signature.
+        prefix: Seam side, either A or B.
+        resolve_document_edge_fn: Optional signature-aware resolver for focused tests.
 
-        signature = str(getattr(seam, "EdgeASignature" if prefix == "A" else "EdgeBSignature", ""))
-        record = resolve_document_edge_fn(piece, edge_id, signature)
-        if str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher":
-            # PatternIR orders its boundary cycle by semantic identity/connectivity;
-            # record["ordinal"] is an IR boundary ordinal, not a Sketch.Geometry index.
-            # _edge_polyline/_native_edge consume the latter, so translate the stable
-            # identity back through Sketch.SemanticEdgeIds before reading geometry.
-            sketch = getattr(piece, "Sketch", None)
-            semantic_ids = tuple(
-                str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
-            )
-            native_indices = [
-                index for index, identity in enumerate(semantic_ids) if identity == edge_id
-            ]
-            if len(native_indices) != 1:
-                from freecad_cloth.pattern.SeamReference import MissingEdgeReference
+    Returns:
+        The unique native Sketch.Geometry index for the semantic edge.
 
-                raise MissingEdgeReference(
-                    f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
-                    f"found {len(native_indices)}"
-                )
-            return native_indices[0]
-        return int(record["ordinal"])
-    return int(getattr(seam, "EdgeA" if prefix == "A" else "EdgeB"))
+    Raises:
+        MissingEdgeReference: If native authority, ID, signature, or mapping is absent.
+        ChangedEdgeReference: If the stored edge signature no longer matches the sketch.
+    """
+    if prefix not in {"A", "B"}:
+        msg = f"unsupported seam side: {prefix}"
+        raise ValueError(msg)
+    if str(getattr(piece, "GeometryAuthority", "")).strip() != "Sketcher":
+        msg = f"seam piece {getattr(piece, 'PieceId', '')} has no native Sketcher authority"
+        raise MissingEdgeReference(msg)
+    sketch = getattr(piece, "Sketch", None)
+    if sketch is None:
+        msg = f"seam piece {getattr(piece, 'PieceId', '')} has no linked Sketcher object"
+        raise MissingEdgeReference(msg)
+
+    id_attribute = "EdgeAId" if prefix == "A" else "EdgeBId"
+    signature_attribute = "EdgeASignature" if prefix == "A" else "EdgeBSignature"
+    edge_id = str(getattr(seam, id_attribute, "")).strip()
+    signature = str(getattr(seam, signature_attribute, "")).strip()
+    if not edge_id or not signature:
+        msg = f"seam {getattr(seam, 'SeamId', '')} is missing its {prefix} semantic edge reference"
+        raise MissingEdgeReference(msg)
+
+    if resolve_document_edge_fn is None:
+        from freecad_cloth.pattern.PatternObjects import _resolve_document_edge
+
+        resolve_document_edge_fn = _resolve_document_edge
+    record = resolve_document_edge_fn(piece, edge_id, signature)
+    if record is None or str(record.get("id", "")) != edge_id:
+        msg = f"semantic edge reference {edge_id} is missing from pattern piece {piece.PieceId}"
+        raise MissingEdgeReference(msg)
+
+    semantic_ids = tuple(
+        str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
+    )
+    native_indices = [index for index, identity in enumerate(semantic_ids) if identity == edge_id]
+    if len(native_indices) != 1:
+        msg = (
+            f"semantic seam edge {edge_id} must resolve to exactly one native Sketcher edge; "
+            f"found {len(native_indices)}"
+        )
+        raise MissingEdgeReference(msg)
+    return native_indices[0]
 
 
-def _seam_length(piece: object, seam: object, prefix: str) -> float:
+def _seam_length(
+    piece: object,
+    seam: object,
+    prefix: str,
+    *,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> float:
+    """Measure the selected normalized interval of a semantically referenced edge.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        seam: Persisted seam containing the normalized interval and edge identity.
+        prefix: Seam side, either A or B.
+        resolve_document_edge_fn: Optional signature-aware resolver used by focused tests.
+
+    Returns:
+        Arc length of the selected native edge interval.
+
+    Raises:
+        ValueError: If the normalized interval has no positive extent.
+        MissingEdgeReference: If the semantic reference cannot be resolved.
+        ChangedEdgeReference: If the saved geometry signature is stale.
+    """
     start = float(getattr(seam, "StartA" if prefix == "A" else "StartB"))
     end = float(getattr(seam, "EndA" if prefix == "A" else "EndB"))
     if not 0 <= start <= 1 or not 0 <= end <= 1 or start >= end:
-        raise ValueError("seam parameters must be normalized with positive extent")
-    edge = _seam_edge_index(piece, seam, prefix)
+        msg = "seam parameters must be normalized with positive extent"
+        raise ValueError(msg)
+    edge = _seam_edge_index(piece, seam, prefix, resolve_document_edge_fn=resolve_document_edge_fn)
     return _edge_length(piece, edge) * (end - start)
 
 
@@ -291,28 +405,61 @@ def _edge_points(
     *,
     vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> tuple[_NativePoint, _NativePoint]:
-    """Return seam-range endpoints after the piece Placement is applied."""
+    """Return selected native edge endpoints after applying the piece Placement.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        edge: Native Sketch.Geometry index.
+        start: Normalized start position along the edge.
+        end: Normalized end position along the edge.
+        z: Local offset above the sketch plane.
+        vector_factory: Optional FreeCAD-vector constructor for focused tests.
+
+    Returns:
+        Two native points in world coordinates when a Placement exists, otherwise local coordinates.
+
+    Raises:
+        MissingEdgeReference: If the referenced native edge cannot be resolved or sampled.
+    """
     if vector_factory is None:
         import FreeCAD as App
 
         vector_factory = App.Vector
 
     points = _edge_polyline(piece, edge)
-    p0 = _sample_polyline(points, start)
-    p1 = _sample_polyline(points, end)
+    samples = _sample_polyline_fractions(points, (start, end))
+    p0 = tuple(float(value) for value in samples[0])
+    p1 = tuple(float(value) for value in samples[1])
     local0 = vector_factory(p0[0], p0[1], z)
     local1 = vector_factory(p1[0], p1[1], z)
     placement = getattr(piece, "Placement", None)
     if placement is not None:
-        native_placement = cast(_NativePlacement, placement)
-        return native_placement.multVec(cast(_NativePoint, local0)), native_placement.multVec(
-            cast(_NativePoint, local1)
+        native_placement = cast("_NativePlacement", placement)
+        return native_placement.multVec(cast("_NativePoint", local0)), native_placement.multVec(
+            cast("_NativePoint", local1)
         )
-    return cast(_NativePoint, local0), cast(_NativePoint, local1)
+    return cast("_NativePoint", local0), cast("_NativePoint", local1)
 
 
-def _resolved_edge(piece: object, seam: object, prefix: str) -> int:
-    return _seam_edge_index(piece, seam, prefix)
+def _resolved_edge(
+    piece: object,
+    seam: object,
+    prefix: str,
+    *,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+) -> int:
+    """Resolve the semantic seam identity to a native edge index.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        seam: Persisted seam referencing the requested edge.
+        prefix: Seam side, either A or B.
+        resolve_document_edge_fn: Optional signature-aware resolver for focused tests.
+
+    Returns:
+        Native Sketch.Geometry index for the requested semantic edge.
+    """
+    return _seam_edge_index(piece, seam, prefix, resolve_document_edge_fn=resolve_document_edge_fn)
 
 
 def _edge_samples(
@@ -326,28 +473,46 @@ def _edge_samples(
     *,
     vector_factory: Callable[..., _NativePoint] | None = None,
 ) -> list[_NativePoint]:
-    """Return evenly arc-length-spaced points over a normalized edge range."""
+    """Return evenly arc-length-spaced points over a normalized edge range.
+
+    Args:
+        piece: Sketcher-authoritative PatternPiece document object.
+        edge: Native Sketch.Geometry index.
+        start: Normalized starting position along the edge.
+        end: Normalized ending position along the edge.
+        count: Number of samples, at least two.
+        z: Local offset above the sketch plane.
+        transform_to_world: Whether to apply the piece Placement.
+        vector_factory: Optional FreeCAD-vector constructor used by focused tests.
+
+    Returns:
+        Evenly arc-length-spaced FreeCAD vectors.
+
+    Raises:
+        ValueError: If fewer than two samples are requested.
+        MissingEdgeReference: If native geometry cannot be sampled.
+    """
+    if count < 2:
+        msg = "correspondence requires at least two samples"
+        raise ValueError(msg)
     if vector_factory is None:
         import FreeCAD as App
 
         vector_factory = App.Vector
 
-    if count < 2:
-        raise ValueError("correspondence requires at least two samples")
     points = _edge_polyline(piece, edge)
-    values = []
-    for i in range(count):
-        t = float(i) / float(count - 1)
-        p = _sample_polyline(points, float(start) + (float(end) - float(start)) * t)
-        value = vector_factory(p[0], p[1], z)
-        placement = getattr(piece, "Placement", None)
-        native_value = cast(_NativePoint, value)
-        values.append(
-            cast(_NativePlacement, placement).multVec(native_value)
+    fractions = np.linspace(float(start), float(end), count, dtype=np.float64)
+    samples = _sample_polyline_fractions(points, fractions)
+    placement = getattr(piece, "Placement", None)
+    result = []
+    for x_value, y_value in samples:
+        vector = cast("_NativePoint", vector_factory(float(x_value), float(y_value), float(z)))
+        result.append(
+            cast("_NativePlacement", placement).multVec(vector)
             if placement is not None and transform_to_world
-            else native_value
+            else vector
         )
-    return values
+    return result
 
 
 def _alignment_placement(
@@ -357,8 +522,25 @@ def _alignment_placement(
     *,
     app_module: ModuleType | None = None,
     vector_factory: Callable[..., _NativePoint] | None = None,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
 ) -> object:
-    """Return a Placement that moves B's seam onto A's seam endpoints."""
+    """Calculate the placement that aligns side B with side A's native endpoints.
+
+    Args:
+        piece_a: Pattern piece defining the fixed seam side.
+        piece_b: Pattern piece to reposition.
+        seam: Persisted seam referencing native edges on both pieces.
+        app_module: Optional FreeCAD module for focused tests.
+        vector_factory: Optional native-vector constructor.
+        resolve_document_edge_fn: Optional signature-aware resolver for focused tests.
+
+    Returns:
+        Native FreeCAD placement aligning the selected seam endpoints.
+
+    Raises:
+        MissingEdgeReference: If either semantic seam reference is absent or stale.
+        ChangedEdgeReference: If either referenced edge changed after seam creation.
+    """
     if app_module is None:
         import FreeCAD as app_module
     if vector_factory is None:
@@ -366,14 +548,14 @@ def _alignment_placement(
 
     a0, a1 = _edge_points(
         piece_a,
-        _resolved_edge(piece_a, seam, "A"),
+        _resolved_edge(piece_a, seam, "A", resolve_document_edge_fn=resolve_document_edge_fn),
         float(seam.StartA),
         float(seam.EndA),
         vector_factory=vector_factory,
     )
     b0, b1 = _edge_points(
         piece_b,
-        _resolved_edge(piece_b, seam, "B"),
+        _resolved_edge(piece_b, seam, "B", resolve_document_edge_fn=resolve_document_edge_fn),
         float(seam.StartB),
         float(seam.EndB),
         vector_factory=vector_factory,
@@ -402,15 +584,36 @@ def _seam_correspondence(
     alignment: str = "endpoints",
     *,
     vector_factory: Callable[..., _NativePoint] | None = None,
+    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
 ) -> list[tuple[_NativePoint, _NativePoint]]:
-    """Build deterministic A/B stitch points from the same semantic seam."""
+    """Build A/B stitch points from native edges and normalized seam ranges.
+
+    Args:
+        piece_a: Pattern piece supplying seam side A.
+        piece_b: Pattern piece supplying seam side B.
+        seam: Persisted semantic seam between the pieces.
+        count: Number of correspondence samples, at least two.
+        alignment: Supported sampling mode, endpoints or uniform.
+        vector_factory: Optional native-vector constructor for focused tests.
+        resolve_document_edge_fn: Optional signature-aware resolver for focused tests.
+
+    Returns:
+        Ordered point pairs corresponding to the selected seam intervals.
+
+    Raises:
+        ValueError: If count or alignment is invalid.
+        MissingEdgeReference: If either semantic seam reference is absent.
+        ChangedEdgeReference: If either saved edge signature is stale.
+    """
     if count < 2:
-        raise ValueError("correspondence requires at least two samples")
+        msg = "correspondence requires at least two samples"
+        raise ValueError(msg)
     alignment = str(alignment or "endpoints")
     if alignment not in ("endpoints", "uniform"):
-        raise ValueError(f"unsupported sewing alignment: {alignment}")
-    edge_a = _resolved_edge(piece_a, seam, "A")
-    edge_b = _resolved_edge(piece_b, seam, "B")
+        msg = f"unsupported sewing alignment: {alignment}"
+        raise ValueError(msg)
+    edge_a = _resolved_edge(piece_a, seam, "A", resolve_document_edge_fn=resolve_document_edge_fn)
+    edge_b = _resolved_edge(piece_b, seam, "B", resolve_document_edge_fn=resolve_document_edge_fn)
     a_points = _edge_samples(
         piece_a, edge_a, float(seam.StartA), float(seam.EndA), count, vector_factory=vector_factory
     )
@@ -434,8 +637,23 @@ class SewingOperationProxy:
         app_module: ModuleType | None = None,
         part_module: ModuleType | None = None,
         vector_factory: Callable[..., _NativePoint] | None = None,
+        resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
     ) -> None:
-        """Recompute the FreeCAD object from its current source properties."""
+        """Recompute sewing metrics and shape from the current semantic seam.
+
+        Args:
+            obj: FreeCAD sewing-operation feature being recomputed.
+            app_module: Optional FreeCAD module supplied by focused tests.
+            part_module: Optional Part module supplied by focused tests.
+            vector_factory: Optional FreeCAD-vector constructor.
+            resolve_document_edge_fn: Optional signature-aware resolver for focused tests.
+
+        Returns:
+            None. The operation's lengths, status, placements, stitch points and shape are updated.
+
+        Raises:
+            ValueError: If the requested correspondence mode or normalized interval is invalid.
+        """
         if part_module is None:
             import Part as part_module
 
@@ -457,8 +675,16 @@ class SewingOperationProxy:
             obj.StitchPoints = []
             obj.Shape = part_module.Shape()
             return
-        la = _seam_length(piece_a, seam, "A")
-        lb = _seam_length(piece_b, seam, "B")
+        try:
+            la = _seam_length(piece_a, seam, "A", resolve_document_edge_fn=resolve_document_edge_fn)
+            lb = _seam_length(piece_b, seam, "B", resolve_document_edge_fn=resolve_document_edge_fn)
+        except (ChangedEdgeReference, MissingEdgeReference) as exc:
+            obj.Status = f"Invalid seam: {exc}"
+            obj.LengthA = obj.LengthB = obj.LengthDifference = 0.0
+            obj.StitchCount = 0
+            obj.StitchPoints = []
+            obj.Shape = part_module.Shape()
+            return
         obj.LengthA, obj.LengthB = la, lb
         obj.LengthDifference = abs(la - lb)
 
@@ -503,6 +729,7 @@ class SewingOperationProxy:
             obj.StitchCount,
             getattr(obj, "Alignment", "endpoints"),
             vector_factory=vector_factory,
+            resolve_document_edge_fn=resolve_document_edge_fn,
         )
         obj.AssemblyPlacementB = _alignment_placement(
             piece_a,
@@ -510,6 +737,7 @@ class SewingOperationProxy:
             seam,
             app_module=app_module,
             vector_factory=vector_factory,
+            resolve_document_edge_fn=resolve_document_edge_fn,
         )
         obj.StitchPoints = []
         for pa, pb in pairs:

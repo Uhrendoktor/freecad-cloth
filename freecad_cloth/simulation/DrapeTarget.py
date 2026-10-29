@@ -1,181 +1,115 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Target-neutral draping/collision contract."""
 
-import hashlib
-import json
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, ClassVar, NotRequired, Protocol, TypedDict, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.shared.SourceSignature import source_signature
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
+class _DrapeTargetFeature(Protocol):
+    """Persisted FreeCAD feature fields written by target lifecycle operations."""
+
+    Label: str
+    TargetType: str
+    SourceObject: object | None
+    CollisionDeflection: float
+    CollisionThickness: float
+    Enabled: bool
+    CollisionVertexCount: int
+    CollisionTriangleCount: int
+    SourceSignature: str
+    TargetStatus: str
+    InvalidationReason: str
+    addProperty: Callable[[str, str, str], object]
+
+
+class _TargetStatus(TypedDict):
+    """Stable result shape returned by target_status."""
+
+    state: str
+    message: str
+    stale: bool
+    reason: str
+    signature_current: NotRequired[str]
+    signature_authored: NotRequired[str]
+
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
+_MINIMUM_COLLISION_DIMENSION_MM = 0.0
+_EMPTY_COLLISION_COUNT = 0
 
 
 @pydantic_dataclass(frozen=True)
 class DrapeTargetSpec:
-    """Public data model or service class for DrapeTargetSpec."""
+    """Validated parameters for constructing a persistent drape collision target."""
 
     target_type: str
     source_name: str
     deflection: float = 1.0
     thickness: float = 0.0
 
-    VALID_TYPES = ("Mannequin", "FreeCAD Geometry")
+    VALID_TYPES: ClassVar[tuple[str, str]] = ("Mannequin", "FreeCAD Geometry")
 
-    def validate(self):
-        """Validate this value and raise ValueError when its state is invalid."""
+    def validate(self) -> None:
+        """Validate target type and collision dimensions.
+
+        Raises:
+            ValueError: If the target type, source name, deflection, or thickness is invalid.
+        """
         if self.target_type not in self.VALID_TYPES:
-            raise ValueError("unsupported drape target type")
+            msg = "unsupported drape target type"
+            raise ValueError(msg)
         if not self.source_name.strip():
-            raise ValueError("drape target source must not be empty")
-        if self.deflection <= 0:
-            raise ValueError("drape target deflection must be positive")
-        if self.thickness < 0:
-            raise ValueError("drape target thickness must not be negative")
+            msg = "drape target source must not be empty"
+            raise ValueError(msg)
+        if self.deflection <= _MINIMUM_COLLISION_DIMENSION_MM:
+            msg = "drape target deflection must be positive"
+            raise ValueError(msg)
+        if self.thickness < _MINIMUM_COLLISION_DIMENSION_MM:
+            msg = "drape target thickness must not be negative"
+            raise ValueError(msg)
 
 
-def collision_surface(target, deflection=1.0, thickness=0.0) -> CollisionSurface:
-    """Return a collision-ready surface representation."""
+def collision_surface(
+    target: object,
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> CollisionSurface:
+    """Build a validated collision surface from a FreeCAD source.
+
+    Args:
+        target: FreeCAD shape or mesh object used as the collision source.
+        deflection: Positive tessellation deflection for shape-backed inputs.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        A validated, solver-neutral collision surface.
+
+    Raises:
+        TypeError: If target does not expose usable shape or mesh geometry.
+        ValueError: If tessellation, topology, or collision dimensions are invalid.
+    """
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-def _point_coordinates(point):
-    """Normalize iterable and FreeCAD-vector points to deterministic triples."""
-    try:
-        values = tuple(point)
-    except TypeError:
-        values = None
-    if values is not None and len(values) >= 3:
-        return tuple(round(float(c), 6) for c in values[:3])
-    return (
-        round(float(point.x), 6),
-        round(float(point.y), 6),
-        round(float(point.z), 6),
-    )
+def _existing_target_prerequisite_status(target: object) -> _TargetStatus | None:
+    """Return a status record when an existing target cannot be simulated.
 
+    Args:
+        target: Existing persisted DrapeTarget feature.
 
-def _digest_surface(vertices, triangles):
-    """Return a deterministic digest of the complete collision topology."""
-    payload = {
-        "vertices": [_point_coordinates(vertex) for vertex in vertices],
-        "triangles": [tuple(int(i) for i in triangle) for triangle in triangles],
-    }
-    encoded = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("ascii")
-    return hashlib.sha256(encoded).hexdigest()
-
-
-def _mesh_signature(target):
-    # MakeHuman avatars retain a stable authored revision instead of depending
-    # on FreeCAD's internal Mesh::Feature topology ordering across recomputes.
-    if (
-        str(getattr(target, "AvatarType", "")) == "ClothAvatar"
-        or str(getattr(target, "AvatarMeshProvider", "")) == "makehuman-hm08"
-    ):
-        return (
-            "MakeHumanAvatar",
-            str(getattr(target, "AvatarMeshProvider", "")),
-            str(getattr(target, "AvatarMeshSource", "")),
-            str(getattr(target, "AvatarMeshLicense", "")),
-            int(getattr(target, "AvatarRevision", 0)),
-            int(getattr(target, "MeshVertexCount", 0)),
-            int(getattr(target, "MeshTriangleCount", 0)),
-        )
-    mesh = getattr(target, "Mesh", None)
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is None:
-        return None
-    try:
-        vertices, triangles = topology
-        return ("Mesh", len(vertices), len(triangles), _digest_surface(vertices, triangles))
-    except (TypeError, ValueError, AttributeError):
-        return None
-
-
-def _shape_content_signature(shape):
-    """Return a persistent geometry-content digest for a FreeCAD TopoShape."""
-    exporter = getattr(shape, "exportBrepToString", None)
-    if callable(exporter):
-        try:
-            payload = exporter()
-            if isinstance(payload, str):
-                payload = payload.encode("utf-8")
-            elif isinstance(payload, (bytes, bytearray, memoryview)):
-                payload = bytes(payload)
-            else:
-                raise TypeError("BRep exporter must return text or bytes")
-            return ("BRepHash", hashlib.sha256(payload).hexdigest())
-        except (TypeError, ValueError, AttributeError, RuntimeError):
-            pass
-    hash_code = getattr(shape, "hashCode", None)
-    if callable(hash_code):
-        try:
-            hash_value = hash_code()
-            if isinstance(hash_value, int) and not isinstance(hash_value, bool):
-                return ("ShapeHash", hash_value)
-        except (TypeError, ValueError, RuntimeError):
-            pass
-    return ("Unknown",)
-
-
-def _geometry_signature(target):
-    mesh_signature = _mesh_signature(target)
-    if mesh_signature is not None:
-        return mesh_signature
-    shape = getattr(target, "Shape", None)
-    if shape is not None:
-        try:
-            if not shape.isNull():
-                box = shape.BoundBox
-                return (
-                    "Shape",
-                    len(getattr(shape, "Solids", ())),
-                    len(getattr(shape, "Faces", ())),
-                    len(getattr(shape, "Edges", ())),
-                    len(getattr(shape, "Vertexes", ())),
-                    round(float(box.XMin), 6),
-                    round(float(box.XMax), 6),
-                    round(float(box.YMin), 6),
-                    round(float(box.YMax), 6),
-                    round(float(box.ZMin), 6),
-                    round(float(box.ZMax), 6),
-                    _shape_content_signature(shape),
-                )
-        except (AttributeError, TypeError, ValueError):
-            pass
-        return ("ShapeContent", _shape_content_signature(shape))
-    return ("Unknown",)
-
-
-def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
-    """Provide the public source signature operation."""
-    placement = getattr(target, "Placement", None)
-    base = getattr(placement, "Base", None) if placement is not None else None
-    rotation = getattr(placement, "Rotation", None) if placement is not None else None
-    axis = getattr(rotation, "Axis", None) if rotation is not None else None
-    return (
-        str(getattr(target, "Name", "")),
-        _geometry_signature(target),
-        round(float(getattr(base, "x", 0.0)), 6),
-        round(float(getattr(base, "y", 0.0)), 6),
-        round(float(getattr(base, "z", 0.0)), 6),
-        round(float(getattr(rotation, "Angle", 0.0)), 6) if rotation is not None else 0.0,
-        round(float(getattr(axis, "x", 0.0)), 6) if axis is not None else 0.0,
-        round(float(getattr(axis, "y", 0.0)), 6) if axis is not None else 0.0,
-        round(float(getattr(axis, "z", 1.0)), 6) if axis is not None else 1.0,
-        float(deflection),
-        float(thickness),
-    )
-
-
-def target_status(target):
-    """Return a deterministic user-facing state for a persistent DrapeTarget."""
-    if target is None:
-        return {
-            "state": "missing",
-            "message": "No drape target selected",
-            "stale": True,
-            "reason": "target missing",
-        }
+    Returns:
+        A blocking status when disabled, unassigned, invalid, or unbuilt; otherwise None.
+    """
     if not bool(getattr(target, "Enabled", True)):
         return {
             "state": "disabled",
@@ -204,15 +138,42 @@ def target_status(target):
             "stale": True,
             "reason": "source missing",
         }
-    vertices = int(getattr(target, "CollisionVertexCount", 0))
-    triangles = int(getattr(target, "CollisionTriangleCount", 0))
-    if not getattr(target, "SourceSignature", "") or vertices <= 0 or triangles <= 0:
+    vertices = int(getattr(target, "CollisionVertexCount", _EMPTY_COLLISION_COUNT))
+    triangles = int(getattr(target, "CollisionTriangleCount", _EMPTY_COLLISION_COUNT))
+    if (
+        not getattr(target, "SourceSignature", "")
+        or vertices <= _EMPTY_COLLISION_COUNT
+        or triangles <= _EMPTY_COLLISION_COUNT
+    ):
         return {
             "state": "unbuilt",
             "message": "Drape target collision surface needs to be built",
             "stale": True,
             "reason": "collision cache missing",
         }
+    return None
+
+
+def target_status(target: object | None) -> _TargetStatus:
+    """Summarize whether the persisted collision cache is current.
+
+    Args:
+        target: Persistent DrapeTarget feature, or None when no target is assigned.
+
+    Returns:
+        A deterministic state, status message, stale flag, and invalidation reason.
+    """
+    if target is None:
+        return {
+            "state": "missing",
+            "message": "No drape target selected",
+            "stale": True,
+            "reason": "target missing",
+        }
+    prerequisite_status = _existing_target_prerequisite_status(target)
+    if prerequisite_status is not None:
+        return prerequisite_status
+    source = getattr(target, "SourceObject", None)
     try:
         current = repr(
             source_signature(
@@ -246,25 +207,58 @@ def target_status(target):
     }
 
 
-def refresh_drape_target(target):
-    """Provide the public refresh drape target operation."""
+def refresh_drape_target(target: object) -> object:
+    """Rebuild the persistent target's collision cache from its current source.
+
+    Args:
+        target: Persisted target whose source and collision settings are refreshed.
+
+    Returns:
+        The refreshed target feature.
+
+    Raises:
+        ValueError: If the target does not have an assigned source.
+    """
     source = getattr(target, "SourceObject", None)
     if source is None:
-        raise ValueError("drape target source is required")
+        msg = "drape target source is required"
+        raise ValueError(msg)
     return assign_drape_target(target, source, getattr(target, "TargetType", "FreeCAD Geometry"))
 
 
 def create_drape_target(
-    doc, source=None, target_type="FreeCAD Geometry", deflection=1.0, thickness=0.0
-):
-    """Create and return the requested drape target object."""
+    doc: object,
+    source: object | None = None,
+    target_type: str = "FreeCAD Geometry",
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> object:
+    """Create a persistent DrapeTarget feature and optionally assign its source.
+
+    Args:
+        doc: FreeCAD document that owns the persistent target.
+        source: Optional collision source; geometry targets require one.
+        target_type: Supported source representation, either Mannequin or FreeCAD Geometry.
+        deflection: Positive tessellation deflection in model units.
+        thickness: Non-negative collision thickness in model units.
+
+    Returns:
+        The created persistent DrapeTarget feature.
+
+    Raises:
+        ValueError: If the type, source, deflection, or collision thickness is invalid.
+    """
     if target_type not in DrapeTargetSpec.VALID_TYPES:
-        raise ValueError("unsupported drape target type")
-    if deflection <= 0 or thickness < 0:
-        raise ValueError("invalid collision tessellation or thickness")
+        msg = "unsupported drape target type"
+        raise ValueError(msg)
+    if deflection <= _MINIMUM_COLLISION_DIMENSION_MM or thickness < _MINIMUM_COLLISION_DIMENSION_MM:
+        msg = "invalid collision tessellation or thickness"
+        raise ValueError(msg)
     if source is None and target_type != "Mannequin":
-        raise ValueError("a FreeCAD Geometry target requires a source object")
-    target = doc.addObject("App::FeaturePython", "DrapeTarget")
+        msg = "a FreeCAD Geometry target requires a source object"
+        raise ValueError(msg)
+    add_object = cast("Callable[[str, str], object]", getattr(doc, "addObject"))
+    target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
@@ -295,22 +289,42 @@ def create_drape_target(
     return target
 
 
-def assign_drape_target(target, source, target_type: str | None = None):
-    """Provide the public assign drape target operation."""
+def assign_drape_target(
+    target: object,
+    source: object | None,
+    target_type: str | None = None,
+) -> object:
+    """Assign a source and refresh the persisted collision-cache metadata.
+
+    Args:
+        target: Existing persistent DrapeTarget feature being updated.
+        source: FreeCAD source object used to build collision geometry.
+        target_type: Optional target representation; the existing type is preserved by default.
+
+    Returns:
+        The updated persistent target feature.
+
+    Raises:
+        ValueError: If the source is absent or the target type is unsupported.
+        TypeError: If the source does not expose usable collision geometry.
+    """
     if source is None:
-        raise ValueError("drape target source is required")
+        msg = "drape target source is required"
+        raise ValueError(msg)
     kind = str(target_type or getattr(target, "TargetType", "FreeCAD Geometry"))
     if kind not in DrapeTargetSpec.VALID_TYPES:
-        raise ValueError("unsupported drape target type")
-    deflection = float(getattr(target, "CollisionDeflection", 1.0))
-    thickness = float(getattr(target, "CollisionThickness", 0.0))
+        msg = "unsupported drape target type"
+        raise ValueError(msg)
+    typed_target = cast("_DrapeTargetFeature", target)
+    deflection = float(getattr(typed_target, "CollisionDeflection", 1.0))
+    thickness = float(getattr(typed_target, "CollisionThickness", 0.0))
     surface = collision_surface(source, deflection, thickness)
-    target.TargetType = kind
-    target.SourceObject = source
-    target.SourceSignature = repr(source_signature(source, deflection, thickness))
-    target.CollisionVertexCount = len(surface.vertices)
-    target.CollisionTriangleCount = len(surface.triangles)
-    status = target_status(target)
-    target.TargetStatus = status["state"]
-    target.InvalidationReason = status["reason"]
-    return target
+    typed_target.TargetType = kind
+    typed_target.SourceObject = source
+    typed_target.SourceSignature = repr(source_signature(source, deflection, thickness))
+    typed_target.CollisionVertexCount = len(surface.vertices)
+    typed_target.CollisionTriangleCount = len(surface.triangles)
+    status = target_status(typed_target)
+    typed_target.TargetStatus = str(status["state"])
+    typed_target.InvalidationReason = str(status["reason"])
+    return typed_target

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD commands for creating and editing sewing networks."""
 
 from __future__ import annotations
@@ -8,7 +9,8 @@ def _selected_seams():
 
     seams = [obj for obj in Gui.Selection.getSelection() if getattr(obj, "SeamId", "")]
     if not seams:
-        raise ValueError("select one or more canonical seams before creating a sewing network")
+        msg = "select one or more canonical seams before creating a sewing network"
+        raise ValueError(msg)
     return seams
 
 
@@ -50,11 +52,13 @@ def create_network_from_selection():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before creating a sewing network")
+        msg = "open a document before creating a sewing network"
+        raise ValueError(msg)
     seams = _selected_seams()
     groups = {str(getattr(seam, "StitchGroup", "")).strip() for seam in seams}
     if len(groups) != 1 or not next(iter(groups)):
-        raise ValueError("selected seams must share one non-empty stitch group")
+        msg = "selected seams must share one non-empty stitch group"
+        raise ValueError(msg)
     relationship_id = next(iter(groups))
     existing = {str(getattr(obj, "RelationshipId", "")) for obj in doc.Objects}
     name = "SewingNetwork"
@@ -63,7 +67,8 @@ def create_network_from_selection():
         index += 1
         name = "SewingNetwork%d" % index
     if relationship_id in existing:
-        raise ValueError("a sewing network with this relationship id already exists")
+        msg = "a sewing network with this relationship id already exists"
+        raise ValueError(msg)
     network = add_sewing_network(doc, seams, relationship_id, name)
     doc.recompute()
     return network
@@ -80,7 +85,8 @@ def create_free_sewing_from_selection(open_editor=True):
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a document before creating free sewing")
+        msg = "open a document before creating free sewing"
+        raise ValueError(msg)
     piece_a, edge_a = _selected_pattern_edges()[0]
     piece_b, edge_b = _selected_pattern_edges()[1]
     side_a = (SewingMember(str(piece_a.PieceId), edge_a),)
@@ -118,7 +124,8 @@ def edit_selected_network():
         None,
     )
     if network is None:
-        raise ValueError("select a sewing network before editing it")
+        msg = "select a sewing network before editing it"
+        raise ValueError(msg)
     return _ACTIVE_NETWORK_TASK_PANEL_STATE.set(show_sewing_network_task(network))
 
 

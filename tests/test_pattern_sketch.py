@@ -1,16 +1,10 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern import PatternCommands
-from freecad_cloth.pattern.PatternDrafting import (
-    add_point,
-    bounds,
-    parse_points,
-    remove_point,
-    serialize_points,
-)
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.pattern.PatternSketch import (
     _is_axis_aligned_rectangle,
@@ -40,7 +34,8 @@ def test_pattern_sketch_requires_freecad_when_called():
     except RuntimeError as exc:
         assert "FreeCAD Sketcher" in str(exc)
     else:
-        raise AssertionError("headless environment should not create a native Sketcher object")
+        msg = "headless environment should not create a native Sketcher object"
+        raise AssertionError(msg)
 
 
 def test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch():
@@ -151,26 +146,15 @@ def test_edit_sketch_enters_native_editor_for_selected_piece():
     assert "ClothPattern_EditSketch" in PatternCommands.COMMANDS
 
 
-def test_polygon_drafting_round_trip_and_editing():
-    points = ((0.0, 0.0), (80.0, 0.0), (100.0, 40.0), (40.0, 70.0), (0.0, 50.0))
-    encoded = serialize_points(points)
-    assert parse_points(encoded) == points
-    edited = add_point(points, 90.0, 20.0, 2)
-    assert len(edited) == 6
-    edited = remove_point(edited, 2)
-    assert edited == points
-    assert bounds(points) == (0.0, 0.0, 100.0, 70.0)
-
-
-def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
+def test_parameterized_outline_provides_native_sketch_seed_metadata():
     from freecad_cloth.pattern.SketchAuthority import _piece_model
 
-    legacy = type(
-        "LegacyPatternPiece",
+    parameterized = type(
+        "ParameterizedPatternPiece",
         (),
         {
-            "Label": "Legacy Front",
-            "PieceId": "legacy-front",
+            "Label": "Front",
+            "PieceId": "front",
             "DraftingBoundary": "[(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]",
             "Width": 120.0,
             "Height": 70.0,
@@ -178,22 +162,23 @@ def test_legacy_pattern_boundary_remains_readable_by_sketch_authority():
             "GrainlineAngle": 0.0,
         },
     )()
-    piece = _piece_model(legacy)
+    piece = _piece_model(parameterized)
     assert piece.outline == [(0.0, 0.0), (120.0, 0.0), (120.0, 70.0), (0.0, 70.0)]
-    assert piece.id == "legacy-front"
+    assert piece.id == "front"
+
+
+def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints() -> None:
+    assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
+    assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))
 
 
 if __name__ == "__main__":
     test_pattern_sketch_module_is_headless_safe()
     test_pattern_sketch_requires_freecad_when_called()
     test_one_step_pattern_piece_command_is_registered_and_creates_native_sketch()
+    test_create_pattern_piece_with_sketch_does_not_duplicate_existing_native_sketch()
     test_native_sketch_adoption_command_is_public()
     test_edit_sketch_enters_native_editor_for_selected_piece()
-    test_polygon_drafting_round_trip_and_editing()
-    test_legacy_pattern_boundary_remains_readable_by_sketch_authority()
+    test_parameterized_outline_provides_native_sketch_seed_metadata()
+    test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints()
     print("pattern sketch tests passed")
-
-
-def test_only_actual_axis_aligned_rectangles_receive_inferred_rectangle_constraints() -> None:
-    assert _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (100.0, 60.0), (0.0, 60.0)))
-    assert not _is_axis_aligned_rectangle(((0.0, 0.0), (100.0, 0.0), (80.0, 60.0), (0.0, 60.0)))

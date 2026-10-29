@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Direct-manipulation fitting UI for the Cloth Sewing workbench.
 
 The fitting scene remains authoritative; viewport movement is an interactive
@@ -8,8 +9,9 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
+from itertools import starmap
 
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
     SNAP_CROSSHAIR_HALF_LENGTH,
     SNAP_LINE_WIDTH,
@@ -67,7 +69,6 @@ class SimpleScreenPoint:
 
 def arrangement_rotation(point):
     """Return the Z rotation implied by an arrangement point wrap direction."""
-
     base = float(getattr(point, "RotationZ", 0.0))
     return {
         "front": base,
@@ -257,7 +258,7 @@ class DirectArrangeController:
             return None
         point = nearest_arrangement_point(
             screen_position,
-            tuple(SimpleScreenPoint(sx, sy, point) for sx, sy, point in candidates),
+            tuple(starmap(SimpleScreenPoint, candidates)),
             self.SNAP_PIXEL_RADIUS,
         )
         return getattr(point, "source", None)
@@ -470,10 +471,12 @@ class DirectArrangeController:
     def activate(self):
         """Install viewport callbacks and enable direct garment dragging."""
         if self.scene is None:
-            raise RuntimeError("a fitting scene is required for Interactive Arrange")
+            msg = "a fitting scene is required for Interactive Arrange"
+            raise RuntimeError(msg)
         self.view = self.Gui.activeDocument().activeView() if self.Gui.activeDocument() else None
         if self.view is None:
-            raise RuntimeError("an active FreeCAD 3D view is required for Interactive Arrange")
+            msg = "an active FreeCAD 3D view is required for Interactive Arrange"
+            raise RuntimeError(msg)
         if self._mouse_callback is not None:
             return
         self._refresh_anchor_overlay()
@@ -666,10 +669,8 @@ class ViewportAnchorPicker:
         """Return the target currently authoritative for this fitting scene."""
         scene = self.panel.scene
         doc = getattr(scene, "Document", None)
-        candidate = getattr(scene, "AvatarProxy", None)
-        if candidate is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            candidate = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        candidate = getattr(drape_target, "SourceObject", None)
         if candidate is None or not getattr(candidate, "Name", ""):
             return {}
         return {str(candidate.Name): candidate}
@@ -925,10 +926,8 @@ class FittingTaskPanel:
             if doc is not None
             else ()
         )
-        target = getattr(self.scene, "AvatarProxy", None)
-        if target is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            target = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
         stale = sum(
             arrangement_anchor_status(point)

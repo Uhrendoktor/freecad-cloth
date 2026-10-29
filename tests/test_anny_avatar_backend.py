@@ -1,9 +1,10 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the library-backed avatar body model."""
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (
     _BREAST_SHAPE_MEASUREMENT_FIELDS,
     MEASUREMENT_FIELDS,
-    _adapt_clad_body_pose_alias,
+    _normalize_clad_body_pose_parameterization,
     _apply_front_breast_fullness,
     _canonicalize_anny_vertices,
     _clad_measurement_targets,
@@ -104,13 +105,15 @@ def test_selected_local_morphs_exist_in_installed_anny_assets() -> None:
     assert any("measure-hips-circ" in label for label in labels)
 
 
-def test_clad_body_legacy_pose_alias_is_translated_for_anny_forward() -> None:
+def test_clad_body_pose_parameterization_is_normalized_for_anny_forward() -> None:
+    """Normalize clad-body's pose spelling before its forward call reaches Anny."""
+
     class FakeModel:
         def forward(self, *, pose_parameterization: str) -> str:
             return pose_parameterization
 
     model = FakeModel()
-    _adapt_clad_body_pose_alias(model)
+    _normalize_clad_body_pose_parameterization(model)
 
     assert model.forward(pose_parameterization="root_relative_world") == "local-bone"
     assert model.forward(pose_parameterization="local-bone") == "local-bone"
@@ -204,8 +207,10 @@ def test_front_breast_fullness_moves_only_the_visible_anterior_chest() -> None:
     assert fuller[0][1] - baseline[0][1] > 1.0
     assert fuller[1][1] - baseline[1][1] > 1.0
     assert fuller[0][1] == fuller[1][1]
-    assert fuller[0][0] == baseline[0][0] and fuller[0][2] == baseline[0][2]
-    assert fuller[1][0] == baseline[1][0] and fuller[1][2] == baseline[1][2]
+    assert fuller[0][0] == baseline[0][0]
+    assert fuller[0][2] == baseline[0][2]
+    assert fuller[1][0] == baseline[1][0]
+    assert fuller[1][2] == baseline[1][2]
     assert fuller[2] == baseline[2]
     assert fuller[3] == baseline[3]
     assert fuller[4] == baseline[4]

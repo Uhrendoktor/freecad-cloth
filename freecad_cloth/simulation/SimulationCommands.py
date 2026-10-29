@@ -1,8 +1,22 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Simulation workbench."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import Protocol
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+
+
+class _FreeCADDocument(Protocol):
+    """Minimal FreeCAD document API used by simulation-scene creation."""
+
+    def getObject(self, object_name: str) -> object | None:
+        """Return a document object by internal name, if present."""
+        ...
+
+    def recompute(self) -> None:
+        """Recompute derived document state after scene properties change."""
+        ...
 
 
 def create_simulation():
@@ -12,8 +26,23 @@ def create_simulation():
     return create_quality_simulation_scene(doc)
 
 
-def create_quality_simulation_scene(doc):
-    """Create a quality-controlled simulation scene and its explicit mannequin target."""
+def create_quality_simulation_scene(
+    doc: _FreeCADDocument,
+    *,
+    avatar_source: object | None = None,
+    cloth_pieces: Sequence[object] = (),
+) -> object:
+    """Create one quality-controlled simulation from the supplied source state.
+
+    Args:
+        doc: FreeCAD document that owns the simulation and its target.
+        avatar_source: Optional shape or mesh to use as the collision source.
+            When absent, the canonical generated mannequin is used.
+        cloth_pieces: Optional pattern pieces transferred into the simulation.
+
+    Returns:
+        The quality-controlled simulation scene with a persistent drape target.
+    """
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
     from freecad_cloth.simulation.DrapeTarget import DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM
@@ -24,16 +53,21 @@ def create_quality_simulation_scene(doc):
     )
 
     scene = create_simulation_scene(doc)
-    avatar = doc.getObject("ClothAvatar") or create_avatar(doc=doc, attach_collision=False)
-    avatar.Label = "Cloth Human Avatar (MakeHuman)"
-    if hasattr(avatar, "ViewObject"):
-        avatar.ViewObject.Visibility = True
-    set_drape_target_source(
-        scene,
-        avatar,
-        DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM,
-        1.0,
-    )
+    scene.ClothPieces = list(cloth_pieces)
+    if avatar_source is None:
+        avatar = doc.getObject("ClothAvatar")
+        if avatar is None:
+            avatar = create_avatar(doc=doc, attach_collision=False)
+        setattr(avatar, "Label", "Cloth Human Avatar (MakeHuman)")
+        view = getattr(avatar, "ViewObject", None)
+        if view is not None:
+            setattr(view, "Visibility", True)
+    else:
+        avatar = avatar_source
+
+    is_mannequin = str(getattr(avatar, "AvatarType", "")) == "ClothAvatar"
+    thickness_mm = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if is_mannequin else 2.0
+    set_drape_target_source(scene, avatar, thickness_mm, 1.0)
     ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
     doc.recompute()
@@ -119,10 +153,12 @@ def _require_simulation():
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("no active document")
+        msg = "no active document"
+        raise RuntimeError(msg)
     scene = _find_simulation(doc)
     if scene is None:
-        raise RuntimeError("no Cloth Simulation object in active document")
+        msg = "no Cloth Simulation object in active document"
+        raise RuntimeError(msg)
     return doc, scene
 
 
@@ -132,7 +168,8 @@ def simulate_selected(steps=None):
     _require_drape_target_ready(doc)
     count = int(steps if steps is not None else 1)
     if count < 1:
-        raise ValueError("steps must be positive")
+        msg = "steps must be positive"
+        raise ValueError(msg)
     scene.Steps = int(scene.Steps) + count
     doc.recompute()
     from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay

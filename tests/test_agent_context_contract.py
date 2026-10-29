@@ -1,5 +1,8 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import re
 from pathlib import Path
+
+from tests.support.assertions import require
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,12 +45,27 @@ def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue(
     assert not re.search(r"#\d+", text)
 
 
-def test_architecture_distinguishes_persisted_authority_from_headless_value_types():
+def test_architecture_distinguishes_persisted_authority_from_headless_value_types() -> None:
+    """architecture distinguishes persisted authority from headless value types."""
     architecture = (ROOT / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
-    assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture
-    assert "canonical immutable in-memory/value representation" in architecture
-    assert "persisted" in model.lower() and "in-memory/headless" in model.lower()
+    require(
+        condition="persisted FreeCAD Seam object is the document-level source of truth"
+        in architecture,
+        message="architecture documentation must identify the persisted Seam as document authority.",
+    )
+    require(
+        condition="canonical immutable in-memory/value representation" in architecture,
+        message="architecture documentation must distinguish the headless value representation.",
+    )
+    require(
+        condition="persisted" in model.lower(),
+        message="PatternModel must document persisted authority.",
+    )
+    require(
+        condition="in-memory/headless" in model.lower(),
+        message="PatternModel must identify its headless value boundary.",
+    )
 
 
 def test_packaging_metadata_has_explicit_authority_split():

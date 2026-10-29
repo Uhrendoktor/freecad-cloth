@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Deterministic source signatures shared by Cloth domains.
 
 This module intentionally depends only on the Python standard library so
@@ -9,26 +10,62 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
+from typing import Protocol, cast
 
 
-def _point_coordinates(point):
-    """Normalize iterable and FreeCAD-vector points to deterministic triples."""
+POINT_COORDINATE_COUNT = 3
+TESSELLATION_COMPONENT_COUNT = 2
+
+
+class _VectorCoordinates(Protocol):
+    """Coordinate attributes exposed by FreeCAD vector-like values."""
+
+    x: float
+    y: float
+    z: float
+
+
+def _point_coordinates(point: object) -> tuple[float, float, float]:
+    """Normalize iterable or FreeCAD-vector coordinates into a rounded triple.
+
+    Args:
+        point: Iterable three-coordinate value or FreeCAD vector-like object.
+
+    Returns:
+        Coordinates rounded to six decimal places.
+    """
     try:
-        values = tuple(point)
+        values = tuple(cast("Iterable[float]", point))
     except TypeError:
         values = None
-    if values is not None and len(values) >= 3:
-        return tuple(round(float(c), 6) for c in values[:3])
+    if values is not None and len(values) >= POINT_COORDINATE_COUNT:
+        return (
+            round(float(values[0]), 6),
+            round(float(values[1]), 6),
+            round(float(values[2]), 6),
+        )
+    vector = cast("_VectorCoordinates", point)
     return (
-        round(float(point.x), 6),
-        round(float(point.y), 6),
-        round(float(point.z), 6),
+        round(float(vector.x), 6),
+        round(float(vector.y), 6),
+        round(float(vector.z), 6),
     )
 
 
-def _digest_surface(vertices, triangles):
-    """Return a deterministic digest of the complete collision topology."""
+def _digest_surface(
+    vertices: Sequence[object],
+    triangles: Sequence[Sequence[int]],
+) -> str:
+    """Return a deterministic SHA-256 digest of surface coordinates and topology.
+
+    Args:
+        vertices: Ordered mesh vertices, either coordinate sequences or FreeCAD vectors.
+        triangles: Ordered triangle vertex indices.
+
+    Returns:
+        Hexadecimal digest sensitive to coordinate, connectivity, and ordering changes.
+    """
     payload = {
         "vertices": [_point_coordinates(vertex) for vertex in vertices],
         "triangles": [tuple(int(i) for i in triangle) for triangle in triangles],
@@ -37,7 +74,16 @@ def _digest_surface(vertices, triangles):
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _mesh_signature(target):
+def _mesh_signature(target: object) -> tuple[object, ...] | None:
+    """Return the stable authored-avatar or complete mesh-topology signature.
+
+    Args:
+        target: FreeCAD document object that may expose avatar identity or mesh topology.
+
+    Returns:
+        Authored revision fields for MakeHuman avatars, a topology digest for a
+        mesh target, or None when no usable mesh topology is exposed.
+    """
     # MakeHuman avatars retain a stable authored revision instead of depending
     # on FreeCAD's internal Mesh::Feature topology ordering across recomputes.
     if (
@@ -64,15 +110,54 @@ def _mesh_signature(target):
         return None
 
 
-def _shape_content_signature(shape, deflection=1.0):
-    """Return a persistent deterministic digest for a FreeCAD TopoShape."""
+def _brep_signature(exporter: Callable[[], object]) -> tuple[str, str]:
+    """Hash the serialized BRep payload returned by a shape exporter.
+
+    Args:
+        exporter: Bound native shape method that returns a BRep representation.
+
+    Returns:
+        A BRepHash tag and the payload's SHA-256 digest.
+
+    Raises:
+        TypeError: If the exporter returns a value that is neither text nor bytes.
+    """
+    payload = exporter()
+    if isinstance(payload, str):
+        encoded = payload.encode("utf-8")
+    elif isinstance(payload, (bytes, bytearray, memoryview)):
+        encoded = bytes(payload)
+    else:
+        msg = "BRep exporter must return text or bytes"
+        raise TypeError(msg)
+    return "BRepHash", hashlib.sha256(encoded).hexdigest()
+
+
+def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[object, ...]:
+    """Return a deterministic BRep or tessellation signature for a FreeCAD shape.
+
+    Args:
+        shape: Native FreeCAD TopoShape or another object exposing geometry APIs.
+        deflection: Linear tessellation deflection used when BRep export is unavailable.
+
+    Returns:
+        A stable signature containing the BRep hash, tessellated surface digest,
+        native shape hash, or an explicit unknown marker.
+    """
+    exporter = getattr(shape, "exportBrepToString", None)
+    if callable(exporter):
+        try:
+            return _brep_signature(cast("Callable[[], object]", exporter))
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            pass
+
     tessellate = getattr(shape, "tessellate", None)
     if callable(tessellate):
         try:
             tessellation = tessellate(float(deflection))
             if (
                 isinstance(tessellation, tuple)
-                and len(tessellation) == 2
+                and len(tessellation) == TESSELLATION_COMPONENT_COUNT
                 and isinstance(tessellation[0], Sequence)
                 and isinstance(tessellation[1], Sequence)
             ):
@@ -85,6 +170,7 @@ def _shape_content_signature(shape, deflection=1.0):
                 )
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
+
     hash_code = getattr(shape, "hashCode", None)
     if callable(hash_code):
         try:
@@ -96,7 +182,17 @@ def _shape_content_signature(shape, deflection=1.0):
     return ("Unknown",)
 
 
-def _geometry_signature(target, deflection=1.0):
+def _geometry_signature(target: object, deflection: float = 1.0) -> tuple[object, ...]:
+    """Return the strongest available geometry-content signature.
+
+    Args:
+        target: FreeCAD document object exposing a Mesh or TopoShape.
+        deflection: Tessellation tolerance used only when BRep export is unavailable.
+
+    Returns:
+        A signature based on authored avatar identity, complete mesh topology,
+        shape bounds and content, a native shape hash, or an explicit unknown marker.
+    """
     mesh_signature = _mesh_signature(target)
     if mesh_signature is not None:
         return mesh_signature
@@ -125,8 +221,22 @@ def _geometry_signature(target, deflection=1.0):
     return ("Unknown",)
 
 
-def source_signature(target, deflection=1.0, thickness=0.0) -> tuple:
-    """Provide the public source signature operation."""
+def source_signature(
+    target: object,
+    deflection: float = 1.0,
+    thickness: float = 0.0,
+) -> tuple[object, ...]:
+    """Build a deterministic signature for geometry, placement, and collision settings.
+
+    Args:
+        target: FreeCAD document object whose source identity is being tracked.
+        deflection: Tessellation deflection used when stable BRep export is unavailable.
+        thickness: Collision thickness included in the signature to invalidate stale caches.
+
+    Returns:
+        A tuple containing object identity, geometry-content signature, placement,
+        deflection, and collision thickness.
+    """
     placement = getattr(target, "Placement", None)
     base = getattr(placement, "Base", None) if placement is not None else None
     rotation = getattr(placement, "Rotation", None) if placement is not None else None

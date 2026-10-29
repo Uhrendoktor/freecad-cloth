@@ -1,9 +1,12 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral contract checks for the avatar task-panel boundary.
 
 The expensive visual behavior is covered by FreeCAD acceptance tests. These tests
 exercise exported panel configuration and pure helper behavior without reading
 the GUI implementation source.
 """
+
+import math
 
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
@@ -23,23 +26,21 @@ def test_avatar_panel_groups_cover_all_editable_measurements():
 def test_avatar_panel_shape_fields_match_persistent_command_properties():
     assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == AvatarCommands.SHAPE_PROPERTY_MAP
     assert AvatarTaskPanel.SHAPE_PROPERTY_MAP == {
-        "gender": "GenderBlend",
+        "gender": "Gender",
         "breast_size": "BreastSize",
     }
     assert callable(AvatarTaskPanel._shape_changed)
     assert callable(AvatarTaskPanel._toggle_dimension_gizmo)
 
 
-def test_avatar_panel_pose_fields_match_command_pose_schema():
-    assert tuple(key for key, _label in AvatarTaskPanel.POSE_FIELDS) == (
-        "left_arm_angle",
-        "right_arm_angle",
-        "left_elbow_angle",
-        "right_elbow_angle",
-    )
-    assert {
-        key: AvatarTaskPanel._pose_property(key) for key, _label in AvatarTaskPanel.POSE_FIELDS
-    } == AvatarCommands.POSE_PROPERTY_MAP
+def test_parent_panel_has_no_duplicate_pose_state():
+    """Keep posing in the dedicated editor rather than hidden parent-panel controls."""
+    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+
+    assert not hasattr(AvatarTaskPanel, "POSE_FIELDS")
+    assert not hasattr(AvatarTaskPanel, "_pose_property")
+    assert not hasattr(AvatarTaskPanel, "_rebuild_geometry")
+    assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
 
 
 def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
@@ -48,7 +49,8 @@ def test_avatar_panel_provider_choices_match_authoritative_provider_ids():
     provider_labels = dict(AvatarTaskPanel.PROVIDERS)
     geometry_label = provider_labels["freecad-geometry"].lower()
     assert "surface only" in geometry_label
-    assert "skeleton" in geometry_label and "animation" in geometry_label
+    assert "skeleton" in geometry_label
+    assert "animation" in geometry_label
 
 
 def test_avatar_panel_exposes_the_public_task_panel_protocol():
@@ -75,7 +77,7 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
     assert self_value == 1800.0
     circumference = AvatarDimensionController._dragged_value(
-        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * 3.141592653589793, (600.0, 1600.0)
+        900.0, (15.0, 0.0), (10.0, 0.0), 2.0 * math.pi, (600.0, 1600.0)
     )
     assert circumference == 1600.0
     assert (
@@ -84,15 +86,3 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
         )
         == 1800.0
     )
-
-
-def test_avatar_panel_keeps_legacy_pose_and_skeleton_paths_secondary():
-    # These are runtime defaults/configuration, not source-text requirements.
-    assert "t_pose" in AvatarCommands.Pose.VALID_PRESETS
-    assert "standing" in AvatarCommands.Pose.VALID_PRESETS
-    assert "sewing" in AvatarCommands.Pose.VALID_PRESETS
-    assert "sitting" in AvatarCommands.Pose.VALID_PRESETS
-    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
-
-    assert ("t_pose", "T-pose") in AvatarPoseTaskPanel.PRESETS
-    assert AvatarTaskPanel.POSE_FIELDS

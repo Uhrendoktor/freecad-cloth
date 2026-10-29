@@ -1,9 +1,13 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
 from __future__ import annotations
 
 from functools import lru_cache
+from itertools import starmap
 from typing import TYPE_CHECKING
+
+from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -147,7 +151,7 @@ def _parse_int_list(values, particle_count=None):
 
 
 def normalize_pin_mode(value):
-    """Return a supported persistent pinning mode, preserving legacy defaults."""
+    """Return a supported pinning mode, defaulting invalid values to Automatic."""
     mode = str(value or "Automatic").strip()
     return mode if mode in PIN_MODE_NAMES else "Automatic"
 
@@ -230,97 +234,18 @@ def _piece_mesh(piece, start_height, piece_ir=None):
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
 
-    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
-    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
-    if not segment_ids:
-        raise ValueError("pattern mesh semantic boundary provenance is missing")
-    if len(segment_ids) != len(boundary):
-        raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
-
-    edge_pairs = {}
-    for index, segment_id in enumerate(segment_ids):
-        raw_key = str(segment_id)
-        base = next(
-            (
-                str(boundary_ir.id)
-                for boundary_ir in piece_ir.boundaries
-                if raw_key == str(boundary_ir.id)
-                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
-            ),
-            None,
-        )
-        if base is None:
-            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
-        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
-        edge_pairs.setdefault(base, []).append(pair)
-
-    by_id = {}
-    mesh_vertices = tuple(mesh.vertices)
-    for boundary_ir in piece_ir.boundaries:
-        edge_id = str(boundary_ir.id)
-        pairs = edge_pairs.get(edge_id)
-        if not pairs:
-            raise ValueError(f"pattern mesh has no boundary provenance for semantic edge {edge_id}")
-        vertex_indices = {vertex for pair in pairs for vertex in pair}
-        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
-        ordered = tuple(
-            sorted(
-                vertex_indices,
-                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
-            )
-        )
-        if len(ordered) < 2:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} has too few boundary vertices")
-        actual_pairs = {frozenset(pair) for pair in pairs}
-        ordered_pairs = {
-            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
-        }
-        if ordered_pairs != actual_pairs:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} boundary chain is disconnected")
-        by_id[edge_id] = ordered
-
+    chains = semantic_boundary_chains(mesh, piece_ir, source_name="pattern mesh")
     return (
         vertices,
         mesh.triangles,
-        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
+        chains,
     )
-
-
-def _polyline_parameter(point, polyline):
-    if len(polyline) < 2:
-        return 0.0
-    total = 0.0
-    spans = []
-    for start, end in zip(polyline, polyline[1:], strict=False):
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        length = (dx * dx + dy * dy) ** 0.5
-        spans.append((total, start, end, length))
-        total += length
-    if total <= 1e-12:
-        return 0.0
-    best = None
-    for offset, start, end, length in spans:
-        if length <= 1e-12:
-            continue
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        t = (
-            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
-        ) / (length * length)
-        t = max(0.0, min(1.0, t))
-        px = float(start[0]) + t * dx
-        py = float(start[1]) + t * dy
-        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
-        candidate = (distance, offset + t * length)
-        best = candidate if best is None or candidate < best else best
-    return best[1] / total if best else 0.0
 
 
 def _mesh_constraints(positions, triangles):
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
 
-    particles = [Particle(*p) for p in positions]
+    particles = list(starmap(Particle, positions))
     edges = set()
     constraints = []
     for a, b, c in triangles:
@@ -335,7 +260,8 @@ def _mesh_constraints(positions, triangles):
 
 def _sample_boundary(values, start, end, count, points=None):
     if len(values) < 2:
-        raise ValueError("seam edge requires at least two boundary vertices")
+        msg = "seam edge requires at least two boundary vertices"
+        raise ValueError(msg)
     if points is not None:
         from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
@@ -400,7 +326,8 @@ def _boundary_vertices(piece_ir, edge_id, panel_data):
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"], strict=False):
         if str(boundary.id) == str(edge_id):
             return tuple(values)
-    raise ValueError(f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}")
+    msg = f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}"
+    raise ValueError(msg)
 
 
 def _collision_for_scene(obj):
@@ -518,7 +445,8 @@ class SimulationProxy:
                 self._build(obj, signature)
             backend = self.backend
             if backend is None:
-                raise RuntimeError("simulation backend was not initialized after rebuild")
+                msg = "simulation backend was not initialized after rebuild"
+                raise RuntimeError(msg)
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):
@@ -602,7 +530,7 @@ class SimulationProxy:
         obj.DrapePanels = panels[: len(pieces)]
         panels = list(obj.DrapePanels)
 
-        particles = [Particle(*p) for p in positions]
+        particles = list(starmap(Particle, positions))
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
         seam_pairs, seam_pair_records = _seam_pair_records(
             resolved.pattern,
@@ -737,61 +665,6 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
-    """Create a target-neutral compatibility collision proxy."""
-    avatar = doc.getObject("AvatarCollision")
-    if avatar is None:
-        avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
-        avatar.Label = "Avatar Collision Proxy (Compatibility)"
-        avatar.addProperty("App::PropertyString", "CollisionType", "Simulation")
-        avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionThickness", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionDeflection", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionVertexCount", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionTriangleCount", "Simulation")
-    avatar.SourceObject = source_obj
-    avatar.CollisionType = "MeshSurface" if source_obj is not None else "Unassigned"
-    avatar.CollisionThickness = float(thickness)
-    avatar.CollisionDeflection = float(deflection)
-    if source_obj is not None:
-        from freecad_cloth.simulation.DrapeTarget import collision_surface
-
-        surface = collision_surface(source_obj, deflection, thickness)
-        avatar.CollisionVertexCount = len(surface.vertices)
-        avatar.CollisionTriangleCount = len(surface.triangles)
-    else:
-        avatar.CollisionVertexCount = 0
-        avatar.CollisionTriangleCount = 0
-    return avatar
-
-
-def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Set an avatar collision proxy without coupling Simulation to Avatar."""
-    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
-
-    doc = scene.Document
-    target = getattr(scene, "DrapeTarget", None)
-    if target is None:
-        target = doc.getObject("DrapeTarget")
-    target_type = (
-        "Mannequin"
-        if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar"
-        else "FreeCAD Geometry"
-    )
-    if target is None:
-        target = create_drape_target(doc, source_obj, target_type, deflection, thickness)
-    else:
-        target.CollisionThickness = float(thickness)
-        target.CollisionDeflection = float(deflection)
-        assign_drape_target(target, source_obj, target_type)
-    proxy = create_avatar_collision(doc, source_obj, thickness, deflection)
-    scene.AvatarProxy = proxy
-    if "DrapeTarget" in set(getattr(scene, "PropertiesList", ()) or ()):
-        scene.DrapeTarget = target
-    doc.recompute()
-    return proxy
-
-
 def create_simulation_scene(doc, build=True):
     """Create and return the requested simulation scene object."""
     scene = doc.addObject("App::FeaturePython", "ClothSimulation")
@@ -807,12 +680,6 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty(
-        "App::PropertyLinkGlobal",
-        "AvatarProxy",
-        "Draping",
-        "Avatar source used by fitting workflows",
-    )
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"

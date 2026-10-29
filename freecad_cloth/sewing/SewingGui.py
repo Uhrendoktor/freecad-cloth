@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for editing sewing operations.
 
 The panel exposes persistent seam orientation/alignment plus normalized curved
@@ -5,8 +6,23 @@ correspondence ranges. All semantic values remain on the document Seam object;
 the task panel is only the interactive frontend.
 """
 
+from __future__ import annotations
 
-def _gui_modules():
+from freecad_cloth.sewing.SewingCorrespondence import (
+    CorrespondenceReport,
+    analyze_correspondence,
+)
+
+
+def _gui_modules() -> tuple[object, object, object, object]:
+    """Load FreeCAD and Qt modules lazily for the task panel.
+
+    Returns:
+        The FreeCAD application, FreeCAD GUI, QtCore, and QtWidgets modules.
+
+    Raises:
+        ImportError: If FreeCAD or a supported PySide binding is unavailable.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -17,27 +33,57 @@ def _gui_modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def seam_reference_status(seam):
+def seam_reference_status(seam: object | None) -> str:
+    """Return the display status for a possibly missing seam reference.
+
+    Args:
+        seam: Seam object whose persisted status should be displayed, or None.
+
+    Returns:
+        The persisted seam status, defaulting to Valid or Missing seam.
+    """
     if seam is None:
         return "Missing seam"
     return str(getattr(seam, "Status", "Valid")) or "Valid"
 
 
-def validate_seam_for_accept(seam):
+def validate_seam_for_accept(seam: object | None) -> bool:
+    """Reject accepting a sewing operation with an invalid seam reference.
+
+    Args:
+        seam: Seam object whose status must be valid before acceptance.
+
+    Returns:
+        True when the seam reference is valid.
+
+    Raises:
+        ValueError: If the seam reference is missing or has a non-valid status.
+    """
     status = seam_reference_status(seam)
     if status != "Valid":
         seam_id = str(getattr(seam, "SeamId", "")) or "<unnamed>"
-        raise ValueError(
-            f"cannot accept sewing operation with invalid seam reference {seam_id}: {status}"
-        )
+        msg = f"cannot accept sewing operation with invalid seam reference {seam_id}: {status}"
+        raise ValueError(msg)
     return True
 
 
-def correspondence_report(seam, length_a, length_b, tolerance=0.05):
-    from freecad_cloth.sewing.SewingCorrespondence import (
-        analyze_correspondence,
-    )
+def correspondence_report(
+    seam: object | None,
+    length_a: float,
+    length_b: float,
+    tolerance: float = 0.05,
+) -> CorrespondenceReport | None:
+    """Analyze the stored ranges for a seam's curved correspondence.
 
+    Args:
+        seam: Seam object storing normalized endpoints and B orientation, or None.
+        length_a: Physical length of the selected side-A range.
+        length_b: Physical length of the selected side-B range.
+        tolerance: Maximum symmetric relative length difference accepted as valid.
+
+    Returns:
+        The correspondence report, or None when no seam is assigned.
+    """
     if seam is None:
         return None
     return analyze_correspondence(
@@ -52,15 +98,25 @@ def correspondence_report(seam, length_a, length_b, tolerance=0.05):
     )
 
 
-def repair_correspondence_settings(seam, report):
+def repair_correspondence_settings(
+    seam: object | None,
+    report: CorrespondenceReport | None,
+) -> str:
     """Apply only non-destructive semantic repairs to a seam.
 
-    Reversal is repaired by restoring forward correspondence. Invalid ranges
-    are reset to the complete referenced edges. Physical length mismatch is
-    deliberately not hidden: the caller must edit the pattern or seam ranges.
+    Args:
+        seam: Seam object whose persistent correspondence settings may be repaired.
+        report: Previously computed report describing the correspondence state.
+
+    Returns:
+        A message describing the repair performed or confirming that no repair was needed.
+
+    Raises:
+        ValueError: If the report is missing or a physical length mismatch needs pattern editing.
     """
     if seam is None or report is None:
-        raise ValueError("a seam correspondence report is required")
+        msg = "a seam correspondence report is required"
+        raise ValueError(msg)
     if report.status == "reversed":
         seam.ReversedB = False
         return "reversed correspondence repaired"
@@ -69,9 +125,8 @@ def repair_correspondence_settings(seam, report):
         seam.StartB, seam.EndB = 0.0, 1.0
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
-        raise ValueError(
-            "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
-        )
+        msg = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+        raise ValueError(msg)
     return "seam correspondence is already valid"
 
 
@@ -267,7 +322,8 @@ class SewingTaskPanel:
 
     def focus_3d(self):
         if self.seam is None:
-            raise ValueError("no seam is assigned to this sewing operation")
+            msg = "no seam is assigned to this sewing operation"
+            raise ValueError(msg)
         self.Gui.Selection.clearSelection()
         self.Gui.Selection.addSelection(self.seam)
         from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
@@ -277,7 +333,8 @@ class SewingTaskPanel:
 
     def edit_sketch_side(self, side):
         if self.seam is None:
-            raise ValueError("no seam is assigned to this sewing operation")
+            msg = "no seam is assigned to this sewing operation"
+            raise ValueError(msg)
         self.Gui.Selection.clearSelection()
         self.Gui.Selection.addSelection(self.seam)
         from freecad_cloth.sewing.SewingCommands import _edit_selected_seam_side

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Screenshot-backed avatar complexity ladder for the diagnostic harness.
 # Exact-head validation note: this source is exercised only from its PR head.
 # Validation note: this diagnostic consumes the shared schema-1 avatar ladder manifest.
@@ -8,158 +9,66 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
-
-# Resolve the repository modules and shared harness helpers in FreeCAD AppRun.
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-_HELPER_DIR = Path(__file__).resolve().parent / "support"
-if str(_HELPER_DIR) not in sys.path:
-    sys.path.insert(0, str(_HELPER_DIR))
-
-OUT = Path(os.environ.get("CLOTH_DIAGNOSTIC_DIR", "artifacts/pbd-contact-diagnostics"))
-OUT.mkdir(parents=True, exist_ok=True)
-_BOOT_LOG = OUT / "avatar-ladder-bootstrap.log"
-_TRACE_HANDLE = _BOOT_LOG.open("a", encoding="utf-8", buffering=1)
-
-
-def _boot(message):
-    _TRACE_HANDLE.write(str(message) + "\n")
-    _TRACE_HANDLE.flush()
-
 
 import contextlib
 import faulthandler
-import json
+import os
+import sys
 import time
+from functools import partial
+from itertools import starmap
+from pathlib import Path
 
-_boot("script-start")
-_boot("before-import-FreeCAD")
-import FreeCAD as App
+_TEST_DIR = Path(__file__).resolve().parent
+if str(_TEST_DIR) not in sys.path:
+    sys.path.insert(0, str(_TEST_DIR))
 
-_boot("import-FreeCAD-complete")
-# Keep this import after the checkpoint so slow GUI startup remains diagnosable.
-import FreeCADGui as Gui
+from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint
 
-_boot("import-FreeCADGui-complete")
-_boot("import-Part-complete")
-try:
-    faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)
-    faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)
-    _boot("diagnostic-faulthandler-ready")
-except (AttributeError, OSError, RuntimeError, ValueError) as exc:
-    _boot(f"diagnostic-faulthandler-unavailable={exc!r}")
+_BOOTSTRAP = bootstrap_ladder(__file__, "avatar")
+OUT = _BOOTSTRAP.output_directory
+_boot = _BOOTSTRAP.boot
+App = _BOOTSTRAP.app
+Gui = _BOOTSTRAP.gui
+Part = _BOOTSTRAP.part
 
-_boot("before-support-helper-import")
-from pbd_contact_helpers import build_piece as _build_piece
-from pbd_contact_helpers import build_scene as _build_scene
-from pbd_contact_helpers import checkpoint_record as _checkpoint_record_common
-from pbd_contact_helpers import connected_components as _connected_components
-from pbd_contact_helpers import events as _events
-from pbd_contact_helpers import (
-    make_progress_logger,
-    make_shutdown_gui,
-    schedule_freecad_main,
-)
-from pbd_contact_helpers import nearest_surface_distance as _nearest_surface_distance
-from pbd_contact_helpers import positions_tuple as _positions_tuple
-from pbd_contact_helpers import screenshot as _screenshot
-from pbd_contact_helpers import seam_geometry as _seam_geometry
-from pbd_contact_helpers import target_signature as _target_signature
+import pbd_contact_helpers as _ladder
 
-_progress = make_progress_logger(OUT / "progress.log")
-_shutdown_gui = make_shutdown_gui(_progress)
+_progress = _ladder.make_progress_logger(OUT / "progress.log")
+_shutdown_gui = _ladder.make_shutdown_gui(_progress)
 _boot("after-support-helper-import")
-
-CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def _surface_signed_clearance(
     points, source_shape, collision_surface, proximity_mesh=None, trace_context=""
 ):
-    """Measure target clearance and leave stage markers around native geometry calls."""
+    """Measure target clearance through shared spatial queries with optional tracing.
+
+    Args:
+        points: Particle coordinates to test against the target surface.
+        source_shape: Native FreeCAD target shape, when available.
+        collision_surface: Collision surface used by spatial-index fallback queries.
+        proximity_mesh: Optional Trimesh query object.
+        trace_context: Stable diagnostic context; tracing is enabled only for the
+            named avatar stress checkpoint.
+
+    Returns:
+        Signed and unsigned target clearance in millimetres, or (None, None) when unavailable.
+    """
     trace_enabled = trace_context == "rung-10-avatar-two-piece-large-seam step=45"
 
-    def trace(message):
+    def trace(message: str) -> None:
         if trace_enabled:
             _boot(f"{trace_context}:clearance:{message}")
 
-    trace(f"start points={len(points)} source_shape={source_shape is not None}")
-    unsigned = None
-    if proximity_mesh is not None:
-        try:
-            import numpy as np
-            import trimesh  # noqa: F401
-
-            if points:
-                trace("before-trimesh-nearest")
-                _, distances, _ = proximity_mesh.nearest.on_surface(np.asarray(points, dtype=float))
-                trace("after-trimesh-nearest")
-                unsigned = float(np.min(distances)) if len(distances) else float("inf")
-        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-            trace(f"trimesh-nearest-fallback exception={exc!r}")
-            unsigned = None
-    if unsigned is None:
-        trace("before-shared-nearest-surface-fallback")
-        unsigned = _nearest_surface_distance(points, collision_surface)
-        trace(f"after-shared-nearest-surface-fallback unsigned={unsigned!r}")
-    if unsigned is None:
-        trace("clearance-unavailable")
-        return None, None
-    inside = False
-    if source_shape is not None:
-        for index, point in enumerate(points):
-            try:
-                trace(f"before-shape-isInside index={index}")
-                point_inside = bool(source_shape.isInside(App.Vector(*point), 1e-6, True))
-                trace(f"after-shape-isInside index={index} result={point_inside}")
-                if point_inside:
-                    inside = True
-                    break
-            except (AttributeError, TypeError, ValueError) as exc:
-                trace(f"shape-isInside-fallback exception={exc!r}")
-                break
-    if not inside and proximity_mesh is not None and points:
-        try:
-            import numpy as np
-
-            trace("before-trimesh-contains")
-            inside = bool(np.any(proximity_mesh.contains(np.asarray(points, dtype=float))))
-            trace(f"after-trimesh-contains result={inside}")
-        except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-            trace(f"trimesh-contains-fallback exception={exc!r}")
-    result = (float(-unsigned if inside else unsigned), float(unsigned))
-    trace(f"complete signed={result[0]} unsigned={result[1]}")
-    return result
-
-
-def _avatar_png_has_visible_content(path, minimum_pixels=128):
-    """Check screenshot content using the shared structural PNG validator."""
-    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
-
-    return png_has_visible_content(path, minimum_pixels=int(minimum_pixels))
-
-
-def _avatar_screenshot(view, path):
-    view.setCameraType("Orthographic")
-    view.fitAll()
-    _events()
-    view.redraw()
-    time.sleep(0.05)
-    _events()
-    _screenshot(view, path)
-    if _avatar_png_has_visible_content(path):
-        return
-    _progress(f"png-capture=retry path={path}")
-    view.redraw()
-    time.sleep(0.10)
-    _events()
-    _screenshot(view, path)
-    if not _avatar_png_has_visible_content(path):
-        raise RuntimeError(f"PNG capture contains no visible rendered content: {path}")
+    return _ladder.surface_signed_clearance(
+        points,
+        source_shape,
+        collision_surface,
+        proximity_mesh,
+        vector_factory=App.Vector,
+        trace=trace if trace_enabled else None,
+    )
 
 
 def _checkpoint_record(
@@ -181,7 +90,7 @@ def _checkpoint_record(
     )
     _boot(f"checkpoint-record-after-clearance {context}")
     _boot(f"checkpoint-record-before-common {context}")
-    record = _checkpoint_record_common(
+    record = _ladder.checkpoint_record(
         step,
         image,
         positions,
@@ -189,7 +98,7 @@ def _checkpoint_record(
         signed_clearance,
         unsigned_clearance,
         base,
-        _connected_components,
+        _ladder.connected_components,
         "diagnostic-only-avatar",
     )
     _boot(f"checkpoint-record-after-common {context}")
@@ -197,22 +106,24 @@ def _checkpoint_record(
 
 
 def _build_avatar_scene(doc):
-    scene = _build_scene(doc)
-    avatar = getattr(scene.AvatarProxy, "SourceObject", None)
+    scene = _ladder.build_scene(doc)
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     if avatar is None:
-        raise RuntimeError("diagnostic avatar scene has no production ClothAvatar")
+        msg = "diagnostic avatar scene has no production ClothAvatar"
+        raise RuntimeError(msg)
     if str(getattr(avatar, "AvatarType", "")) != "ClothAvatar":
-        raise RuntimeError("diagnostic avatar target is not the production ClothAvatar")
+        msg = "diagnostic avatar target is not the production ClothAvatar"
+        raise RuntimeError(msg)
     target = getattr(scene, "DrapeTarget", None)
     if target is None or getattr(target, "SourceObject", None) is not avatar:
-        raise RuntimeError(
-            "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
-        )
+        msg = "diagnostic avatar scene DrapeTarget does not reference production ClothAvatar"
+        raise RuntimeError(msg)
     status = __import__(
         "freecad_cloth.simulation.DrapeTarget", fromlist=["target_status"]
     ).target_status(target)
     if status["state"] != "ready":
-        raise RuntimeError(f"diagnostic avatar DrapeTarget is not ready: {status}")
+        msg = f"diagnostic avatar DrapeTarget is not ready: {status}"
+        raise RuntimeError(msg)
     avatar.ViewObject.Visibility = True
     with contextlib.suppress(AttributeError, TypeError, ValueError):
         avatar.ViewObject.Transparency = 70
@@ -229,7 +140,8 @@ def _build_avatar_scene(doc):
             None,
         )
         if raw is None:
-            raise RuntimeError(f"diagnostic avatar is missing arrangement point {name}")
+            msg = f"diagnostic avatar is missing arrangement point {name}"
+            raise RuntimeError(msg)
         point = ArrangementPoint.from_string(raw)
         return avatar.Placement.multVec(App.Vector(*point.position()))
 
@@ -243,11 +155,10 @@ def _build_avatar_scene(doc):
         float(getattr(target, "CollisionDeflection", 1.0)),
         float(getattr(target, "CollisionThickness", 0.0)),
     )
-    target_vertices = [App.Vector(*vertex) for vertex in getattr(target_surface, "vertices", ())]
+    target_vertices = list(starmap(App.Vector, getattr(target_surface, "vertices", ())))
     if not target_vertices:
-        raise RuntimeError(
-            "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
-        )
+        msg = "diagnostic avatar DrapeTarget has no authoritative world-space vertices"
+        raise RuntimeError(msg)
     x_mid_target = (float(shoulder_left.x) + float(shoulder_right.x)) / 2.0
     target_y_candidates = [
         float(point.y)
@@ -363,76 +274,33 @@ def _run_ladder_case(case_id):
                 ),
                 rotation,
             )
-            piece = _build_piece(doc, name, placement, width=panel_width, height=panel_height)
+            piece = _ladder.build_piece(
+                doc, name, placement, width=panel_width, height=panel_height
+            )
             return piece
 
         left = make_piece("AvatarLeft", -120.0)
         pieces = [left]
-        if spec["piece_count"] == 2:
-            right = make_piece("AvatarRight", float(spec["right_offset"] or 0.0))
-            pieces.append(right)
-            if spec["seam_mode"] in {"small", "large"}:
-                _add_seam(doc, left, right)
-        scene.ClothPieces = pieces
-        scene.SeamSelection = []
-        scene.PinMode = str(spec["pin_mode"])
-        scene.PinSelection = []
-        scene.StitchSamples = 8
-        scene.Steps = 0
+        _ladder.append_optional_ladder_piece(
+            spec=spec,
+            pieces=pieces,
+            create_right_piece=lambda: make_piece(
+                "AvatarRight", float(spec["right_offset"] or 0.0)
+            ),
+            add_seam=lambda first, second: _add_seam(doc, first, second),
+        )
+        _ladder.configure_ladder_scene(scene, pieces, spec)
         doc.recompute()
 
-        base = scene.Proxy._base_or_restore()
-        if base.backend is None:
-            raise RuntimeError(f"{case_id} did not build a PositionBasedDynamics backend")
-        collision_surface = getattr(
-            base.backend,
-            "solver_collision_surface",
-            getattr(base, "collision_surface", None),
+        measurements = _ladder.prepare_ladder_case(
+            scene=scene,
+            source_object=avatar,
+            positions_converter=_ladder.positions_tuple,
+            case_id=case_id,
+            require_source_shape=False,
+            clearance_measure=_surface_signed_clearance,
         )
-        if collision_surface is None:
-            raise RuntimeError(f"{case_id} did not expose a collision surface")
-        solver_triangles = len(getattr(collision_surface, "triangles", ()) or ())
-        if solver_triangles <= 0:
-            raise RuntimeError(f"{case_id} has no solver collision triangles")
-        positions = _positions_tuple(base.backend)
-        panel_triangles = tuple(
-            triangle
-            for panel_triangles in base.panel_triangles.values()
-            for triangle in panel_triangles
-        )
-        target_sig = _target_signature(scene.DrapeTarget)
-        source_shape = getattr(avatar, "Shape", None)
-        if source_shape is not None:
-            try:
-                if source_shape.isNull():
-                    source_shape = None
-            except (AttributeError, TypeError, ValueError):
-                source_shape = None
-
-        seam_pre = _seam_geometry(base.backend, base.seam_stitch_pairs)
-        proximity_mesh = None
-        try:
-            import numpy as np
-            import trimesh
-
-            proximity_mesh = trimesh.Trimesh(
-                vertices=np.asarray(getattr(collision_surface, "vertices", ()), dtype=float),
-                faces=np.asarray(getattr(collision_surface, "triangles", ()), dtype=int),
-                process=False,
-            )
-        except (ImportError, RuntimeError, TypeError, ValueError):
-            proximity_mesh = None
-        signed_before, unsigned_before = _surface_signed_clearance(
-            positions, source_shape, collision_surface, proximity_mesh
-        )
-        bounds = {
-            "x_min": min(point[0] for point in positions),
-            "x_max": max(point[0] for point in positions),
-            "y_min": min(point[1] for point in positions),
-            "y_max": max(point[1] for point in positions),
-            "z_min": min(point[2] for point in positions),
-            "z_max": max(point[2] for point in positions),
-        }
+        runtime = measurements.runtime
         _progress(
             (
                 "%s: pieces=%d pin=%s seam=%s source_triangles=%d "
@@ -443,146 +311,86 @@ def _run_ladder_case(case_id):
                 spec["piece_count"],
                 spec["pin_mode"],
                 spec["seam_mode"],
-                target_sig["source_triangles"],
-                solver_triangles,
-                float(signed_before if signed_before is not None else float("nan")),
-                min((item["min_span_mm"] for item in seam_pre), default=0.0),
-                max((item["max_span_mm"] for item in seam_pre), default=0.0),
+                runtime.target_signature["source_triangles"],
+                runtime.solver_triangles,
+                float(
+                    measurements.signed_before
+                    if measurements.signed_before is not None
+                    else float("nan")
+                ),
+                min((item["min_span_mm"] for item in measurements.seam_pre), default=0.0),
+                max((item["max_span_mm"] for item in measurements.seam_pre), default=0.0),
             )
         )
 
         view = Gui.activeDocument().activeView()
         if view is None:
-            raise RuntimeError(f"{case_id} has no active FreeCAD view")
-        images = {}
-        checkpoints = []
-        for step in CHECKPOINTS:
-            _boot(f"checkpoint-before-recompute case={case_id} step={step}")
-            scene.Steps = int(step)
-            doc.recompute()
-            _boot(f"checkpoint-after-recompute case={case_id} step={step}")
-            _events()
-            image = OUT / "avatar-ladder" / case_id / ("step-%03d.png" % int(step))
-            image.parent.mkdir(parents=True, exist_ok=True)
-            view.viewFront()
-            _events()
+            msg = f"{case_id} has no active FreeCAD view"
+            raise RuntimeError(msg)
+
+        def reveal_avatar() -> None:
             avatar.ViewObject.Visibility = True
             for panel in getattr(scene, "DrapePanels", ()):
                 panel.ViewObject.Visibility = True
-            _boot(f"checkpoint-before-screenshot case={case_id} step={step}")
-            _avatar_screenshot(view, image)
-            _boot(f"checkpoint-after-screenshot case={case_id} step={step}")
-            positions = _positions_tuple(base.backend)
-            checkpoints.append(
-                _checkpoint_record(
-                    step,
-                    str(image.relative_to(OUT)),
-                    positions,
-                    panel_triangles,
-                    source_shape,
-                    collision_surface,
-                    base,
-                    proximity_mesh,
-                    case_id=case_id,
-                )
-            )
-            images[int(step)] = str(image.relative_to(OUT))
-            _progress("%s: checkpoint=%d" % (case_id, step))
 
-        final = checkpoints[-1]
-        finite = all(item["finite"] for item in checkpoints)
-        max_penetration = max(
-            (
-                float(item["penetration_mm"])
-                for item in checkpoints
-                if item["penetration_mm"] is not None
-            ),
-            default=0.0,
+        capture = _ladder.LadderCheckpointCapture(
+            scene=scene,
+            document=doc,
+            view=view,
+            case_id=case_id,
+            boot=_boot,
+            process_events=_ladder.events,
+            orient_view=view.viewFront,
+            reveal_objects=reveal_avatar,
+            capture_image=_ladder.screenshot,
         )
-        seam_world_spans = [entry for entry in seam_pre]
-        record = {
-            "case_id": case_id,
-            "predecessor_case_id": None,
-            "case": {
-                "rung": int(spec["rung"]),
-                "id": case_id,
-                "target": "avatar",
-                "piece_count": int(spec["piece_count"]),
-                "pin_mode": spec["pin_mode"],
-                "seam_mode": spec["seam_mode"],
+        checkpoint_callback = partial(
+            _checkpoint_record,
+            panel_triangles=runtime.panel_triangles,
+            source_shape=runtime.source_shape,
+            collision_surface=runtime.collision_surface,
+            base=runtime.base,
+            proximity_mesh=measurements.proximity_mesh,
+            case_id=case_id,
+        )
+        images, checkpoints = _ladder.capture_ladder_checkpoints(
+            capture=capture,
+            output_directory=OUT,
+            target_name="avatar",
+            case_id=case_id,
+            runtime=runtime,
+            record_checkpoint=checkpoint_callback,
+            progress=_progress,
+        )
+
+        record = _ladder.build_ladder_case_record(
+            target="avatar",
+            case_id=case_id,
+            spec=spec,
+            scene=scene,
+            runtime=runtime,
+            measurements=measurements,
+            images=images,
+            checkpoints=checkpoints,
+            started=started,
+            target_bounds={
+                "x_min": float(avatar.Mesh.BoundBox.XMin),
+                "x_max": float(avatar.Mesh.BoundBox.XMax),
+                "y_min": float(avatar.Mesh.BoundBox.YMin),
+                "y_max": float(avatar.Mesh.BoundBox.YMax),
+                "z_min": float(avatar.Mesh.BoundBox.ZMin),
+                "z_max": float(avatar.Mesh.BoundBox.ZMax),
             },
-            "solver": {
-                "backend": "pbd",
-                "particle_distance_mm": float(getattr(scene, "ParticleDistance", 0.0)),
-                "iterations": int(getattr(scene, "SolverIterations", 0)),
-                "substeps": int(getattr(scene, "SolverSubsteps", 0)),
-                "timestep_s": float(getattr(scene, "TimeStep", 0.0)),
-                "gravity_z_mm_s2": float(getattr(scene, "GravityZ", 0.0)),
-            },
-            "collision": {
-                "source_signature": target_sig,
-                "source_triangles": int(target_sig["source_triangles"]),
-                "solver_triangles": int(solver_triangles),
-                "target_bounds": {
-                    "x_min": float(avatar.Mesh.BoundBox.XMin),
-                    "x_max": float(avatar.Mesh.BoundBox.XMax),
-                    "y_min": float(avatar.Mesh.BoundBox.YMin),
-                    "y_max": float(avatar.Mesh.BoundBox.YMax),
-                    "z_min": float(avatar.Mesh.BoundBox.ZMin),
-                    "z_max": float(avatar.Mesh.BoundBox.ZMax),
-                },
-                "target_topology_summary": {
-                    "vertices": int(target_sig["source_vertices"]),
-                    "triangles": int(target_sig["source_triangles"]),
-                    "solver_triangles": int(solver_triangles),
-                },
-            },
-            "pre_step": {
-                "piece_bounds": [list(bounds.values())],
-                "unsigned_clearance_mm": unsigned_before,
-                "signed_clearance_mm": signed_before,
-                "seam_pairs": [
-                    [int(left), int(right)]
-                    for seam in base.seam_stitch_pairs.values()
-                    for left, right in seam
-                ],
-                "seam_world_spans_mm": seam_world_spans,
-            },
-            "checkpoints": checkpoints,
-            "finite": bool(finite),
-            "connected_components": int(final["components"]),
-            "max_seam_gap_mm": float(final["max_seam_gap_mm"]),
-            "final_clearance_mm": final["target_clearance_mm"],
-            "max_penetration_mm": round(max_penetration, 6),
-            "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
-            "first_contact_step": next(
-                (
-                    checkpoint["step"]
-                    for checkpoint in checkpoints
-                    if checkpoint["target_clearance_mm"] is not None
-                    and checkpoint["target_clearance_mm"] < 0.0
-                ),
-                None,
-            ),
-            "contact_mode": "avatar-diagnostic",
-            "control": {
-                "placement_offsets_mm": {
-                    "left_x": -120.0,
-                    "right_x": spec["right_offset"],
-                },
-                "pre_step_seam_count": len(base.seam_stitch_pairs),
-                "pre_step_seam_pair_count": sum(
-                    len(pairs) for pairs in base.seam_stitch_pairs.values()
-                ),
-                "pre_step_bounds_mm": bounds,
+            contact_mode="avatar-diagnostic",
+            extra_control={
+                "placement_offsets_mm": {"left_x": -120.0, "right_x": spec["right_offset"]},
                 "arrangement_frame": frame,
             },
-            "images": [images[step] for step in CHECKPOINTS],
-            "notes": (
+            notes=(
                 "progressive mannequin simulation ladder; exact production ClothAvatar/DrapeTarget; "
                 "fixed PositionBasedDynamics backend; solver/collision budgets unchanged; release gate unaffected"
             ),
-        }
+        )
         _boot("case-complete={} runtime_ms={:.3f}".format(case_id, record["runtime_ms"]))
         return record
     finally:
@@ -592,97 +400,34 @@ def _run_ladder_case(case_id):
             App.closeDocument(doc.Name)
 
 
-def _structural_ladder_checks(records):
-    by_id = {record["case"]["id"]: record for record in records}
-    checks = []
-    ordered = [
-        ("rung-6-avatar-pinned", 6),
-        ("rung-7-avatar-unpinned", 7),
-        ("rung-8-avatar-two-piece-no-seam", 8),
-        ("rung-9-avatar-two-piece-small-seam", 9),
-        ("rung-10-avatar-two-piece-large-seam", 10),
-    ]
-    for case_id, rung in ordered:
-        record = by_id[case_id]
-        ok = (
-            bool(record["finite"])
-            and record["case"]["rung"] == rung
-            and record["solver"]["backend"] == "pbd"
-            and record["solver"]["iterations"] == 1
-            and record["solver"]["substeps"] == 1
-            and abs(float(record["solver"]["timestep_s"]) - (1.0 / 120.0)) < 1e-12
-            and float(record["solver"]["gravity_z_mm_s2"]) == 0.0
-            and record["collision"]["solver_triangles"] > 0
-            and len(record["checkpoints"]) == len(CHECKPOINTS)
-            and [item["step"] for item in record["checkpoints"]] == list(CHECKPOINTS)
-        )
-        if rung <= 7:
-            ok = (
-                ok and record["case"]["piece_count"] == 1 and record["pre_step"]["seam_pairs"] == []
-            )
-        elif rung == 8:
-            ok = (
-                ok and record["case"]["piece_count"] == 2 and record["pre_step"]["seam_pairs"] == []
-            )
-        else:
-            seam_count = len(record["pre_step"]["seam_world_spans_mm"])
-            ok = ok and record["case"]["piece_count"] == 2 and seam_count == 1
-        checks.append({"rung": rung, "case_id": case_id, "passed": bool(ok)})
-        if not ok:
-            break
-    first_failure = next(
-        (item["rung"] for item in checks if not item["passed"]),
-        None,
-    )
-    return {
-        "checks": checks,
-        "first_failing_rung": first_failure,
-        "stop_interpretation_at_first_failure": True,
-    }
-
-
-def main():
-    _boot("main-entered")
-    _progress("avatar-ladder: start")
-    records = [
-        _run_ladder_case(case_id)
-        for case_id in (
+def main() -> int:
+    """Run the avatar ladder and persist its schema-1 evidence manifest."""
+    return _ladder.write_ladder_manifest(
+        target="avatar",
+        purpose="simulation-avatar-ladder",
+        manifest_name="avatar-ladder-manifest.json",
+        strongest_alternative="avatar target/contact is causal; seam interaction is not",
+        case_ids=(
             "rung-6-avatar-pinned",
             "rung-7-avatar-unpinned",
             "rung-8-avatar-two-piece-no-seam",
             "rung-9-avatar-two-piece-small-seam",
             "rung-10-avatar-two-piece-large-seam",
-        )
-    ]
-    manifest = {
-        "schema": 1,
-        "purpose": "simulation-avatar-ladder",
-        "release_gate_effect": "gate",
-        "source_head_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
-        "solver_settings_frozen": {
-            "backend_requested": "pbd",
-            "particle_distance_mm": 24.0,
-            "iterations": 1,
-            "substeps": 1,
-            "timestep_s": 1.0 / 120.0,
-            "gravity_z_mm_s2": 0.0,
-            "gravity_mm_s2": [0.0, 0.0, 0.0],
-        },
-        "checkpoint_steps": list(CHECKPOINTS),
-        "stop_rule": {
-            "first_failing_rung": True,
-            "human_visual_review_required": True,
-            "strongest_alternative": "avatar target/contact is causal; seam interaction is not",
-        },
-        "cases": records,
-        "structural_validation": _structural_ladder_checks(records),
-    }
-    path = OUT / "avatar-ladder-manifest.json"
-    path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
-    _boot("all-cases-complete")
-    _progress("avatar-ladder: manifest-written")
-    print(json.dumps(manifest, indent=2, sort_keys=True), flush=True)
-    return 0
+        ),
+        ordered_cases=(
+            ("rung-6-avatar-pinned", 6),
+            ("rung-7-avatar-unpinned", 7),
+            ("rung-8-avatar-two-piece-no-seam", 8),
+            ("rung-9-avatar-two-piece-small-seam", 9),
+            ("rung-10-avatar-two-piece-large-seam", 10),
+        ),
+        single_piece_rungs=(6, 7),
+        no_seam_two_piece_rungs=(8,),
+        run_case=_run_ladder_case,
+        output_directory=OUT,
+        boot=_boot,
+        progress=_progress,
+    )
 
 
 def _run_and_shutdown():
@@ -697,21 +442,11 @@ def _run_and_shutdown():
     os._exit(status)
 
 
-_boot(f"entrypoint-name={__name__!r}")
-_boot("entrypoint-argv0=%r" % (sys.argv[0] if sys.argv else ""))
-_freecad_entrypoint_name = Path(__file__).stem
-_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))
-
-
-def _schedule_freecad_main():
-    """Schedule the ladder outside FreeCAD's delayed-startup import callback."""
-    _boot("freecad-hosted-entrypoint")
-    _boot("entrypoint:schedule-main")
-    schedule_freecad_main(_run_and_shutdown)
-
-
-if __name__ == "__main__":
-    _boot("direct-entrypoint")
-    _run_and_shutdown()
-elif _freecad_gui_hosted or __name__ == _freecad_entrypoint_name:
-    _schedule_freecad_main()
+dispatch_ladder_entrypoint(
+    __file__,
+    __name__,
+    _run_and_shutdown,
+    _boot,
+    App,
+    _ladder.schedule_freecad_main,
+)

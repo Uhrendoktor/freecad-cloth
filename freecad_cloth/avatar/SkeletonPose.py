@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent manual forward-kinematics posing for the mannequin.
 
 The pose editor uses the pinned MakeHuman joint hierarchy and skinning weights.
@@ -9,10 +10,15 @@ from __future__ import annotations
 
 import json
 import math
-from collections.abc import Callable, Iterable, Mapping
-from typing import NotRequired, TypedDict
+from typing import TYPE_CHECKING, NotRequired, TypedDict
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping
 
 
 class JointRotationInput(TypedDict):
@@ -77,11 +83,13 @@ class JointRotation:
     def validate(self) -> JointRotation:
         """Validate the joint name and bounded Euler angles."""
         if self.bone not in CONTROLLABLE_BONES:
-            raise ValueError(f"unsupported mannequin joint: {self.bone}")
+            msg = f"unsupported mannequin joint: {self.bone}"
+            raise ValueError(msg)
         for axis in ("x", "y", "z"):
             value = float(getattr(self, axis))
             if not -180.0 <= value <= 180.0:
-                raise ValueError(f"{self.bone}.{axis} must be between -180 and 180 degrees")
+                msg = f"{self.bone}.{axis} must be between -180 and 180 degrees"
+                raise ValueError(msg)
         return self
 
     def mirrored(self) -> JointRotation:
@@ -106,7 +114,8 @@ def normalize_joint_rotations(
         elif isinstance(rotation, dict):
             item = JointRotation(**rotation)
         else:
-            raise TypeError("joint rotations must contain JointRotation or mapping values")
+            msg = "joint rotations must contain JointRotation or mapping values"
+            raise TypeError(msg)
         item.validate()
         values[item.bone] = item
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
@@ -142,24 +151,38 @@ def joint_rotations_to_json(
     )
 
 
-def joint_rotations_from_json(payload: str | None) -> tuple[JointRotation, ...]:
-    """Deserialize persistent joint rotations, accepting legacy empty values."""
-    raw = str(payload or "").strip()
-    if not raw:
-        return ()
-    data = json.loads(raw)
-    if isinstance(data, dict) and "joints" in data:
-        if data.get("schema_version", 1) != 1:
-            raise ValueError("unsupported mannequin joint-pose schema version")
-        if data.get("units", "deg") != "deg":
-            raise ValueError("mannequin joint poses must use degrees")
-        data = data["joints"]
+def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
+    """Deserialize the required versioned joint-pose JSON document.
+
+    Args:
+        payload: JSON encoded by joint_rotations_to_json.
+
+    Returns:
+        Validated joint rotations in canonical bone order.
+
+    Raises:
+        ValueError: If the payload is invalid JSON or uses an unsupported schema.
+        TypeError: If the JSON root or joints member has the wrong type.
+    """
+    data = json.loads(payload)
     if not isinstance(data, dict):
-        raise ValueError("mannequin joint pose JSON must contain a joints object")
+        msg = "mannequin joint pose JSON must be an object"
+        raise TypeError(msg)
+    if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
+        msg = "unsupported mannequin joint-pose schema version"
+        raise ValueError(msg)
+    if data.get("units") != "deg":
+        msg = "mannequin joint poses must use degrees"
+        raise ValueError(msg)
+    joints = data.get("joints")
+    if not isinstance(joints, dict):
+        msg = "mannequin joint pose JSON must contain a joints object"
+        raise TypeError(msg)
     rotations = []
-    for bone, values in data.items():
+    for bone, values in joints.items():
         if not isinstance(values, dict):
-            raise ValueError(f"joint pose for {bone} must be an object")
+            msg = f"joint pose for {bone} must be an object"
+            raise TypeError(msg)
         rotations.append(
             JointRotation(
                 str(bone),
@@ -249,11 +272,27 @@ def _matvec(matrix: Matrix, vector: Vector) -> Vector:
     )
 
 
-def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
-    """Return the transform that applies second then first."""
+def compose_transforms(
+    first: AffineTransform,
+    second: AffineTransform,
+) -> AffineTransform:
+    """Return the transform that applies second, then first.
+
+    Args:
+        first: Transform applied after the second transform.
+        second: Transform applied before the first transform.
+
+    Returns:
+        Composition equivalent to applying second and then first.
+    """
     matrix = _matmul(first.matrix, second.matrix)
     translated = first.apply(second.translation)
     return AffineTransform(matrix, translated)
+
+
+def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
+    """Return the transform that applies second then first."""
+    return compose_transforms(first, second)
 
 
 def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Matrix:
@@ -278,7 +317,7 @@ def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
 
 def build_bone_transforms(
     source_vertices: tuple[Vector, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     fit_point: Callable[[Vector], Vector],
     rotations: Iterable[JointRotation],
     rotation_pivots: Mapping[str, Vector] | None = None,
@@ -322,51 +361,60 @@ def build_bone_transforms(
 def apply_weighted_fk(
     source_vertices: tuple[Vector, ...],
     rest_vertices: tuple[Vector, ...],
-    skeleton: dict,
+    skeleton: SkeletonData,
     weights: Mapping[str, tuple[tuple[int, float], ...]],
     fit_point: Callable[[Vector], Vector],
     rotations: Iterable[JointRotation],
     rotation_pivots: Mapping[str, Vector] | None = None,
 ) -> tuple[Vector, ...]:
-    """Apply shared weighted-FK deformation using the same rig pivots."""
+    """Apply weighted FK using NumPy for vertex and skin-weight reductions.
+
+    Bone transforms remain computed by the canonical hierarchy. Each bone's
+    sparse vertex weights are then transformed and accumulated in array batches;
+    unweighted vertices retain their rest coordinates and overfull weights are
+    normalized exactly as in the original contract.
+
+    Args:
+        source_vertices: Source rig coordinates used to build joint transforms.
+        rest_vertices: Fitted undeformed mesh coordinates.
+        skeleton: Canonical source skeleton with joint memberships and parents.
+        weights: Sparse per-bone skin weights as vertex-index/weight pairs.
+        fit_point: Mapping from source coordinates to fitted coordinates.
+        rotations: Authored rotations to apply in the shared forward-kinematics path.
+        rotation_pivots: Optional explicit fitted-space rotation pivots per bone.
+
+    Returns:
+        The deformed vertex coordinates in original vertex-index order.
+    """
     transforms = build_bone_transforms(
         source_vertices, skeleton, fit_point, rotations, rotation_pivots
     )
-    count = len(rest_vertices)
-    accum = [[0.0, 0.0, 0.0] for _ in range(count)]
-    weight_sum = [0.0] * count
+    rest = np.asarray(rest_vertices, dtype=np.float64).reshape((-1, 3))
+    count = len(rest)
+    accumulated = np.zeros((count, 3), dtype=np.float64)
+    total_weights = np.zeros(count, dtype=np.float64)
 
     for bone_name, entries in weights.items():
+        if not entries:
+            continue
+        sparse_entries = np.asarray(entries, dtype=np.float64).reshape((-1, 2))
+        indices = sparse_entries[:, 0].astype(np.intp)
+        values = np.where(sparse_entries[:, 1] > 0.0, sparse_entries[:, 1], 0.0)
+        valid = (indices >= 0) & (indices < count) & (values > 0.0)
+        if not bool(np.any(valid)):
+            continue
+        indices = indices[valid]
+        values = values[valid]
         transform = transforms.get(bone_name, IDENTITY)
-        for index, weight in entries:
-            index = int(index)
-            if not 0 <= index < count:
-                continue
-            value = max(0.0, float(weight))
-            if value <= 0.0:
-                continue
-            px, py, pz = transform.apply(rest_vertices[index])
-            accum[index][0] += value * px
-            accum[index][1] += value * py
-            accum[index][2] += value * pz
-            weight_sum[index] += value
+        matrix = np.asarray(transform.matrix, dtype=np.float64).reshape((3, 3))
+        translation = np.asarray(transform.translation, dtype=np.float64)
+        moved = rest[indices] @ matrix.T + translation
+        np.add.at(accumulated, indices, moved * values[:, None])
+        np.add.at(total_weights, indices, values)
 
-    posed = []
-    for index, point in enumerate(rest_vertices):
-        total = weight_sum[index]
-        if total <= 1e-12:
-            posed.append(tuple(float(v) for v in point))
-            continue
-        if total > 1.0 + 1e-6:
-            scale = 1.0 / total
-            posed.append(tuple(value * scale for value in accum[index]))
-            continue
-        residual = 1.0 - total
-        posed.append(
-            (
-                accum[index][0] + residual * point[0],
-                accum[index][1] + residual * point[1],
-                accum[index][2] + residual * point[2],
-            )
-        )
-    return tuple(posed)
+    posed = rest.copy()
+    normalize = total_weights > 1.0 + 1e-6
+    blend = (total_weights > 1e-12) & ~normalize
+    posed[normalize] = accumulated[normalize] / total_weights[normalize, None]
+    posed[blend] = accumulated[blend] + (1.0 - total_weights[blend, None]) * rest[blend]
+    return tuple((float(point[0]), float(point[1]), float(point[2])) for point in posed)

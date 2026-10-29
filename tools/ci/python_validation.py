@@ -1,14 +1,18 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Run the canonical Python/FreeCAD validation suite inside the CI image."""
 
 from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
-import traceback
 from collections import Counter
 from pathlib import Path
+
+if __package__:
+    from tools.ci.command_runner import CommandContext, run_command
+else:
+    from command_runner import CommandContext, run_command
 
 GROUPS = {
     "core": (
@@ -20,7 +24,7 @@ GROUPS = {
         "tests/test_avatar_visual_sanity.py",
         "tests/test_drape_visual_sanity.py",
         "tests/test_cloth_solver.py",
-        "tests/test_avatar_hip_pose.py",
+        "tests/test_avatar_arm_pose.py",
         "tests/test_avatar_model.py",
         "tests/test_avatar_orientation.py",
         "tests/test_avatar_pose_fidelity.py",
@@ -135,7 +139,11 @@ GROUPS = {
 
 
 def validate_test_routing() -> None:
-    """Fail closed when a pytest module is missing from or duplicated across groups."""
+    """Fail closed when a pytest module is missing from or duplicated across groups.
+
+    Raises:
+        SystemExit: Raised when test modules are stale, missing from all groups, or duplicated.
+    """
     routed = Counter(Path(test).as_posix() for tests in GROUPS.values() for test in tests)
     existing = {path.as_posix() for path in Path("tests").glob("test_*.py")}
     stale = sorted(path for path in routed if not Path(path).is_file())
@@ -150,14 +158,19 @@ def validate_test_routing() -> None:
         errors.append("duplicated pytest modules: " + ", ".join(duplicated))
     if errors:
         raise SystemExit("\n".join(errors))
-    print(
-        f"test-routing=passed modules={len(existing)} groups={len(GROUPS)}",
-        flush=True,
-    )
+    sys.stdout.write(f"test-routing=passed modules={len(existing)} groups={len(GROUPS)}\n")
+    sys.stdout.flush()
 
 
 def main() -> int:
-    """Run the canonical Python validation suite."""
+    """Run the canonical Python validation suite.
+
+    Returns:
+        Process status indicating whether the selected test group passed.
+
+    Raises:
+        SystemExit: Raised when the requested validation group contains missing test files.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("group", choices=sorted(GROUPS))
     cli_args = list(sys.argv[1:])
@@ -181,18 +194,22 @@ def main() -> int:
         "-q",
         *tests,
     ]
-    print(f"running-pytest-group={args.group} tests={len(tests)}", flush=True)
+    sys.stdout.write(f"running-pytest-group={args.group} tests={len(tests)}\n")
+    sys.stdout.flush()
     # Anny-backed geometry tests perform several CPU differentiable body fits.
     # Keep the subprocess bounded while allowing the full core inventory to finish.
-    subprocess.run(command, check=True, timeout=600, env=env)
-    print(f"python-validation={args.group} passed", flush=True)
+    run_command(
+        command,
+        check=True,
+        timeout=600,
+        context=CommandContext(env=env),
+    )
+    sys.stdout.write(f"python-validation={args.group} passed\n")
+    sys.stdout.flush()
     return 0
 
 
-try:
-    status = main()
-except BaseException:
-    print(traceback.format_exc(), flush=True)
-    status = 1
+status = main()
 sys.stdout.flush()
+
 os._exit(status)

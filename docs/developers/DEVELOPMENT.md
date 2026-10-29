@@ -22,7 +22,7 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 The CI toolchain enforces deterministic quality safeguards in addition to the normal lint/test gates:
 
-- Blocking CI runs one Pyright configuration in standard mode across the reviewed headless/core inventory; a top-level `strict` path list opts the three deterministic simulation core modules into strict analysis. A second configuration is prohibited.
+- Blocking CI runs one Pyright configuration in standard mode over the repository root, covering production modules, GUI/command adapters, loaders, tests, fixtures, and tooling. A top-level `strict` path list additionally opts the three deterministic simulation core modules into strict analysis. A second configuration is prohibited.
 - A syntax-aware AST policy gate blocks explicit `Any` references across Python source, including type aliases and variable/class annotations that Ruff ANN401 does not inspect.
 - Vulture runs at 100% confidence across headless production domain surfaces; GUI/command/workbench modules remain excluded because dynamic FreeCAD registration obscures static usage.
 - Hypothesis covers deterministic round-trip properties and state-machine invariants for core models.
@@ -35,18 +35,26 @@ The CI toolchain enforces deterministic quality safeguards in addition to the no
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
 - Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](../agents/AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
 
-These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain outside the strict Pyright set until matching host stubs are available.
+These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces participate in the blocking standard-mode analysis too; only the additional strict-mode tier is limited to the three named core modules.
 
 ## Python quality gates
 
-Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking for the headless/core surface, and Import Linter enforces dependency direction.
+Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; the same configuration is used locally and in CI. Pyright provides type checking across the repository's Python source, tests, loaders, GUI/command modules, and tooling; Import Linter enforces dependency direction.
 
-CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi` file, including loaders, workbenches, production modules, tests, and tooling. The same `pyproject.toml` rule set is used locally and in CI. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs one Pyright profile as a blocking check. The inventory uses standard mode by default, while `DrapeFailureClassifier.py`, `ClothBackend.py`, and `ClothSolver.py` are explicitly listed in the config's `strict` path list. The `ty` gate fails on warning-level diagnostics for the curated three-module core profile, so unresolved type warnings cannot silently pass. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
+CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi` file, including loaders, workbenches, production modules, tests, and tooling. The same `pyproject.toml` rule set is used locally and in CI. Ruff's `ANN401` rule rejects explicit `Any` in function arguments and return annotations. A syntax-aware AST gate additionally rejects references to `typing.Any` and `typing_extensions.Any` throughout repository Python sources, covering aliases and variable/class annotations outside ANN401's scope. CI runs one Pyright profile as a blocking check. The inventory uses standard mode by default, while `DrapeFailureClassifier.py`, `cloth_backend.py`, and `ClothSolver.py` are explicitly listed in the config's `strict` path list. The `ty` gate fails on warning-level diagnostics for the curated three-module core profile, so unresolved type warnings cannot silently pass. Use concrete value types and structural protocols where APIs are known; at genuinely dynamic FreeCAD/Qt/JSON boundaries, use `object` with validation or narrowing rather than unrestricted `Any`. Legacy code must not be exempted by adding broad rule suppressions; use a targeted per-file exception only when a host callback or compatibility surface genuinely cannot satisfy a rule.
 
 ## Documentation contract
 
-Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+The documentation contract covers every tracked Python source and stub, including modules, classes, functions, methods, nested functions, private helpers, and tests. Google-style docstrings are canonical:
 
+- `Args` describes every parameter except the conventional `self`/`cls` receiver, including keyword-only parameters and `*args`/`**kwargs`. Explain units, valid ranges, defaults, mutation, and special cases where relevant.
+- `Returns` describes every non-`None` result; generators use `Yields`. Include matching Python type annotations and explain validity, ordering, ownership, and copy/live-state behavior where relevant.
+- `Raises` describes explicitly raised exception types and the conditions that cause them.
+- Summaries explain purpose and observable behavior instead of repeating the symbol name. Document invariants, persistence, side effects, lifecycle restrictions, and failure/recovery behavior where relevant.
+
+Ruff selects `ALL` rules with preview checks enabled over every tracked `.py` and `.pyi` file. Only codes documented by Ruff as incompatible with its formatter may be globally ignored. A narrow per-file `PLC0415` exception list in `pyproject.toml` documents the modules and standalone FreeCAD acceptance scripts that intentionally defer imports to keep host-dependent modules headless-importable and to avoid command/UI dependency cycles. All other findings must be fixed; inline Ruff suppression comments and legacy-debt baselines remain prohibited. Type annotations are mandatory, explicit `Any` is prohibited, and Pyright/`ty` plus repository AST policies continue to validate separate typing and architecture contracts.
+
+The automated documentation gate checks docstring presence, parameter coverage, return/yield descriptions, explicitly raised exception descriptions, placeholders, and Ruff suppression comments. These mechanical checks do not replace review: confirm that the prose is accurate and consistent with implementation and observable behavior.
 ## Non-negotiable CI contract
 
 There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
@@ -64,6 +72,10 @@ There is no `pull_request_target` broker, privileged runner discovery token, sec
 The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable PR head SHA with persisted checkout credentials disabled.
 
 Do not replace, duplicate, or casually refactor this routing. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
+
+## Tool and test inventories
+
+[Tool inventory](TOOL_INVENTORY.md) records each checked-in tool, AST policy, and validation script with its purpose and usefulness. [Test inventory](TEST_INVENTORY.md) lists every unit/contract test and FreeCAD acceptance script. Update these inventories whenever a tool or test is added, renamed, consolidated, or removed; use them during review to identify obsolete or duplicate coverage.
 
 ## Required verification
 

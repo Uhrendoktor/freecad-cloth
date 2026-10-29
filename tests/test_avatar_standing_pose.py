@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import json
 import unittest
 
@@ -16,32 +17,22 @@ class AvatarStandingPoseTests(unittest.TestCase):
         )
         self.assertEqual(Pose("standing", 12.0, 12.0).left_arm_angle, 12.0)
 
-    def test_schema_one_sentinels_are_migrated_at_load(self):
-        legacy = {
-            "schema_version": 1,
+    def test_unsupported_avatar_schema_versions_are_rejected(self):
+        """Reject obsolete and unknown schemas instead of maintaining a migration path."""
+        template = {
+            "schema_version": 4,
             "units": "mm",
             "measurements": {},
             "skin_offset": 0,
-            "pose": {"preset": "standing", "left_arm_angle": 12, "right_arm_angle": 12},
+            "pose": {"preset": "standing"},
         }
-        migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual(migrated.schema_version, 4)
-        self.assertEqual((migrated.gender, migrated.breast_size), (0.5, 0.0))
-        self.assertEqual(
-            (migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (70.0, 70.0)
-        )
-
-        legacy["pose"]["preset"] = "sewing"
-        migrated = AvatarParameters.from_json(json.dumps(legacy))
-        self.assertEqual(
-            (migrated.pose.left_arm_angle, migrated.pose.right_arm_angle), (55.0, 55.0)
-        )
-
-        legacy_v2 = dict(legacy)
-        legacy_v2["schema_version"] = 2
-        migrated_v2 = AvatarParameters.from_json(json.dumps(legacy_v2))
-        self.assertEqual(migrated_v2.schema_version, 4)
-        self.assertEqual((migrated_v2.gender, migrated_v2.breast_size), (0.5, 0.0))
+        for schema_version in (1, 2, 3, 5):
+            payload = json.dumps({**template, "schema_version": schema_version})
+            with (
+                self.subTest(schema_version=schema_version),
+                self.assertRaisesRegex(ValueError, "unsupported avatar schema version"),
+            ):
+                AvatarParameters.from_json(payload)
 
     def test_generator_and_builder_share_the_same_fk_mesh(self):
         params = AvatarParameters()

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Reusable Qt input simulation and animated UI evidence capture for FreeCAD tests."""
 
 from __future__ import annotations
@@ -7,13 +8,13 @@ import ctypes.util
 import io
 import os
 import time
-from collections.abc import Callable
 from enum import Enum
 from pathlib import Path
-from types import ModuleType, TracebackType
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 if TYPE_CHECKING:
+    from types import ModuleType, TracebackType
+    from collections.abc import Callable
     from PIL.Image import Image as PillowImage
 
 QtInputValue: TypeAlias = int | Enum
@@ -36,12 +37,73 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     return QtCore, QtGui, QtTest, QtWidgets
 
 
+def wait_for_gui_ready(
+    gui: ModuleType,
+    process_events: Callable[[], None],
+    timeout_seconds: float = 15.0,
+) -> object:
+    """Wait until the FreeCAD main window is visible.
+
+    Args:
+        gui: FreeCAD GUI module that owns the main window.
+        process_events: Callback that refreshes FreeCAD and processes pending Qt events.
+        timeout_seconds: Maximum time to wait for a visible main window.
+
+    Returns:
+        The visible FreeCAD main-window object.
+
+    Raises:
+        RuntimeError: If the main window does not become visible before the timeout.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        window = gui.getMainWindow()
+        if window is not None and window.isVisible():
+            window.show()
+            process_events()
+            return window
+        process_events()
+        time.sleep(0.05)
+    msg = f"FreeCAD GUI did not become visible within {timeout_seconds:.1f}s"
+    raise RuntimeError(msg)
+
+
+def wait_for_task_dialog_close(
+    gui: ModuleType,
+    failure_message: str,
+    failure_type: type[Exception] = RuntimeError,
+    poll_count: int = 80,
+) -> None:
+    """Wait for FreeCAD's active task dialog to close while pumping Qt events.
+
+    Args:
+        gui: FreeCAD GUI module whose task dialog is being observed.
+        failure_message: Error text used if the dialog remains open.
+        failure_type: Exception class raised when the dialog does not close.
+        poll_count: Maximum number of event-loop polls before failing.
+
+    Raises:
+        Exception: The configured failure type if the task dialog remains open.
+    """
+    QtCore, _, _, QtWidgets = _qt_modules()
+    for _ in range(poll_count):
+        active = gui.Control.activeDialog()
+        if active is None or not bool(active):
+            return
+        loop = QtCore.QEventLoop()
+        QtCore.QTimer.singleShot(0, loop.quit)
+        loop.exec()
+        QtWidgets.QApplication.processEvents()
+    raise failure_type(failure_message)
+
+
 def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> object:
     """Show and focus the FreeCAD main window before injecting GUI events."""
     _QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
     if window is None:
-        raise RuntimeError("FreeCAD main window is unavailable")
+        msg = "FreeCAD main window is unavailable"
+        raise RuntimeError(msg)
     if size is not None:
         window.resize(int(size[0]), int(size[1]))
     window.show()
@@ -61,7 +123,8 @@ def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
     _QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
     if window is None:
-        raise RuntimeError("FreeCAD main window is unavailable")
+        msg = "FreeCAD main window is unavailable"
+        raise RuntimeError(msg)
     target_width = target_height = 0
     if view is not None:
         try:
@@ -113,7 +176,8 @@ def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
         except (AttributeError, RuntimeError, TypeError, ValueError):
             continue
     if not candidates:
-        raise RuntimeError("could not locate a visible FreeCAD viewport widget")
+        msg = "could not locate a visible FreeCAD viewport widget"
+        raise RuntimeError(msg)
     candidates.sort(key=lambda item: item[0], reverse=True)
     top = candidates[:5]
     print(
@@ -129,10 +193,11 @@ def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
     if target_width and target_height:
         best_delta = abs(top[0][3] - target_width) + abs(top[0][4] - target_height)
         if best_delta > max(100, int((target_width + target_height) * 0.2)):
-            raise RuntimeError(
+            msg = (
                 "selected Qt widget does not match FreeCAD viewport dimensions: "
                 f"widget={top[0][3]}x{top[0][4]} view={target_width}x{target_height}"
             )
+            raise RuntimeError(msg)
     return candidates[0][1]
 
 
@@ -146,9 +211,8 @@ class _NativeXInput:
             self._x11 = ctypes.CDLL(x11_name)
             self._xtst = ctypes.CDLL(xtst_name)
         except OSError as exc:
-            raise RuntimeError(
-                "native viewport input requires libX11 and libXtst in the Xvfb environment"
-            ) from exc
+            msg = "native viewport input requires libX11 and libXtst in the Xvfb environment"
+            raise RuntimeError(msg) from exc
 
         self._x11.XOpenDisplay.argtypes = [ctypes.c_char_p]
         self._x11.XOpenDisplay.restype = ctypes.c_void_p
@@ -157,7 +221,8 @@ class _NativeXInput:
             None if not display_name else display_name.encode("utf-8")
         )
         if not self.display:
-            raise RuntimeError("could not open the current X11 display for GUI input")
+            msg = "could not open the current X11 display for GUI input"
+            raise RuntimeError(msg)
 
         self._x11.XDefaultScreen.argtypes = [ctypes.c_void_p]
         self._x11.XDefaultScreen.restype = ctypes.c_int
@@ -197,13 +262,15 @@ class _NativeXInput:
     def move_global(self, x: int, y: int) -> None:
         """Move the real X11 pointer to global screen coordinates."""
         if not self._xtst.XTestFakeMotionEvent(self.display, self.screen, int(x), int(y), 0):
-            raise RuntimeError("XTest could not inject a mouse-move event")
+            msg = "XTest could not inject a mouse-move event"
+            raise RuntimeError(msg)
         self.sync()
 
     def button(self, number: int, pressed: bool) -> None:
         """Press or release one native X11 mouse button."""
         if not self._xtst.XTestFakeButtonEvent(self.display, int(number), int(bool(pressed)), 0):
-            raise RuntimeError("XTest could not inject a mouse-button event")
+            msg = "XTest could not inject a mouse-button event"
+            raise RuntimeError(msg)
         if pressed:
             self.pressed_buttons.add(int(number))
         else:
@@ -216,7 +283,8 @@ class _NativeXInput:
         if keycode == 0:
             raise RuntimeError("X11 could not resolve keyboard keysym " + hex(keysym))
         if not self._xtst.XTestFakeKeyEvent(self.display, keycode, int(bool(pressed)), 0):
-            raise RuntimeError("XTest could not inject a keyboard modifier event")
+            msg = "XTest could not inject a keyboard modifier event"
+            raise RuntimeError(msg)
         self.sync()
 
 
@@ -314,7 +382,7 @@ def release_all_input() -> None:
 
 def _position(QtCore: ModuleType, position: tuple[float, float]) -> _QtPoint:
     """Convert a numeric viewport point to a Qt integer point."""
-    return cast(_QtPoint, QtCore.QPoint(int(round(position[0])), int(round(position[1]))))
+    return cast("_QtPoint", QtCore.QPoint(int(round(position[0])), int(round(position[1]))))
 
 
 def _button_and_modifiers(
@@ -323,7 +391,7 @@ def _button_and_modifiers(
     """Resolve default Qt mouse button and modifier values across Qt bindings."""
     resolved_button = QtCore.Qt.LeftButton if button is None else button
     resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
-    return cast(QtInputValue, resolved_button), cast(QtInputValue, resolved_modifiers)
+    return cast("QtInputValue", resolved_button), cast("QtInputValue", resolved_modifiers)
 
 
 def mouse_press(
@@ -356,7 +424,8 @@ def mouse_move(
     """Move the real pointer; XTest preserves any button held by the caller."""
     driver = _native_input()
     if buttons_down and 1 not in driver.pressed_buttons:
-        raise RuntimeError("drag move requested without a preceding left-button press")
+        msg = "drag move requested without a preceding left-button press"
+        raise RuntimeError(msg)
     x, y = _global_position(widget, position)
     driver.move_global(x, y)
     _wait_input(max(0, delay_ms))
@@ -409,7 +478,8 @@ def click_widget(
     """Click a visible Qt control through QtTest and move the visible OS cursor there."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
-        raise RuntimeError("cannot click a hidden or disabled UI widget")
+        msg = "cannot click a hidden or disabled UI widget"
+        raise RuntimeError(msg)
     center = widget.rect().center()
     try:
         # QtTest delivers the normal widget event path but does not move the
@@ -437,7 +507,8 @@ def drag_viewport(
 ) -> None:
     """Simulate a real pointer drag with intermediate native motion events."""
     if steps < 1:
-        raise ValueError("a drag must contain at least one movement step")
+        msg = "a drag must contain at least one movement step"
+        raise ValueError(msg)
     mouse_press(widget, start)
     delay = max(1, int(duration_ms / steps))
     for index in range(1, steps + 1):
@@ -486,7 +557,8 @@ def type_text(
     """Type text using Qt keyboard events, optionally replacing the current value."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
-        raise RuntimeError("cannot type into a hidden or disabled UI widget")
+        msg = "cannot type into a hidden or disabled UI widget"
+        raise RuntimeError(msg)
     widget.setFocus()
     if replace_selection and hasattr(widget, "selectAll"):
         widget.selectAll()
@@ -525,7 +597,8 @@ def key_click(
     """Send a keyboard interaction after activating and focusing the target widget."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     if not widget.isVisible() or not widget.isEnabled():
-        raise RuntimeError("cannot send keyboard input to a hidden or disabled widget")
+        msg = "cannot send keyboard input to a hidden or disabled widget"
+        raise RuntimeError(msg)
     resolved_modifiers = QtCore.Qt.NoModifier if modifiers is None else modifiers
     window = widget.window()
     if window is not None:
@@ -590,11 +663,14 @@ def write_gif(
     from PIL import Image
 
     if fps < 1 or fps > 30:
-        raise ValueError("GIF frame rate must be between 1 and 30 FPS")
+        msg = "GIF frame rate must be between 1 and 30 FPS"
+        raise ValueError(msg)
     if not frames:
-        raise ValueError("at least one frame is required to export a GIF")
+        msg = "at least one frame is required to export a GIF"
+        raise ValueError(msg)
     if max_colors < 2 or max_colors > 256:
-        raise ValueError("GIF palette size must be between 2 and 256 colors")
+        msg = "GIF palette size must be between 2 and 256 colors"
+        raise ValueError(msg)
     if len(frames) < 2:
         frames = [frames[0], frames[0].copy()]
     output = Path(path)
@@ -614,7 +690,8 @@ def write_gif(
         disposal=2,
     )
     if not output.is_file() or output.stat().st_size == 0:
-        raise RuntimeError("GIF encoder did not create a non-empty output")
+        msg = "GIF encoder did not create a non-empty output"
+        raise RuntimeError(msg)
     return output
 
 
@@ -632,11 +709,14 @@ class UiGifRecorder:
         show_cursor: bool = True,
     ) -> None:
         if fps < 1 or fps > 30:
-            raise ValueError("GIF frame rate must be between 1 and 30 FPS")
+            msg = "GIF frame rate must be between 1 and 30 FPS"
+            raise ValueError(msg)
         if not 0.2 <= scale <= 1.0:
-            raise ValueError("GIF scale must be between 0.2 and 1.0")
+            msg = "GIF scale must be between 0.2 and 1.0"
+            raise ValueError(msg)
         if max_frames < 2:
-            raise ValueError("at least two GIF frames must be allowed")
+            msg = "at least two GIF frames must be allowed"
+            raise ValueError(msg)
         self.path = Path(path)
         self.gui = gui
         self.window = window
@@ -651,15 +731,18 @@ class UiGifRecorder:
     def start(self) -> None:
         """Begin timer-driven capture of the active FreeCAD main window."""
         if self._started:
-            raise RuntimeError("GIF recorder is already running")
+            msg = "GIF recorder is already running"
+            raise RuntimeError(msg)
         QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
         app = QtWidgets.QApplication.instance()
         if app is None or app.primaryScreen() is None:
-            raise RuntimeError("Qt screen capture is unavailable")
+            msg = "Qt screen capture is unavailable"
+            raise RuntimeError(msg)
         if self.window is None:
             self.window = self.gui.getMainWindow()
         if self.window is None or not self.window.isVisible():
-            raise RuntimeError("FreeCAD main window must be visible before recording")
+            msg = "FreeCAD main window must be visible before recording"
+            raise RuntimeError(msg)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.frames = []
         self._timer = QtCore.QTimer(app)
@@ -679,15 +762,18 @@ class UiGifRecorder:
         app = QtWidgets.QApplication.instance()
         screen = None if app is None else app.primaryScreen()
         if screen is None or self.window is None:
-            raise RuntimeError("FreeCAD main-window screenshot is unavailable")
+            msg = "FreeCAD main-window screenshot is unavailable"
+            raise RuntimeError(msg)
         pixmap = screen.grabWindow(int(self.window.winId()))
         if pixmap.isNull():
-            raise RuntimeError("Qt returned an empty FreeCAD main-window screenshot")
+            msg = "Qt returned an empty FreeCAD main-window screenshot"
+            raise RuntimeError(msg)
         buffer = QtCore.QBuffer()
         buffer.open(QtCore.QIODevice.WriteOnly)
         if not pixmap.save(buffer, "PNG"):
             buffer.close()
-            raise RuntimeError("could not encode a UI frame as PNG")
+            msg = "could not encode a UI frame as PNG"
+            raise RuntimeError(msg)
         payload = bytes(buffer.data())
         buffer.close()
         frame = Image.open(io.BytesIO(payload)).convert("RGB")
@@ -727,7 +813,8 @@ class UiGifRecorder:
     def hold(self, milliseconds: int) -> None:
         """Keep the current visible state on screen long enough to read in the GIF."""
         if not self._started:
-            raise RuntimeError("GIF recorder is not running")
+            msg = "GIF recorder is not running"
+            raise RuntimeError(msg)
         _QtCore, _QtGui, QtTest, _QtWidgets = _qt_modules()
         self.capture()
         QtTest.QTest.qWait(max(0, int(milliseconds)))
@@ -736,7 +823,8 @@ class UiGifRecorder:
     def stop(self) -> Path:
         """Stop recording and persist the animated GIF to its requested path."""
         if not self._started:
-            raise RuntimeError("GIF recorder is not running")
+            msg = "GIF recorder is not running"
+            raise RuntimeError(msg)
         if self._timer is not None:
             self._timer.stop()
         self.capture()

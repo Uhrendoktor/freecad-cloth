@@ -1,13 +1,17 @@
-import sys
-from pathlib import Path
+# Copyright (C) 2026 FreeCAD Cloth contributors
+"""Contract tests for Sketcher-authoritative sewing geometry."""
+
+from dataclasses import dataclass
 from types import SimpleNamespace
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import pytest
+
+from freecad_cloth.pattern.SeamReference import MissingEdgeReference
 from freecad_cloth.sewing.SewingObjects import (
     SewingOperationProxy,
     _edge_length,
     _native_edge,
-    _outline_points,
+    _sample_polyline,
     _seam_correspondence,
     _seam_edge_index,
     _seam_length,
@@ -15,373 +19,264 @@ from freecad_cloth.sewing.SewingObjects import (
 from freecad_cloth.simulation.SimulationObjects import _sample_boundary
 
 
-def _install_fake_freecad():
-    class V:
-        def __init__(self, x, y, z=0):
-            self.x, self.y, self.z = x, y, z
+class _PolylineEdge:
+    """FreeCAD-like edge exposing ordered 2D samples."""
 
-        def __sub__(self, other):
-            return V(self.x - other.x, self.y - other.y, self.z - other.z)
+    def __init__(self, points: tuple[tuple[float, float], ...]) -> None:
+        """Store native edge samples.
 
-        def __add__(self, other):
-            return V(self.x + other.x, self.y + other.y, self.z + other.z)
+        Args:
+            points: Coordinates ordered from the edge's first endpoint to its last.
+        """
+        self.points = points
 
-        def __mul__(self, value):
-            return V(self.x * value, self.y * value, self.z * value)
+    def discretize(self, number: int = 64) -> list[SimpleNamespace]:
+        """Return the authored points in FreeCAD-vector form.
 
-        __rmul__ = __mul__
+        Args:
+            number: Requested sample count; the fixture keeps its authored samples.
 
-    class FakeApp:
-        Vector = V
-
-        class Rotation:
-            def __init__(self, *args):
-                pass
-
-        class Placement:
-            def __init__(self, *args):
-                pass
-
-    return FakeApp
+        Returns:
+            Objects exposing x, y and z coordinates.
+        """
+        return [SimpleNamespace(x=x, y=y, z=0.0) for x, y in self.points]
 
 
-def test_rectangular_seam_lengths():
-    p = SimpleNamespace(Width=100.0, Height=60.0)
-    s = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=1, StartB=0, EndB=0.5)
-    assert _edge_length(p, 0) == 100
-    assert _edge_length(p, 1) == 60
-    assert _seam_length(p, s, "A") == 100
-    assert _seam_length(p, s, "B") == 30
+class _Geometry:
+    """Sketch.Geometry item that returns a native shape edge."""
+
+    def __init__(self, edge: _PolylineEdge) -> None:
+        """Associate a native edge with one sketch geometry index.
+
+        Args:
+            edge: Edge represented by this native geometry item.
+        """
+        self.edge = edge
+
+    def toShape(self) -> _PolylineEdge:
+        """Return the shape represented by this sketch geometry item."""
+        return self.edge
 
 
-def test_polygon_seam_length_uses_stored_outline():
-    p = SimpleNamespace(
-        Width=999.0, Height=999.0, SewingOutline=repr([(0, 0), (40, 0), (40, 20), (0, 30)])
+class _Vector:
+    """Small vector stand-in for the FreeCAD Vector constructor."""
+
+    def __init__(self, x: float, y: float, z: float = 0.0) -> None:
+        """Store vector coordinates.
+
+        Args:
+            x: X coordinate.
+            y: Y coordinate.
+            z: Z coordinate.
+        """
+        self.x, self.y, self.z = x, y, z
+
+
+class _Rotation:
+    """Stand-in for a FreeCAD Rotation object."""
+
+    def __init__(self, *_args: object) -> None:
+        """Accept the axis and angle used by the sewing placement code.
+
+        Args:
+            _args: Rotation axis and angle passed by FreeCAD-facing code.
+        """
+
+
+class _Placement:
+    """Stand-in for a FreeCAD Placement object."""
+
+    def __init__(self, *_args: object) -> None:
+        """Accept the translation and rotation used by sewing alignment.
+
+        Args:
+            _args: Translation and rotation passed by FreeCAD-facing code.
+        """
+
+
+@dataclass(frozen=True)
+class _ProxyOptions:
+    """Inputs controlling a sewing-proxy contract fixture."""
+
+    width_a: float = 100.0
+    width_b: float = 100.0
+    start_a: float = 0.0
+    end_a: float = 1.0
+    start_b: float = 0.0
+    end_b: float = 1.0
+    reversed_b: bool = False
+    tolerance: float = 0.5
+    relative_tolerance: float = 0.05
+
+
+def _fake_freecad() -> SimpleNamespace:
+    """Build the minimal FreeCAD constructor surface needed by sewing tests.
+
+    Returns:
+        Namespace exposing Vector, Rotation and Placement constructors.
+    """
+    return SimpleNamespace(Vector=_Vector, Rotation=_Rotation, Placement=_Placement)
+
+
+def _piece(
+    piece_id: str,
+    edges: tuple[_PolylineEdge, ...],
+    placement: object | None = None,
+) -> SimpleNamespace:
+    """Build a Sketcher-authoritative pattern piece.
+
+    Args:
+        piece_id: Stable pattern-piece ID.
+        edges: Native edges in Sketch.Geometry index order.
+        placement: Optional native placement attached to the piece.
+
+    Returns:
+        Document-like pattern piece with linked sketch and semantic edge IDs.
+    """
+    edge_ids = tuple(f"{piece_id}:edge:{index}" for index in range(len(edges)))
+    native_edges = tuple(edges)
+    sketch = SimpleNamespace(
+        Geometry=tuple(_Geometry(edge) for edge in native_edges),
+        SemanticEdgeIds=edge_ids,
+        Shape=SimpleNamespace(Edges=native_edges),
     )
-    assert _outline_points(p) == [(0.0, 0.0), (40.0, 0.0), (40.0, 20.0), (0.0, 30.0)]
-    assert abs(_edge_length(p, 2) - (1700.0**0.5)) < 1e-9
-
-
-def test_sketcher_authority_prefers_geometry_index_over_shape_edges():
-    authoritative = object()
-    legacy = object()
-
-    class Geometry:
-        def toShape(self):
-            return authoritative
-
-    piece = SimpleNamespace(
+    return SimpleNamespace(
+        PieceId=piece_id,
         GeometryAuthority="Sketcher",
-        Sketch=SimpleNamespace(
-            Geometry=[Geometry()],
-            Shape=SimpleNamespace(Edges=[legacy]),
-        ),
-        Shape=SimpleNamespace(Edges=[legacy, object(), object(), object()]),
-        SewingOutline=repr([(0, 0), (1, 0), (1, 1), (0, 1)]),
-    )
-    assert _native_edge(piece, 0) is authoritative
-
-
-def test_sketcher_authority_matches_semantic_edge_endpoints():
-    class Point:
-        def __init__(self, x, y):
-            self.x = x
-            self.y = y
-
-    class Vertex:
-        def __init__(self, x, y):
-            self.Point = Point(x, y)
-
-    class Edge:
-        def __init__(self, start, end):
-            self.Vertexes = (Vertex(*start), Vertex(*end))
-
-    wrong = Edge((0, 0), (100, 0))
-    right = Edge((80, 50), (0, 50))
-    piece = SimpleNamespace(
-        GeometryAuthority="Sketcher",
-        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[wrong, right])),
-        Shape=SimpleNamespace(Edges=[wrong, right]),
-        SewingOutline=repr([(0, 0), (100, 0), (100, 50), (0, 50)]),
+        Sketch=sketch,
+        Shape=SimpleNamespace(Edges=native_edges),
+        Placement=placement,
     )
 
-    def record_for_edge(
-        _obj: object, _edge: object
-    ) -> dict[str, tuple[tuple[float, float], tuple[float, float]]]:
-        return {"points": ((80.0, 50.0), (0.0, 50.0))}
 
-    assert _native_edge(piece, 2, native_edge_record_fn=record_for_edge) is right
+def _seam(
+    piece_a: SimpleNamespace,
+    piece_b: SimpleNamespace,
+    *,
+    edge_a: int = 0,
+    edge_b: int = 0,
+    start_a: float = 0.0,
+    end_a: float = 1.0,
+    start_b: float = 0.0,
+    end_b: float = 1.0,
+    reversed_b: bool = False,
+) -> SimpleNamespace:
+    """Build a seam with stable semantic IDs and geometry signatures.
 
+    Args:
+        piece_a: Pattern piece supplying side A.
+        piece_b: Pattern piece supplying side B.
+        edge_a: Native Sketch.Geometry index on side A.
+        edge_b: Native Sketch.Geometry index on side B.
+        start_a: Normalized start fraction for side A.
+        end_a: Normalized end fraction for side A.
+        start_b: Normalized start fraction for side B.
+        end_b: Normalized end fraction for side B.
+        reversed_b: Whether side B should be traversed in reverse.
 
-def test_native_seam_id_resolves_through_sketch_geometry_not_pattern_ir_ordinal():
-    # PatternIR's cycle ordering can place native edge 7 at IR ordinal 1.
-    # The drawing adapter must translate the semantic ID back to Sketch.Geometry[7].
-    semantic_ids = tuple(f"native-edge-{index}" for index in range(8))
-    piece = SimpleNamespace(
-        GeometryAuthority="Sketcher",
-        Sketch=SimpleNamespace(SemanticEdgeIds=semantic_ids),
-    )
-    seam = SimpleNamespace(EdgeAId="native-edge-7", EdgeASignature="signature", EdgeA=1)
-
-    def resolve_edge(_obj: object, edge_id: str, _signature: str) -> dict[str, str | int]:
-        return {"id": edge_id, "ordinal": 1}
-
-    assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 7
-
-
-def test_legacy_seam_id_keeps_legacy_boundary_ordinal():
-    piece = SimpleNamespace(GeometryAuthority="Legacy")
-    seam = SimpleNamespace(EdgeAId="legacy-edge-3", EdgeASignature="signature", EdgeA=3)
-
-    def resolve_edge(_obj: object, edge_id: str, _signature: str) -> dict[str, str | int]:
-        return {"id": edge_id, "ordinal": 3}
-
-    assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolve_edge) == 3
-
-
-def test_sketcher_authority_falls_back_to_sketch_shape_edges():
-    authoritative = object()
-    legacy = object()
-    piece = SimpleNamespace(
-        GeometryAuthority="Sketcher",
-        Sketch=SimpleNamespace(Shape=SimpleNamespace(Edges=[authoritative])),
-        Shape=SimpleNamespace(Edges=[legacy]),
-        SewingOutline=repr([(0, 0), (1, 0)]),
-    )
-    assert _native_edge(piece, 0) is authoritative
-
-
-def test_curved_native_edge_uses_arc_length_sampling():
-    class Edge:
-        def discretize(self, Number=64):
-            return [SimpleNamespace(x=0, y=0), SimpleNamespace(x=2, y=2), SimpleNamespace(x=4, y=0)]
-
-    shape = SimpleNamespace(Edges=[Edge(), Edge(), Edge()])
-    p = SimpleNamespace(
-        Width=4.0, Height=2.0, SewingOutline=repr([(0, 0), (4, 0), (4, 2)]), Shape=shape
-    )
-    assert abs(_edge_length(p, 0) - (8.0**0.5 * 2.0)) < 1e-9
-
-
-def test_uniform_alignment_follows_curved_edge():
-    class Edge:
-        def __init__(self, values):
-            self.values = values
-
-        def discretize(self, Number=64):
-            return [SimpleNamespace(x=x, y=y) for x, y in self.values]
-
-    curved = [(0, 0), (2, 2), (4, 0)]
-    straight = [(0, 0), (4, 0)]
-    a = SimpleNamespace(
-        Width=4,
-        Height=2,
-        SewingOutline=repr([(0, 0), (4, 0), (4, 2)]),
-        Shape=SimpleNamespace(Edges=[Edge(curved), Edge(straight), Edge(straight)]),
-    )
-    b = SimpleNamespace(
-        Width=4,
-        Height=2,
-        SewingOutline=repr([(0, 0), (4, 0), (4, 2)]),
-        Shape=SimpleNamespace(Edges=[Edge(straight), Edge(straight), Edge(straight)]),
-    )
-    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=False)
-    vector_factory = _install_fake_freecad()().Vector
-    endpoint_pairs = _seam_correspondence(a, b, seam, 3, "endpoints", vector_factory=vector_factory)
-    uniform_pairs = _seam_correspondence(a, b, seam, 3, "uniform", vector_factory=vector_factory)
-    assert endpoint_pairs[1][0].y > 0
-    assert endpoint_pairs[1][0].x == uniform_pairs[1][0].x
-    assert endpoint_pairs[1][0].y == uniform_pairs[1][0].y
-    assert endpoint_pairs[1][1].x == uniform_pairs[1][1].x
-    assert endpoint_pairs[1][1].y == uniform_pairs[1][1].y
-
-
-def test_reversed_correspondence_is_applied_once():
-    p = SimpleNamespace(
-        Width=100, Height=60, SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)])
-    )
-    seam = SimpleNamespace(
-        EdgeA=0, StartA=0.2, EndA=0.8, EdgeB=0, StartB=0.2, EndB=0.8, ReversedB=True
-    )
-    pairs = _seam_correspondence(
-        p, p, seam, 3, "endpoints", vector_factory=_install_fake_freecad()().Vector
-    )
-    assert pairs[0][1].x == 80
-    assert pairs[-1][1].x == 20
-
-
-def test_boundary_sampling_honors_normalized_range():
-    values = (10, 11, 12, 13, 14)
-    assert _sample_boundary(values, 0.0, 1.0, 5) == [10, 11, 12, 13, 14]
-    assert _sample_boundary(values, 0.25, 0.75, 3) == [11, 12, 13]
-
-
-def test_proxy_validation_and_reversal():
-    class V:
-        def __init__(self, x, y, z=0):
-            self.x, self.y, self.z = x, y, z
-
-        def __sub__(self, other):
-            return V(self.x - other.x, self.y - other.y, self.z - other.z)
-
-        def __add__(self, other):
-            return V(self.x + other.x, self.y + other.y, self.z + other.z)
-
-        def __mul__(self, value):
-            return V(self.x * value, self.y * value, self.z * value)
-
-        __rmul__ = __mul__
-
-    class Placement:
-        def multVec(self, value):
-            return value
-
-    class Shape:
-        pass
-
-    class FakeApp:
-        Vector = V
-
-        class Rotation:
-            def __init__(self, *args):
-                pass
-
-        class Placement:
-            def __init__(self, *args):
-                pass
-
-    fake_app = FakeApp()
-    fake_part = SimpleNamespace(
-        Shape=Shape,
-        makePolygon=lambda x: tuple(x),
-        makeLine=lambda a, b: (a, b),
-        makeCompound=lambda x: tuple(x),
-    )
-    seam = SimpleNamespace(EdgeA=0, StartA=0, EndA=1, EdgeB=0, StartB=0, EndB=1, ReversedB=True)
-    a = SimpleNamespace(
-        Width=100,
-        Height=60,
-        SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
-        Placement=Placement(),
-    )
-    b = SimpleNamespace(
-        Width=100,
-        Height=60,
-        SewingOutline=repr([(0, 0), (100, 0), (100, 60), (0, 60)]),
-        Placement=Placement(),
-    )
-    obj = SimpleNamespace(
-        Seam=seam,
-        PieceA=a,
-        PieceB=b,
-        Tolerance=0.5,
-        Stitches=8,
-        Alignment="endpoints",
-        Status="Incomplete",
-        LengthA=0,
-        LengthB=0,
-        LengthDifference=0,
-        StitchCount=0,
-        StitchPoints=[],
-        Shape=None,
-        ReversedB=False,
-        AssemblyPlacementB=None,
-    )
-    SewingOperationProxy().execute(
-        obj, app_module=fake_app, part_module=fake_part, vector_factory=fake_app.Vector
-    )
-    assert obj.Status == "Valid"
-    assert obj.StitchCount == 8
-    assert len(obj.StitchPoints) == 8
-    assert obj.ReversedB is True
-    assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
-
-
-def _execute_fake_proxy(
-    width_a=100.0,
-    width_b=100.0,
-    start_a=0.0,
-    end_a=1.0,
-    start_b=0.0,
-    end_b=1.0,
-    reversed_b=False,
-    tolerance=0.5,
-    relative_tolerance=0.05,
-):
-    class V:
-        def __init__(self, x, y, z=0):
-            self.x, self.y, self.z = x, y, z
-
-        def __sub__(self, other):
-            return V(self.x - other.x, self.y - other.y, self.z - other.z)
-
-        def __add__(self, other):
-            return V(self.x + other.x, self.y + other.y, self.z + other.z)
-
-        def __mul__(self, value):
-            return V(self.x * value, self.y * value, self.z * value)
-
-        __rmul__ = __mul__
-
-    class Placement:
-        def multVec(self, value):
-            return value
-
-    class Shape:
-        pass
-
-    class FakeApp:
-        Vector = V
-
-        class Rotation:
-            def __init__(self, *args):
-                pass
-
-        class Placement:
-            def __init__(self, *args):
-                pass
-
-    fake_app = FakeApp()
-    fake_part = SimpleNamespace(
-        Shape=Shape,
-        makePolygon=lambda x: tuple(x),
-        makeLine=lambda a, b: (a, b),
-        makeCompound=lambda x: tuple(x),
-    )
-    seam = SimpleNamespace(
-        EdgeA=0,
+    Returns:
+        Seam-like object containing the required native edge references.
+    """
+    return SimpleNamespace(
+        SeamId="seam-test",
+        Status="Valid",
+        EdgeA=edge_a,
+        EdgeAId=piece_a.Sketch.SemanticEdgeIds[edge_a],
+        EdgeASignature="native-v1:side-a",
         StartA=start_a,
         EndA=end_a,
-        EdgeB=0,
+        EdgeB=edge_b,
+        EdgeBId=piece_b.Sketch.SemanticEdgeIds[edge_b],
+        EdgeBSignature="native-v1:side-b",
         StartB=start_b,
         EndB=end_b,
         ReversedB=reversed_b,
+        Alignment="endpoints",
+        StitchGroup="test-group",
     )
-    a = SimpleNamespace(
-        Width=width_a,
-        Height=60,
-        SewingOutline=repr([(0, 0), (width_a, 0), (width_a, 60), (0, 60)]),
-        Placement=Placement(),
+
+
+def _resolve_native_edge(
+    piece: SimpleNamespace,
+    edge_id: str,
+    signature: str,
+) -> dict[str, str | int]:
+    """Resolve a test seam only when its semantic ID and signature are present.
+
+    Args:
+        piece: Pattern piece associated with this seam side.
+        edge_id: Requested semantic edge identity.
+        signature: Persisted native geometry signature.
+
+    Returns:
+        A record containing the exact semantic ID and an intentionally unrelated ordinal.
+
+    Raises:
+        MissingEdgeReference: If the semantic identity or signature is absent.
+    """
+    if edge_id not in piece.Sketch.SemanticEdgeIds or not signature:
+        raise MissingEdgeReference("semantic seam edge reference is missing")
+    return {"id": edge_id, "ordinal": 0}
+
+
+def _execute_fake_proxy(options: _ProxyOptions | None = None) -> SimpleNamespace:
+    """Run the production sewing proxy using native edge doubles.
+
+    Args:
+        options: Edge lengths, normalized ranges, reversal and mismatch tolerances.
+
+    Returns:
+        Sewing operation object populated by the production proxy.
+    """
+    settings = _ProxyOptions() if options is None else options
+    piece_a = _piece(
+        "front",
+        (
+            _PolylineEdge(
+                ((0.0, 0.0), (settings.width_a, 0.0)),
+            ),
+        ),
     )
-    b = SimpleNamespace(
-        Width=width_b,
-        Height=60,
-        SewingOutline=repr([(0, 0), (width_b, 0), (width_b, 60), (0, 60)]),
-        Placement=Placement(),
+    piece_b = _piece(
+        "back",
+        (
+            _PolylineEdge(
+                ((0.0, 0.0), (settings.width_b, 0.0)),
+            ),
+        ),
+    )
+    seam = _seam(
+        piece_a,
+        piece_b,
+        start_a=settings.start_a,
+        end_a=settings.end_a,
+        start_b=settings.start_b,
+        end_b=settings.end_b,
+        reversed_b=settings.reversed_b,
+    )
+
+    class _EmptyShape:
+        """Shape placeholder used when the proxy creates its visual compound."""
+
+    fake_part = SimpleNamespace(
+        Shape=_EmptyShape,
+        makePolygon=lambda values: tuple(values),
+        makeLine=lambda start, end: (start, end),
+        makeCompound=lambda values: tuple(values),
     )
     obj = SimpleNamespace(
         Seam=seam,
-        PieceA=a,
-        PieceB=b,
-        Tolerance=tolerance,
-        RelativeTolerance=relative_tolerance,
+        PieceA=piece_a,
+        PieceB=piece_b,
+        Tolerance=settings.tolerance,
+        RelativeTolerance=settings.relative_tolerance,
         Stitches=4,
         Alignment="endpoints",
         Status="Incomplete",
         CorrespondenceStatus="valid",
-        LengthA=0,
-        LengthB=0,
-        LengthDifference=0,
+        LengthA=0.0,
+        LengthB=0.0,
+        LengthDifference=0.0,
         StitchCount=0,
         StitchPoints=[],
         Shape=None,
@@ -389,44 +284,150 @@ def _execute_fake_proxy(
         AssemblyPlacementB=None,
     )
     SewingOperationProxy().execute(
-        obj, app_module=fake_app, part_module=fake_part, vector_factory=fake_app.Vector
+        obj,
+        app_module=_fake_freecad(),
+        part_module=fake_part,
+        vector_factory=_Vector,
+        resolve_document_edge_fn=_resolve_native_edge,
     )
     return obj
 
 
-def test_proxy_reports_symmetric_relative_mismatch():
-    forward = _execute_fake_proxy(width_a=100.0, width_b=120.0)
-    reverse = _execute_fake_proxy(width_a=120.0, width_b=100.0)
+def test_native_edge_uses_sketch_geometry_index() -> None:
+    """Resolve the edge from Sketch.Geometry, not a cached piece shape."""
+    authoritative = _PolylineEdge(((0.0, 0.0), (1.0, 0.0)))
+    piece = _piece("front", (authoritative,))
+    piece.Shape = SimpleNamespace(Edges=(object(), object()))
+    assert _native_edge(piece, 0) is authoritative
+
+
+def test_missing_native_sketch_authority_fails_closed() -> None:
+    """Reject pieces whose only geometry comes from cached outline or dimensions."""
+    piece = SimpleNamespace(PieceId="front", SewingOutline="[(0, 0), (1, 0), (1, 1)]")
+    with pytest.raises(MissingEdgeReference, match="no native Sketcher authority"):
+        _native_edge(piece, 0)
+
+
+def test_native_shape_matching_uses_endpoints_not_shape_ordinal() -> None:
+    """Match a native shape edge through its provenance endpoints, not its index."""
+    wrong = SimpleNamespace(
+        Vertexes=(
+            SimpleNamespace(Point=SimpleNamespace(x=0.0, y=0.0)),
+            SimpleNamespace(Point=SimpleNamespace(x=10.0, y=0.0)),
+        )
+    )
+    expected = SimpleNamespace(
+        Vertexes=(
+            SimpleNamespace(Point=SimpleNamespace(x=0.0, y=5.0)),
+            SimpleNamespace(Point=SimpleNamespace(x=10.0, y=5.0)),
+        )
+    )
+    piece = _piece("front", (_PolylineEdge(((0.0, 0.0), (10.0, 0.0))),))
+    piece.Sketch.Geometry = (object(),)
+    piece.Sketch.Shape = SimpleNamespace(Edges=(wrong, expected))
+    resolved = _native_edge(
+        piece,
+        0,
+        native_edge_record_fn=lambda _piece, _index: {"points": ((0.0, 5.0), (10.0, 5.0))},
+    )
+    assert resolved is expected
+
+
+def test_native_shape_matching_requires_unambiguous_provenance() -> None:
+    """Reject a sketch shape edge when provenance cannot identify one exact match."""
+    piece = _piece("front", (_PolylineEdge(((0.0, 0.0), (1.0, 0.0))),))
+    piece.Sketch.Geometry = (object(),)
+    piece.Sketch.Shape = SimpleNamespace(Edges=(_PolylineEdge(((10.0, 0.0), (11.0, 0.0))),))
+    with pytest.raises(MissingEdgeReference, match="authoritative endpoint pair"):
+        _native_edge(piece, 0, native_edge_record_fn=lambda _piece, _index: None)
+
+
+def test_semantic_seam_id_maps_to_native_index_not_ir_ordinal() -> None:
+    """Resolve a semantic ID through Sketch.SemanticEdgeIds, ignoring IR ordinals."""
+    edges = tuple(_PolylineEdge(((float(i), 0.0), (float(i + 1), 0.0))) for i in range(8))
+    piece = _piece("front", edges)
+    seam = SimpleNamespace(
+        SeamId="semantic-index",
+        EdgeAId="front:edge:7",
+        EdgeASignature="native-v1:signature",
+    )
+    resolver = lambda _piece, edge_id, _signature: {"id": edge_id, "ordinal": 1}
+    assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolver) == 7
+
+
+def test_integer_only_seam_reference_is_rejected() -> None:
+    """Reject obsolete seams that lack semantic edge IDs and signatures."""
+    piece = _piece("front", (_PolylineEdge(((0.0, 0.0), (1.0, 0.0))),))
+    with pytest.raises(MissingEdgeReference, match="semantic edge reference"):
+        _seam_edge_index(piece, SimpleNamespace(SeamId="old-seam", EdgeA=0), "A")
+
+
+def test_native_curve_length_uses_vectorized_segment_norms() -> None:
+    """Compute curved-edge length from native discretization samples."""
+    curve = _PolylineEdge(((0.0, 0.0), (2.0, 2.0), (4.0, 0.0)))
+    piece = _piece("curved", (curve,))
+    assert abs(_edge_length(piece, 0) - (8.0**0.5 * 2.0)) < 1e-9
+
+
+def test_polyline_sampler_uses_normalized_arc_length() -> None:
+    """Sample at half of the native curve's total arc length."""
+    assert _sample_polyline(((0.0, 0.0), (2.0, 2.0), (4.0, 0.0)), 0.5) == (2.0, 2.0)
+
+
+def test_seam_length_uses_selected_native_edge_range() -> None:
+    """Compute seam length from its normalized range on a native edge."""
+    piece_a = _piece("front", (_PolylineEdge(((0.0, 0.0), (100.0, 0.0))),))
+    piece_b = _piece("back", (_PolylineEdge(((0.0, 0.0), (60.0, 0.0))),))
+    seam = _seam(piece_a, piece_b, end_b=0.5)
+    assert _seam_length(piece_a, seam, "A", resolve_document_edge_fn=_resolve_native_edge) == 100.0
+    assert _seam_length(piece_b, seam, "B", resolve_document_edge_fn=_resolve_native_edge) == 30.0
+
+
+def test_correspondence_reverses_side_b_once() -> None:
+    """Reverse B's samples once after both sides have been sampled in native order."""
+    edge = _PolylineEdge(((0.0, 0.0), (100.0, 0.0)))
+    piece = _piece("front", (edge,))
+    seam = _seam(piece, piece, start_a=0.2, end_a=0.8, start_b=0.2, end_b=0.8, reversed_b=True)
+    pairs = _seam_correspondence(
+        piece,
+        piece,
+        seam,
+        3,
+        "endpoints",
+        vector_factory=_Vector,
+        resolve_document_edge_fn=_resolve_native_edge,
+    )
+    assert pairs[0][1].x == 80.0
+    assert pairs[-1][1].x == 20.0
+
+
+def test_boundary_sampling_honors_normalized_range() -> None:
+    """Retain only samples inside the requested normalized boundary interval."""
+    assert _sample_boundary((10, 11, 12, 13, 14), 0.0, 1.0, 5) == [10, 11, 12, 13, 14]
+    assert _sample_boundary((10, 11, 12, 13, 14), 0.25, 0.75, 3) == [11, 12, 13]
+
+
+def test_proxy_validates_reversed_native_seam_correspondence() -> None:
+    """Run the real proxy and verify its generated stitch correspondence."""
+    obj = _execute_fake_proxy(_ProxyOptions(reversed_b=True))
+    assert obj.Status == "Valid"
+    assert obj.StitchCount == 4
+    assert len(obj.StitchPoints) == 4
+    assert obj.ReversedB is True
+    assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
+
+
+def test_proxy_reports_relative_length_mismatch_symmetrically() -> None:
+    """Reject seam mismatch regardless of which side is longer."""
+    forward = _execute_fake_proxy(_ProxyOptions(width_a=100.0, width_b=120.0))
+    reverse = _execute_fake_proxy(_ProxyOptions(width_a=120.0, width_b=100.0))
     assert forward.CorrespondenceStatus == "length_mismatch"
     assert reverse.CorrespondenceStatus == "length_mismatch"
 
 
-def test_proxy_reports_relative_mismatch_for_subrange():
-    obj = _execute_fake_proxy(width_a=100.0, width_b=100.0, start_b=0.0, end_b=0.5)
+def test_proxy_reports_mismatch_for_selected_subrange() -> None:
+    """Compare lengths over the selected normalized interval, not the whole edge."""
+    obj = _execute_fake_proxy(_ProxyOptions(start_b=0.0, end_b=0.5))
     assert obj.LengthA == 100.0
     assert obj.LengthB == 50.0
     assert obj.CorrespondenceStatus == "length_mismatch"
-
-
-def test_proxy_reversed_correspondence_is_valid_and_usable():
-    obj = _execute_fake_proxy(reversed_b=True)
-    assert obj.CorrespondenceStatus == "reversed"
-    assert obj.Status == "Valid"
-    assert obj.StitchPoints[0].split("|")[1].startswith("100.000000")
-
-
-def test_proxy_status_uses_shared_relative_mismatch_contract():
-    obj = _execute_fake_proxy(width_a=1.0, width_b=1.06, tolerance=50.0, relative_tolerance=0.05)
-    assert obj.Status == "Length mismatch"
-    assert obj.CorrespondenceStatus == "length_mismatch"
-
-
-if __name__ == "__main__":
-    test_rectangular_seam_lengths()
-    test_polygon_seam_length_uses_stored_outline()
-    test_curved_native_edge_uses_arc_length_sampling()
-    test_uniform_alignment_follows_curved_edge()
-    test_reversed_correspondence_is_applied_once()
-    test_boundary_sampling_honors_normalized_range()
-    test_proxy_validation_and_reversal()
-    print("sewing tests passed")
