@@ -64,6 +64,7 @@ METRICS = str(pathlib.Path(OUT) / "drape-visual-metrics.json")
 SCREENSHOT_WIDTH_PX = 1280
 SCREENSHOT_HEIGHT_PX = 720
 SCREENSHOT_SIZE_PX = (SCREENSHOT_WIDTH_PX, SCREENSHOT_HEIGHT_PX)
+TRIANGLE_VERTEX_COUNT = 3
 MIN_WINDOW_SCREENSHOT_BYTES = 20_000
 MIN_VIEW_SCREENSHOT_BYTES = 5_000
 TUNIC_PRODUCTION_AUDIT = os.environ.get("CLOTH_TUNIC_AUDIT_PROFILE") == "production"
@@ -500,17 +501,48 @@ def run_canonical_acceptance() -> None:
         log(marker + "=passed")
 
 
-def _mesh_geometry(mesh):
+def _mesh_geometry(
+    mesh: object,
+) -> tuple[
+    tuple[tuple[float, float, float], ...],
+    tuple[tuple[int, int, int], ...],
+]:
+    """Read three-dimensional vertices and triangular faces from a native mesh.
+
+    Args:
+        mesh: FreeCAD mesh-like object whose Topology exposes vertices and faces.
+
+    Returns:
+        Vertices and exact three-index triangles in native topology order.
+        A mesh without topology produces two empty tuples.
+
+    Raises:
+        ValueError: If a reported face does not contain exactly three indices.
+    """
     topology = getattr(mesh, "Topology", None)
     if topology is None:
         return (), ()
     vertices, triangles = topology
-    points = tuple((float(p.x), float(p.y), float(p.z)) for p in vertices)
-    faces = tuple(tuple(int(index) for index in triangle) for triangle in triangles)
-    return points, faces
+    points = tuple((float(point.x), float(point.y), float(point.z)) for point in vertices)
+    faces: list[tuple[int, int, int]] = []
+    for triangle in triangles:
+        indices = tuple(int(index) for index in triangle)
+        if len(indices) != TRIANGLE_VERTEX_COUNT:
+            msg = "FreeCAD mesh topology contains a non-triangular face"
+            raise ValueError(msg)
+        faces.append((indices[0], indices[1], indices[2]))
+    return points, tuple(faces)
 
 
-def _mesh_points(mesh):
+def _mesh_points(mesh: object) -> tuple[tuple[float, float, float], ...]:
+    """Return the ordered three-dimensional vertex coordinates of a native mesh.
+
+    Args:
+        mesh: FreeCAD mesh-like object whose Topology exposes vertex coordinates.
+
+    Returns:
+        Vertices in the same order as the native mesh topology.
+    """
     return _mesh_geometry(mesh)[0]
 
 
@@ -540,18 +572,42 @@ def _camera_snapshot(view):
     }
 
 
-def _seam_lateral_snapshot(proxy, center_x):
-    """Measure world-X placement of every semantic seam from its exact solver pairs."""
-    backend = getattr(proxy, "backend", None)
+def _seam_lateral_snapshot(
+    proxy: _SimulationProxy,
+    center_x: float,
+) -> dict[str, dict[str, float | int]]:
+    """Measure each semantic seam's world-X offsets from exact solver pair data.
+
+    Args:
+        proxy: Active simulation proxy with backend positions and stitch-pair provenance.
+        center_x: World-X reference coordinate subtracted from each seam sample.
+
+    Returns:
+        Per-seam mean, minimum, and maximum X offsets, sample counts, and sign counts.
+
+    Raises:
+        RuntimeError: If exact seam pair provenance or a solver position reader is missing.
+    """
+    backend = proxy.backend
     reader = getattr(backend, "positions", None)
-    pairs_by_seam = getattr(proxy, "seam_stitch_pairs", {})
+    pairs_by_seam = proxy.seam_stitch_pairs
     if not callable(reader) or not pairs_by_seam:
         msg = "seam lateral diagnostic requires solver position and pair provenance"
         raise RuntimeError(msg)
     positions = tuple(reader())
 
-    def x_value(point):
-        return float(point.x) if hasattr(point, "x") else float(point[0])
+    def x_value(point: object) -> float:
+        """Read one world-X coordinate from a FreeCAD vector or coordinate tuple.
+
+        Args:
+            point: Native vector-like or indexed coordinate value.
+
+        Returns:
+            The X coordinate converted to a Python float.
+        """
+        return float(cast("_Vector3", point).x) if hasattr(point, "x") else float(
+            cast("Sequence[float]", point)[0]
+        )
 
     snapshot = {}
     for seam_id, pairs in sorted(pairs_by_seam.items()):
@@ -598,7 +654,25 @@ def _post_drape_seam_gap(stitch_pairs, positions):
     return maximum
 
 
-def _seam_coherence(panels, seam_records, proxy=None):
+def _seam_coherence(
+    _panels: Sequence[_DrapePanel],
+    seam_records: Sequence[tuple[object, _PatternPiece, _PatternPiece]],
+    proxy: _SimulationProxy | None = None,
+) -> dict[str, object]:
+    """Summarize seam gaps using the exact particle pairs passed to the solver.
+
+    Args:
+        _panels: Current evaluated panels retained for the helper's stable call contract.
+        seam_records: Authored seams paired with their authoritative source pattern pieces.
+        proxy: Active simulation proxy exposing backend positions and exact stitch pairs.
+
+    Returns:
+        Seam identities, source edge references, sample counts, and maximum measured gap.
+        Empty seam input produces a stable zero-sample report.
+
+    Raises:
+        RuntimeError: If exact stitch-pair provenance or semantic edge identities are missing.
+    """
     if not seam_records:
         return {
             "sample_count": 0,
