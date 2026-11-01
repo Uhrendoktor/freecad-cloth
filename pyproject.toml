@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = {text = "LGPL-2.1-or-later"}
 dependencies = [
   "pydantic>=2.11,<3",
-  "pillow>=11,<13",
+  "pillow>=11,<14",
   "networkx>=3,<4",
   "rtree>=1,<2",
   "trimesh>=4,<6",
