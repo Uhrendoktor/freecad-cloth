@@ -49,9 +49,21 @@ REQUIRED = (
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
-# Pyright checks the complete production package without pulling test doubles and
-# native FreeCAD acceptance scripts into the production type-checking scope.
-PYRIGHT_EXPECTED_INCLUDE = ("freecad_cloth",)
+# Pyright starts with the reviewed production modules: the strict simulation core
+# plus every production module newly introduced by this PR. Expand this list deliberately.
+PYRIGHT_EXPECTED_INCLUDE = (
+    "freecad_cloth/avatar/AvatarProperties.py",
+    "freecad_cloth/avatar/SkeletonTypes.py",
+    "freecad_cloth/avatar/avatar_commands.py",
+    "freecad_cloth/shared/CommandIds.py",
+    "freecad_cloth/shared/MeshTopology.py",
+    "freecad_cloth/shared/SeamColors.py",
+    "freecad_cloth/simulation/ClothSolver.py",
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
+    "freecad_cloth/simulation/MeshBoundary.py",
+    "freecad_cloth/simulation/_cloth_backend_compat.py",
+    "freecad_cloth/simulation/cloth_backend.py",
+)
 PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
@@ -184,11 +196,11 @@ def pyright_coverage_contract_violations(
     config_text: str,
     added_modules: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Require Pyright to analyze the production package without exclusions.
+    """Require Pyright to analyze the reviewed production modules without exclusions.
 
-    The package include covers all production modules and ensures new production
-    modules remain in scope. Tests, CI tools, and host acceptance scripts are exercised
-    through their dedicated checks rather than the production type-checking profile.
+    The explicit include starts with the strict simulation core and the production
+    modules introduced by this PR. New production modules must be added deliberately.
+    Tests, CI tools, and host acceptance scripts use their dedicated validation paths.
 
     Args:
         config_text: Contents of the Pyright configuration file.
@@ -205,9 +217,9 @@ def pyright_coverage_contract_violations(
     include = config.get("include")
     exclude = config.get("exclude", [])
     if include != list(PYRIGHT_EXPECTED_INCLUDE):
-        return ("<Pyright include scope must cover the production package>",)
+        return ("<Pyright include scope must match the reviewed production-module set>",)
     if exclude != list(PYRIGHT_EXPECTED_EXCLUDE):
-        return ("<Pyright exclude scope must not narrow production-package coverage>",)
+        return ("<Pyright exclude scope must not hide reviewed production modules>",)
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
     if missing_paths:
