@@ -11,7 +11,6 @@ if TYPE_CHECKING:
 import pytest
 
 from freecad_cloth.simulation import DrapeCommands
-from tests.support.assertions import require
 
 
 def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,18 +52,15 @@ def test_mannequin_target_attaches_to_simulation_scene(monkeypatch: pytest.Monke
 
     created = DrapeCommands.create_mannequin_drape_target()
 
-    require(
-        condition=created is target,
-        message="Mannequin-target creation must return the persistent target.",
-    )
-    require(
-        condition=scene.DrapeTarget is target,
-        message="Every simulation scene must receive the created persistent target.",
-    )
-    require(
-        condition=target.Label == "Drape Target (Mannequin)",
-        message="The created target must retain its mannequin-specific label.",
-    )
+    assert (
+        created is target
+    ), "Mannequin-target creation must return the persistent target."
+    assert (
+        scene.DrapeTarget is target
+    ), "Every simulation scene must receive the created persistent target."
+    assert (
+        target.Label == "Drape Target (Mannequin)"
+    ), "The created target must retain its mannequin-specific label."
 
 
 def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -94,10 +90,9 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
         registered_commands[name] = command
 
     gui = SimpleNamespace(addCommand=add_command)
-    require(
-        condition=DrapeCommands.register_gui_commands(gui),
-        message="Command registration must accept the supported FreeCAD GUI boundary.",
-    )
+    assert (
+        DrapeCommands.register_gui_commands(gui)
+    ), "Command registration must accept the supported FreeCAD GUI boundary."
     command = registered_commands["ClothDrape_EnableTarget"]
     activated_name = "Activated"
     is_active_name = "IsActive"
@@ -106,20 +101,16 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
     is_active = cast("Callable[[], bool]", getattr(command, is_active_name))
     get_resources = cast("Callable[[], dict[str, object]]", getattr(command, resources_name))
 
-    require(
-        condition=is_active() is True,
-        message="The native IsActive callback must report an active document.",
-    )
-    require(
-        condition=activated() is target and target.Enabled is True,
-        message="The native Activated callback must enable the persistent target.",
-    )
+    assert (
+        is_active() is True
+    ), "The native IsActive callback must report an active document."
+    assert (
+        activated() is target and target.Enabled is True
+    ), "The native Activated callback must enable the persistent target."
     resources = get_resources()
-    require(
-        condition=resources["MenuText"] == "Enable Target",
-        message="The native GetResources callback must retain the command label.",
-    )
-    require(
-        condition=resources["ToolTip"] == "Enable the persistent drape target",
-        message="The native GetResources callback must retain the command tooltip.",
-    )
+    assert (
+        resources["MenuText"] == "Enable Target"
+    ), "The native GetResources callback must retain the command label."
+    assert (
+        resources["ToolTip"] == "Enable the persistent drape target"
+    ), "The native GetResources callback must retain the command tooltip."
