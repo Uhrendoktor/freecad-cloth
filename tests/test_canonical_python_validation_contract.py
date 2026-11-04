@@ -566,9 +566,7 @@ def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    quality = workflow.split("  agent-quality:", 1)[1].split(
-        "  local_runner_readiness:", 1
-    )[0]
+    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
 
     require(
