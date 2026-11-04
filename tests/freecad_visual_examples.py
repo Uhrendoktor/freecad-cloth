@@ -2,6 +2,7 @@
 """Deterministic basic cloth example: a blanket draped over a cube."""
 
 import os
+import runpy
 import site
 import sys
 import traceback
@@ -306,11 +307,7 @@ def main():
     _load_cloth_modules()
     init_gui = ROOT / "InitGui.py"
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        exec(
-            compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
-            globals(),
-            globals(),
-        )
+        runpy.run_path(str(init_gui))
     events()
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
         msg = "ClothPatternWorkbench was not registered by visual acceptance startup"
