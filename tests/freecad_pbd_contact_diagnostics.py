@@ -333,7 +333,7 @@ def _run_control_cube():
     doc = App.newDocument("PositionBasedDynamicsContactControlCube")
     try:
         scene = _build_scene(doc)
-        cube = _configure_diagnostic_cube_target(doc, scene, App, Part)
+        _configure_diagnostic_cube_target(doc, scene, App, Part)
         piece = _build_piece(
             doc,
             "CubeCloth",
