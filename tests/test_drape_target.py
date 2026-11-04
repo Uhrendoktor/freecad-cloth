@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
-from tests.support.assertions import require
 
 DEFLECTION_MM = 1.0
 THICKNESS_MM = 2.0
@@ -235,29 +234,25 @@ def test_source_signature_tracks_geometry_placement_and_collision_settings() -> 
     target = _target()
     baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
     _set_runtime_attribute(target.Shape, "value", CHANGED_SHAPE_HASH)
-    require(
-        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
-        message="A shape-content change must invalidate the source signature.",
-    )
+    assert (
+        source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline
+    ), "A shape-content change must invalidate the source signature."
     _set_runtime_attribute(
         target,
         "Placement",
         _placement(MOVED_X_MM, MOVED_Y_MM, 0.0, MOVED_ROTATION_DEGREES),
     )
     moved = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
-    require(
-        condition=moved != baseline,
-        message="A placement change must invalidate the source signature.",
-    )
-    require(
-        condition=source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM) != moved,
-        message="A tessellation-deflection change must invalidate the source signature.",
-    )
-    require(
-        condition=source_signature(target, ALTERNATE_DEFLECTION_MM, ALTERNATE_THICKNESS_MM)
-        != source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM),
-        message="A collision-thickness change must invalidate the source signature.",
-    )
+    assert (
+        moved != baseline
+    ), "A placement change must invalidate the source signature."
+    assert (
+        source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM) != moved
+    ), "A tessellation-deflection change must invalidate the source signature."
+    assert (
+        source_signature(target, ALTERNATE_DEFLECTION_MM, ALTERNATE_THICKNESS_MM)
+        != source_signature(target, ALTERNATE_DEFLECTION_MM, THICKNESS_MM)
+    ), "A collision-thickness change must invalidate the source signature."
 
 
 def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchanged() -> None:
@@ -267,10 +262,9 @@ def test_shape_signature_hashes_geometry_content_when_counts_and_hash_are_unchan
     baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
     _set_runtime_attribute(target, "Shape", _brep_shape("brep-b"))
     changed = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
-    require(
-        condition=changed != baseline,
-        message="Different serialized BRep content must change the source signature.",
-    )
+    assert (
+        changed != baseline
+    ), "Different serialized BRep content must change the source signature."
 
 
 def test_mesh_signature_hashes_complete_topology_not_aggregate_counts() -> None:
@@ -280,10 +274,9 @@ def test_mesh_signature_hashes_complete_topology_not_aggregate_counts() -> None:
     baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
     changed_vertices = (_vector(), _vector(x=1.0), _vector(z=1.0))
     _set_runtime_attribute(target.Mesh, "Topology", (changed_vertices, ((0, 1, 2),)))
-    require(
-        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
-        message="Mesh coordinate changes must be represented in the source signature.",
-    )
+    assert (
+        source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline
+    ), "Mesh coordinate changes must be represented in the source signature."
 
 
 def test_mesh_signature_tracks_triangle_connectivity() -> None:
@@ -292,10 +285,9 @@ def test_mesh_signature_tracks_triangle_connectivity() -> None:
     target = _mesh_target(vertices, ((0, 1, 2),))
     baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
     _set_runtime_attribute(target.Mesh, "Topology", (vertices, ((0, 2, 1),)))
-    require(
-        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
-        message="Triangle connectivity and winding must be represented in the signature.",
-    )
+    assert (
+        source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline
+    ), "Triangle connectivity and winding must be represented in the signature."
 
 
 def test_mesh_signature_tracks_triangle_order() -> None:
@@ -305,33 +297,29 @@ def test_mesh_signature_tracks_triangle_order() -> None:
     target = _mesh_target(vertices, triangles)
     baseline = source_signature(target, DEFLECTION_MM, THICKNESS_MM)
     _set_runtime_attribute(target.Mesh, "Topology", (vertices, (triangles[1], triangles[0])))
-    require(
-        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline,
-        message="Triangle order must be represented in the source signature.",
-    )
+    assert (
+        source_signature(target, DEFLECTION_MM, THICKNESS_MM) != baseline
+    ), "Triangle order must be represented in the source signature."
 
 
 def test_source_signature_is_stable() -> None:
     """Produce an identical signature for unchanged geometry and settings."""
     target = _target()
-    require(
-        condition=source_signature(target, DEFLECTION_MM, THICKNESS_MM)
-        == source_signature(target, DEFLECTION_MM, THICKNESS_MM),
-        message="The same source state must produce a deterministic signature.",
-    )
+    assert (
+        source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+        == source_signature(target, DEFLECTION_MM, THICKNESS_MM)
+    ), "The same source state must produce a deterministic signature."
 
 
 def test_target_status_is_ready_when_signature_is_current() -> None:
     """Report a built target as ready while its source signature is current."""
     status = target_status(_persistent_target())
-    require(
-        condition=status["state"] == "ready",
-        message="A target with a current collision cache must be ready.",
-    )
-    require(
-        condition=status["stale"] is False,
-        message="A current collision cache must not be marked stale.",
-    )
+    assert (
+        status["state"] == "ready"
+    ), "A target with a current collision cache must be ready."
+    assert (
+        status["stale"] is False
+    ), "A current collision cache must not be marked stale."
 
 
 def test_target_status_reports_source_change_as_stale() -> None:
@@ -339,18 +327,15 @@ def test_target_status_reports_source_change_as_stale() -> None:
     target = _persistent_target()
     _set_runtime_attribute(target.SourceObject.Shape, "value", 99)
     status = target_status(target)
-    require(
-        condition=status["state"] == "stale",
-        message="A source-content change must invalidate the persisted signature.",
-    )
-    require(
-        condition=status["stale"] is True,
-        message="A changed source must be marked stale.",
-    )
-    require(
-        condition="source" in str(status["reason"]),
-        message="The stale reason must identify source invalidation.",
-    )
+    assert (
+        status["state"] == "stale"
+    ), "A source-content change must invalidate the persisted signature."
+    assert (
+        status["stale"] is True
+    ), "A changed source must be marked stale."
+    assert (
+        "source" in str(status["reason"])
+    ), "The stale reason must identify source invalidation."
 
 
 def test_target_status_reports_missing_collision_cache() -> None:
@@ -358,11 +343,9 @@ def test_target_status_reports_missing_collision_cache() -> None:
     target = _persistent_target()
     _set_runtime_attribute(target, "CollisionVertexCount", 0)
     status = target_status(target)
-    require(
-        condition=status["state"] == "unbuilt",
-        message="A target without cached collision vertices must be unbuilt.",
-    )
-    require(
-        condition=status["stale"] is True,
-        message="A target with a missing collision cache must be marked stale.",
-    )
+    assert (
+        status["state"] == "unbuilt"
+    ), "A target without cached collision vertices must be unbuilt."
+    assert (
+        status["stale"] is True
+    ), "A target with a missing collision cache must be marked stale."
