@@ -1,6 +1,6 @@
 {
   "include": [
-    "."
+    "freecad_cloth"
   ],
   "strict": [
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
