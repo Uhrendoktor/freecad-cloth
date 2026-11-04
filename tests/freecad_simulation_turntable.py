@@ -3,6 +3,7 @@
 
 import hashlib
 import os
+import runpy
 import sys
 import time
 import traceback
@@ -449,8 +450,7 @@ def main():
     )
     init_gui = os.path.join(ROOT, "InitGui.py")
     if "ClothPatternWorkbench" not in Gui.listWorkbenches():
-        with pathlib.Path(init_gui).open(encoding="utf-8") as handle:
-            exec(handle.read(), globals(), globals())
+        runpy.run_path(init_gui)
     events()
 
     doc = App.newDocument("ClothBlanketTurntable")
