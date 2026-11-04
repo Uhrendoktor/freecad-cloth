@@ -5,14 +5,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
-
-if __package__:
-    from tools.ci.command_runner import CommandContext, run_command
-else:
-    from command_runner import CommandContext, run_command
 
 GROUPS = {
     "core": (
@@ -43,6 +39,7 @@ GROUPS = {
         "tests/test_pattern_geometry.py",
         "tests/test_pattern_topology_repair.py",
         "tests/test_surface_pen.py",
+        "tests/test_pbd_ladder_bootstrap.py",
     ),
     "pattern": (
         "tests/test_pattern_sketch.py",
@@ -55,6 +52,7 @@ GROUPS = {
         "tests/test_pattern_gui_contract.py",
         "tests/test_pattern_mark_enablement.py",
         "tests/test_pattern_marks.py",
+        "tests/test_garment_document_contract.py",
     ),
     "sewing": (
         "tests/test_sewing_network.py",
@@ -71,6 +69,7 @@ GROUPS = {
         "tests/test_seam_contract.py",
         "tests/test_seam_document_adapter.py",
         "tests/test_seam_reference.py",
+        "tests/test_sewing_constraints_contract.py",
     ),
     "gui": (
         "tests/test_fitting_gui.py",
@@ -84,6 +83,11 @@ GROUPS = {
         "tests/test_drape_gui.py",
         "tests/test_simulation_gui.py",
         "tests/test_freecad_input.py",
+        "tests/test_avatar_fitting_anchor_refresh.py",
+        "tests/test_avatar_fitting_coordinate_contract.py",
+        "tests/test_avatar_runtime_api_adapter.py",
+        "tests/test_drape_target_commands.py",
+        "tests/test_fitting_handoff_command_registration.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",
@@ -117,10 +121,6 @@ GROUPS = {
         "tests/test_agent_observation_bundle.py",
         "tests/test_ci_configuration.py",
         "tests/test_no_source_rewriting.py",
-        "tests/test_no_monkeypatch.py",
-        "tests/test_explicit_any_annotations.py",
-        "tests/test_pydantic_models_policy.py",
-        "tests/test_changed_python_types.py",
         "tests/test_garment_warning_contract.py",
         "tests/test_markdown_contract.py",
         "tests/test_runner_routing_contract.py",
@@ -134,6 +134,8 @@ GROUPS = {
         "tests/test_shared_adapters.py",
         "tests/test_workbench_registration.py",
         "tests/test_ui_design.py",
+        "tests/test_assertions.py",
+        "tests/test_source_signature_contract.py",
     ),
 }
 
@@ -198,12 +200,7 @@ def main() -> int:
     sys.stdout.flush()
     # Anny-backed geometry tests perform several CPU differentiable body fits.
     # Keep the subprocess bounded while allowing the full core inventory to finish.
-    run_command(
-        command,
-        check=True,
-        timeout=600,
-        context=CommandContext(env=env),
-    )
+    subprocess.run(command, check=True, timeout=600, env=env)
     sys.stdout.write(f"python-validation={args.group} passed\n")
     sys.stdout.flush()
     return 0

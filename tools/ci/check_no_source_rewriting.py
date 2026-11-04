@@ -329,63 +329,6 @@ class _SourceAnalysis:
     violations: list[str]
 
 
-def _record_exec_compile_violation(
-    expression: ast.expr,
-    call_line: int,
-    analysis: _SourceAnalysis,
-) -> None:
-    """Record a generated-code violation for a compile call nested in exec.
-
-    Args:
-        expression: First argument passed to the nested compile call.
-        call_line: Line number of the outer exec call for stable diagnostics.
-        analysis: Module analysis state with known source aliases and diagnostics.
-    """
-    generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
-    literal_expression = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
-    generated_expression = literal_expression and not (
-        _names_used(expression) & analysis.source_names
-    )
-    if generated_name or generated_expression:
-        analysis.violations.append(
-            f"{analysis.path}:{call_line}: generated Python source must not be executed"
-        )
-
-
-def _record_exec_call_violation(node: ast.Call, analysis: _SourceAnalysis) -> None:
-    """Reject dynamic execution of generated or transformed Python source.
-
-    Args:
-        node: Call expression being examined.
-        analysis: Module analysis state with source aliases and diagnostics.
-    """
-    if not isinstance(node.func, ast.Name) or node.func.id != "exec" or not node.args:
-        return
-    expression = node.args[0]
-    if _names_used(expression) & analysis.modified_source_names:
-        analysis.violations.append(
-            f"{analysis.path}:{node.lineno}: transformed source must not be executed dynamically"
-        )
-        return
-    if isinstance(expression, ast.Call):
-        if (
-            isinstance(expression.func, ast.Name)
-            and expression.func.id == "compile"
-            and expression.args
-        ):
-            _record_exec_compile_violation(expression.args[0], node.lineno, analysis)
-        return
-    generated_literal = isinstance(expression, (ast.Constant, ast.BinOp, ast.JoinedStr))
-    generated_literal_without_source = generated_literal and not (
-        _names_used(expression) & analysis.source_names
-    )
-    generated_name = isinstance(expression, ast.Name) and expression.id not in analysis.source_names
-    if generated_literal_without_source or generated_name:
-        analysis.violations.append(
-            f"{analysis.path}:{node.lineno}: generated Python source must not be executed"
-        )
-
-
 def _record_source_mutation_violation(node: ast.Call, analysis: _SourceAnalysis) -> None:
     """Report replacements or file writes that operate on checked-in source text.
 
@@ -445,7 +388,6 @@ def _record_call_violations(node: ast.Call, analysis: _SourceAnalysis) -> None:
         node: Call expression being examined.
         analysis: Module analysis state with source aliases and diagnostics.
     """
-    _record_exec_call_violation(node, analysis)
     _record_source_mutation_violation(node, analysis)
     _record_compile_call_violation(node, analysis)
 

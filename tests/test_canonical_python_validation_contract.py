@@ -561,30 +561,25 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     )
 
 
-def test_static_preflight_runs_public_api_regressions() -> None:
-    """Run diagnostic and avatar adapter API regressions before broad static gates."""
+def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
+    """Keep pytest execution in one complete, non-overlapping matrix."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    command_start = workflow.find("tests/test_avatar_fitting_coordinate_contract.py")
-    command_end = workflow.find("pyright -p pyrightconfig.json", command_start)
-    command = workflow[command_start:command_end] if command_end > command_start else ""
-    required_tests = (
-        "tests/test_avatar_runtime_api_adapter.py",
-        "tests/test_cloth_diagnostics.py",
-        "tests/test_avatar_fitting_anchor_refresh.py",
-        "tests/test_source_signature_contract.py",
-        "tests/test_shared_adapters.py",
-        "tests/test_garment_document_contract.py",
-        "tests/test_mesh_validation.py",
-        "tests/test_fitting_gui.py",
-    )
+    quality = workflow.split("  agent-quality:", 1)[1].split(
+        "  local_runner_readiness:", 1
+    )[0]
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
 
     require(
-        condition=(
-            command_start >= 0
-            and command_end > command_start
-            and all(path in command for path in required_tests)
-        ),
-        message="static preflight must run the diagnostic and avatar API regressions",
+        condition="python_validation.py" in workflow and "group: [core, pattern, sewing, gui, pytest]" in workflow,
+        message="The canonical workflow must execute the complete Python validation matrix.",
+    )
+    require(
+        condition="def validate_test_routing()" in runner and "unrouted pytest modules" in runner,
+        message="The matrix runner must reject missing and duplicate pytest module routes.",
+    )
+    require(
+        condition="python -m pytest -q" not in quality,
+        message="Static preflight must not execute pytest modules a second time.",
     )

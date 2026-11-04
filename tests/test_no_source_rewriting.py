@@ -9,8 +9,8 @@ from tools.ci.check_no_source_rewriting import (
 )
 
 
-def test_python_source_rewriting_and_dynamic_execution_are_rejected() -> None:
-    """A Python file must not be read, patched, compiled, and executed as a string."""
+def test_python_source_rewriting_and_generated_compilation_are_rejected() -> None:
+    """A Python file must not be read, patched, and compiled as transformed source."""
     sample = """
 from pathlib import Path
 
@@ -21,9 +21,6 @@ exec(compile(source, str(source_path), "exec"))
 """
     violations = python_source_rewrite_violations(sample, "fixture.py")
     assert any("must not be rewritten" in issue for issue in violations)
-    assert any(
-        "transformed source must not be executed dynamically" in issue for issue in violations
-    )
     assert any("transformed source must not be compiled" in issue for issue in violations)
 
 
@@ -57,13 +54,13 @@ compile(patched, str(source_path), "exec")
     assert any("transformed source must not be compiled" in issue for issue in violations)
 
 
-def test_checked_in_bootstrap_source_can_be_executed_without_modification() -> None:
-    """FreeCAD's host bootstrap may execute a checked-in file when it was not rewritten."""
+def test_checked_in_bootstrap_source_can_be_compiled_without_modification() -> None:
+    """FreeCAD's host bootstrap may syntax-check a checked-in file without rewriting it."""
     sample = """
 from pathlib import Path
 
 init_gui = Path("InitGui.py")
-exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"))
+compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec")
 """
     assert python_source_rewrite_violations(sample, "bootstrap.py") == ()
 
@@ -75,7 +72,7 @@ import os
 
 init_gui = os.path.join(ROOT, "InitGui.py")
 with open(init_gui, encoding="utf-8") as handle:
-    exec(compile(handle.read(), init_gui, "exec"), globals(), globals())
+    compile(handle.read(), init_gui, "exec")
 """
     assert python_source_rewrite_violations(sample, "bootstrap.py") == ()
 

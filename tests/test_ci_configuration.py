@@ -11,6 +11,16 @@ from pathlib import Path
 from tests.support.assertions import require, require_not_none
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
+from tools.ci.validate_ci_structure import (
+    PYRIGHT_CONFIG,
+    PYTHON_POLICY_COMMANDS,
+    RUFF_COMMANDS,
+    TYPECHECK_COMMANDS,
+    missing_python_policy_commands,
+    missing_ruff_commands,
+    missing_typecheck_commands,
+    pyright_coverage_contract_violations,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 _EXPECTED_FREECAD_APPLICATION_TIMEOUT_SECONDS = 120
@@ -1054,10 +1064,18 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         condition="pyright -p pyrightconfig.agent-strict.json" not in quality,
         message='Expected "pyright -p pyrightconfig.agent-strict.json" not in quality.',
     )
-    require(
-        condition="python tools/ci/check_pydantic_models.py" in quality,
-        message='Expected "python tools/ci/check_pydantic_models.py" in quality.',
-    )
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lint = project["tool"]["ruff"]["lint"]
+    expected_rules = [
+        "E4", "E7", "E9", "F", "I", "B", "BLE", "C4", "DTZ", "PERF",
+        "PIE", "RET", "SIM", "UP", "YTT", "RUF", "ANN401",
+        "D100", "D101", "D102", "D103", "D104", "D107", "D417", "DOC201", "DOC402", "DOC501",
+        "S102", "S307", "S605",
+    ]
+    require(condition=lint["select"] == expected_rules, message="Ruff must use the reviewed high-signal rule set.")
+    require(condition=lint["preview"] is True, message="Selected DOC rules require Ruff preview mode.")
+    require(condition=not lint.get("ignore"), message="The curated rules must not need a global ignore list.")
+    require(condition=not lint.get("per-file-ignores"), message="The curated rules must not need per-file ignores.")
     require(
         condition='path: "freecad_cloth tests tools/ci"' in workflow,
         message="Expected 'path: \"freecad_cloth tests tools/ci\"' in workflow.",
@@ -1196,4 +1214,88 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
         message=(
             'Expected "artifact-path: docs/images/generated/blanket-example/**" not in blanket_job.'
         ),
+    )
+
+def test_ruff_command_parser_accepts_standalone_run_fields() -> None:
+    """Accept YAML inline run fields and a standalone multiline Ruff command."""
+    workflow = f"run: {RUFF_COMMANDS[0]}\n{RUFF_COMMANDS[1]}\n"
+    require(
+        condition=missing_ruff_commands(workflow) == (),
+        message="Both standalone Ruff commands must be recognized.",
+    )
+
+
+def test_ruff_command_parser_rejects_and_chained_commands() -> None:
+    """Reject a Ruff command chained with another shell expression."""
+    workflow = f"run: {RUFF_COMMANDS[0]} && true\n{RUFF_COMMANDS[1]}\n"
+    require(
+        condition=missing_ruff_commands(workflow) == (RUFF_COMMANDS[0],),
+        message="Only the chained Ruff command must be reported missing.",
+    )
+
+def test_pyright_coverage_contract_rejects_a_narrowed_scope() -> None:
+    """Reject include/exclude changes that remove repository Python files from Pyright."""
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["include"] = ["freecad_cloth"]
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright include scope must cover the entire repository>",),
+        message="Pyright must reject a narrowed repository include.",
+    )
+
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["exclude"] = ["tests/**"]
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright exclude scope must not narrow repository coverage>",),
+        message="Pyright must reject exclusions from repository analysis.",
+    )
+
+
+def test_new_production_modules_remain_in_pyright_scope() -> None:
+    """Keep newly added production modules covered by the repository-root include."""
+    new_modules = (
+        "freecad_cloth/common/new_model.py",
+        "freecad_cloth/simulation/NewSimulationGui.py",
+        "freecad_cloth/bootstrap.py",
+    )
+    require(
+        condition=pyright_coverage_contract_violations(
+            PYRIGHT_CONFIG.read_text(encoding="utf-8"),
+            new_modules,
+        ) == (),
+        message="The repository-root Pyright scope must include new production modules.",
+    )
+
+
+def test_typecheck_and_policy_commands_must_be_standalone() -> None:
+    """Detect removed or shell-chained blocking quality commands."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    require(
+        condition=missing_typecheck_commands(workflow) == (),
+        message="The Pyright gate must be a standalone blocking command.",
+    )
+    require(
+        condition=missing_python_policy_commands(workflow) == (),
+        message="The source-rewriting gate must be a standalone blocking command.",
+    )
+    tampered_typecheck = workflow.replace(
+        "          pyright -p pyrightconfig.json\n",
+        "          lint-imports && pyright -p pyrightconfig.json\n",
+        1,
+    )
+    require(
+        condition=missing_typecheck_commands(tampered_typecheck) == TYPECHECK_COMMANDS,
+        message="A chained Pyright command must be treated as missing.",
+    )
+    tampered_policy = workflow.replace(
+        PYTHON_POLICY_COMMANDS[0] + "\n",
+        "",
+        1,
+    )
+    require(
+        condition=missing_python_policy_commands(tampered_policy) == PYTHON_POLICY_COMMANDS,
+        message="Removing the source-rewriting policy gate must be detected.",
     )

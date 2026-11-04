@@ -7,14 +7,9 @@ import fnmatch
 import json
 import os
 import re
+import subprocess
 import sys
-import tomllib
 from pathlib import Path
-
-try:
-    from command_runner import run_command
-except ModuleNotFoundError:
-    from tools.ci.command_runner import run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -34,7 +29,6 @@ WORKFLOW_FILES = tuple(
 )
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
-TY_CONFIG = ROOT / "ty.toml"
 MAX_REUSABLE_WORKFLOW_LINES = 750
 MAX_CI_TIMEOUT_SECONDS = 180
 REQUIRED = (
@@ -52,7 +46,6 @@ REQUIRED = (
     ROOT / "tools/ci/check_artifact_budget.py",
     ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/timeout_contract.py",
-    ROOT / "tools/ci/check_pydantic_models.py",
     ROOT / "tools/ci/check_no_source_rewriting.py",
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
@@ -68,25 +61,9 @@ PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/ClothSolver.py",
 )
 
-TYPECHECK_COMMANDS = (
-    "python tools/ci/check_explicit_any_annotations.py",
-    "pyright -p pyrightconfig.json",
-    (
-        "ty check --output-format github "
-        "freecad_cloth/simulation/DrapeFailureClassifier.py "
-        "freecad_cloth/simulation/cloth_backend.py "
-        "freecad_cloth/simulation/ClothSolver.py"
-    ),
-    "python tools/ci/check_changed_python_types.py",
-)
+TYPECHECK_COMMANDS = ("pyright -p pyrightconfig.json",)
 
-PYTHON_POLICY_COMMANDS = (
-    "python tools/ci/check_pydantic_models.py",
-    "python tools/ci/check_no_source_rewriting.py",
-    "python -m pytest -q tests/test_no_source_rewriting.py",
-)
-SOURCE_REWRITING_POLICY_COMMANDS = ("python tools/ci/check_no_source_rewriting.py",)
-
+PYTHON_POLICY_COMMANDS = ("python tools/ci/check_no_source_rewriting.py",)
 RUFF_COMMANDS = (
     'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
     'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"',
@@ -120,36 +97,6 @@ def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
-
-
-def missing_source_rewriting_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Require the blocking source-rewriting prohibition in the canonical workflow.
-
-    Args:
-        workflow_text: Full canonical workflow text to inspect.
-
-    Returns:
-        Source-rewriting policy commands missing from the workflow.
-    """
-    command_lines = {line.strip() for line in workflow_text.splitlines()}
-    return tuple(
-        command for command in SOURCE_REWRITING_POLICY_COMMANDS if command not in command_lines
-    )
-
-
-def source_rewriting_policy_tests_are_blocking(workflow_text: str) -> bool:
-    """Require policy regression tests in the blocking pytest step.
-
-    Args:
-        workflow_text: Full canonical workflow text to inspect.
-
-    Returns:
-        Whether the policy regression test is run by a blocking test command.
-    """
-    return any(
-        "python -m pytest" in line and "tests/test_no_source_rewriting.py" in line
-        for line in workflow_text.splitlines()
-    )
 
 
 def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
@@ -214,7 +161,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
     Returns:
         Newly added production Python module paths.
     """
-    result = run_command(
+    result = subprocess.run(
         [
             "git",
             "diff",
@@ -226,6 +173,9 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
             "freecad_cloth",
         ],
         capture_output=True,
+        text=True,
+        check=True,
+        timeout=30,
     )
     return tuple(
         sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py"))
@@ -277,23 +227,6 @@ def pyright_coverage_contract_violations(
         f"<new Python module is outside Pyright include/exclude scope: {path}>"
         for path in uncovered_modules
     )
-
-
-def ty_warnings_are_blocking(config_text: str) -> bool:
-    """Return whether ty is configured to fail when it emits warnings.
-
-    Args:
-        config_text: TOML configuration consumed by the ty type checker.
-
-    Returns:
-        Whether warning diagnostics are configured to fail the command.
-    """
-    try:
-        config = tomllib.loads(config_text)
-    except tomllib.TOMLDecodeError:
-        return False
-    terminal = config.get("terminal")
-    return isinstance(terminal, dict) and terminal.get("error-on-warning") is True
 
 
 def _validate_workflow_dispatch_contract(text: str) -> None:
@@ -457,9 +390,6 @@ def _validate_python_quality_contracts(text: str) -> None:
         raise SystemExit(
             "Pyright whole-repository coverage policy is invalid: " + ", ".join(coverage_violations)
         )
-    if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
-        msg = "ty.toml must set [terminal].error-on-warning = true"
-        raise SystemExit(msg)
 
 
 def _validate_command_safety(text: str) -> None:

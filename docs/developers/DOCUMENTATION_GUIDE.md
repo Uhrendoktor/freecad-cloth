@@ -79,15 +79,15 @@ If a procedure is needed in several places, document it once and link to it. A p
 
 ## Python API docstrings
 
-Use Google-style docstrings consistently. Every tracked Python module, class, function, method, nested function, private helper, and test must be documented. Type annotations describe machine-checkable types; docstring sections explain semantics a type alone cannot express.
+Use Google-style docstrings for public modules, classes, and methods, and whenever a function's behavior, units, state changes, ownership, or failure cases are not obvious from its signature. Type annotations describe machine-checkable types; docstrings explain semantics a type alone cannot express.
 
-For every function or method:
+For documented functions and methods:
 
 - Start with a concise sentence describing behavior or intent. Do not restate the function name or use a placeholder.
-- Add `Args` whenever the function has parameters beyond the conventional `self`/`cls` receiver. Describe every parameter, including keyword-only parameters and `*args`/`**kwargs`; state units, valid ranges, mutation, defaults, and special cases where relevant.
-- Add matching type annotations for every parameter and return value. Describe each non-`None` result in `Returns`; use `Yields` for generator output. Explain meaning, validity, ordering, ownership, and copy/live-state behavior when relevant.
-- Add `Raises` when the function explicitly raises exceptions. Name each relevant exception and describe the condition that triggers it.
-- Describe side effects, state transitions, persistence, invalidation, preconditions, postconditions, and lifecycle restrictions not obvious from the signature. For FreeCAD APIs, distinguish persistent document state from derived meshes/solver data and transient GUI state.
+- Add `Args` when parameter semantics, units, valid ranges, mutation, defaults, or special cases need explanation.
+- Describe non-`None` return values and generator output when their meaning is not obvious.
+- Add `Raises` for meaningful failure conditions, especially exceptions that callers are expected to handle.
+- Describe side effects, persistence, invalidation, preconditions, postconditions, and lifecycle restrictions when relevant. For FreeCAD APIs, distinguish persistent document state from derived meshes/solver data and transient GUI state.
 
 Example:
 
@@ -107,7 +107,8 @@ def project_point(point: Vector, tolerance_mm: float) -> Projection:
     """
 ```
 
-The repository gate checks documentation completeness, placeholders, and suppression comments. Ruff checks type annotations and all rules compatible with its formatter across the entire Python inventory. Reviewers must still verify prose against implementation, tests, and observable behavior.
+Ruff enforces the selected module, class, method, parameter, return, yield, and exception documentation rules. Private helpers and tests should have a useful summary when behavior is not self-evident, but short tests do not need boilerplate sections that merely repeat their names or assertions. Reviewers must still verify prose against implementation and observable behavior.
+
 ## Validate every documentation change
 
 Run the lightweight Markdown link check after editing:
@@ -118,7 +119,7 @@ The checker verifies local Markdown and HTML file references across the README, 
 
 For a documentation-only change, also inspect the rendered GitHub Markdown and verify that screenshots/GIFs load, tables remain readable, alt text describes the right state, and internal links navigate to the intended page. When a change affects published UI evidence, update the real generator and inventory rather than editing the output image.
 
-The canonical workflow includes <code>python tools/check_documentation_contract.py</code>, <code>python tools/check_markdown_contract.py</code>, and visual evidence/provenance gates. Use the canonical FreeCAD/Xvfb workflow when a UI state or screenshot generator changes.
+The canonical workflow includes <code>python tools/check_markdown_contract.py</code> and visual evidence/provenance gates. Use the canonical FreeCAD/Xvfb workflow when a UI state or screenshot generator changes.
 
 ## Research references
 

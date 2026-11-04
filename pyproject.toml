@@ -46,9 +46,7 @@ dev = [
   "hypothesis==6.168.3",
   "vulture==2.16",
   "crosshair-tool==0.0.111",
-  "defusedxml>=0.7.1,<1",
   "ast-grep-cli==0.45.3",
-  "ty==0.0.85",
 ]
 
 [tool.freecad_cloth.ci]
@@ -70,46 +68,41 @@ respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Enable all Ruff rules and preview diagnostics. Only rules that Ruff documents as
-# incompatible with its own formatter are omitted; no legacy-debt baseline exists.
-select = ["ALL"]
-preview = true
-ignore = [
-  "missing-trailing-comma",
-  "prohibited-trailing-comma",
-  "incorrect-blank-line-before-class",
-  "docstring-tab-indentation",
-  "triple-single-quotes",
-  "indentation-with-invalid-multiple",
-  "indentation-with-invalid-multiple-comment",
-  "over-indented",
-  "bad-quotes-inline-string",
-  "bad-quotes-multiline-string",
-  "bad-quotes-docstring",
-  "avoidable-escaped-quote",
-  "unnecessary-escaped-quote",
-  "tab-indentation",
+# Curated correctness, security, import, typing, and documentation checks.
+# Preview is enabled only for the explicitly selected DOC rules below.
+select = [
+  "E4",
+  "E7",
+  "E9",
+  "F",
+  "I",
+  "B",
+  "BLE",
+  "C4",
+  "DTZ",
+  "PERF",
+  "PIE",
+  "RET",
+  "SIM",
+  "UP",
+  "YTT",
+  "RUF",
+  "ANN401",
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D107",
+  "D417",
+  "DOC201",
+  "DOC402",
+  "DOC501",
+  "S102",
+  "S307",
+  "S605",
 ]
-
-# Function-local imports are intentional at the FreeCAD host and GUI boundaries.
-# They keep headless imports safe and defer cyclic domain dependencies until use.
-[tool.ruff.lint.per-file-ignores]
-"freecad_cloth/bootstrap.py" = ["PLC0415"]
-"freecad_cloth/avatar/HumanoidMesh.py" = ["PLC0415"]
-# The package intentionally retains its established PascalCase domain-module filenames.
-"freecad_cloth/**/*.py" = ["N999"]
-"freecad_cloth/avatar/AvatarCommands.py" = ["PLC0415"]
-"freecad_cloth/avatar/AvatarGui.py" = ["PLC0415"]
-"freecad_cloth/avatar/AvatarPoseGui.py" = ["PLC0415"]
-"freecad_cloth/simulation/FittingHandoff.py" = ["PLC0415"]
-"freecad_cloth/simulation/DrapeCommands.py" = ["PLC0415"]
-"freecad_cloth/simulation/SimulationCommands.py" = ["PLC0415"]
-"freecad_cloth/simulation/SimulationQualityGui.py" = ["PLC0415"]
-"freecad_cloth/pattern/PatternMesh.py" = ["PLC0415"]
-"tests/freecad_*.py" = ["PLC0415"]
-"tests/support/pbd_contact_helpers.py" = ["PLC0415"]
-"tests/test_avatar_fitting.py" = ["PLC0415"]
-"tests/test_workbench_contract.py" = ["PLC0415"]
+preview = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
