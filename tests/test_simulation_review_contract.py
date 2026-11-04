@@ -37,7 +37,9 @@ def test_review_protocol_and_templates_exist() -> None:
         message="The publisher must select the PR-specific evidence mode.",
     )
     require(
-        condition="evidence-head: ${{ github.event.pull_request.head.sha || github.sha }}" in workflow,
+        condition=(
+            "evidence-head: ${{ github.event.pull_request.head.sha || github.sha }}" in workflow
+        ),
         message="Evidence must be attributed to the exact pull-request head SHA.",
     )
     require(
