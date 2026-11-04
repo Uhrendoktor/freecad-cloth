@@ -1119,6 +1119,9 @@ def test_pyright_covers_reviewed_production_modules_with_explicit_strict_core() 
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
     reviewed_scope = (
+        "freecad_cloth/shared/Collision.py",
+        "freecad_cloth/shared/Targets.py",
+        "freecad_cloth/shared/ViewportGizmoStyle.py",
         "freecad_cloth/avatar/AvatarProperties.py",
         "freecad_cloth/avatar/SkeletonTypes.py",
         "freecad_cloth/avatar/avatar_commands.py",
