@@ -68,25 +68,18 @@ respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Stable correctness, security, import, typing, and public API documentation checks.
-# Preview rules remain opt-in so a Ruff release cannot silently expand the policy.
+# Stable correctness, security, import, typing, and targeted API documentation checks.
+# Preview and broad style-modernization families remain opt-in.
 select = [
-  "E4",
   "E7",
   "E9",
   "F",
   "W",
   "I",
   "B",
-  "BLE001",
   "ANN401",
-  "RUF",
-  "D100",
-  "D101",
-  "D102",
-  "D104",
-  "D107",
   "D417",
+  "RUF059",
   "S102",
   "S307",
   "S605",
