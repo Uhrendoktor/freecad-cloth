@@ -3,8 +3,9 @@
 
 import importlib
 import sys
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
-from typing import Protocol, TypedDict, cast
+from typing import TypedDict, cast
 
 import pytest
 
@@ -14,6 +15,9 @@ from tests.support.assertions import require
 
 DEFAULT_SIMULATION_STEPS = 30
 EXPLICIT_SIMULATION_STEPS = 7
+_FREECAD_ACTIVATED_METHOD = "Activated"
+_FREECAD_GET_RESOURCES_METHOD = "GetResources"
+_FREECAD_IS_ACTIVE_METHOD = "IsActive"
 
 
 class _TargetStatus(TypedDict):
@@ -23,26 +27,6 @@ class _TargetStatus(TypedDict):
     message: str
     stale: bool
     reason: str
-
-
-class _WorkbenchCommand(Protocol):
-    """FreeCAD command interface exposed by the public workbench registry."""
-
-    def Activated(self) -> object:
-        """Run the registered command callback and return its result."""
-        ...
-
-    def GetResources(self) -> dict[str, object]:
-        """Return the registered command's menu, tooltip, and icon resources.
-
-        Returns:
-            The FreeCAD resource values associated with this command.
-        """
-        ...
-
-    def IsActive(self) -> bool:
-        """Report whether the registered command can run in the active document."""
-        ...
 
 
 def _ready_target_status(_target: object | None) -> _TargetStatus:
@@ -131,16 +115,9 @@ def _register_workbench_commands(
 
     gui_module.__dict__["addCommand"] = add_command
     monkeypatch.setitem(sys.modules, "FreeCADGui", gui_module)
-    module_globals = vars(SimulationCommands)
-    had_gui_module = "Gui" in module_globals
-    original_gui_module = module_globals.get("Gui")
-    try:
-        importlib.reload(SimulationCommands)
-    finally:
-        if had_gui_module:
-            vars(SimulationCommands)["Gui"] = original_gui_module
-        else:
-            vars(SimulationCommands).pop("Gui", None)
+    # Register against the injected GUI module without mutating the module's read-only vars view.
+    monkeypatch.setattr(SimulationCommands, "Gui", None, raising=False)
+    importlib.reload(SimulationCommands)
     return app_module, scene, calls, registered
 
 
@@ -198,7 +175,11 @@ def test_run_simulation_delegates_to_selected_simulation_without_implicit_creati
 def test_simulate_selected_blocks_a_stale_target_before_advancing_the_scene(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Advance a ready scene and leave it unchanged when the target becomes stale."""
+    """Advance a ready scene and leave it unchanged when the target becomes stale.
+
+    Args:
+        monkeypatch: Fixture that installs a controlled FreeCAD scene and target state.
+    """
     _app_module, scene, calls = _install_freecad_scene(monkeypatch)
     result = SimulationCommands.simulate_selected(EXPLICIT_SIMULATION_STEPS)
     require(
@@ -271,15 +252,34 @@ def test_reset_simulation_resets_scene_and_recomputes() -> None:
 def test_simulation_command_resources_and_activation_are_runtime_objects(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Register and activate the public run command and inspect its FreeCAD resources."""
+    """Register and activate the public run command and inspect its FreeCAD resources.
+
+    Args:
+        monkeypatch: Fixture that registers the command against a fake FreeCAD GUI.
+    """
     _app_module, scene, calls, registered = _register_workbench_commands(monkeypatch)
-    command = cast("_WorkbenchCommand", registered["ClothSimulation_Run"])
-    require(condition=command.IsActive(), message="An active simulation must enable the run command.")
+    command = registered["ClothSimulation_Run"]
+    is_active = cast(
+        "Callable[[], bool]",
+        getattr(command, _FREECAD_IS_ACTIVE_METHOD),
+    )
+    activate = cast(
+        "Callable[[], object]",
+        getattr(command, _FREECAD_ACTIVATED_METHOD),
+    )
+    get_resources = cast(
+        "Callable[[], dict[str, object]]",
+        getattr(command, _FREECAD_GET_RESOURCES_METHOD),
+    )
     require(
-        condition=command.Activated() is scene,
+        condition=is_active(),
+        message="An active simulation must enable the run command.",
+    )
+    require(
+        condition=activate() is scene,
         message="Run-command activation must return the selected simulation scene.",
     )
-    resources = command.GetResources()
+    resources = get_resources()
     require(
         condition=resources["MenuText"] == "Run Simulation",
         message="The command menu text must match its configured label.",
@@ -306,11 +306,19 @@ def test_simulation_command_resources_and_activation_are_runtime_objects(
 def test_registered_simulation_command_is_inactive_without_an_active_scene(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Disable the public run command when no FreeCAD document is active."""
+    """Disable the public run command when no FreeCAD document is active.
+
+    Args:
+        monkeypatch: Fixture that registers the command against a fake FreeCAD GUI.
+    """
     app_module, _scene, _calls, registered = _register_workbench_commands(monkeypatch)
     app_module.__dict__["ActiveDocument"] = None
-    command = cast("_WorkbenchCommand", registered["ClothSimulation_Run"])
+    command = registered["ClothSimulation_Run"]
+    is_active = cast(
+        "Callable[[], bool]",
+        getattr(command, _FREECAD_IS_ACTIVE_METHOD),
+    )
     require(
-        condition=not command.IsActive(),
+        condition=not is_active(),
         message="The run command must be inactive when no simulation document exists.",
     )
