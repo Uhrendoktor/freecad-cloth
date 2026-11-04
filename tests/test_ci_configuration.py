@@ -980,7 +980,7 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         "W",
         "I",
         "B",
-        "BLE",
+        "BLE001",
         "ANN401",
         "RUF",
         "D100",
