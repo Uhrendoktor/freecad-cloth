@@ -107,7 +107,7 @@ def project_point(point: Vector, tolerance_mm: float) -> Projection:
     """
 ```
 
-Ruff enforces the selected module, class, method, parameter, return, yield, and exception documentation rules. Private helpers and tests should have a useful summary when behavior is not self-evident, but short tests do not need boilerplate sections that merely repeat their names or assertions. Reviewers must still verify prose against implementation and observable behavior.
+Ruff checks parameter descriptions in documented APIs. It does not require boilerplate module, class, constructor, return, yield, or exception sections on every test and helper. Private helpers and tests should have a useful summary when behavior is not self-evident. Reviewers must still verify prose against implementation and observable behavior.
 
 ## Validate every documentation change
 
