@@ -6,7 +6,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.support.assertions import require as _require
 from tools.ci.check_artifact_budget import (
     API_USER_AGENT,
     MAX_ARTIFACT_BYTES,
@@ -25,19 +24,17 @@ def test_accumulated_size_sums_all_artifacts() -> None:
         {"name": "second", "size_in_bytes": 3_500_000},
         {"name": "third", "size_in_bytes": 4_000_000},
     ]
-    _require(
-        condition=accumulated_size(artifacts) == EXPECTED_ACCUMULATED_BYTES,
-        message="artifact sizes should be summed across all records",
-    )
+    assert (
+        accumulated_size(artifacts) == EXPECTED_ACCUMULATED_BYTES
+    ), "artifact sizes should be summed across all records"
 
 
 def test_ten_mb_budget_boundary_is_allowed() -> None:
     """Allow an accumulated artifact size exactly at the configured limit."""
     artifacts = [{"name": "evidence", "size_in_bytes": MAX_ARTIFACT_BYTES}]
-    _require(
-        condition=accumulated_size(artifacts) == MAX_ARTIFACT_BYTES,
-        message="the exact artifact-budget boundary should be accepted",
-    )
+    assert (
+        accumulated_size(artifacts) == MAX_ARTIFACT_BYTES
+    ), "the exact artifact-budget boundary should be accepted"
 
 
 def test_over_budget_is_detectable() -> None:
@@ -46,10 +43,9 @@ def test_over_budget_is_detectable() -> None:
         {"name": "one", "size_in_bytes": 6_000_000},
         {"name": "two", "size_in_bytes": 4_000_001},
     ]
-    _require(
-        condition=accumulated_size(artifacts) > MAX_ARTIFACT_BYTES,
-        message="combined artifact sizes above the limit should be detectable",
-    )
+    assert (
+        accumulated_size(artifacts) > MAX_ARTIFACT_BYTES
+    ), "combined artifact sizes above the limit should be detectable"
 
 
 def test_invalid_artifact_size_fails_closed() -> None:
@@ -87,10 +83,9 @@ def test_artifact_api_permission_error_includes_github_message() -> None:
         )
 
     request_headers = connection.request.call_args.kwargs["headers"]
-    _require(
-        condition=request_headers.get("User-Agent") == API_USER_AGENT,
-        message="GitHub REST requests must send an explicit User-Agent header",
-    )
+    assert (
+        request_headers.get("User-Agent") == API_USER_AGENT
+    ), "GitHub REST requests must send an explicit User-Agent header"
 
 
 def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
@@ -115,22 +110,19 @@ def test_artifact_api_error_redacts_and_bounds_non_json_body_preview() -> None:
         )
 
     message = str(error.value)
-    _require(
-        condition="upstream gateway refused request" in message,
-        message="the body preview should explain a non-JSON response",
-    )
-    _require(
-        condition=(
-            "ghp_example_secret_token" not in message
-            and "plain_secret_value" not in message
-            and "[REDACTED]" in message
-        ),
-        message="the body preview must redact credential-shaped strings",
-    )
-    _require(
-        condition=len(message) < MAX_EXPECTED_ERROR_MESSAGE_LENGTH,
-        message="the error report must remain bounded",
-    )
+    assert (
+        "upstream gateway refused request" in message
+    ), "the body preview should explain a non-JSON response"
+    assert (
+        (
+        "ghp_example_secret_token" not in message
+        and "plain_secret_value" not in message
+        and "[REDACTED]" in message
+        )
+    ), "the body preview must redact credential-shaped strings"
+    assert (
+        len(message) < MAX_EXPECTED_ERROR_MESSAGE_LENGTH
+    ), "the error report must remain bounded"
 
 
 def test_artifact_api_error_reports_empty_response_metadata() -> None:
