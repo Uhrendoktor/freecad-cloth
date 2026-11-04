@@ -111,7 +111,7 @@ class AvatarFittingTests(unittest.TestCase):
     def test_arrangement_point_rejects_unversioned_landmark_record(self):
         legacy = "shoulder_left|-210,0,1050"
         with self.assertRaisesRegex(ValueError, "requires name"):
-            ArrangementPoint.from_string("shoulder_left|-210,0,1050")
+            ArrangementPoint.from_string(legacy)
 
     def test_invalid_arrangement_point_and_volume_are_rejected(self):
         with self.assertRaises(ValueError):
