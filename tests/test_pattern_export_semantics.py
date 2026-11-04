@@ -275,9 +275,21 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     notch_apex = next(
         index
         for index, (x, _y) in enumerate(coordinates)
-        if math.isclose(x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(coordinates[index - 1][0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(coordinates[(index + 1) % len(coordinates)][0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+        if math.isclose(
+            x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
+        and math.isclose(
+            coordinates[index - 1][0],
+            EXPECTED_CUT_WIDTH_MM,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        )
+        and math.isclose(
+            coordinates[(index + 1) % len(coordinates)][0],
+            EXPECTED_CUT_WIDTH_MM,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        )
     )
     previous_y = coordinates[notch_apex - 1][1]
     apex_y = coordinates[notch_apex][1]
