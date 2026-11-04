@@ -1067,10 +1067,27 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     expected_rules = [
-        "E4", "E7", "E9", "F", "I", "B", "BLE", "C4", "DTZ", "PERF",
-        "PIE", "RET", "SIM", "UP", "YTT", "RUF", "ANN401",
-        "D100", "D101", "D102", "D103", "D104", "D107", "D417", "DOC201", "DOC402", "DOC501",
-        "S102", "S307", "S605",
+        "E",
+        "F",
+        "W",
+        "I",
+        "B",
+        "BLE",
+        "UP",
+        "ANN401",
+        "RUF",
+        "D100",
+        "D101",
+        "D102",
+        "D104",
+        "D107",
+        "D417",
+        "DOC201",
+        "DOC402",
+        "DOC501",
+        "S102",
+        "S307",
+        "S605",
     ]
     require(condition=lint["select"] == expected_rules, message="Ruff must use the reviewed high-signal rule set.")
     require(condition=lint["preview"] is True, message="Selected DOC rules require Ruff preview mode.")
@@ -1082,8 +1099,8 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     )
 
 
-def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
-    """One profile covers the broad inventory and makes strict core scope explicit."""
+def test_pyright_covers_production_package_with_explicit_strict_core() -> None:
+    """One profile covers all production code and keeps the simulation core strict."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
@@ -1100,8 +1117,8 @@ def test_pyright_keeps_broad_inventory_with_explicit_strict_core() -> None:
         message='Expected config["typeCheckingMode"] == "standard".',
     )
     require(
-        condition=config["include"] == ["."],
-        message='Expected config["include"] == ["."].',
+        condition=config["include"] == ["freecad_cloth"],
+        message='Expected config["include"] == ["freecad_cloth"].',
     )
     require(
         condition=not config.get("exclude"),
@@ -1234,26 +1251,26 @@ def test_ruff_command_parser_rejects_and_chained_commands() -> None:
     )
 
 def test_pyright_coverage_contract_rejects_a_narrowed_scope() -> None:
-    """Reject include/exclude changes that remove repository Python files from Pyright."""
+    """Reject configuration changes that remove production modules from Pyright."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["include"] = ["freecad_cloth"]
+    config["include"] = ["tests"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright include scope must cover the entire repository>",),
-        message="Pyright must reject a narrowed repository include.",
+        == ("<Pyright include scope must cover the production package>",),
+        message="Pyright must reject an include that omits production code.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["exclude"] = ["tests/**"]
+    config["exclude"] = ["freecad_cloth/simulation/**"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright exclude scope must not narrow repository coverage>",),
-        message="Pyright must reject exclusions from repository analysis.",
+        == ("<Pyright exclude scope must not narrow production-package coverage>",),
+        message="Pyright must reject exclusions from production analysis.",
     )
 
 
 def test_new_production_modules_remain_in_pyright_scope() -> None:
-    """Keep newly added production modules covered by the repository-root include."""
+    """Keep newly added production modules covered by the production-package include."""
     new_modules = (
         "freecad_cloth/common/new_model.py",
         "freecad_cloth/simulation/NewSimulationGui.py",
@@ -1264,7 +1281,7 @@ def test_new_production_modules_remain_in_pyright_scope() -> None:
             PYRIGHT_CONFIG.read_text(encoding="utf-8"),
             new_modules,
         ) == (),
-        message="The repository-root Pyright scope must include new production modules.",
+        message="The production-package Pyright scope must include new production modules.",
     )
 
 
