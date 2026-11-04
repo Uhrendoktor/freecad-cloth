@@ -1,10 +1,12 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for pattern and sewing invalidation signatures."""
 
-from collections.abc import Callable, Sequence
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-import freecad_cloth.simulation.SimulationObjects as simulation_objects
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
+
+import freecad_cloth.simulation.SimulationObjects as SimulationObjects
 from tests.support.assertions import require
 
 DEFAULT_STITCH_SAMPLE_COUNT = 8
@@ -13,7 +15,7 @@ _SIMULATION_SOURCE_SIGNATURE_NAME = "_simulation_source_signature"
 
 _simulation_source_signature = cast(
     "Callable[[object, Sequence[object]], object]",
-    getattr(simulation_objects, _SIMULATION_SOURCE_SIGNATURE_NAME),
+    getattr(SimulationObjects, _SIMULATION_SOURCE_SIGNATURE_NAME),
 )
 
 
@@ -181,8 +183,6 @@ def test_signature_changes_for_seam_orientation_and_sampling() -> None:
     reversed_signature = _simulation_source_signature(scene, [piece_a, piece_b])
     scene.StitchSamples = UPDATED_STITCH_SAMPLE_COUNT
     require(
-        condition=(
-            _simulation_source_signature(scene, [piece_a, piece_b]) != reversed_signature
-        ),
+        condition=(_simulation_source_signature(scene, [piece_a, piece_b]) != reversed_signature),
         message="Changing stitch sampling must invalidate the source signature.",
     )
