@@ -7,7 +7,6 @@ from freecad_cloth.pattern.PatternGeometry import ParametricPattern, rectangle
 from freecad_cloth.pattern.PatternMesh import TriangleMesh, triangulate
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingConstraints import SewingPatternMesh, build_sewing_constraints
-from tests.support.assertions import require
 
 
 def _mesh_pair() -> tuple[ParametricPattern, TriangleMesh, ParametricPattern, TriangleMesh]:
@@ -74,26 +73,22 @@ def test_sewing_constraints_resolve_integer_and_stable_edge_references(
         SewingPatternMesh(pattern_a, mesh_a), SewingPatternMesh(pattern_b, mesh_b), seam
     )
 
-    require(
-        condition=expected_key in constraints.seam_map,
-        message="The seam map must preserve the canonical edge references.",
-    )
-    require(
-        condition=bool(constraints.stitches),
-        message="Valid corresponding seam edges must produce stitch constraints.",
-    )
+    assert (
+        expected_key in constraints.seam_map
+    ), "The seam map must preserve the canonical edge references."
+    assert (
+        bool(constraints.stitches)
+    ), "Valid corresponding seam edges must produce stitch constraints."
     segment_id_a = edge_a if isinstance(edge_a, str) else pattern_a.segments[edge_a].id
     segment_id_b = edge_b if isinstance(edge_b, str) else pattern_b.segments[edge_b].id
     vertices_a = _vertices_on_segment(mesh_a, segment_id_a)
     vertices_b = _vertices_on_segment(mesh_b, segment_id_b)
-    require(
-        condition=all(stitch.vertex_a in vertices_a for stitch in constraints.stitches),
-        message="Every first-side stitch vertex must belong to the selected seam segment.",
-    )
-    require(
-        condition=all(stitch.vertex_b in vertices_b for stitch in constraints.stitches),
-        message="Every second-side stitch vertex must belong to the selected seam segment.",
-    )
+    assert (
+        all(stitch.vertex_a in vertices_a for stitch in constraints.stitches)
+    ), "Every first-side stitch vertex must belong to the selected seam segment."
+    assert (
+        all(stitch.vertex_b in vertices_b for stitch in constraints.stitches)
+    ), "Every second-side stitch vertex must belong to the selected seam segment."
 
 
 def test_sewing_constraints_reject_unknown_stable_segment_identifier() -> None:
