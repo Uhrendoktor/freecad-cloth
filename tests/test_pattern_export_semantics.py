@@ -1272,6 +1272,7 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
 
     class Mark:
         """Persisted construction-mark double consumed by the export adapter."""
+
         PatternMarkId = "mark-front"
         PatternMarkType = "InternalMark"
         PieceId = "piece-front"
