@@ -113,7 +113,14 @@ def test_signature_changes_for_every_derived_simulation_control(
         ),
     )
     require(
-        condition=len(set(rebuilt_signatures)) == len(rebuilt_signatures),
+        condition=all(
+            current != previous
+            for previous, current in zip(
+                rebuilt_signatures,
+                rebuilt_signatures[1:],
+                strict=False,
+            )
+        ),
         message="Each authored control change must produce a distinct rebuild signature.",
     )
 
