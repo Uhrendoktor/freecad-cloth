@@ -20,6 +20,8 @@ from freecad_cloth.common.ValidationModels import (
     validate_finite_number,
 )
 
+_STITCH_PAIR_ENDPOINT_COUNT = 2
+
 
 @pydantic_dataclass
 class Particle:
@@ -111,7 +113,6 @@ class ClothSystem:
 
         Raises:
             TypeError: If a particle or constraint entry has an unsupported type.
-            ValueError: If particle indices or physical parameters are invalid.
         """
         raw_particles: list[object] = list(particles)
         self.particles: list[Particle] = []
@@ -237,7 +238,7 @@ class ClothSystem:
                 constraint = pair
             else:
                 values = tuple(pair)
-                if len(values) != 2:
+                if len(values) != _STITCH_PAIR_ENDPOINT_COUNT:
                     msg = "stitch pairs must contain exactly two particle indices"
                     raise ValueError(msg)
                 validated = ParticlePairInput.model_validate({"a": values[0], "b": values[1]})
