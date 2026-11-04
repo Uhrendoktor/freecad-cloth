@@ -99,19 +99,6 @@ class _PatternPiece(_PieceSeed, Protocol):
     GeometryAuthority: str
     Document: _ExportDocument
 
-    @property
-    def Sketch(self) -> _NativeSketch:
-        """Return the native sketch that remains authoritative for piece edges."""
-        ...
-
-    @Sketch.setter
-    def Sketch(self, value: _NativeSketch) -> None:
-        """Attach the authoritative native sketch to the test piece.
-
-        Args:
-            value: Sketch-like geometry object carrying stable semantic edge IDs.
-        """
-        ...
 
 
 EXPECTED_CUT_WIDTH_MM = 110.0
@@ -127,6 +114,7 @@ EXPECTED_TILE_COLUMNS = 3
 EXPECTED_TILE_ROWS = 2
 EXPECTED_TILE_PAGE_COUNT = 6
 MINIMUM_CUT_CONTOUR_POINTS = 4
+_SKETCH_PROPERTY_NAME = "Sketch"
 
 
 def _curved_pattern() -> ParametricPattern:
@@ -231,12 +219,28 @@ def _native_piece(piece: _PieceSeed) -> _PatternPiece:
     width, height = float(piece.Width), float(piece.Height)
     adopted_piece = cast("_PatternPiece", piece)
     adopted_piece.GeometryAuthority = "Sketcher"
-    adopted_piece.Sketch = _native_sketch(
-        str(adopted_piece.PieceId),
-        ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height)),
+    setattr(
+        adopted_piece,
+        _SKETCH_PROPERTY_NAME,
+        _native_sketch(
+            str(adopted_piece.PieceId),
+            ((0.0, 0.0), (width, 0.0), (width, height), (0.0, height)),
+        ),
     )
     return adopted_piece
 
+
+
+def _piece_sketch(piece: object) -> _NativeSketch:
+    """Return the native sketch stored under FreeCAD's persisted property name.
+
+    Args:
+        piece: Pattern-piece object carrying its authoritative Sketch property.
+
+    Returns:
+        The native sketch with stable semantic edge identities.
+    """
+    return cast("_NativeSketch", getattr(piece, _SKETCH_PROPERTY_NAME))
 
 def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     """Verify that SVG and DXF preserve piece identity, construction marks, and seam metadata."""
@@ -263,7 +267,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     )
     require(
         condition=(cut_path.attrib["data-notch-ids"] == "notch-1"),
-        message="Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"notch-1",
+        message='Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1',
     )
     coordinates = [
         (float(x), float(y))
@@ -275,9 +279,21 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     notch_apex = next(
         index
         for index, (x, _y) in enumerate(coordinates)
-        if math.isclose(x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(coordinates[index - 1][0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(coordinates[(index + 1) % len(coordinates)][0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+        if math.isclose(
+            x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
+        and math.isclose(
+            coordinates[index - 1][0],
+            EXPECTED_CUT_WIDTH_MM,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        )
+        and math.isclose(
+            coordinates[(index + 1) % len(coordinates)][0],
+            EXPECTED_CUT_WIDTH_MM,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        )
     )
     previous_y = coordinates[notch_apex - 1][1]
     apex_y = coordinates[notch_apex][1]
@@ -290,7 +306,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
         condition=(
             not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter())
         ),
-        message="Export contract failed: not any(element.attrib.get(\"id\") == \"notch-no",
+        message='Export contract failed: not any(element.attrib.get("id") == "notch-no',
     )
     require(
         condition=('data-mark-id="grain-1"' in svg),
@@ -298,19 +314,20 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     )
     require(
         condition=(
-            from_svg_metadata(svg) == {
-            "version": 2,
-            "units": "mm",
-            "edge_ids": ["bottom", "right", "armhole", "left"],
-            "piece_id": "bodice-front",
-            "seam_ids": ["seam-neck", "seam-side"],
-            "scale": 1.0,
-            "seam_allowance_mm": 0.0,
-            "notch_ids": ["notch-1"],
-            "mark_ids": ["grain-1"],
+            from_svg_metadata(svg)
+            == {
+                "version": 2,
+                "units": "mm",
+                "edge_ids": ["bottom", "right", "armhole", "left"],
+                "piece_id": "bodice-front",
+                "seam_ids": ["seam-neck", "seam-side"],
+                "scale": 1.0,
+                "seam_allowance_mm": 0.0,
+                "notch_ids": ["notch-1"],
+                "mark_ids": ["grain-1"],
             }
         ),
-        message="Export contract failed: from_svg_metadata(svg) == { \"version\": 2, \"un",
+        message='Export contract failed: from_svg_metadata(svg) == { "version": 2, "un',
     )
 
     dxf = to_dxf(
@@ -322,24 +339,25 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     )
     require(
         condition=(
-            from_dxf_metadata(dxf) == {
-            "version": 2,
-            "units": "mm",
-            "edge_ids": ["bottom", "right", "armhole", "left"],
-            "piece_id": "bodice-front",
-            "seam_ids": ["seam-neck", "seam-side"],
-            "scale": 1.0,
-            "seam_allowance_mm": 0.0,
-            "notch_ids": ["notch-1"],
-            "mark_ids": ["grain-1"],
+            from_dxf_metadata(dxf)
+            == {
+                "version": 2,
+                "units": "mm",
+                "edge_ids": ["bottom", "right", "armhole", "left"],
+                "piece_id": "bodice-front",
+                "seam_ids": ["seam-neck", "seam-side"],
+                "scale": 1.0,
+                "seam_allowance_mm": 0.0,
+                "notch_ids": ["notch-1"],
+                "mark_ids": ["grain-1"],
             }
         ),
-        message="Export contract failed: from_dxf_metadata(dxf) == { \"version\": 2, \"un",
+        message='Export contract failed: from_dxf_metadata(dxf) == { "version": 2, "un',
     )
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
     require(
         condition=("10\n102.000000\n20\n30.000000" in cut_section),
-        message="Export contract failed: \"10\\n102.000000\\n20\\n30.000000\" in cut_sectio",
+        message='Export contract failed: "10\\n102.000000\\n20\\n30.000000" in cut_sectio',
     )
 
 
@@ -348,19 +366,20 @@ def test_standalone_export_uses_complete_current_metadata_schema() -> None:
     metadata = from_dxf_metadata(to_dxf(_curved_pattern()))
     require(
         condition=(
-            metadata == {
-            "version": 2,
-            "units": "mm",
-            "edge_ids": ["bottom", "right", "armhole", "left"],
-            "piece_id": "",
-            "seam_ids": [],
-            "scale": 1.0,
-            "seam_allowance_mm": 0.0,
-            "notch_ids": [],
-            "mark_ids": [],
+            metadata
+            == {
+                "version": 2,
+                "units": "mm",
+                "edge_ids": ["bottom", "right", "armhole", "left"],
+                "piece_id": "",
+                "seam_ids": [],
+                "scale": 1.0,
+                "seam_allowance_mm": 0.0,
+                "notch_ids": [],
+                "mark_ids": [],
             }
         ),
-        message="Export contract failed: metadata == { \"version\": 2, \"units\": \"mm\", \"e",
+        message='Export contract failed: metadata == { "version": 2, "units": "mm", "e',
     )
 
 
@@ -379,22 +398,22 @@ def test_release_gate_validates_deterministic_svg_and_dxf_round_trip() -> None:
     result = validate_export(pattern, svg, "svg", **kwargs)
     require(
         condition=(result["valid"] is True),
-        message="Export contract failed: result[\"valid\"] is True",
+        message='Export contract failed: result["valid"] is True',
     )
     require(
         condition=(result["metadata"]["piece_id"] == "bodice-front"),
-        message="Export contract failed: result[\"metadata\"][\"piece_id\"] == \"bodice-fro",
+        message='Export contract failed: result["metadata"]["piece_id"] == "bodice-fro',
     )
 
     dxf = to_dxf(pattern, **kwargs)
     result = validate_export(pattern, dxf, "dxf", **kwargs)
     require(
         condition=(result["valid"] is True),
-        message="Export contract failed: result[\"valid\"] is True",
+        message='Export contract failed: result["valid"] is True',
     )
     require(
         condition=(result["metadata"]["seam_ids"] == ["seam-neck", "seam-side"]),
-        message="Export contract failed: result[\"metadata\"][\"seam_ids\"] == [\"seam-neck",
+        message='Export contract failed: result["metadata"]["seam_ids"] == ["seam-neck',
     )
 
 
@@ -458,40 +477,40 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     for element in (sewing_path, cut_path, grainline):
         require(
             condition=(element.attrib.get("stroke") == "#000000"),
-            message="Export contract failed: element.attrib.get(\"stroke\") == \"#000000\"",
+            message='Export contract failed: element.attrib.get("stroke") == "#000000"',
         )
     require(
         condition=(cut_path.attrib["data-notch-ids"] == "notch-1"),
-        message="Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"notch-1",
+        message='Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1',
     )
     require(
         condition=(not any(element.attrib.get("id") == "notch-notch-1" for element in elements)),
-        message="Export contract failed: not any(element.attrib.get(\"id\") == \"notch-no",
+        message='Export contract failed: not any(element.attrib.get("id") == "notch-no',
     )
     require(
         condition=(sewing_path.attrib.get("fill") == "none"),
-        message="Export contract failed: sewing_path.attrib.get(\"fill\") == \"none\"",
+        message='Export contract failed: sewing_path.attrib.get("fill") == "none"',
     )
     require(
         condition=(cut_path.attrib.get("fill") == "none"),
-        message="Export contract failed: cut_path.attrib.get(\"fill\") == \"none\"",
+        message='Export contract failed: cut_path.attrib.get("fill") == "none"',
     )
     require(
         condition=(text.attrib.get("fill") == "#000000"),
-        message="Export contract failed: text.attrib.get(\"fill\") == \"#000000\"",
+        message='Export contract failed: text.attrib.get("fill") == "#000000"',
     )
     # The viewBox coordinates are millimetres, so font-size must be unitless.
     require(
         condition=(text.attrib.get("font-size") == "3"),
-        message="Export contract failed: text.attrib.get(\"font-size\") == \"3\"",
+        message='Export contract failed: text.attrib.get("font-size") == "3"',
     )
     require(
         condition=(root.attrib["width"].endswith("mm")),
-        message="Export contract failed: root.attrib[\"width\"].endswith(\"mm\")",
+        message='Export contract failed: root.attrib["width"].endswith("mm")',
     )
     require(
         condition=(root.attrib["height"].endswith("mm")),
-        message="Export contract failed: root.attrib[\"height\"].endswith(\"mm\")",
+        message='Export contract failed: root.attrib["height"].endswith("mm")',
     )
 
 
@@ -524,52 +543,62 @@ def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Pat
 
     require(
         condition=(result["valid"] is True),
-        message="Export contract failed: result[\"valid\"] is True",
+        message='Export contract failed: result["valid"] is True',
     )
     report = cast("_RenderReport", result["render"])
     require(
         condition=(report["valid"] is True),
-        message="Export contract failed: report[\"valid\"] is True",
+        message='Export contract failed: report["valid"] is True',
     )
     require(
         condition=(report["renderer"] == "QtSvg"),
-        message="Export contract failed: report[\"renderer\"] == \"QtSvg\"",
+        message='Export contract failed: report["renderer"] == "QtSvg"',
     )
     require(
         condition=(
-            math.isclose(float(report["physical_width_mm"]), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(report["physical_width_mm"]),
+                EXPECTED_CUT_WIDTH_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: report[\"physical_width_mm\"] == 110.0",
+        message='Export contract failed: report["physical_width_mm"] == 110.0',
     )
     require(
         condition=(
-            math.isclose(float(report["physical_height_mm"]), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(report["physical_height_mm"]),
+                EXPECTED_CUT_HEIGHT_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: report[\"physical_height_mm\"] == 70.0",
+        message='Export contract failed: report["physical_height_mm"] == 70.0',
     )
     require(
         condition=(report["viewbox"] == [0.0, 0.0, EXPECTED_CUT_WIDTH_MM, EXPECTED_CUT_HEIGHT_MM]),
-        message="Export contract failed: report[\"viewbox\"] == [0.0, 0.0, 110.0, 70.0]",
+        message='Export contract failed: report["viewbox"] == [0.0, 0.0, 110.0, 70.0]',
     )
     require(
         condition=(report["raster_width_px"] == EXPECTED_RENDER_WIDTH_PX),
-        message="Export contract failed: report[\"raster_width_px\"] == 624",
+        message='Export contract failed: report["raster_width_px"] == 624',
     )
     require(
         condition=(report["raster_height_px"] == EXPECTED_RENDER_HEIGHT_PX),
-        message="Export contract failed: report[\"raster_height_px\"] == 397",
+        message='Export contract failed: report["raster_height_px"] == 397',
     )
     require(
         condition=(report["ink_pixel_count"] > MINIMUM_RENDERED_INK_PIXELS),
-        message="Export contract failed: report[\"ink_pixel_count\"] > 100",
+        message='Export contract failed: report["ink_pixel_count"] > 100',
     )
     require(
         condition=(report["ink_bounds_px"][2] >= report["ink_bounds_px"][0]),
-        message="Export contract failed: report[\"ink_bounds_px\"][2] >= report[\"ink_bou",
+        message='Export contract failed: report["ink_bounds_px"][2] >= report["ink_bou',
     )
     require(
         condition=(report["ink_bounds_px"][3] >= report["ink_bounds_px"][1]),
-        message="Export contract failed: report[\"ink_bounds_px\"][3] >= report[\"ink_bou",
+        message='Export contract failed: report["ink_bounds_px"][3] >= report["ink_bou',
     )
     require(
         condition=(png_path.read_bytes().startswith(bytes((137, 80, 78, 71, 13, 10, 26, 10)))),
@@ -577,7 +606,7 @@ def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Pat
     )
     require(
         condition=(report["png_path"] == str(png_path)),
-        message="Export contract failed: report[\"png_path\"] == str(png_path)",
+        message='Export contract failed: report["png_path"] == str(png_path)',
     )
 
 
@@ -616,20 +645,34 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     apex_index = next(
         index
         for index, (x, y) in enumerate(coordinates)
-        if math.isclose(x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(y, EXPECTED_CUT_HEIGHT_MM / 2, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+        if math.isclose(
+            x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
+        and math.isclose(
+            y, EXPECTED_CUT_HEIGHT_MM / 2, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
     )
     previous = coordinates[apex_index - 1]
     following = coordinates[(apex_index + 1) % len(coordinates)]
     require(
         condition=(
-            math.isclose(previous[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                previous[0],
+                EXPECTED_CUT_WIDTH_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
         message="Exported perimeter width must match the expected cut size.",
     )
     require(
         condition=(
-            math.isclose(following[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                following[0],
+                EXPECTED_CUT_WIDTH_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
         message="Exported perimeter width must match the expected cut size.",
     )
@@ -639,18 +682,18 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     )
     require(
         condition=(cut_path.attrib["data-notch-ids"] == "right-notch"),
-        message="Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"right-n",
+        message='Export contract failed: cut_path.attrib["data-notch-ids"] == "right-n',
     )
 
     dxf = to_dxf(pattern, derived=derived)
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
     require(
         condition=("10\n102.000000\n20\n30.000000" in cut_section),
-        message="Export contract failed: \"10\\n102.000000\\n20\\n30.000000\" in cut_sectio",
+        message='Export contract failed: "10\\n102.000000\\n20\\n30.000000" in cut_sectio',
     )
     require(
         condition=("8\nMARK\n" not in cut_section),
-        message="Export contract failed: \"8\\nMARK\\n\" not in cut_section",
+        message='Export contract failed: "8\\nMARK\\n" not in cut_section',
     )
 
 
@@ -665,11 +708,11 @@ def test_zero_allowance_notch_falls_inward_not_outward() -> None:
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
     require(
         condition=("10\n97.000000\n20\n30.000000" in cut_section),
-        message="Export contract failed: \"10\\n97.000000\\n20\\n30.000000\" in cut_section",
+        message='Export contract failed: "10\\n97.000000\\n20\\n30.000000" in cut_section',
     )
     require(
         condition=("10\n103.000000\n20\n30.000000" not in cut_section),
-        message="Export contract failed: \"10\\n103.000000\\n20\\n30.000000\" not in cut_se",
+        message='Export contract failed: "10\\n103.000000\\n20\\n30.000000" not in cut_se',
     )
 
 
@@ -692,58 +735,63 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     )
     require(
         condition=(first.startswith(b"%PDF-1.4")),
-        message="Export contract failed: first.startswith(b\"%PDF-1.4\")",
+        message='Export contract failed: first.startswith(b"%PDF-1.4")',
     )
     require(
         condition=(b"/Count 1" in first),
-        message="Export contract failed: b\"/Count 1\" in first",
+        message='Export contract failed: b"/Count 1" in first',
     )
     require(
         condition=(b"/MediaBox [0 0 595.27559 841.88976]" in first),
-        message="Export contract failed: b\"/MediaBox [0 0 595.27559 841.88976]\" in fir",
+        message='Export contract failed: b"/MediaBox [0 0 595.27559 841.88976]" in fir',
     )
     require(
         condition=(b"70.86614 70.86614 re S" in first),
-        message="Export contract failed: b\"70.86614 70.86614 re S\" in first",
+        message='Export contract failed: b"70.86614 70.86614 re S" in first',
     )
     require(
         condition=(first.count(b"25 mm CALIBRATION SQUARE") == 1),
-        message="Export contract failed: first.count(b\"25 mm CALIBRATION SQUARE\") == 1",
+        message='Export contract failed: first.count(b"25 mm CALIBRATION SQUARE") == 1',
     )
     require(
         condition=(first.count(b"Print at ACTUAL SIZE / 100%") == 1),
-        message="Export contract failed: first.count(b\"Print at ACTUAL SIZE / 100%\") =",
+        message='Export contract failed: first.count(b"Print at ACTUAL SIZE / 100%") =',
     )
     require(
         condition=(b"Fit to Page" in first),
-        message="Export contract failed: b\"Fit to Page\" in first",
+        message='Export contract failed: b"Fit to Page" in first',
     )
     metadata = from_pdf_metadata(first)
     require(
         condition=(metadata["format"] == "pdf"),
-        message="Export contract failed: metadata[\"format\"] == \"pdf\"",
+        message='Export contract failed: metadata["format"] == "pdf"',
     )
     require(
         condition=(metadata["units"] == "mm"),
-        message="Export contract failed: metadata[\"units\"] == \"mm\"",
+        message='Export contract failed: metadata["units"] == "mm"',
     )
     require(
         condition=(
-            math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(metadata["scale"]),
+                EXPECTED_SCALE,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: metadata[\"scale\"] == 1.0",
+        message='Export contract failed: metadata["scale"] == 1.0',
     )
     require(
         condition=(metadata["paper_size"] == "A4"),
-        message="Export contract failed: metadata[\"paper_size\"] == \"A4\"",
+        message='Export contract failed: metadata["paper_size"] == "A4"',
     )
     require(
         condition=(metadata["page_count"] == 1),
-        message="Export contract failed: metadata[\"page_count\"] == 1",
+        message='Export contract failed: metadata["page_count"] == 1',
     )
     require(
         condition=(metadata["notch_ids"] == ["right-notch"]),
-        message="Export contract failed: metadata[\"notch_ids\"] == [\"right-notch\"]",
+        message='Export contract failed: metadata["notch_ids"] == ["right-notch"]',
     )
     require(
         condition=(validate_pdf_export(pattern, first, options)["valid"] is True),
@@ -764,45 +812,50 @@ def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
     metadata = from_pdf_metadata(pdf)
     require(
         condition=(metadata["tile_columns"] == EXPECTED_TILE_COLUMNS),
-        message="Export contract failed: metadata[\"tile_columns\"] == 3",
+        message='Export contract failed: metadata["tile_columns"] == 3',
     )
     require(
         condition=(metadata["tile_rows"] == EXPECTED_TILE_ROWS),
-        message="Export contract failed: metadata[\"tile_rows\"] == 2",
+        message='Export contract failed: metadata["tile_rows"] == 2',
     )
     require(
         condition=(metadata["page_count"] == EXPECTED_TILE_PAGE_COUNT),
-        message="Export contract failed: metadata[\"page_count\"] == 6",
+        message='Export contract failed: metadata["page_count"] == 6',
     )
     require(
         condition=(f"/Count {EXPECTED_TILE_PAGE_COUNT}".encode() in pdf),
-        message="Export contract failed: b\"/Count 6\" in pdf",
+        message='Export contract failed: b"/Count 6" in pdf',
     )
     require(
         condition=(pdf.count(b"/Type /Page ") == EXPECTED_TILE_PAGE_COUNT),
-        message="Export contract failed: pdf.count(b\"/Type /Page \") == 6",
+        message='Export contract failed: pdf.count(b"/Type /Page ") == 6',
     )
     require(
         condition=(pdf.count(b"25 mm CALIBRATION SQUARE") == EXPECTED_TILE_PAGE_COUNT),
-        message="Export contract failed: pdf.count(b\"25 mm CALIBRATION SQUARE\") == 6",
+        message='Export contract failed: pdf.count(b"25 mm CALIBRATION SQUARE") == 6',
     )
     require(
         condition=(pdf.count(b"Print at ACTUAL SIZE / 100%") == EXPECTED_TILE_PAGE_COUNT),
-        message="Export contract failed: pdf.count(b\"Print at ACTUAL SIZE / 100%\") == ",
+        message='Export contract failed: pdf.count(b"Print at ACTUAL SIZE / 100%") == ',
     )
     require(
         condition=(b"H1-1" in pdf),
-        message="Export contract failed: b\"H1-1\" in pdf",
+        message='Export contract failed: b"H1-1" in pdf',
     )
     require(
         condition=(b"V1-1" in pdf),
-        message="Export contract failed: b\"V1-1\" in pdf",
+        message='Export contract failed: b"V1-1" in pdf',
     )
     require(
         condition=(
-            math.isclose(float(metadata["overlap_mm"]), EXPECTED_OVERLAP_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(metadata["overlap_mm"]),
+                EXPECTED_OVERLAP_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: metadata[\"overlap_mm\"] == 10.0",
+        message='Export contract failed: metadata["overlap_mm"] == 10.0',
     )
 
 
@@ -812,11 +865,11 @@ def test_pdf_letter_page_size_and_layout_validation() -> None:
     letter_pdf = to_pdf(pattern, PdfExportOptions(paper_size="Letter"))
     require(
         condition=(b"/MediaBox [0 0 612 792]" in letter_pdf),
-        message="Export contract failed: b\"/MediaBox [0 0 612 792]\" in letter_pdf",
+        message='Export contract failed: b"/MediaBox [0 0 612 792]" in letter_pdf',
     )
     require(
         condition=(from_pdf_metadata(letter_pdf)["paper_size"] == "Letter"),
-        message="Export contract failed: from_pdf_metadata(letter_pdf)[\"paper_size\"] =",
+        message='Export contract failed: from_pdf_metadata(letter_pdf)["paper_size"] =',
     )
     with pytest.raises(ValueError, match="paper_size"):
         to_pdf(pattern, PdfExportOptions(paper_size="Legal"))
@@ -832,8 +885,10 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -857,31 +912,41 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     metadata = from_pdf_metadata(payload)
     require(
         condition=(result["valid"] is True),
-        message="Export contract failed: result[\"valid\"] is True",
+        message='Export contract failed: result["valid"] is True',
     )
     require(
         condition=(payload.startswith(b"%PDF-1.4")),
-        message="Export contract failed: payload.startswith(b\"%PDF-1.4\")",
+        message='Export contract failed: payload.startswith(b"%PDF-1.4")',
     )
     require(
         condition=(metadata["piece_id"] == "piece-front"),
-        message="Export contract failed: metadata[\"piece_id\"] == \"piece-front\"",
+        message='Export contract failed: metadata["piece_id"] == "piece-front"',
     )
     require(
         condition=(
-            math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(metadata["scale"]),
+                EXPECTED_SCALE,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: metadata[\"scale\"] == 1.0",
+        message='Export contract failed: metadata["scale"] == 1.0',
     )
     require(
         condition=(
-            math.isclose(float(metadata["seam_allowance_mm"]), EXPECTED_SEAM_ALLOWANCE_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                float(metadata["seam_allowance_mm"]),
+                EXPECTED_SEAM_ALLOWANCE_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
-        message="Export contract failed: metadata[\"seam_allowance_mm\"] == 5.0",
+        message='Export contract failed: metadata["seam_allowance_mm"] == 5.0',
     )
     require(
         condition=(metadata["page_count"] == 1),
-        message="Export contract failed: metadata[\"page_count\"] == 1",
+        message='Export contract failed: metadata["page_count"] == 1',
     )
 
 
@@ -899,11 +964,11 @@ def test_dxf_declares_millimetres_in_standard_header() -> None:
     dxf = to_dxf(_curved_pattern())
     require(
         condition=("$INSUNITS\n70\n4\n" in dxf),
-        message="Export contract failed: \"$INSUNITS\\n70\\n4\\n\" in dxf",
+        message='Export contract failed: "$INSUNITS\\n70\\n4\\n" in dxf',
     )
     require(
         condition=(from_dxf_metadata(dxf)["units"] == "mm"),
-        message="Export contract failed: from_dxf_metadata(dxf)[\"units\"] == \"mm\"",
+        message='Export contract failed: from_dxf_metadata(dxf)["units"] == "mm"',
     )
 
 
@@ -920,20 +985,31 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
     ys = [point[1] for point in contour]
     require(
         condition=(
-            math.isclose(max(xs) - min(xs), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                max(xs) - min(xs),
+                EXPECTED_CUT_WIDTH_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
         message="Cut-contour width must match the expected cut size.",
     )
     require(
         condition=(
-            math.isclose(max(ys) - min(ys), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+            math.isclose(
+                max(ys) - min(ys),
+                EXPECTED_CUT_HEIGHT_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
         ),
         message="Cut-contour height must match the expected cut size.",
     )
     require(
         condition=(
             all(
-            contour[index] != contour[(index + 1) % len(contour)] for index in range(len(contour))
+                contour[index] != contour[(index + 1) % len(contour)]
+                for index in range(len(contour))
             )
         ),
         message="Export contract failed: all( contour[index] != contour[(index + 1) % ",
@@ -941,12 +1017,12 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
     dxf = to_dxf(pattern, derived=derived)
     require(
         condition=("8\nCUT\n" in dxf),
-        message="Export contract failed: \"8\\nCUT\\n\" in dxf",
+        message='Export contract failed: "8\\nCUT\\n" in dxf',
     )
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
     require(
         condition=("70\n1\n" in cut_section),
-        message="Export contract failed: \"70\\n1\\n\" in cut_section",
+        message='Export contract failed: "70\\n1\\n" in cut_section',
     )
 
 
@@ -956,8 +1032,10 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -969,6 +1047,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
 
     class Seam:
         """Persisted seam double used to verify export validation."""
+
         SeamId = "front-back"
         PieceA = "piece-front"
         PieceB = "piece-back"
@@ -982,7 +1061,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
     piece = _native_piece(Piece())
     piece.Document = Document()
     piece.Document.Objects = (piece, Seam())
-    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, piece.Sketch.SemanticEdgeIds)
+    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, _piece_sketch(piece).SemanticEdgeIds)
 
     for fmt in ("svg", "dxf", "pdf"):
         first = tmp_path / (f"front.{fmt}")
@@ -995,7 +1074,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
         )
         require(
             condition=(first_result["valid"] is True),
-            message="Export contract failed: first_result[\"valid\"] is True",
+            message='Export contract failed: first_result["valid"] is True',
         )
         if fmt == "pdf":
             metadata = from_pdf_metadata(first.read_bytes())
@@ -1005,36 +1084,47 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
             metadata = from_dxf_metadata(first.read_text(encoding="utf-8"))
         require(
             condition=(metadata["piece_id"] == "piece-front"),
-            message="Export contract failed: metadata[\"piece_id\"] == \"piece-front\"",
+            message='Export contract failed: metadata["piece_id"] == "piece-front"',
         )
         require(
             condition=(metadata["seam_ids"] == ["front-back"]),
-            message="Export contract failed: metadata[\"seam_ids\"] == [\"front-back\"]",
+            message='Export contract failed: metadata["seam_ids"] == ["front-back"]',
         )
         require(
             condition=(
-                math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+                math.isclose(
+                    float(metadata["scale"]),
+                    EXPECTED_SCALE,
+                    rel_tol=0.0,
+                    abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+                )
             ),
-            message="Export contract failed: metadata[\"scale\"] == 1.0",
+            message='Export contract failed: metadata["scale"] == 1.0',
         )
         require(
             condition=(
-                math.isclose(float(metadata["seam_allowance_mm"]), EXPECTED_SEAM_ALLOWANCE_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+                math.isclose(
+                    float(metadata["seam_allowance_mm"]),
+                    EXPECTED_SEAM_ALLOWANCE_MM,
+                    rel_tol=0.0,
+                    abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+                )
             ),
-            message="Export contract failed: metadata[\"seam_allowance_mm\"] == 5.0",
+            message='Export contract failed: metadata["seam_allowance_mm"] == 5.0',
         )
         require(
             condition=(metadata["mark_ids"] == ["piece-front:grainline"]),
-            message="Export contract failed: metadata[\"mark_ids\"] == [\"piece-front:grainli",
+            message='Export contract failed: metadata["mark_ids"] == ["piece-front:grainli',
         )
 
     require(
         condition=(
-            before == (
-            piece.Label,
-            piece.SeamAllowance,
-            piece.GrainlineAngle,
-            piece.Sketch.SemanticEdgeIds,
+            before
+            == (
+                piece.Label,
+                piece.SeamAllowance,
+                piece.GrainlineAngle,
+                _piece_sketch(piece).SemanticEdgeIds,
             )
         ),
         message="Export contract failed: before == ( piece.Label, piece.SeamAllowance,",
@@ -1047,8 +1137,10 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -1060,6 +1152,7 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
 
     class Seam:
         """Persisted seam double used to verify export validation."""
+
         SeamId = "front-back"
         PieceA = "piece-front"
         PieceB = "piece-back"
@@ -1090,7 +1183,7 @@ def test_export_boundary_is_closed_and_continuous() -> None:
     dxf = to_dxf(pattern, curve_samples=24)
     require(
         condition=("\n70\n1\n" in dxf),
-        message="Export contract failed: \"\\n70\\n1\\n\" in dxf",
+        message='Export contract failed: "\\n70\\n1\\n" in dxf',
     )
 
 
@@ -1113,8 +1206,10 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -1165,11 +1260,11 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             metadata = from_pdf_metadata(raw_payload)
             require(
                 condition=(metadata["piece_id"] == "piece-front"),
-                message="Export contract failed: metadata[\"piece_id\"] == \"piece-front\"",
+                message='Export contract failed: metadata["piece_id"] == "piece-front"',
             )
             require(
                 condition=(metadata["notch_ids"] == ["notch-front"]),
-                message="Export contract failed: metadata[\"notch_ids\"] == [\"notch-front\"]",
+                message='Export contract failed: metadata["notch_ids"] == ["notch-front"]',
             )
             require(
                 condition=(metadata["mark_ids"] == ["grain-front", "mark-front"]),
@@ -1177,22 +1272,22 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             )
             require(
                 condition=(b"25 mm CALIBRATION SQUARE" in raw_payload),
-                message="Export contract failed: b\"25 mm CALIBRATION SQUARE\" in raw_payload",
+                message='Export contract failed: b"25 mm CALIBRATION SQUARE" in raw_payload',
             )
             continue
         payload = raw_payload.decode("utf-8")
         metadata = from_svg_metadata(payload) if fmt == "svg" else from_dxf_metadata(payload)
         require(
             condition=(metadata["piece_id"] == "piece-front"),
-            message="Export contract failed: metadata[\"piece_id\"] == \"piece-front\"",
+            message='Export contract failed: metadata["piece_id"] == "piece-front"',
         )
         require(
             condition=(metadata["notch_ids"] == ["notch-front"]),
-            message="Export contract failed: metadata[\"notch_ids\"] == [\"notch-front\"]",
+            message='Export contract failed: metadata["notch_ids"] == ["notch-front"]',
         )
         require(
             condition=(metadata["mark_ids"] == ["grain-front", "mark-front"]),
-            message="Export contract failed: metadata[\"mark_ids\"] == [\"grain-front\", \"mark",
+            message='Export contract failed: metadata["mark_ids"] == ["grain-front", "mark',
         )
 
         if fmt == "svg":
@@ -1210,11 +1305,11 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             )
             require(
                 condition=("55.000000,67.000000" in payload),
-                message="Export contract failed: \"55.000000,67.000000\" in payload",
+                message='Export contract failed: "55.000000,67.000000" in payload',
             )
             require(
                 condition=('cx="55.000000" cy="65.000000"' not in payload),
-                message="Export contract failed: 'cx=\"55.000000\" cy=\"65.000000\"' not in payloa",
+                message='Export contract failed: \'cx="55.000000" cy="65.000000"\' not in payloa',
             )
             require(
                 condition=(
@@ -1225,7 +1320,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
         else:
             require(
                 condition=('"notch_ids":["notch-front"]' in payload),
-                message="Export contract failed: '\"notch_ids\":[\"notch-front\"]' in payload",
+                message='Export contract failed: \'"notch_ids":["notch-front"]\' in payload',
             )
             require(
                 condition=('"mark_ids":["grain-front","mark-front"]' in payload),
@@ -1233,7 +1328,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             )
             require(
                 condition=("10\n50.000000\n20\n-2.000000" in payload),
-                message="Export contract failed: \"10\\n50.000000\\n20\\n-2.000000\" in payload",
+                message='Export contract failed: "10\\n50.000000\\n20\\n-2.000000" in payload',
             )
             require(
                 condition=("10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload),
@@ -1247,8 +1342,10 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -1260,6 +1357,7 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
 
     class Mark:
         """Persisted construction-mark double consumed by the export adapter."""
+
         PatternMarkId = "mark-front"
         PatternMarkType = "InternalMark"
         PieceId = "piece-front"
