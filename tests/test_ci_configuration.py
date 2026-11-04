@@ -1290,4 +1290,4 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
         condition=missing_python_policy_commands("") == PYTHON_POLICY_COMMANDS,
         message="Removing the source-rewriting policy gate must be detected.",
     )
-    )
+
