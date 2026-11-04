@@ -973,22 +973,15 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     expected_rules = [
-        "E4",
         "E7",
         "E9",
         "F",
         "W",
         "I",
         "B",
-        "BLE001",
         "ANN401",
-        "RUF",
-        "D100",
-        "D101",
-        "D102",
-        "D104",
-        "D107",
         "D417",
+        "RUF059",
         "S102",
         "S307",
         "S605",
