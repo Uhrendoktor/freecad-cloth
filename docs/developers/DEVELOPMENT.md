@@ -40,7 +40,7 @@ Install the development toolchain with `python -m pip install -e ".[dev]"` and `
 
 Ruff uses a reviewed, explicit selection of correctness, security, import, typing, and documentation rules. The DOC return/yield/exception checks are selected explicitly with preview enabled; preview does not auto-enable the rest of Ruff's preview rule catalogue. Test assertions use pytest's native assertion rewriting; S101 is not selected. The same configuration applies locally and to every tracked Python source in CI. There are no per-file Ruff ignores or global ignore lists.
 
-Pyright analyzes the repository root in standard mode and applies strict mode to `DrapeFailureClassifier.py`, `cloth_backend.py`, and `ClothSolver.py`. New typing work should use concrete types and structural protocols; dynamic FreeCAD/Qt/JSON boundaries should use `object` with validation and narrowing where possible.
+Pyright analyzes only the explicitly reviewed production modules listed in `pyrightconfig.json` in standard mode and applies strict mode to `DrapeFailureClassifier.py`, `cloth_backend.py`, and `ClothSolver.py`. Add new production modules to that include list deliberately. Tests, CI utilities, and native FreeCAD acceptance scripts use their focused validation paths. New typing work should use concrete types and structural protocols; dynamic FreeCAD/Qt/JSON boundaries should use `object` with validation and narrowing where possible.
 
 ## Documentation
 
