@@ -3,7 +3,6 @@
 
 from pathlib import Path
 
-from tests.support.assertions import require_contains
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
@@ -21,11 +20,9 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         "rung-10-avatar-two-piece-large-seam",
     )
     for case_id in case_ids:
-        require_contains(
-            source=SOURCE,
-            fragment=case_id,
-            message=f"Avatar ladder source is missing case identifier {case_id!r}.",
-        )
+        assert (
+            case_id in SOURCE
+        ), f"Avatar ladder source is missing case identifier {case_id!r}."
 
     expected_source_fragments = (
         'target="avatar"',
@@ -44,11 +41,9 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         "_ladder.write_ladder_manifest(",
     )
     for fragment in expected_source_fragments:
-        require_contains(
-            source=SOURCE,
-            fragment=fragment,
-            message=f"Avatar ladder source is missing required fragment {fragment!r}.",
-        )
+        assert (
+            fragment in SOURCE
+        ), f"Avatar ladder source is missing required fragment {fragment!r}."
 
     expected_shared_fragments = (
         "LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)",
@@ -58,33 +53,23 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         '"seam_world_spans_mm"',
         "first_failing_rung",
     )
-    require_contains(
-        source=SOURCE,
-        fragment='purpose="simulation-avatar-ladder"',
-        message="Avatar ladder source must identify its manifest purpose.",
-    )
+    assert (
+        'purpose="simulation-avatar-ladder"' in SOURCE
+    ), "Avatar ladder source must identify its manifest purpose."
     for fragment in expected_shared_fragments:
-        require_contains(
-            source=HELPERS,
-            fragment=fragment,
-            message=f"Shared ladder helper is missing required fragment {fragment!r}.",
-        )
+        assert (
+            fragment in HELPERS
+        ), f"Shared ladder helper is missing required fragment {fragment!r}."
 
-    require_contains(
-        source=WORKFLOW,
-        fragment="test-script: tests/freecad_pbd_avatar_ladder.py",
-        message="Canonical workflow must execute the avatar ladder script.",
-    )
-    require_contains(
-        source=WORKFLOW,
-        fragment="artifact",
-        message="Canonical workflow must retain artifact handling for ladder evidence.",
-    )
-    require_contains(
-        source=WORKFLOW,
-        fragment="avatar-ladder-2482",
-        message="Canonical workflow is missing the avatar ladder artifact identity.",
-    )
+    assert (
+        "test-script: tests/freecad_pbd_avatar_ladder.py" in WORKFLOW
+    ), "Canonical workflow must execute the avatar ladder script."
+    assert (
+        "artifact" in WORKFLOW
+    ), "Canonical workflow must retain artifact handling for ladder evidence."
+    assert (
+        "avatar-ladder-2482" in WORKFLOW
+    ), "Canonical workflow is missing the avatar ladder artifact identity."
 
 
 def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs() -> None:
@@ -97,11 +82,9 @@ def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs
         "min_span_mm",
     )
     for fragment in expected_source_fragments:
-        require_contains(
-            source=SOURCE,
-            fragment=fragment,
-            message=f"Avatar seam-control fixture is missing {fragment!r}.",
-        )
+        assert (
+            fragment in SOURCE
+        ), f"Avatar seam-control fixture is missing {fragment!r}."
 
 
 def test_avatar_ladder_screenshot_path_is_fail_closed() -> None:
@@ -117,8 +100,6 @@ def test_avatar_ladder_screenshot_path_is_fail_closed() -> None:
         "PNG capture contains no visible rendered content",
     )
     for fragment in expected_source_fragments:
-        require_contains(
-            source=SOURCE,
-            fragment=fragment,
-            message=f"Avatar screenshot contract is missing {fragment!r}.",
-        )
+        assert (
+            fragment in SOURCE
+        ), f"Avatar screenshot contract is missing {fragment!r}."
