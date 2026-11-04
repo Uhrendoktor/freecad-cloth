@@ -2,6 +2,7 @@
 """Deterministic avatar visual audit plus a full 360-degree turntable render."""
 
 import os
+import runpy
 import sys
 import time
 import traceback
@@ -437,8 +438,7 @@ def main():
     window = wait_for_gui_ready(Gui, events)
 
     init_gui = os.path.join(ROOT, "InitGui.py")
-    with Path(init_gui).open(encoding="utf-8") as handle:
-        exec(handle.read(), globals(), globals())
+    runpy.run_path(init_gui)
     events()
     hide_task_docks(window)
 
