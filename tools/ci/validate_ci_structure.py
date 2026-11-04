@@ -52,6 +52,9 @@ REQUIRED = (
 # Pyright starts with the reviewed production modules: the strict simulation core
 # plus every production module newly introduced by this PR. Expand this list deliberately.
 PYRIGHT_EXPECTED_INCLUDE = (
+    "freecad_cloth/shared/Collision.py",
+    "freecad_cloth/shared/Targets.py",
+    "freecad_cloth/shared/ViewportGizmoStyle.py",
     "freecad_cloth/avatar/AvatarProperties.py",
     "freecad_cloth/avatar/SkeletonTypes.py",
     "freecad_cloth/avatar/avatar_commands.py",
@@ -396,7 +399,7 @@ def _validate_python_quality_contracts(text: str) -> None:
     )
     if coverage_violations:
         raise SystemExit(
-            "Pyright whole-repository coverage policy is invalid: " + ", ".join(coverage_violations)
+            "Pyright production-module coverage policy is invalid: " + ", ".join(coverage_violations)
         )
 
 
