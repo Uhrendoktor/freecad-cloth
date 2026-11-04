@@ -102,7 +102,11 @@ def test_capture_snapshot_records_only_existing_scene_properties() -> None:
 def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Restore captured values and recompute the document exactly once."""
+    """Restore captured values and recompute the document exactly once.
+
+    Args:
+        monkeypatch: Fixture used to replace the panel's widget and refresh callbacks.
+    """
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     scene = _scene()
     panel.scene = scene
@@ -111,7 +115,11 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
         """Stand in for widget synchronization during snapshot restoration."""
 
     def refresh(message: str | None = None) -> None:
-        """Stand in for UI refresh during snapshot restoration."""
+        """Stand in for UI refresh during snapshot restoration.
+
+        Args:
+            message: Optional status message normally shown by the task panel.
+        """
         _ = message
 
     monkeypatch.setattr(panel, "_load_widgets_only", load_widgets_only)
@@ -140,7 +148,11 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
 def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Refresh the panel snapshot after accepting edited parameters."""
+    """Refresh the panel snapshot after accepting edited parameters.
+
+    Args:
+        monkeypatch: Fixture used to replace the panel callbacks during the test.
+    """
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     panel.scene = _scene()
     calls: list[str] = []
@@ -168,7 +180,11 @@ def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
 def test_reject_restores_snapshot_before_closing_dialog(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Restore original values before the rejected task panel closes."""
+    """Restore original values before the rejected task panel closes.
+
+    Args:
+        monkeypatch: Fixture used to replace the native GUI and panel callbacks.
+    """
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
     panel.scene = _scene()
     calls: list[str] = []
@@ -178,11 +194,19 @@ def test_reject_restores_snapshot_before_closing_dialog(
         calls.append("restore")
 
     def active_document() -> object:
-        """Return a non-null fake active document."""
+        """Return a non-null fake active document.
+
+        Returns:
+            A truthy stand-in representing the active FreeCAD document.
+        """
         return object()
 
     def active_dialog() -> object:
-        """Return a non-null fake active dialog."""
+        """Return a non-null fake active dialog.
+
+        Returns:
+            A truthy stand-in representing the active FreeCAD task-panel dialog.
+        """
         return object()
 
     def close_dialog() -> None:
