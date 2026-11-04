@@ -8,11 +8,13 @@ from typing import TYPE_CHECKING, ClassVar, NotRequired, Protocol, TypedDict, ca
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
-from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.common.GarmentDocument import link_garment_object
 from freecad_cloth.shared.SourceSignature import source_signature
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from freecad_cloth.shared.Collision import CollisionSurface
 
 
 class _DrapeTargetFeature(Protocol):
@@ -29,7 +31,6 @@ class _DrapeTargetFeature(Protocol):
     SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
-    addProperty: Callable[[str, str, str], object]
 
 
 class _TargetStatus(TypedDict):
@@ -44,6 +45,8 @@ class _TargetStatus(TypedDict):
 
 
 DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM = 5.0
+_ADD_OBJECT_METHOD = "addObject"
+_ADD_PROPERTY_METHOD = "addProperty"
 _MINIMUM_COLLISION_DIMENSION_MM = 0.0
 _EMPTY_COLLISION_COUNT = 0
 
@@ -93,10 +96,6 @@ def collision_surface(
 
     Returns:
         A validated, solver-neutral collision surface.
-
-    Raises:
-        TypeError: If target does not expose usable shape or mesh geometry.
-        ValueError: If tessellation, topology, or collision dimensions are invalid.
     """
     return surface_from_freecad(target, float(deflection), float(thickness))
 
@@ -257,9 +256,16 @@ def create_drape_target(
     if source is None and target_type != "Mannequin":
         msg = "a FreeCAD Geometry target requires a source object"
         raise ValueError(msg)
-    add_object = cast("Callable[[str, str], object]", getattr(doc, "addObject"))
+    add_object = cast(
+        "Callable[[str, str], object]",
+        getattr(doc, _ADD_OBJECT_METHOD),
+    )
     target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
+    add_property = cast(
+        "Callable[[str, str, str], object]",
+        getattr(target, _ADD_PROPERTY_METHOD),
+    )
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
         ("App::PropertyLink", "SourceObject", "Draping"),
@@ -272,7 +278,7 @@ def create_drape_target(
         ("App::PropertyString", "TargetStatus", "State"),
         ("App::PropertyString", "InvalidationReason", "State"),
     ):
-        target.addProperty(type_name, name, group)
+        add_property(type_name, name, group)
     target.TargetType = target_type
     target.CollisionDeflection = float(deflection)
     target.CollisionThickness = float(thickness)
@@ -283,8 +289,6 @@ def create_drape_target(
     target.InvalidationReason = "collision cache missing"
     if source is not None:
         assign_drape_target(target, source, target_type)
-    from freecad_cloth.common.GarmentDocument import link_garment_object
-
     link_garment_object(target, "DrapeTarget", doc)
     return target
 
@@ -306,7 +310,6 @@ def assign_drape_target(
 
     Raises:
         ValueError: If the source is absent or the target type is unsupported.
-        TypeError: If the source does not expose usable collision geometry.
     """
     if source is None:
         msg = "drape target source is required"
