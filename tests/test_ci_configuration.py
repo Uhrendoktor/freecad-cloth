@@ -1281,21 +1281,13 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
         condition=missing_python_policy_commands(workflow) == (),
         message="The source-rewriting gate must be a standalone blocking command.",
     )
-    tampered_typecheck = workflow.replace(
-        "          pyright -p pyrightconfig.json\n",
-        "          lint-imports && pyright -p pyrightconfig.json\n",
-        1,
-    )
+    chained_typecheck = f"lint-imports && {TYPECHECK_COMMANDS[0]}"
     require(
-        condition=missing_typecheck_commands(tampered_typecheck) == TYPECHECK_COMMANDS,
+        condition=missing_typecheck_commands(chained_typecheck) == TYPECHECK_COMMANDS,
         message="A chained Pyright command must be treated as missing.",
     )
-    tampered_policy = workflow.replace(
-        PYTHON_POLICY_COMMANDS[0] + "\n",
-        "",
-        1,
-    )
     require(
-        condition=missing_python_policy_commands(tampered_policy) == PYTHON_POLICY_COMMANDS,
+        condition=missing_python_policy_commands("") == PYTHON_POLICY_COMMANDS,
         message="Removing the source-rewriting policy gate must be detected.",
+    )
     )
