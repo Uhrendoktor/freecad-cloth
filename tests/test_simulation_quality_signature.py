@@ -1,11 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for quality/material/collision rebuild signatures."""
 
+from itertools import pairwise
 from types import SimpleNamespace
 
 import pytest
 
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
+from tests.support.assertions import require
 
 
 def _scene() -> SimpleNamespace:
@@ -115,11 +117,7 @@ def test_signature_changes_for_every_derived_simulation_control(
     require(
         condition=all(
             current != previous
-            for previous, current in zip(
-                rebuilt_signatures,
-                rebuilt_signatures[1:],
-                strict=False,
-            )
+            for previous, current in pairwise(rebuilt_signatures)
         ),
         message="Each authored control change must produce a distinct rebuild signature.",
     )
