@@ -1,5 +1,8 @@
 {
   "include": [
+    "freecad_cloth/shared/Collision.py",
+    "freecad_cloth/shared/Targets.py",
+    "freecad_cloth/shared/ViewportGizmoStyle.py",
     "freecad_cloth/avatar/AvatarProperties.py",
     "freecad_cloth/avatar/SkeletonTypes.py",
     "freecad_cloth/avatar/avatar_commands.py",
