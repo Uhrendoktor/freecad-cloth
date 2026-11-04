@@ -16,7 +16,6 @@ from freecad_cloth.pattern import SketchAuthority
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.sewing.SeamGraph import SeamGraph
-from tests.support.assertions import require
 
 _EXPECTED_LINE_BOUNDARY_COUNT = 4
 _THREE_COORDINATE_COUNT = 3
@@ -138,18 +137,17 @@ def test_sketch_authority_outline_preserves_intermediate_curve_samples() -> None
         getattr(SketchAuthority, _SAMPLED_OUTLINE_NAME),
     )
 
-    require(
-        condition=sampled_outline(piece_ir)
+    assert (
+        sampled_outline(piece_ir)
         == [
-            (0.0, 0.0),
-            (10.0, 0.0),
-            (11.0, 2.0),
-            (11.5, 4.0),
-            (10.0, 6.0),
-            (0.0, 6.0),
-        ],
-        message="Sketch-authoritative outlines must retain intermediate authored curve samples.",
-    )
+        (0.0, 0.0),
+        (10.0, 0.0),
+        (11.0, 2.0),
+        (11.5, 4.0),
+        (10.0, 6.0),
+        (0.0, 6.0),
+        ]
+    ), "Sketch-authoritative outlines must retain intermediate authored curve samples."
 
 
 def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order() -> None:
@@ -172,23 +170,19 @@ def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order() ->
 
     result = PatternIR.from_sketches(graph, {"front": sketch})
     boundaries = result.piece("front").boundaries
-    require(
-        condition=len(boundaries) == _EXPECTED_LINE_BOUNDARY_COUNT,
-        message="A rectangular sketch must produce four ordered boundaries.",
-    )
-    require(
-        condition=boundaries[0].id == "front:edge:0",
-        message="The first ordered boundary must retain the canonical edge identifier.",
-    )
-    require(
-        condition=all(boundary.kind == "line" for boundary in boundaries),
-        message="All native line segments must remain line boundaries.",
-    )
+    assert (
+        len(boundaries) == _EXPECTED_LINE_BOUNDARY_COUNT
+    ), "A rectangular sketch must produce four ordered boundaries."
+    assert (
+        boundaries[0].id == "front:edge:0"
+    ), "The first ordered boundary must retain the canonical edge identifier."
+    assert (
+        all(boundary.kind == "line" for boundary in boundaries)
+    ), "All native line segments must remain line boundaries."
     for current, following in zip(boundaries, boundaries[1:] + boundaries[:1], strict=False):
-        require(
-            condition=current.samples[-1] == following.samples[0],
-            message="Adjacent ordered line boundaries must share an endpoint.",
-        )
+        assert (
+            current.samples[-1] == following.samples[0]
+        ), "Adjacent ordered line boundaries must share an endpoint."
 
 
 def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary() -> None:
@@ -224,20 +218,17 @@ def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary() -
         curve_samples=_EXPECTED_CURVE_SAMPLE_COUNT,
     )
     boundary = result.piece("circle").boundaries[0]
-    require(
-        condition=boundary.kind == "curve",
-        message="A single native circular curve must remain a curve boundary.",
-    )
-    require(
-        condition=len(boundary.samples) == _EXPECTED_CURVE_SAMPLE_COUNT,
-        message="A closed native curve must preserve the requested sample count.",
-    )
-    require(
-        condition=(
-            math.dist(boundary.samples[0], boundary.samples[-1]) <= _CLOSED_CURVE_ENDPOINT_TOLERANCE
-        ),
-        message="The first and last samples of a closed curve must coincide within tolerance.",
-    )
+    assert (
+        boundary.kind == "curve"
+    ), "A single native circular curve must remain a curve boundary."
+    assert (
+        len(boundary.samples) == _EXPECTED_CURVE_SAMPLE_COUNT
+    ), "A closed native curve must preserve the requested sample count."
+    assert (
+        (
+        math.dist(boundary.samples[0], boundary.samples[-1]) <= _CLOSED_CURVE_ENDPOINT_TOLERANCE
+        )
+    ), "The first and last samples of a closed curve must coincide within tolerance."
 
 
 def test_pattern_ir_rejects_open_single_curve_as_a_pattern_boundary() -> None:
