@@ -17,7 +17,6 @@ from freecad_cloth.common.VisualCaptureValidation import (
     png_has_visible_content,
     validate_png_capture,
 )
-from tests.support.assertions import require as _require
 
 
 def _write_png(
@@ -62,17 +61,16 @@ def test_validate_png_capture_accepts_real_nonuniform_rgb(tmp_path: Path) -> Non
         min_distinct_rgb=3,
         min_opaque_pixels=9,
     )
-    _require(
-        condition=metrics
+    assert (
+        metrics
         == {
-            "width": 3,
-            "height": 3,
-            "opaque_pixels": 9,
-            "nonwhite_pixels": 3,
-            "distinct_rgb": 4,
-        },
-        message="validated PNG metrics should reflect the generated RGB image",
-    )
+        "width": 3,
+        "height": 3,
+        "opaque_pixels": 9,
+        "nonwhite_pixels": 3,
+        "distinct_rgb": 4,
+        }
+    ), "validated PNG metrics should reflect the generated RGB image"
 
 
 def test_validate_png_capture_rejects_uniform_capture(tmp_path: Path) -> None:
@@ -127,27 +125,25 @@ def test_png_has_visible_content_supports_threshold_semantics(tmp_path: Path) ->
     pixels = [(255, 255, 255)] * 9
     pixels[0] = (10, 255, 255)
     _write_png(path, 3, 3, pixels)
-    _require(
-        condition=png_has_visible_content(
-            path,
-            minimum_pixels=1,
-            expected_width=3,
-            expected_height=3,
-            pixel_threshold=245,
-        ),
-        message="a pixel with one channel below the threshold should count as visible",
-    )
-    _require(
-        condition=not png_has_visible_content(
-            path,
-            minimum_pixels=1,
-            expected_width=3,
-            expected_height=3,
-            pixel_threshold=245,
-            require_all_channels_below=True,
-        ),
-        message="requiring all channels below the threshold should exclude this pixel",
-    )
+    assert (
+        png_has_visible_content(
+        path,
+        minimum_pixels=1,
+        expected_width=3,
+        expected_height=3,
+        pixel_threshold=245,
+        )
+    ), "a pixel with one channel below the threshold should count as visible"
+    assert (
+        not png_has_visible_content(
+        path,
+        minimum_pixels=1,
+        expected_width=3,
+        expected_height=3,
+        pixel_threshold=245,
+        require_all_channels_below=True,
+        )
+    ), "requiring all channels below the threshold should exclude this pixel"
 
 
 def test_png_has_visible_content_rejects_malformed_input(tmp_path: Path) -> None:
@@ -158,10 +154,9 @@ def test_png_has_visible_content_rejects_malformed_input(tmp_path: Path) -> None
     """
     path = tmp_path / "corrupt.png"
     path.write_bytes(b"not a PNG")
-    _require(
-        condition=not png_has_visible_content(path, minimum_pixels=1),
-        message="malformed PNG bytes must not be reported as visible content",
-    )
+    assert (
+        not png_has_visible_content(path, minimum_pixels=1)
+    ), "malformed PNG bytes must not be reported as visible content"
 
 
 def test_validate_png_capture_rejects_wrong_dimensions(tmp_path: Path) -> None:
@@ -226,17 +221,16 @@ def test_visible_pixel_count_matches_decoded_rgb_predicate(
         path = Path(directory) / "generated.png"
         _write_png(path, 4, 4, pixels)
         expected = sum(1 for rgb in pixels if any(channel < threshold for channel in rgb))
-        _require(
-            condition=png_has_visible_content(
-                path,
-                minimum_pixels=minimum,
-                expected_width=4,
-                expected_height=4,
-                pixel_threshold=threshold,
+        assert (
+            png_has_visible_content(
+            path,
+            minimum_pixels=minimum,
+            expected_width=4,
+            expected_height=4,
+            pixel_threshold=threshold,
             )
-            is (expected >= minimum),
-            message="visible-content evaluation should match the decoded RGB predicate",
-        )
+            is (expected >= minimum)
+        ), "visible-content evaluation should match the decoded RGB predicate"
 
 
 def test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds(
@@ -254,31 +248,28 @@ def test_png_visible_content_reuses_crc_checked_parser_and_capture_thresholds(
         2,
         [(255, 0, 0), (255, 255, 255), (255, 255, 255), (255, 255, 255)],
     )
-    _require(
-        condition=png_has_visible_content(
-            path,
-            expected_width=2,
-            expected_height=2,
-            minimum_pixels=1,
-            pixel_threshold=250,
-        ),
-        message="a visible red pixel should satisfy the selected threshold",
-    )
-    _require(
-        condition=not png_has_visible_content(
-            path,
-            expected_width=2,
-            expected_height=2,
-            minimum_pixels=1,
-            pixel_threshold=245,
-            require_all_channels_below=True,
-        ),
-        message="all-channel thresholding should reject the single red pixel",
-    )
-    _require(
-        condition=not png_has_visible_content(path, expected_width=3, expected_height=2),
-        message="visibility checks should reject a mismatch in expected dimensions",
-    )
+    assert (
+        png_has_visible_content(
+        path,
+        expected_width=2,
+        expected_height=2,
+        minimum_pixels=1,
+        pixel_threshold=250,
+        )
+    ), "a visible red pixel should satisfy the selected threshold"
+    assert (
+        not png_has_visible_content(
+        path,
+        expected_width=2,
+        expected_height=2,
+        minimum_pixels=1,
+        pixel_threshold=245,
+        require_all_channels_below=True,
+        )
+    ), "all-channel thresholding should reject the single red pixel"
+    assert (
+        not png_has_visible_content(path, expected_width=3, expected_height=2)
+    ), "visibility checks should reject a mismatch in expected dimensions"
 
 
 def test_png_visible_content_rejects_bad_crc_and_uniform_white(tmp_path: Path) -> None:
@@ -289,15 +280,13 @@ def test_png_visible_content_rejects_bad_crc_and_uniform_white(tmp_path: Path) -
     """
     path = tmp_path / "white.png"
     _write_png(path, 2, 2, [(255, 255, 255)] * 4)
-    _require(
-        condition=not png_has_visible_content(path, minimum_pixels=1),
-        message="uniform white images should not count as visible content",
-    )
+    assert (
+        not png_has_visible_content(path, minimum_pixels=1)
+    ), "uniform white images should not count as visible content"
     data = bytearray(path.read_bytes())
     data[-13] ^= 1
     corrupt_path = tmp_path / "corrupt.png"
     corrupt_path.write_bytes(data)
-    _require(
-        condition=not png_has_visible_content(corrupt_path, minimum_pixels=1),
-        message="invalid PNG checksums should cause visibility validation to fail",
-    )
+    assert (
+        not png_has_visible_content(corrupt_path, minimum_pixels=1)
+    ), "invalid PNG checksums should cause visibility validation to fail"
