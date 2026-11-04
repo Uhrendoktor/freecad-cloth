@@ -3,9 +3,11 @@
 
 import importlib
 import sys
-from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
-from typing import TypedDict, cast
+from typing import TYPE_CHECKING, TypedDict, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 import pytest
 
