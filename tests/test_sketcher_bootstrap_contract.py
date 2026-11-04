@@ -7,7 +7,6 @@ and does not use module-discovery flags.
 
 from pathlib import Path
 
-from tests.support.assertions import require, require_contains
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -32,25 +31,18 @@ def _acceptance_job(workflow: str) -> str:
 def test_sketcher_acceptance_uses_freecad_startup_workbench_registration() -> None:
     """Verify the Sketcher acceptance relies on FreeCAD startup registration."""
     source = (ROOT / "tests" / "freecad_sketcher_acceptance.py").read_text(encoding="utf-8")
-    require_contains(
-        source=source,
-        fragment="def _bootstrap_workbenches():",
-        message="Sketcher acceptance must provide the startup workbench bootstrap.",
-    )
-    require_contains(
-        source=source,
-        fragment='if "ClothPatternWorkbench" not in Gui.listWorkbenches()',
-        message="Sketcher acceptance must verify startup registration.",
-    )
-    require_contains(
-        source=source,
-        fragment="ClothPatternWorkbench was not loaded by FreeCAD startup",
-        message="The startup registration failure must remain explicit.",
-    )
-    require(
-        condition="compile(init_gui.read_text" not in source,
-        message="Sketcher acceptance must not compile InitGui.py as a manual fallback.",
-    )
+    assert (
+        "def _bootstrap_workbenches():" in source
+    ), "Sketcher acceptance must provide the startup workbench bootstrap."
+    assert (
+        'if "ClothPatternWorkbench" not in Gui.listWorkbenches()' in source
+    ), "Sketcher acceptance must verify startup registration."
+    assert (
+        "ClothPatternWorkbench was not loaded by FreeCAD startup" in source
+    ), "The startup registration failure must remain explicit."
+    assert (
+        "compile(init_gui.read_text" not in source
+    ), "Sketcher acceptance must not compile InitGui.py as a manual fallback."
 
 
 def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flags() -> None:
@@ -59,28 +51,21 @@ def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flag
         encoding="utf-8"
     )
     job = _acceptance_job(workflow)
-    require_contains(
-        source=job,
-        fragment="freecad-test@",
-        message="Canonical Sketcher acceptance must use the FreeCAD test action.",
-    )
-    require_contains(
-        source=job,
-        fragment="tests/freecad_sketcher_acceptance.py",
-        message="Canonical Sketcher acceptance must select its dedicated test script.",
-    )
-    require(
-        condition="-M /tmp/freecad-mod" not in job,
-        message="Canonical Sketcher acceptance must not pass the -M module discovery flag.",
-    )
-    require(
-        condition="-P /tmp/freecad-mod/freecad-cloth" not in job,
-        message="Canonical Sketcher acceptance must not pass the -P module path flag.",
-    )
-    require(
-        condition=(
-            "validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}"
-            not in job
-        ),
-        message="Sketcher acceptance must use the canonical GUI runner, not a direct command.",
-    )
+    assert (
+        "freecad-test@" in job
+    ), "Canonical Sketcher acceptance must use the FreeCAD test action."
+    assert (
+        "tests/freecad_sketcher_acceptance.py" in job
+    ), "Canonical Sketcher acceptance must select its dedicated test script."
+    assert (
+        "-M /tmp/freecad-mod" not in job
+    ), "Canonical Sketcher acceptance must not pass the -M module discovery flag."
+    assert (
+        "-P /tmp/freecad-mod/freecad-cloth" not in job
+    ), "Canonical Sketcher acceptance must not pass the -P module path flag."
+    assert (
+        (
+        "validate-command: python3 tools/ci/validate_acceptance.py ${{ matrix.case }}"
+        not in job
+        )
+    ), "Sketcher acceptance must use the canonical GUI runner, not a direct command."
