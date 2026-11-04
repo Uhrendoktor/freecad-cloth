@@ -6,7 +6,6 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.simulation import DrapeGui
-from tests.support.assertions import require
 
 EXPECTED_PRESETS: tuple[tuple[str, float], ...] = (
     ("Preview", 2.5),
@@ -217,10 +216,9 @@ def _panel() -> DrapeGui.DrapeTargetTaskPanel:
 
 def test_presets_are_explicit_and_materially_distinct() -> None:
     """Keep the three authored collision-quality presets stable."""
-    require(
-        condition=DrapeGui.DrapeTargetTaskPanel.PRESETS == EXPECTED_PRESETS,
-        message="Preview, Normal, and Final presets must retain their authored deflections.",
-    )
+    assert (
+        DrapeGui.DrapeTargetTaskPanel.PRESETS == EXPECTED_PRESETS
+    ), "Preview, Normal, and Final presets must retain their authored deflections."
 
 
 def test_populate_sources_keeps_only_collision_capable_objects() -> None:
@@ -234,14 +232,12 @@ def test_populate_sources_keeps_only_collision_capable_objects() -> None:
 
     panel._populate_sources()
 
-    require(
-        condition=panel._source_objects == [avatar, shape, mesh],
-        message="Only collision-capable objects should be offered as target sources.",
-    )
-    require(
-        condition=panel.source.items == ["Avatar", "Shape", "Mesh"],
-        message="Source labels must follow the document-object order.",
-    )
+    assert (
+        panel._source_objects == [avatar, shape, mesh]
+    ), "Only collision-capable objects should be offered as target sources."
+    assert (
+        panel.source.items == ["Avatar", "Shape", "Mesh"]
+    ), "Source labels must follow the document-object order."
 
 
 def test_source_selection_is_bounds_checked() -> None:
@@ -251,20 +247,17 @@ def test_source_selection_is_bounds_checked() -> None:
     panel._source_objects = [source]
 
     panel.source.index = 0
-    require(
-        condition=panel._selected_source() is source,
-        message="A valid source index must return the corresponding object.",
-    )
+    assert (
+        panel._selected_source() is source
+    ), "A valid source index must return the corresponding object."
     panel.source.index = -1
-    require(
-        condition=panel._selected_source() is None,
-        message="A negative source index must return no selection.",
-    )
+    assert (
+        panel._selected_source() is None
+    ), "A negative source index must return no selection."
     panel.source.index = 2
-    require(
-        condition=panel._selected_source() is None,
-        message="An out-of-range source index must return no selection.",
-    )
+    assert (
+        panel._selected_source() is None
+    ), "An out-of-range source index must return no selection."
 
 
 def test_nearest_preset_and_preset_change_update_deflection() -> None:
@@ -272,22 +265,19 @@ def test_nearest_preset_and_preset_change_update_deflection() -> None:
     panel = _panel()
 
     panel._select_nearest_preset(NEAR_NORMAL_DEFLECTION_MM)
-    require(
-        condition=panel.preset.index == NORMAL_PRESET_INDEX,
-        message="A value near Normal must select the Normal preset.",
-    )
+    assert (
+        panel.preset.index == NORMAL_PRESET_INDEX
+    ), "A value near Normal must select the Normal preset."
 
     panel.preset = _combo()
     panel.preset.items = [name for name, _value in EXPECTED_PRESETS]
     panel._preset_changed("Final")
-    require(
-        condition=panel.deflection.value() == pytest.approx(EXPECTED_FINAL_DEFLECTION_MM),
-        message="Selecting Final must stage its authored mesh deflection.",
-    )
-    require(
-        condition="Staged target edits" in panel.status.text,
-        message="Preset changes must be reported as staged edits.",
-    )
+    assert (
+        panel.deflection.value() == pytest.approx(EXPECTED_FINAL_DEFLECTION_MM)
+    ), "Selecting Final must stage its authored mesh deflection."
+    assert (
+        "Staged target edits" in panel.status.text
+    ), "Preset changes must be reported as staged edits."
 
 
 def test_missing_target_disables_apply_and_reports_action() -> None:
@@ -301,14 +291,12 @@ def test_missing_target_disables_apply_and_reports_action() -> None:
 
     panel._load()
 
-    require(
-        condition=panel._apply_enabled is False,
-        message="Apply must be disabled until a target has been created.",
-    )
-    require(
-        condition="Create a Drape Target first" in panel.status.text,
-        message="The missing-target state must explain the next user action.",
-    )
+    assert (
+        panel._apply_enabled is False
+    ), "Apply must be disabled until a target has been created."
+    assert (
+        "Create a Drape Target first" in panel.status.text
+    ), "The missing-target state must explain the next user action."
 
 
 def test_apply_persists_target_values_and_recomputes() -> None:
@@ -344,27 +332,23 @@ def test_apply_persists_target_values_and_recomputes() -> None:
         """
         assigned.append((target_obj, source_obj, target_type))
 
-    require(
-        condition=panel._apply(assign_target=assign_target) is True,
-        message="A valid selected source should allow target acceptance.",
-    )
-    require(
-        condition=(
-            target.CollisionDeflection,
-            target.CollisionThickness,
-            target.Enabled,
+    assert (
+        panel._apply(assign_target=assign_target) is True
+    ), "A valid selected source should allow target acceptance."
+    assert (
+        (
+        target.CollisionDeflection,
+        target.CollisionThickness,
+        target.Enabled,
         )
-        == (EXPECTED_FINAL_DEFLECTION_MM, EXPECTED_APPLIED_THICKNESS_MM, False),
-        message="Applying the panel must persist its staged collision values.",
-    )
-    require(
-        condition=assigned == [(target, source, EXPECTED_SOURCE_TYPE)],
-        message="The target assignment must use the selected source and provider type.",
-    )
-    require(
-        condition=tuple(document_calls) == EXPECTED_RECOMPUTE_CALLS,
-        message="Accepting changes must recompute the owning document exactly once.",
-    )
+        == (EXPECTED_FINAL_DEFLECTION_MM, EXPECTED_APPLIED_THICKNESS_MM, False)
+    ), "Applying the panel must persist its staged collision values."
+    assert (
+        assigned == [(target, source, EXPECTED_SOURCE_TYPE)]
+    ), "The target assignment must use the selected source and provider type."
+    assert (
+        tuple(document_calls) == EXPECTED_RECOMPUTE_CALLS
+    ), "Accepting changes must recompute the owning document exactly once."
 
 
 def test_apply_fails_closed_without_selected_source() -> None:
@@ -376,24 +360,21 @@ def test_apply_fails_closed_without_selected_source() -> None:
     panel.target_type.items = [EXPECTED_SOURCE_TYPE]
     panel.target_type.index = 0
 
-    require(
-        condition=panel._apply() is False,
-        message="A missing collision source must prevent accepting the target.",
-    )
-    require(
-        condition=MISSING_SOURCE_MESSAGE in panel.status.text,
-        message="The empty-selection state must explain how to recover.",
-    )
+    assert (
+        panel._apply() is False
+    ), "A missing collision source must prevent accepting the target."
+    assert (
+        MISSING_SOURCE_MESSAGE in panel.status.text
+    ), "The empty-selection state must explain how to recover."
 
 
 def test_staged_preview_status_is_diagnostic_only() -> None:
     """Report staged settings without implying that the document has changed."""
     panel = _panel()
     panel._preview_status()
-    require(
-        condition=panel.status.text == STAGED_PREVIEW_MESSAGE,
-        message="Preview must communicate that edits are staged until Apply & Refresh.",
-    )
+    assert (
+        panel.status.text == STAGED_PREVIEW_MESSAGE
+    ), "Preview must communicate that edits are staged until Apply & Refresh."
 
 
 def test_refresh_status_reports_state_and_invalidation_reason() -> None:
@@ -403,10 +384,9 @@ def test_refresh_status_reports_state_and_invalidation_reason() -> None:
 
     panel._refresh_status()
 
-    require(
-        condition=panel.status.text == EXPECTED_STALE_STATUS,
-        message="Status display must include both target state and invalidation reason.",
-    )
+    assert (
+        panel.status.text == EXPECTED_STALE_STATUS
+    ), "Status display must include both target state and invalidation reason."
 
 
 def test_reject_closes_active_dialog() -> None:
@@ -425,11 +405,9 @@ def test_reject_closes_active_dialog() -> None:
         ),
     )
 
-    require(
-        condition=panel.reject() is True,
-        message="Reject must permit the native task panel to close.",
-    )
-    require(
-        condition=tuple(calls) == EXPECTED_CLOSE_CALLS,
-        message="Reject must close the active native dialog exactly once.",
-    )
+    assert (
+        panel.reject() is True
+    ), "Reject must permit the native task panel to close."
+    assert (
+        tuple(calls) == EXPECTED_CLOSE_CALLS
+    ), "Reject must close the active native dialog exactly once."
