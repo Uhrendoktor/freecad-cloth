@@ -399,7 +399,8 @@ def _validate_python_quality_contracts(text: str) -> None:
     )
     if coverage_violations:
         raise SystemExit(
-            "Pyright production-module coverage policy is invalid: " + ", ".join(coverage_violations)
+            "Pyright production-module coverage policy is invalid: "
+            + ", ".join(coverage_violations)
         )
 
 
