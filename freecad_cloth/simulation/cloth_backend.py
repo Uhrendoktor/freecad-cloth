@@ -12,7 +12,7 @@ from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    from freecad_cloth.shared.collision import CollisionSurface
+    from freecad_cloth.shared.Collision import CollisionSurface
 
 PINNED_STITCH_EPSILON_MM = 1.0e-9
 POSITION_COMPONENT_COUNT = 3
