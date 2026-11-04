@@ -307,7 +307,6 @@ def open_arrange_fit_from_simulation(simulation: object) -> object:
         raise RuntimeError(msg)
 
     fitting = cast("_FittingScene", fitting_commands.create_fitting_scene())
-    target = simulation_scene.DrapeTarget
     pieces = tuple(simulation_scene.ClothPieces)
     if pieces:
         gui.Selection.clearSelection()
