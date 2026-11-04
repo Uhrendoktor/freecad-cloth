@@ -16,8 +16,6 @@ from freecad_cloth.sewing.workbench import (
     ClothSewingWorkbench,
 )
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
-from tests.support.assertions import require as _require
-from tests.support.assertions import require_not_none
 
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
@@ -31,51 +29,45 @@ EXPECTED_WORKBENCHES = {
 def test_workbench_resources_are_stable() -> None:
     """Preserve workbench labels, tooltips, icon paths, and GUI class identity."""
     workbenches = (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench())
-    _require(
-        condition={workbench.MenuText: workbench.ToolTip for workbench in workbenches}
-        == EXPECTED_WORKBENCHES,
-        message="Workbench menu metadata no longer matches the public registration contract.",
-    )
+    assert (
+        {workbench.MenuText: workbench.ToolTip for workbench in workbenches}
+        == EXPECTED_WORKBENCHES
+    ), "Workbench menu metadata no longer matches the public registration contract."
     for workbench in workbenches:
         resources = workbench.GetResources()
-        _require(
-            condition=resources["MenuText"] == workbench.MenuText,
-            message=f"{workbench.MenuText} resources expose a mismatched menu label.",
-        )
-        _require(
-            condition=resources["ToolTip"] == workbench.ToolTip,
-            message=f"{workbench.MenuText} resources expose a mismatched tooltip.",
-        )
+        assert (
+            resources["MenuText"] == workbench.MenuText
+        ), f"{workbench.MenuText} resources expose a mismatched menu label."
+        assert (
+            resources["ToolTip"] == workbench.ToolTip
+        ), f"{workbench.MenuText} resources expose a mismatched tooltip."
         icon = Path(resources["Icon"])
-        _require(
-            condition=icon.resolve() == (ICON_DIR / icon.name).resolve(),
-            message=f"{workbench.MenuText} resolves its icon outside the shared icon directory.",
-        )
-        _require(
-            condition=icon.is_file(),
-            message=f"{workbench.MenuText} references a missing icon asset.",
-        )
-        _require(
-            condition=workbench.GetClassName() == "Gui::PythonWorkbench",
-            message=f"{workbench.MenuText} reports the wrong FreeCAD GUI workbench class.",
-        )
+        assert (
+            icon.resolve() == (ICON_DIR / icon.name).resolve()
+        ), f"{workbench.MenuText} resolves its icon outside the shared icon directory."
+        assert (
+            icon.is_file()
+        ), f"{workbench.MenuText} references a missing icon asset."
+        assert (
+            workbench.GetClassName() == "Gui::PythonWorkbench"
+        ), f"{workbench.MenuText} reports the wrong FreeCAD GUI workbench class."
 
 
 def test_sewing_command_groups_are_unique_and_complete() -> None:
     """Ensure the sewing toolbar groups exactly cover the registered command modules."""
     commands = [command for _name, group in SEWING_COMMAND_GROUPS for command in group]
-    _require(condition=bool(commands), message="Sewing command groups must not be empty.")
-    _require(
-        condition=len(commands) == len(set(commands)),
-        message="Sewing command groups contain duplicate command identifiers.",
-    )
+    assert (
+        bool(commands)
+    ), "Sewing command groups must not be empty."
+    assert (
+        len(commands) == len(set(commands))
+    ), "Sewing command groups contain duplicate command identifiers."
     sewing = importlib.import_module("freecad_cloth.sewing.SewingCommands")
     network = importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")
     expected = set(sewing.COMMANDS + network.COMMANDS)
-    _require(
-        condition=set(commands) == expected,
-        message="Sewing command groups do not match the commands exported by their modules.",
-    )
+    assert (
+        set(commands) == expected
+    ), "Sewing command groups do not match the commands exported by their modules."
 
 
 def test_initialize_is_idempotent_and_preserves_registered_command_order() -> None:
@@ -83,18 +75,16 @@ def test_initialize_is_idempotent_and_preserves_registered_command_order() -> No
     for workbench in (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench()):
         workbench.Initialize()
         first = list(workbench.commands)
-        _require(
-            condition=bool(first), message=f"{type(workbench).__name__} registered no commands."
-        )
+        assert (
+            bool(first)
+        ), f"{type(workbench).__name__} registered no commands."
         workbench.Initialize()
-        _require(
-            condition=workbench.commands == first,
-            message=f"{type(workbench).__name__} changed command order on repeat.",
-        )
-        _require(
-            condition=len(workbench.commands) == len(set(workbench.commands)),
-            message=f"{type(workbench).__name__} registered duplicate command identifiers.",
-        )
+        assert (
+            workbench.commands == first
+        ), f"{type(workbench).__name__} changed command order on repeat."
+        assert (
+            len(workbench.commands) == len(set(workbench.commands))
+        ), f"{type(workbench).__name__} registered duplicate command identifiers."
 
 
 def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
@@ -106,76 +96,63 @@ def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
         | set(FITTING_COMMANDS)
         | set(AVATAR_COMMANDS)
     )
-    _require(
-        condition=set(workbench.commands) == expected,
-        message="Sewing workbench commands do not match the expected registration set.",
-    )
+    assert (
+        set(workbench.commands) == expected
+    ), "Sewing workbench commands do not match the expected registration set."
 
 
 def test_workbench_package_metadata_matches_registration_surface() -> None:
     """Match package.xml metadata to the implemented workbench registration surface."""
-    root = require_not_none(
-        ElementTree.parse(ROOT / "package.xml").getroot(),
-        message="Package metadata did not parse to an XML root element.",
-    )
+    root = ElementTree.parse(ROOT / "package.xml").getroot()
+    assert root is not None, "Package metadata did not parse to an XML root element."
     namespace = "{https://wiki.freecad.org/Package_Metadata}"
-    _require(
-        condition=root.tag == namespace + "package",
-        message="Package metadata has an unexpected root tag.",
-    )
-    _require(
-        condition=root.findtext(namespace + "name") == "FreeCAD Cloth",
-        message="Package metadata contains an unexpected package name.",
-    )
-    _require(
-        condition=root.findtext(namespace + "version") == "0.1.0",
-        message="Package metadata contains an unexpected version.",
-    )
-    _require(
-        condition=root.findtext(namespace + "license") == "LGPL-2.1-or-later",
-        message="Package metadata contains an unexpected license identifier.",
-    )
-    _require(
-        condition=root.findtext(namespace + "url")
-        == "https://github.com/Uhrendoktor/freecad-cloth",
-        message="Package metadata contains an unexpected repository URL.",
-    )
-    content = require_not_none(
-        root.find(namespace + "content"),
-        message="Package metadata does not declare any workbench content.",
-    )
+    assert (
+        root.tag == namespace + "package"
+    ), "Package metadata has an unexpected root tag."
+    assert (
+        root.findtext(namespace + "name") == "FreeCAD Cloth"
+    ), "Package metadata contains an unexpected package name."
+    assert (
+        root.findtext(namespace + "version") == "0.1.0"
+    ), "Package metadata contains an unexpected version."
+    assert (
+        root.findtext(namespace + "license") == "LGPL-2.1-or-later"
+    ), "Package metadata contains an unexpected license identifier."
+    assert (
+        root.findtext(namespace + "url")
+        == "https://github.com/Uhrendoktor/freecad-cloth"
+    ), "Package metadata contains an unexpected repository URL."
+    content = root.find(namespace + "content")
+    assert content is not None, "Package metadata does not declare any workbench content."
     declared = {
         item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
     }
-    _require(
-        condition=declared
+    assert (
+        declared
         == {
-            "ClothPatternWorkbench",
-            "ClothSewingWorkbench",
-            "ClothSimulationWorkbench",
-        },
-        message="Package metadata does not list exactly the implemented workbenches.",
-    )
+        "ClothPatternWorkbench",
+        "ClothSewingWorkbench",
+        "ClothSimulationWorkbench",
+        }
+    ), "Package metadata does not list exactly the implemented workbenches."
 
 
 def test_sewing_toolbar_is_stable_and_registered() -> None:
     """Keep the public sewing toolbar command sequence registered and stable."""
-    _require(
-        condition=TOOLBAR_COMMANDS
+    assert (
+        TOOLBAR_COMMANDS
         == (
-            "ClothSewing_CreateSeam",
-            "ClothSewing_CreateOperation",
-            "ClothSewing_Validate",
-            "ClothFitting_CreateAvatar",
-        ),
-        message="Sewing toolbar command order no longer matches its public contract.",
-    )
+        "ClothSewing_CreateSeam",
+        "ClothSewing_CreateOperation",
+        "ClothSewing_Validate",
+        "ClothFitting_CreateAvatar",
+        )
+    ), "Sewing toolbar command order no longer matches its public contract."
     workbench = ClothSewingWorkbench()
     workbench.Initialize()
-    _require(
-        condition=set(TOOLBAR_COMMANDS) <= set(workbench.commands),
-        message="The sewing toolbar includes commands absent from workbench registration.",
-    )
+    assert (
+        set(TOOLBAR_COMMANDS) <= set(workbench.commands)
+    ), "The sewing toolbar includes commands absent from workbench registration."
 
 
 def test_workbench_command_groups_do_not_overlap() -> None:
@@ -211,30 +188,25 @@ def test_workbench_command_groups_do_not_overlap() -> None:
     }
     seen: dict[str, str] = {}
     for workbench, commands in groups.items():
-        _require(
-            condition=bool(commands),
-            message=f"{workbench} workbench must expose at least one command.",
-        )
+        assert (
+            bool(commands)
+        ), f"{workbench} workbench must expose at least one command."
         for command in commands:
-            _require(
-                condition=command not in seen,
-                message=f"Duplicate command {command!r}: {workbench!r} and {seen.get(command)!r}.",
-            )
+            assert (
+                command not in seen
+            ), f"Duplicate command {command!r}: {workbench!r} and {seen.get(command)!r}."
             seen[command] = workbench
 
 
 def test_root_loader_delegates_registration_to_shared_bootstrap() -> None:
     """Ensure the classic FreeCAD loader delegates workbench registration."""
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    _require(
-        condition="from freecad_cloth.bootstrap import initialize_workbenches" in source,
-        message="The classic GUI loader must import the shared bootstrap registrar.",
-    )
-    _require(
-        condition=source.count("initialize_workbenches(") == 1,
-        message="The classic GUI loader must delegate registration exactly once.",
-    )
-    _require(
-        condition="Gui.addWorkbench(" not in source,
-        message="The classic GUI loader must not duplicate bootstrap registration logic.",
-    )
+    assert (
+        "from freecad_cloth.bootstrap import initialize_workbenches" in source
+    ), "The classic GUI loader must import the shared bootstrap registrar."
+    assert (
+        source.count("initialize_workbenches(") == 1
+    ), "The classic GUI loader must delegate registration exactly once."
+    assert (
+        "Gui.addWorkbench(" not in source
+    ), "The classic GUI loader must not duplicate bootstrap registration logic."
