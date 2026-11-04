@@ -14,7 +14,6 @@ from freecad_cloth.sewing.SeamOverlay import (
     set_seam_highlights_enabled,
     set_seam_overlay_respect_depth,
 )
-from tests.support.assertions import require
 
 SEWING_ACTIVATED_RESULT = 17
 FIRST_EDGE_INDEX = 0
@@ -44,17 +43,26 @@ def test_sewing_command_exposes_contextual_activation() -> None:
         return state["active"]
 
     command = sewing_commands._SewingCommand(do_sewing, active, "sewing tooltip")
-    require(condition=command.IsActive() is False, message="command starts inactive")
+    assert (
+        command.IsActive() is False
+    ), "command starts inactive"
     state["active"] = True
-    require(condition=command.IsActive() is True, message="active context enables command")
-    require(
-        condition=command.Activated() == SEWING_ACTIVATED_RESULT,
-        message="activation returns the sewing operation result",
-    )
+    assert (
+        command.IsActive() is True
+    ), "active context enables command"
+    assert (
+        command.Activated() == SEWING_ACTIVATED_RESULT
+    ), "activation returns the sewing operation result"
     resources = command.GetResources()
-    require(condition=resources["MenuText"] == "Do Sewing", message="default menu text is stable")
-    require(condition=resources["ToolTip"] == "sewing tooltip", message="tooltip is preserved")
-    require(condition="Pixmap" not in resources, message="missing icons are not advertised")
+    assert (
+        resources["MenuText"] == "Do Sewing"
+    ), "default menu text is stable"
+    assert (
+        resources["ToolTip"] == "sewing tooltip"
+    ), "tooltip is preserved"
+    assert (
+        "Pixmap" not in resources
+    ), "missing icons are not advertised"
 
 
 def test_sewing_command_accepts_explicit_public_menu_text() -> None:
@@ -63,12 +71,15 @@ def test_sewing_command_accepts_explicit_public_menu_text() -> None:
         lambda: None, lambda: True, "tooltip", "Create M:N Sewing"
     )
     resources = command.GetResources()
-    require(
-        condition=resources["MenuText"] == "Create M:N Sewing",
-        message="custom menu text is returned",
-    )
-    require(condition=resources["ToolTip"] == "tooltip", message="tooltip is preserved")
-    require(condition="Pixmap" not in resources, message="missing icons are not advertised")
+    assert (
+        resources["MenuText"] == "Create M:N Sewing"
+    ), "custom menu text is returned"
+    assert (
+        resources["ToolTip"] == "tooltip"
+    ), "tooltip is preserved"
+    assert (
+        "Pixmap" not in resources
+    ), "missing icons are not advertised"
 
 
 def test_all_registered_sewing_commands_have_stable_user_facing_labels() -> None:
@@ -88,26 +99,22 @@ def test_all_registered_sewing_commands_have_stable_user_facing_labels() -> None
         "ClothSewing_EditSeamSideA": "Edit Seam Side A in Sketcher",
         "ClothSewing_EditSeamSideB": "Edit Seam Side B in Sketcher",
     }
-    require(
-        condition=expected == sewing_commands._MENU_TEXT,
-        message="registered command labels remain stable",
-    )
+    assert (
+        expected == sewing_commands._MENU_TEXT
+    ), "registered command labels remain stable"
 
 
 def test_seam_overlay_labels_are_limited_to_the_hovered_seam() -> None:
     """Show a label only for the currently hovered seam."""
-    require(
-        condition=overlay_module.should_show_seam_label("seam-1", "seam-1"),
-        message="hovered seam label is visible",
-    )
-    require(
-        condition=not overlay_module.should_show_seam_label("seam-1", ""),
-        message="empty hover target hides the label",
-    )
-    require(
-        condition=not overlay_module.should_show_seam_label("seam-1", "seam-2"),
-        message="another seam's label remains hidden",
-    )
+    assert (
+        overlay_module.should_show_seam_label("seam-1", "seam-1")
+    ), "hovered seam label is visible"
+    assert (
+        not overlay_module.should_show_seam_label("seam-1", "")
+    ), "empty hover target hides the label"
+    assert (
+        not overlay_module.should_show_seam_label("seam-1", "seam-2")
+    ), "another seam's label remains hidden"
 
 
 def test_seam_overlay_preferences_can_be_changed_and_restored() -> None:
@@ -115,23 +122,19 @@ def test_seam_overlay_preferences_can_be_changed_and_restored() -> None:
     original_highlights = seam_highlights_enabled()
     original_depth = seam_overlay_respects_depth()
     try:
-        require(
-            condition=set_seam_highlights_enabled(not original_highlights)
-            is not original_highlights,
-            message="highlight preference setter returns its applied value",
-        )
-        require(
-            condition=seam_highlights_enabled() is not original_highlights,
-            message="highlight preference can be toggled",
-        )
-        require(
-            condition=set_seam_overlay_respect_depth(not original_depth) is not original_depth,
-            message="depth preference setter returns its applied value",
-        )
-        require(
-            condition=seam_overlay_respects_depth() is not original_depth,
-            message="depth preference can be toggled",
-        )
+        assert (
+            set_seam_highlights_enabled(not original_highlights)
+            is not original_highlights
+        ), "highlight preference setter returns its applied value"
+        assert (
+            seam_highlights_enabled() is not original_highlights
+        ), "highlight preference can be toggled"
+        assert (
+            set_seam_overlay_respect_depth(not original_depth) is not original_depth
+        ), "depth preference setter returns its applied value"
+        assert (
+            seam_overlay_respects_depth() is not original_depth
+        ), "depth preference can be toggled"
     finally:
         set_seam_highlights_enabled(original_highlights)
         set_seam_overlay_respect_depth(original_depth)
@@ -146,11 +149,10 @@ def test_selected_pattern_edges_requires_two_different_pieces() -> None:
     gui = SimpleNamespace(
         Selection=SimpleNamespace(getSelectionEx=lambda: [selection_a, selection_b])
     )
-    require(
-        condition=sewing_commands._selected_pattern_edges(gui=gui)
-        == [(first, FIRST_EDGE_INDEX), (second, THIRD_EDGE_INDEX)],
-        message="selected edges retain their piece and zero-based index",
-    )
+    assert (
+        sewing_commands._selected_pattern_edges(gui=gui)
+        == [(first, FIRST_EDGE_INDEX), (second, THIRD_EDGE_INDEX)]
+    ), "selected edges retain their piece and zero-based index"
 
 
 def test_selected_pattern_edges_rejects_incomplete_selection() -> None:
@@ -172,11 +174,10 @@ def test_selected_pattern_edges_ignores_malformed_and_duplicate_subelements() ->
     gui = SimpleNamespace(
         Selection=SimpleNamespace(getSelectionEx=lambda: [selection_a, selection_b])
     )
-    require(
-        condition=sewing_commands._selected_pattern_edges(gui=gui)
-        == [(first, FIRST_EDGE_INDEX), (second, SECOND_EDGE_INDEX)],
-        message="only unique, valid edge names are retained",
-    )
+    assert (
+        sewing_commands._selected_pattern_edges(gui=gui)
+        == [(first, FIRST_EDGE_INDEX), (second, SECOND_EDGE_INDEX)]
+    ), "only unique, valid edge names are retained"
 
 
 def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order() -> None:
@@ -188,16 +189,15 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order()
     gui = SimpleNamespace(
         Selection=SimpleNamespace(getSelectionEx=lambda: [selection_a, selection_b])
     )
-    require(
-        condition=sewing_commands._selected_pattern_edges(allow_many=True, gui=gui)
+    assert (
+        sewing_commands._selected_pattern_edges(allow_many=True, gui=gui)
         == [
-            (first, SECOND_EDGE_INDEX),
-            (first, FOURTH_EDGE_INDEX),
-            (second, FIRST_EDGE_INDEX),
-            (second, THIRD_EDGE_INDEX),
-        ],
-        message="M:N edges retain selection and edge order while removing duplicates",
-    )
+        (first, SECOND_EDGE_INDEX),
+        (first, FOURTH_EDGE_INDEX),
+        (second, FIRST_EDGE_INDEX),
+        (second, THIRD_EDGE_INDEX),
+        ]
+    ), "M:N edges retain selection and edge order while removing duplicates"
 
 
 def _repair_test_modules(
@@ -258,14 +258,12 @@ def test_repair_selected_seam_wraps_missing_piece_with_actionable_context() -> N
     context = _repair_test_modules()
     with pytest.raises(ValueError, match="cannot determine seam lengths for repair") as exc_info:
         _run_repair(context, edge_length)
-    require(
-        condition="piece-a" in str(exc_info.value),
-        message="repair error names the missing piece",
-    )
-    require(
-        condition=isinstance(exc_info.value.__cause__, KeyError),
-        message="repair error preserves the missing-piece cause",
-    )
+    assert (
+        "piece-a" in str(exc_info.value)
+    ), "repair error names the missing piece"
+    assert (
+        isinstance(exc_info.value.__cause__, KeyError)
+    ), "repair error preserves the missing-piece cause"
 
 
 def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause() -> None:
@@ -279,10 +277,9 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause() -> None:
     context = _repair_test_modules(pieces)
     with pytest.raises(ValueError, match="outside the pattern boundary") as exc_info:
         _run_repair(context, edge_length)
-    require(
-        condition=isinstance(exc_info.value.__cause__, ValueError),
-        message="repair error preserves the invalid-edge cause",
-    )
+    assert (
+        isinstance(exc_info.value.__cause__, ValueError)
+    ), "repair error preserves the invalid-edge cause"
 
 
 def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error() -> None:
@@ -306,15 +303,22 @@ def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edge
 
     pieces = (_pattern_piece("piece-a"), _pattern_piece("piece-b"))
     context = _repair_test_modules(pieces)
-    require(
-        condition=_run_repair(context, edge_length) == "repaired",
-        message="repair reports success",
-    )
+    assert (
+        _run_repair(context, edge_length) == "repaired"
+    ), "repair reports success"
     seam = context[0]
-    require(condition=seam.EdgeAId == "piece-a:edge:0", message="edge A identity is preserved")
-    require(condition=seam.EdgeBId == "piece-b:edge:1", message="edge B identity is preserved")
-    require(condition=seam.EdgeASignature != "stale-a", message="edge A signature is refreshed")
-    require(condition=seam.EdgeBSignature != "stale-b", message="edge B signature is refreshed")
+    assert (
+        seam.EdgeAId == "piece-a:edge:0"
+    ), "edge A identity is preserved"
+    assert (
+        seam.EdgeBId == "piece-b:edge:1"
+    ), "edge B identity is preserved"
+    assert (
+        seam.EdgeASignature != "stale-a"
+    ), "edge A signature is refreshed"
+    assert (
+        seam.EdgeBSignature != "stale-b"
+    ), "edge B signature is refreshed"
 
 
 def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -> None:
@@ -354,25 +358,27 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -
     edited_sketch, edge_index = sewing_commands.edit_selected_seam_side_a(
         app=app, gui=gui, focus_fn=lambda: None
     )
-    require(condition=edited_sketch is sketch, message="authoritative sketch is returned")
-    require(condition=edge_index == THIRD_EDGE_INDEX, message="semantic edge index is preserved")
-    require(
-        condition=active_document.calls
+    assert (
+        edited_sketch is sketch
+    ), "authoritative sketch is returned"
+    assert (
+        edge_index == THIRD_EDGE_INDEX
+    ), "semantic edge index is preserved"
+    assert (
+        active_document.calls
         == [
-            ("getInEdit",),
-            ("resetEdit",),
-            ("activateWorkbench", "SketcherWorkbench"),
-            ("setEdit", "Sketch"),
-        ],
-        message="document enters Sketcher edit mode in order",
-    )
-    require(
-        condition=selection.calls
+        ("getInEdit",),
+        ("resetEdit",),
+        ("activateWorkbench", "SketcherWorkbench"),
+        ("setEdit", "Sketch"),
+        ]
+    ), "document enters Sketcher edit mode in order"
+    assert (
+        selection.calls
         == [
-            ("clear",),
-            ("add", piece, None),
-            ("clear",),
-            ("add", sketch, "Edge3"),
-        ],
-        message="selection transitions from the piece to its authoritative sketch edge",
-    )
+        ("clear",),
+        ("add", piece, None),
+        ("clear",),
+        ("add", sketch, "Edge3"),
+        ]
+    ), "selection transitions from the piece to its authoritative sketch edge"
