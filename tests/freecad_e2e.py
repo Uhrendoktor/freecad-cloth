@@ -3,6 +3,7 @@
 
 import contextlib
 import os
+import runpy
 import sys
 import tempfile
 import traceback
@@ -22,7 +23,7 @@ if not (ROOT / "InitGui.py").exists():
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 init_gui = ROOT / "InitGui.py"
-exec(compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"), globals(), globals())
+runpy.run_path(str(init_gui))
 OUT = Path(os.environ.get("CLOTH_E2E_DIR", "artifacts/freecad-e2e"))
 OUT.mkdir(parents=True, exist_ok=True)
 LOG = OUT / "workflow.log"
