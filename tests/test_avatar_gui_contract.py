@@ -12,7 +12,11 @@ from dataclasses import fields
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
-from freecad_cloth.avatar.AvatarProperties import POSE_PROPERTY_MAP, PROPERTY_MAP, SHAPE_PROPERTY_MAP
+from freecad_cloth.avatar.AvatarProperties import (
+    POSE_PROPERTY_MAP,
+    PROPERTY_MAP,
+    SHAPE_PROPERTY_MAP,
+)
 from tests.support.assertions import require
 
 
