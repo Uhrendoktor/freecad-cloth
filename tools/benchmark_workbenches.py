@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 import traceback
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -26,6 +26,7 @@ TEMP_ROOT = pathlib.Path(tempfile.gettempdir())
 TRACE_LOG = TEMP_ROOT / "cloth-benchmark-trace.log"
 TRACEBACK_LOG = TEMP_ROOT / "cloth-benchmark-traceback.log"
 MIN_BENCHMARK_REPEATS = 3
+_WORKBENCH_INITIALIZE_METHOD = "Initialize"
 WORKBENCHES = {
     "Pattern": ("freecad_cloth.pattern.workbench", "ClothPatternWorkbench"),
     "Sewing": ("freecad_cloth.sewing.workbench", "ClothSewingWorkbench"),
@@ -223,7 +224,11 @@ def _initialize_sample(
         raise RuntimeError(msg)
     registered_name = next(iter(added))
     workbench.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
-    workbench.Initialize()
+    initialize = cast(
+        "Callable[[], object]",
+        getattr(workbench, _WORKBENCH_INITIALIZE_METHOD),
+    )
+    initialize()
     duration = time.perf_counter() - started
     command_count = len(getattr(workbench, "commands", ()))
     with contextlib.suppress(*EXPECTED_WORKBENCH_ERRORS):
