@@ -197,7 +197,7 @@ def test_reject_restores_snapshot_before_closing_dialog(
         """Return a non-null fake active document.
 
         Returns:
-            A placeholder object indicating that a document is active.
+            A truthy stand-in representing the active FreeCAD document.
         """
         return object()
 
@@ -205,7 +205,7 @@ def test_reject_restores_snapshot_before_closing_dialog(
         """Return a non-null fake active dialog.
 
         Returns:
-            A placeholder object indicating that a native dialog is active.
+            A truthy stand-in representing the active FreeCAD task-panel dialog.
         """
         return object()
 
