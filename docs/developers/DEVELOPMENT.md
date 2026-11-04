@@ -38,13 +38,13 @@ Pydantic remains a production validation library for domain boundaries that need
 
 Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; Pyright provides the single static type-checking profile; Import Linter enforces dependency direction.
 
-Ruff uses a reviewed, explicit selection of stable correctness, security, import, typing, and public API documentation rules. Preview mode is disabled so newly introduced preview rules cannot silently expand the policy. Test assertions use pytest's native assertion rewriting; S101 is not selected. The same configuration applies locally and to every tracked Python source in CI. There are no per-file Ruff ignores or global ignore lists.
+Ruff uses a reviewed, explicit selection of stable correctness, security, import, typing, and targeted API documentation rules. Preview mode is disabled so new preview rules cannot silently expand the policy. Test assertions use pytest's native assertion rewriting; S101 is not selected. The same configuration applies locally and to every tracked Python source in CI. There are no per-file Ruff ignores or global ignore lists.
 
 Pyright analyzes only the explicitly reviewed production modules listed in `pyrightconfig.json` in standard mode and applies strict mode to `DrapeFailureClassifier.py`, `cloth_backend.py`, and `ClothSolver.py`. Add new production modules to that include list deliberately. Tests, CI utilities, and native FreeCAD acceptance scripts use their focused validation paths. New typing work should use concrete types and structural protocols; dynamic FreeCAD/Qt/JSON boundaries should use `object` with validation and narrowing where possible.
 
 ## Documentation
 
-Use Google-style docstrings for public modules, classes, and methods, and describe non-obvious behavior, units, state transitions, and failure conditions. Ruff enforces the selected public module/class/method and parameter documentation rules. Private helpers and tests should be documented when their behavior is not self-evident; do not require boilerplate Args/Returns/Raises sections for every short test or nested helper. Reviewers remain responsible for checking that prose matches implementation and observable behavior.
+Use Google-style docstrings for public modules, classes, and methods, and describe non-obvious behavior, units, state transitions, and failure conditions. Ruff checks parameter descriptions in documented APIs without requiring boilerplate docstrings on every module, constructor, test, or helper. Private helpers and tests should be documented when their behavior is not self-evident. Reviewers remain responsible for checking that prose matches implementation and observable behavior.
 
 ## Non-negotiable CI contract
 
