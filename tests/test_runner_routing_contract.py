@@ -7,7 +7,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from tests.support.assertions import require as _require
 from tools.ci.pytest_collection_contract import (
     missing_requested_modules,
     validate_collection_contract,
@@ -43,25 +42,22 @@ def test_one_canonical_workflow() -> None:
     """Require the canonical workflow and its three entry-point callers only."""
     workflow_dir = ROOT / ".github" / "workflows"
     workflows = sorted(path.name for path in workflow_dir.glob("*.yml"))
-    _require(
-        condition=workflows
+    assert (
+        workflows
         == [
-            "canonical-execution.yml",
-            "commit-validation.yml",
-            "main-publication.yml",
-            "merge-validation.yml",
-        ],
-        message="Only the canonical workflow and its three callers should exist.",
-    )
+        "canonical-execution.yml",
+        "commit-validation.yml",
+        "main-publication.yml",
+        "merge-validation.yml",
+        ]
+    ), "Only the canonical workflow and its three callers should exist."
     shared = WORKFLOW.read_text(encoding="utf-8")
-    _require(
-        condition="workflow_call:" in shared,
-        message="The canonical workflow must support workflow_call.",
-    )
-    _require(
-        condition="workflow_run:" not in shared,
-        message="The canonical workflow must not be triggered by workflow_run.",
-    )
+    assert (
+        "workflow_call:" in shared
+    ), "The canonical workflow must support workflow_call."
+    assert (
+        "workflow_run:" not in shared
+    ), "The canonical workflow must not be triggered by workflow_run."
 
 
 def test_pull_requests_are_hosted_only() -> None:
@@ -69,43 +65,37 @@ def test_pull_requests_are_hosted_only() -> None:
     workflow_dir = ROOT / ".github" / "workflows"
     entry = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    _require(condition="pull_request:" in entry, message="PR validation trigger is missing.")
-    _require(
-        condition="pull_request_target:" not in entry,
-        message="PR validation must not use the privileged pull_request_target event.",
-    )
+    assert (
+        "pull_request:" in entry
+    ), "PR validation trigger is missing."
+    assert (
+        "pull_request_target:" not in entry
+    ), "PR validation must not use the privileged pull_request_target event."
     fast = _job_block(entry, "fast-feedback")
     full = _job_block(entry, "explicit-full-validation")
-    _require(
-        condition="runner_mode: hosted" in fast,
-        message="Fast PR feedback must select the hosted runner.",
-    )
-    _require(
-        condition="execution_mode: fast" in fast,
-        message="Fast PR feedback must use fast execution mode.",
-    )
-    _require(
-        condition="runner_mode: hosted" in full,
-        message="Full PR validation must select the hosted runner.",
-    )
-    _require(
-        condition="execution_mode: full" in full,
-        message="Full PR validation must use full execution mode.",
-    )
-    _require(
-        condition="[full-validation]" in entry,
-        message="The full-validation title route must remain explicit.",
-    )
+    assert (
+        "runner_mode: hosted" in fast
+    ), "Fast PR feedback must select the hosted runner."
+    assert (
+        "execution_mode: fast" in fast
+    ), "Fast PR feedback must use fast execution mode."
+    assert (
+        "runner_mode: hosted" in full
+    ), "Full PR validation must select the hosted runner."
+    assert (
+        "execution_mode: full" in full
+    ), "Full PR validation must use full execution mode."
+    assert (
+        "[full-validation]" in entry
+    ), "The full-validation title route must remain explicit."
 
     readiness = _job_block(source, "local_runner_readiness")
-    _require(
-        condition="'ubuntu-latest'" in readiness,
-        message="Runner readiness must identify the hosted runner.",
-    )
-    _require(
-        condition="self-hosted" in readiness,
-        message="Runner readiness must recognize local runners.",
-    )
+    assert (
+        "'ubuntu-latest'" in readiness
+    ), "Runner readiness must identify the hosted runner."
+    assert (
+        "self-hosted" in readiness
+    ), "Runner readiness must recognize local runners."
     runner_selector = "github.event_name == 'pull_request' || inputs.runner_mode == 'hosted'"
     jobs = (
         "diagnostic-pbd-contact",
@@ -119,18 +109,15 @@ def test_pull_requests_are_hosted_only() -> None:
     )
     for job in jobs:
         block = _job_block(source, job)
-        _require(
-            condition=runner_selector in block,
-            message=f"{job} must select hosted runners for PRs and hosted mode.",
-        )
-        _require(
-            condition="'ubuntu-latest'" in block,
-            message=f"{job} must include the hosted runner label.",
-        )
-        _require(
-            condition="self-hosted" in block,
-            message=f"{job} must preserve the local-runner option for trusted events.",
-        )
+        assert (
+            runner_selector in block
+        ), f"{job} must select hosted runners for PRs and hosted mode."
+        assert (
+            "'ubuntu-latest'" in block
+        ), f"{job} must include the hosted runner label."
+        assert (
+            "self-hosted" in block
+        ), f"{job} must preserve the local-runner option for trusted events."
 
 
 def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
@@ -138,38 +125,34 @@ def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> No
     workflow_dir = ROOT / ".github" / "workflows"
     publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    _require(condition="push:" in publication, message="Main publication must use a push trigger.")
-    _require(
-        condition="branches: [main]" in publication,
-        message="Publication pushes must be restricted to main.",
-    )
-    _require(
-        condition="default: local" in publication,
-        message="Publication must default to local execution.",
-    )
+    assert (
+        "push:" in publication
+    ), "Main publication must use a push trigger."
+    assert (
+        "branches: [main]" in publication
+    ), "Publication pushes must be restricted to main."
+    assert (
+        "default: local" in publication
+    ), "Publication must default to local execution."
 
     watchdog = _job_block(source, "runner_watchdog")
-    _require(
-        condition="github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
-        in watchdog,
-        message="The watchdog may activate only for trusted dispatch or push events.",
-    )
-    _require(
-        condition="inputs.runner_mode != 'hosted'" in watchdog,
-        message="The watchdog must check the selected runner mode.",
-    )
-    _require(
-        condition="tools/ci/runner_watchdog.py" in watchdog,
-        message="The watchdog job must call the canonical watchdog script.",
-    )
+    assert (
+        "github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
+        in watchdog
+    ), "The watchdog may activate only for trusted dispatch or push events."
+    assert (
+        "inputs.runner_mode != 'hosted'" in watchdog
+    ), "The watchdog must check the selected runner mode."
+    assert (
+        "tools/ci/runner_watchdog.py" in watchdog
+    ), "The watchdog job must call the canonical watchdog script."
     fallback_expression = (
         "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && "
         "'main-publication.yml' || 'commit-validation.yml' }}"
     )
-    _require(
-        condition=fallback_expression in watchdog,
-        message="The watchdog must select the fallback workflow for the execution mode.",
-    )
+    assert (
+        fallback_expression in watchdog
+    ), "The watchdog must select the fallback workflow for the execution mode."
 
 
 def test_trusted_runs_remain_local_first() -> None:
@@ -178,14 +161,12 @@ def test_trusted_runs_remain_local_first() -> None:
     commit = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
     publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
-    _require(
-        condition="default: local" in commit,
-        message="Commit validation must default to local execution.",
-    )
-    _require(
-        condition="default: local" in publication,
-        message="Main publication must default to local execution.",
-    )
+    assert (
+        "default: local" in commit
+    ), "Commit validation must default to local execution."
+    assert (
+        "default: local" in publication
+    ), "Main publication must default to local execution."
     local_selector = 'fromJSON(\'["self-hosted","linux","x64","docker"]\')'
     jobs = (
         "diagnostic-pbd-contact",
@@ -199,87 +180,72 @@ def test_trusted_runs_remain_local_first() -> None:
     )
     for job in jobs:
         block = _job_block(source, job)
-        _require(
-            condition=local_selector in block,
-            message=f"{job} must preserve the local-first runner selector.",
-        )
-        _require(
-            condition="inputs.runner_mode == 'hosted'" in block,
-            message=f"{job} must support an explicit hosted runner selection.",
-        )
+        assert (
+            local_selector in block
+        ), f"{job} must preserve the local-first runner selector."
+        assert (
+            "inputs.runner_mode == 'hosted'" in block
+        ), f"{job} must support an explicit hosted runner selection."
 
 
 def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs() -> None:
     """Require trusted-event fallback dispatch without runner discovery."""
     source = WORKFLOW.read_text(encoding="utf-8")
     watchdog = _job_block(source, "runner_watchdog")
-    _require(
-        condition="github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
-        in watchdog,
-        message="Hosted fallback must be limited to trusted push or dispatch events.",
-    )
-    _require(
-        condition="inputs.runner_mode != 'hosted'" in watchdog,
-        message="Hosted fallback must respect the requested runner mode.",
-    )
-    _require(
-        condition="Prefer local, otherwise dispatch hosted" in watchdog,
-        message="The watchdog job must explain the local-first fallback policy.",
-    )
-    _require(
-        condition="tools/ci/runner_watchdog.py" in watchdog,
-        message="The watchdog job must invoke the maintained helper script.",
-    )
-    _require(
-        condition="FALLBACK_WORKFLOW:" in watchdog,
-        message="The fallback workflow name must be passed to the watchdog.",
-    )
+    assert (
+        "github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
+        in watchdog
+    ), "Hosted fallback must be limited to trusted push or dispatch events."
+    assert (
+        "inputs.runner_mode != 'hosted'" in watchdog
+    ), "Hosted fallback must respect the requested runner mode."
+    assert (
+        "Prefer local, otherwise dispatch hosted" in watchdog
+    ), "The watchdog job must explain the local-first fallback policy."
+    assert (
+        "tools/ci/runner_watchdog.py" in watchdog
+    ), "The watchdog job must invoke the maintained helper script."
+    assert (
+        "FALLBACK_WORKFLOW:" in watchdog
+    ), "The fallback workflow name must be passed to the watchdog."
 
     script = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
-    _require(
-        condition="time.monotonic() + 45" in script,
-        message="The watchdog wait must use the bounded monotonic deadline.",
-    )
-    _require(
-        condition='os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in script,
-        message="The watchdog must preserve the default fallback workflow.",
-    )
-    _require(
-        condition='"runner_mode=hosted"' in script,
-        message="The hosted fallback must request hosted runner mode.",
-    )
-    _require(
-        condition='f"fallback_source_run={run_id}"' in script,
-        message="The hosted fallback must identify its source run.",
-    )
-    _require(
-        condition='f"repos/{repo}/actions/runs/{run_id}/cancel"' in script,
-        message="The watchdog must cancel the stale source run after dispatch.",
-    )
-    _require(
-        condition="/actions/runners" not in source + script,
-        message="Runner discovery must not query privileged runner inventory.",
-    )
+    assert (
+        "time.monotonic() + 45" in script
+    ), "The watchdog wait must use the bounded monotonic deadline."
+    assert (
+        'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in script
+    ), "The watchdog must preserve the default fallback workflow."
+    assert (
+        '"runner_mode=hosted"' in script
+    ), "The hosted fallback must request hosted runner mode."
+    assert (
+        'f"fallback_source_run={run_id}"' in script
+    ), "The hosted fallback must identify its source run."
+    assert (
+        'f"repos/{repo}/actions/runs/{run_id}/cancel"' in script
+    ), "The watchdog must cancel the stale source run after dispatch."
+    assert (
+        "/actions/runners" not in source + script
+    ), "Runner discovery must not query privileged runner inventory."
 
 
 def test_no_privileged_runner_discovery_or_second_workflow() -> None:
     """Forbid privileged runner discovery and duplicate workflow entry points."""
     workflow_dir = ROOT / ".github" / "workflows"
     sources = {path.name: path.read_text(encoding="utf-8") for path in workflow_dir.glob("*.yml")}
-    _require(
-        condition=set(sources)
+    assert (
+        set(sources)
         == {
-            "canonical-execution.yml",
-            "commit-validation.yml",
-            "main-publication.yml",
-            "merge-validation.yml",
-        },
-        message="The workflow directory must contain only the four canonical workflows.",
-    )
-    _require(
-        condition=all("workflow_run:" not in source for source in sources.values()),
-        message="No workflow may be triggered by the privileged workflow_run event.",
-    )
+        "canonical-execution.yml",
+        "commit-validation.yml",
+        "main-publication.yml",
+        "merge-validation.yml",
+        }
+    ), "The workflow directory must contain only the four canonical workflows."
+    assert (
+        all("workflow_run:" not in source for source in sources.values())
+    ), "No workflow may be triggered by the privileged workflow_run event."
     shared = sources["canonical-execution.yml"]
     forbidden_markers = (
         "CLOTH_RUNNER_DISCOVERY_TOKEN",
@@ -290,36 +256,30 @@ def test_no_privileged_runner_discovery_or_second_workflow() -> None:
         "*/5 * * * *",
     )
     for marker in forbidden_markers:
-        _require(
-            condition=marker not in shared,
-            message=f"The canonical workflow must not contain forbidden marker {marker!r}.",
-        )
+        assert (
+            marker not in shared
+        ), f"The canonical workflow must not contain forbidden marker {marker!r}."
     maintenance = _job_block(shared, "maintenance-cleanup")
-    _require(
-        condition="runs-on: ubuntu-latest" in maintenance,
-        message="Repository maintenance must run on the hosted runner.",
-    )
-    _require(
-        condition="github.event_name == 'schedule'" in maintenance,
-        message="Maintenance cleanup must be restricted to scheduled events.",
-    )
-    _require(
-        condition="RUN MAINTENANCE CLEANUP" in maintenance,
-        message="Maintenance cleanup must require its explicit event marker.",
-    )
+    assert (
+        "runs-on: ubuntu-latest" in maintenance
+    ), "Repository maintenance must run on the hosted runner."
+    assert (
+        "github.event_name == 'schedule'" in maintenance
+    ), "Maintenance cleanup must be restricted to scheduled events."
+    assert (
+        "RUN MAINTENANCE CLEANUP" in maintenance
+    ), "Maintenance cleanup must require its explicit event marker."
 
 
 def test_pr_checkout_is_credential_free_and_uses_head_sha() -> None:
     """Keep pull-request checkout pinned to the head SHA without persisted credentials."""
     source = WORKFLOW.read_text(encoding="utf-8")
-    _require(
-        condition="github.event.pull_request.head.sha" in source,
-        message="PR validation must use the source branch head SHA.",
-    )
-    _require(
-        condition="persist-credentials: false" in source,
-        message="PR checkout must not persist repository credentials.",
-    )
+    assert (
+        "github.event.pull_request.head.sha" in source
+    ), "PR validation must use the source branch head SHA."
+    assert (
+        "persist-credentials: false" in source
+    ), "PR checkout must not persist repository credentials."
 
 
 def test_collection_contract_passes_when_every_requested_module_collects() -> None:
@@ -328,10 +288,9 @@ def test_collection_contract_passes_when_every_requested_module_collects() -> No
         ("tests/test_one.py", "tests/test_two.py"),
         ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
     )
-    _require(
-        condition=result == (),
-        message="Collection must pass when all requested modules have collected tests.",
-    )
+    assert (
+        result == ()
+    ), "Collection must pass when all requested modules have collected tests."
 
 
 def test_collection_contract_rejects_a_requested_module_with_zero_items() -> None:
