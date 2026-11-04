@@ -2,7 +2,6 @@
 import re
 from pathlib import Path
 
-from tests.support.assertions import require
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -49,23 +48,19 @@ def test_architecture_distinguishes_persisted_authority_from_headless_value_type
     """architecture distinguishes persisted authority from headless value types."""
     architecture = (ROOT / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
-    require(
-        condition="persisted FreeCAD Seam object is the document-level source of truth"
-        in architecture,
-        message="architecture documentation must identify the persisted Seam as document authority.",
-    )
-    require(
-        condition="canonical immutable in-memory/value representation" in architecture,
-        message="architecture documentation must distinguish the headless value representation.",
-    )
-    require(
-        condition="persisted" in model.lower(),
-        message="PatternModel must document persisted authority.",
-    )
-    require(
-        condition="in-memory/headless" in model.lower(),
-        message="PatternModel must identify its headless value boundary.",
-    )
+    assert (
+        "persisted FreeCAD Seam object is the document-level source of truth"
+        in architecture
+    ), "architecture documentation must identify the persisted Seam as document authority."
+    assert (
+        "canonical immutable in-memory/value representation" in architecture
+    ), "architecture documentation must distinguish the headless value representation."
+    assert (
+        "persisted" in model.lower()
+    ), "PatternModel must document persisted authority."
+    assert (
+        "in-memory/headless" in model.lower()
+    ), "PatternModel must identify its headless value boundary."
 
 
 def test_packaging_metadata_has_explicit_authority_split():
