@@ -13,7 +13,6 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     apply_quality_preset,
     quality_discretization,
 )
-from tests.support.assertions import require
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -56,10 +55,9 @@ def _private_callable(target: object, name: str) -> Callable[..., object]:
 
 def test_quality_names_and_discretization_are_materially_distinct() -> None:
     """Keep named quality levels distinct and ordered by mesh discretization."""
-    require(
-        condition=QUALITY_NAMES == _EXPECTED_QUALITY_NAMES,
-        message="Quality names must remain Fast, Balanced, and Final in order.",
-    )
+    assert (
+        QUALITY_NAMES == _EXPECTED_QUALITY_NAMES
+    ), "Quality names must remain Fast, Balanced, and Final in order."
     counts = [
         quality_discretization(
             _DISCRETIZATION_RESOLUTION,
@@ -68,10 +66,9 @@ def test_quality_names_and_discretization_are_materially_distinct() -> None:
         )
         for name in QUALITY_NAMES
     ]
-    require(
-        condition=counts[0] < counts[1] < counts[2],
-        message="Higher quality presets must increase mesh discretization.",
-    )
+    assert (
+        counts[0] < counts[1] < counts[2]
+    ), "Higher quality presets must increase mesh discretization."
 
 
 def test_quality_preset_updates_solver_controls() -> None:
@@ -97,67 +94,58 @@ def test_quality_preset_updates_solver_controls() -> None:
 
     quality = apply_quality_preset(scene, _FINAL_PRESET)
 
-    require(
-        condition=quality == preset(_FINAL_PRESET),
-        message="The returned quality object must match the selected preset.",
-    )
-    require(
-        condition=scene.QualityPreset == _FINAL_PRESET,
-        message="The scene must retain the selected quality preset.",
-    )
-    require(
-        condition=isclose(
-            float(scene.ParticleDistance),
-            _FINAL_PARTICLE_DISTANCE_MM,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="The Final preset must set the canonical particle distance.",
-    )
-    require(
-        condition=scene.SolverIterations == _FINAL_SOLVER_ITERATIONS,
-        message="The Final preset must set the canonical solver iteration count.",
-    )
-    require(
-        condition=scene.SolverSubsteps == _FINAL_SOLVER_SUBSTEPS,
-        message="The Final preset must set the canonical solver substep count.",
-    )
+    assert (
+        quality == preset(_FINAL_PRESET)
+    ), "The returned quality object must match the selected preset."
+    assert (
+        scene.QualityPreset == _FINAL_PRESET
+    ), "The scene must retain the selected quality preset."
+    assert (
+        isclose(
+        float(scene.ParticleDistance),
+        _FINAL_PARTICLE_DISTANCE_MM,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "The Final preset must set the canonical particle distance."
+    assert (
+        scene.SolverIterations == _FINAL_SOLVER_ITERATIONS
+    ), "The Final preset must set the canonical solver iteration count."
+    assert (
+        scene.SolverSubsteps == _FINAL_SOLVER_SUBSTEPS
+    ), "The Final preset must set the canonical solver substep count."
 
 
 def test_material_defaults_are_document_metadata() -> None:
     """Preserve the material defaults presented as document metadata."""
     material = FabricMaterial()
-    require(
-        condition=material.validate() is material,
-        message="Valid material metadata must preserve the validated instance.",
-    )
-    require(
-        condition=isclose(
-            material.density_g_m2,
-            _DEFAULT_DENSITY_G_M2,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="Material density must retain its documented default.",
-    )
-    require(
-        condition=isclose(
-            material.thickness_mm,
-            _DEFAULT_THICKNESS_MM,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="Material thickness must retain its documented default.",
-    )
-    require(
-        condition=isclose(
-            material.friction,
-            _DEFAULT_FRICTION,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="Material friction must retain its documented default.",
-    )
+    assert (
+        material.validate() is material
+    ), "Valid material metadata must preserve the validated instance."
+    assert (
+        isclose(
+        material.density_g_m2,
+        _DEFAULT_DENSITY_G_M2,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "Material density must retain its documented default."
+    assert (
+        isclose(
+        material.thickness_mm,
+        _DEFAULT_THICKNESS_MM,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "Material thickness must retain its documented default."
+    assert (
+        isclose(
+        material.friction,
+        _DEFAULT_FRICTION,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "Material friction must retain its documented default."
 
 
 def test_advance_preview_frame_advances_backend_once_without_document_recompute() -> None:
@@ -240,26 +228,23 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     base.last_steps = 0
     proxy.advance_preview_frame(scene)
 
-    require(
-        condition=backend.calls
+    assert (
+        backend.calls
         == [
-            (
-                scene.TimeStep,
-                scene.SolverIterations,
-                (scene.GravityX, scene.GravityY, scene.GravityZ),
-                _COLLISION_SENTINEL,
-            )
-        ],
-        message="A preview frame must advance the backend once with the authoritative surface.",
-    )
-    require(
-        condition=backend.position_reads == 1,
-        message="A preview frame must publish the solved state exactly once.",
-    )
-    require(
-        condition=base.last_steps == _EXPECTED_PREVIEW_STEPS,
-        message="A preview frame must advance the recorded step count by one.",
-    )
+        (
+        scene.TimeStep,
+        scene.SolverIterations,
+        (scene.GravityX, scene.GravityY, scene.GravityZ),
+        _COLLISION_SENTINEL,
+        )
+        ]
+    ), "A preview frame must advance the backend once with the authoritative surface."
+    assert (
+        backend.position_reads == 1
+    ), "A preview frame must publish the solved state exactly once."
+    assert (
+        base.last_steps == _EXPECTED_PREVIEW_STEPS
+    ), "A preview frame must advance the recorded step count by one."
 
 
 def test_quality_proxy_keeps_solver_stitch_provenance() -> None:
@@ -268,7 +253,6 @@ def test_quality_proxy_keeps_solver_stitch_provenance() -> None:
     base = SimpleNamespace(seam_stitch_pairs=_SEAM_PROVENANCE.copy())
     _private_callable(proxy, "_sync_seam_stitch_provenance")(base)
 
-    require(
-        condition=proxy.seam_stitch_pairs == _SEAM_PROVENANCE,
-        message="The quality proxy must retain the base proxy's seam stitch provenance.",
-    )
+    assert (
+        proxy.seam_stitch_pairs == _SEAM_PROVENANCE
+    ), "The quality proxy must retain the base proxy's seam stitch provenance."
