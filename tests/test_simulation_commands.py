@@ -158,12 +158,8 @@ def test_run_simulation_delegates_to_selected_simulation_without_implicit_creati
         message="The default simulation run must return the selected scene result.",
     )
     require(
-        condition=(
-            SimulationCommands.run_simulation(
-                EXPLICIT_SIMULATION_STEPS, simulate=simulate
-            )
-            == "scene"
-        ),
+        condition=SimulationCommands.run_simulation(EXPLICIT_SIMULATION_STEPS, simulate=simulate)
+        == "scene",
         message="An explicit step count must return the selected scene result.",
     )
     require(
@@ -285,8 +281,7 @@ def test_simulation_command_resources_and_activation_are_runtime_objects(
         message="The command menu text must match its configured label.",
     )
     require(
-        condition=resources["ToolTip"]
-        == "Run 30 steps of the quality-aware CPU cloth simulation",
+        condition=resources["ToolTip"] == "Run 30 steps of the quality-aware CPU cloth simulation",
         message="The command tooltip must match its configured description.",
     )
     require(
