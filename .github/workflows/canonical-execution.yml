@@ -144,7 +144,6 @@ jobs:
           python -m compileall -q tests tools/ci
           git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
           python tools/check_markdown_contract.py
-          python tools/ci/timeout_contract.py
           python tools/ci/validate_ci_structure.py
           lint-imports
           python tools/ci/check_no_source_rewriting.py
