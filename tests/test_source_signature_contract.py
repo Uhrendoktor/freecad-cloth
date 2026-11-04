@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from typing import cast
 
 from freecad_cloth.shared.SourceSignature import source_signature
-from tests.support.assertions import require
 
 _TRIANGLES: tuple[tuple[int, int, int], ...] = ((0, 1, 2),)
 _COORDINATES: tuple[tuple[float, float, float], ...] = (
@@ -38,14 +37,12 @@ def test_mesh_signature_tracks_vector_coordinates_and_is_deterministic() -> None
     moved_coordinates = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 2.0, 0.0))
     moved = source_signature(_mesh_target(moved_coordinates))
 
-    require(
-        condition=original == repeat,
-        message="Identical mesh vertices and triangles must produce a stable signature.",
-    )
-    require(
-        condition=original != moved,
-        message="A changed vector coordinate must invalidate the source signature.",
-    )
+    assert (
+        original == repeat
+    ), "Identical mesh vertices and triangles must produce a stable signature."
+    assert (
+        original != moved
+    ), "A changed vector coordinate must invalidate the source signature."
 
 
 def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None:
@@ -72,7 +69,6 @@ def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None
     geometry = cast("tuple[object, ...]", signature[1])
     shape_content = cast("tuple[object, ...]", geometry[-1])
 
-    require(
-        condition=shape_content[0] == "TessellatedShape",
-        message="Invalid BRep output must fall back to the tessellated geometry signature.",
-    )
+    assert (
+        shape_content[0] == "TessellatedShape"
+    ), "Invalid BRep output must fall back to the tessellated geometry signature."
