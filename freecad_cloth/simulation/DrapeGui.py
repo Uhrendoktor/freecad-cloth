@@ -35,6 +35,13 @@ from freecad_cloth.simulation.DrapeTarget import assign_drape_target as _assign_
 
 SIGNALS_BLOCKED = True
 SIGNALS_UNBLOCKED = False
+_GET_OBJECT_METHOD = "getObject"
+_ACTIVE_DOCUMENT_METHOD = "activeDocument"
+_ACTIVE_DIALOG_METHOD = "activeDialog"
+_CLOSE_DIALOG_METHOD = "closeDialog"
+_SHOW_DIALOG_METHOD = "showDialog"
+_ADD_WIDGET_METHOD = "addWidget"
+_ADD_LAYOUT_METHOD = "addLayout"
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -45,7 +52,6 @@ class _FreeCADDocument(Protocol):
     """Document operations and object inventory used by the task panel."""
 
     Objects: Sequence[object]
-    getObject: Callable[[str], object | None]
     recompute: Callable[[], None]
 
 
@@ -55,26 +61,10 @@ class _FreeCADApplication(Protocol):
     ActiveDocument: _FreeCADDocument | None
 
 
-class _FreeCADControl(Protocol):
-    """Native task-panel callbacks used by the FreeCAD GUI controller."""
-
-    activeDialog: Callable[[], object | None]
-    closeDialog: Callable[[], None]
-    showDialog: Callable[[object], None]
-
-
 class _FreeCADGui(Protocol):
-    """FreeCAD GUI operations used by the target task panel."""
+    """FreeCAD GUI module boundary used by the target task panel."""
 
-    Control: _FreeCADControl
-    activeDocument: Callable[[], object | None]
-
-
-class _WidgetLayout(Protocol):
-    """Layout operations required to assemble the target panel."""
-
-    addWidget: Callable[[object], None]
-    addLayout: Callable[[object], None]
+    Control: object
 
 
 class _DrapeTargetFeature(Protocol):
@@ -134,14 +124,15 @@ class DrapeTargetTaskPanel:
         self.target = target or self._find_target()
         self.form = qt_widgets.QWidget()
         self.form.setObjectName("ClothDrapeTargetTaskPanel")
-        root = cast("_WidgetLayout", qt_widgets.QVBoxLayout(self.form))
+        root: object = qt_widgets.QVBoxLayout(self.form)
+        add_widget = cast("Callable[[object], None]", getattr(root, _ADD_WIDGET_METHOD))
 
         title = qt_widgets.QLabel("Drape Target")
         title.setProperty("clothRole", "title")
-        root.addWidget(title)
-        root.addWidget(self._build_source_group(qt_widgets))
-        root.addWidget(self._build_quality_group(qt_widgets))
-        root.addWidget(self._build_state_group(qt_widgets))
+        add_widget(title)
+        add_widget(self._build_source_group(qt_widgets))
+        add_widget(self._build_quality_group(qt_widgets))
+        add_widget(self._build_state_group(qt_widgets))
         self._build_status_and_controls(qt_widgets, root)
         self._loading = False
         self._load()
@@ -213,7 +204,7 @@ class DrapeTargetTaskPanel:
     def _build_status_and_controls(
         self,
         qt_widgets: ModuleType,
-        root: _WidgetLayout,
+        root: object,
     ) -> None:
         """Create semantic status feedback and the Apply/Cancel buttons.
 
@@ -225,7 +216,9 @@ class DrapeTargetTaskPanel:
         self.status.setWordWrap(True)
         self.status.setObjectName("ClothDrapeTargetStatus")
         _set_status_label(self.status, "", state="info")
-        root.addWidget(self.status)
+        add_widget = cast("Callable[[object], None]", getattr(root, _ADD_WIDGET_METHOD))
+        add_layout = cast("Callable[[object], None]", getattr(root, _ADD_LAYOUT_METHOD))
+        add_widget(self.status)
 
         controls = qt_widgets.QHBoxLayout()
         self.apply_button = qt_widgets.QPushButton("Apply & Refresh")
@@ -234,7 +227,7 @@ class DrapeTargetTaskPanel:
         _mark_button(self.cancel_button, "secondary")
         controls.addWidget(self.apply_button)
         controls.addWidget(self.cancel_button)
-        root.addLayout(controls)
+        add_layout(controls)
 
     def _connect_callbacks(self) -> None:
         """Connect UI change and action signals to the task-panel handlers."""
@@ -264,7 +257,11 @@ class DrapeTargetTaskPanel:
         if self.doc is None:
             return None
         document = cast("_FreeCADDocument", self.doc)
-        return document.getObject("DrapeTarget")
+        get_object = cast(
+            "Callable[[str], object | None]",
+            getattr(document, _GET_OBJECT_METHOD),
+        )
+        return get_object("DrapeTarget")
 
     def _populate_sources(self) -> None:
         """Refresh the source selector from valid document objects."""
@@ -435,8 +432,18 @@ class DrapeTargetTaskPanel:
             True to allow FreeCAD to close the task panel.
         """
         gui = cast("_FreeCADGui", self.Gui)
-        if gui.activeDocument() and gui.Control.activeDialog():
-            gui.Control.closeDialog()
+        control = gui.Control
+        active_document = cast(
+            "Callable[[], object | None]",
+            getattr(gui, _ACTIVE_DOCUMENT_METHOD),
+        )
+        active_dialog = cast(
+            "Callable[[], object | None]",
+            getattr(control, _ACTIVE_DIALOG_METHOD),
+        )
+        close_dialog = cast("Callable[[], None]", getattr(control, _CLOSE_DIALOG_METHOD))
+        if active_document() and active_dialog():
+            close_dialog()
         return True
 
     @staticmethod
@@ -478,5 +485,9 @@ def show_drape_target_task(target: object | None = None) -> DrapeTargetTaskPanel
     """
     _app_module, gui_module, _qt_widgets = _modules()
     panel = DrapeTargetTaskPanel(target)
-    gui_module.Control.showDialog(panel)
+    show_dialog = cast(
+        "Callable[[object], None]",
+        getattr(gui_module.Control, _SHOW_DIALOG_METHOD),
+    )
+    show_dialog(panel)
     return panel
