@@ -229,7 +229,6 @@ def _native_piece(piece: _PieceSeed) -> _PatternPiece:
     return adopted_piece
 
 
-
 def _piece_sketch(piece: object) -> _NativeSketch:
     """Return the native sketch stored under FreeCAD's persisted property name.
 
