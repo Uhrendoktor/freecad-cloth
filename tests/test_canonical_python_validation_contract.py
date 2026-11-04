@@ -570,7 +570,8 @@ def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
 
     require(
-        condition="python_validation.py" in workflow and "group: [core, pattern, sewing, gui, pytest]" in workflow,
+        condition="python_validation.py" in workflow
+        and "group: [core, pattern, sewing, gui, pytest]" in workflow,
         message="The canonical workflow must execute the complete Python validation matrix.",
     )
     require(
