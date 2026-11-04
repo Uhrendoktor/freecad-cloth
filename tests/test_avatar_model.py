@@ -14,7 +14,6 @@ from freecad_cloth.avatar.AvatarModel import (
     Pose,
     generate_mesh,
 )
-from tests.support.assertions import require
 
 _MIN_MESH_ELEMENT_COUNT = 100
 _MEASUREMENT_CHANGE_MM = 100.0
@@ -28,58 +27,51 @@ def test_default_avatar_is_valid_and_deterministic() -> None:
     params = AvatarParameters()
     first = generate_mesh(params)
     second = generate_mesh(params)
-    require(
-        condition=first == second,
-        message="Repeated default mesh generation must be deterministic.",
-    )
-    require(
-        condition=len(first[0]) > _MIN_MESH_ELEMENT_COUNT,
-        message="The generated avatar needs a nontrivial vertex set.",
-    )
-    require(
-        condition=len(first[1]) > _MIN_MESH_ELEMENT_COUNT,
-        message="The generated avatar needs a nontrivial face set.",
-    )
-    require(
-        condition={landmark.name for landmark in first[2]}
+    assert (
+        first == second
+    ), "Repeated default mesh generation must be deterministic."
+    assert (
+        len(first[0]) > _MIN_MESH_ELEMENT_COUNT
+    ), "The generated avatar needs a nontrivial vertex set."
+    assert (
+        len(first[1]) > _MIN_MESH_ELEMENT_COUNT
+    ), "The generated avatar needs a nontrivial face set."
+    assert (
+        {landmark.name for landmark in first[2]}
         >= {
-            "neck",
-            "chest",
-            "waist",
-            "hip",
-            "shoulder_left",
-            "shoulder_right",
-        },
-        message="The generated avatar must expose its standard body landmarks.",
-    )
+        "neck",
+        "chest",
+        "waist",
+        "hip",
+        "shoulder_left",
+        "shoulder_right",
+        }
+    ), "The generated avatar must expose its standard body landmarks."
 
 
 def test_measurement_change_changes_geometry_without_mutating_source() -> None:
     """Keep source parameters stable while a chest-measurement edit changes geometry."""
     params = AvatarParameters()
     wider = params.with_measurements(chest=params.measurement("chest") + _MEASUREMENT_CHANGE_MM)
-    require(
-        condition=math.isclose(
-            params.measurement("chest"),
-            DEFAULT_MEASUREMENTS["chest"],
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="Editing a copy must not mutate the source chest measurement.",
-    )
-    require(
-        condition=math.isclose(
-            wider.measurement("chest"),
-            DEFAULT_MEASUREMENTS["chest"] + _MEASUREMENT_CHANGE_MM,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="The updated chest measurement must be retained.",
-    )
-    require(
-        condition=generate_mesh(params)[0] != generate_mesh(wider)[0],
-        message="A wider chest measurement must alter generated geometry.",
-    )
+    assert (
+        math.isclose(
+        params.measurement("chest"),
+        DEFAULT_MEASUREMENTS["chest"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "Editing a copy must not mutate the source chest measurement."
+    assert (
+        math.isclose(
+        wider.measurement("chest"),
+        DEFAULT_MEASUREMENTS["chest"] + _MEASUREMENT_CHANGE_MM,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "The updated chest measurement must be retained."
+    assert (
+        generate_mesh(params)[0] != generate_mesh(wider)[0]
+    ), "A wider chest measurement must alter generated geometry."
 
 
 def test_hip_circumference_does_not_change_leg_stance_landmarks() -> None:
@@ -89,10 +81,9 @@ def test_hip_circumference_does_not_change_leg_stance_landmarks() -> None:
     baseline_landmarks = {item.name: item.position for item in generate_mesh(params)[2]}
     wider_landmarks = {item.name: item.position for item in generate_mesh(wider_hip)[2]}
     for name in ("knee_left", "knee_right", "ankle_left", "ankle_right"):
-        require(
-            condition=wider_landmarks[name] == baseline_landmarks[name],
-            message=f"Hip circumference must not move the {name} landmark.",
-        )
+        assert (
+            wider_landmarks[name] == baseline_landmarks[name]
+        ), f"Hip circumference must not move the {name} landmark."
 
 
 def test_gender_and_breast_controls_persist_and_change_geometry() -> None:
@@ -101,36 +92,30 @@ def test_gender_and_breast_controls_persist_and_change_geometry() -> None:
     feminine = AvatarParameters(gender=0.0)
     masculine = AvatarParameters(gender=1.0)
     fuller = AvatarParameters(breast_size=1.0)
-    require(
-        condition=AvatarParameters.from_json(feminine.to_json()) == feminine,
-        message="The feminine morphology controls must survive JSON round-trips.",
-    )
-    require(
-        condition=AvatarParameters.from_json(fuller.to_json()) == fuller,
-        message="The breast-size control must survive JSON round-trips.",
-    )
+    assert (
+        AvatarParameters.from_json(feminine.to_json()) == feminine
+    ), "The feminine morphology controls must survive JSON round-trips."
+    assert (
+        AvatarParameters.from_json(fuller.to_json()) == fuller
+    ), "The breast-size control must survive JSON round-trips."
     edited = neutral.with_measurements(waist=780.0)
-    require(
-        condition=math.isclose(edited.gender, neutral.gender, rel_tol=0.0, abs_tol=0.0),
-        message="A measurement edit must preserve the gender blend.",
-    )
-    require(
-        condition=math.isclose(
-            edited.breast_size,
-            neutral.breast_size,
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="A measurement edit must preserve the breast-size control.",
-    )
-    require(
-        condition=generate_mesh(feminine)[0] != generate_mesh(masculine)[0],
-        message="Different gender blends must change generated geometry.",
-    )
-    require(
-        condition=generate_mesh(neutral)[0] != generate_mesh(fuller)[0],
-        message="The breast-size control must change generated geometry.",
-    )
+    assert (
+        math.isclose(edited.gender, neutral.gender, rel_tol=0.0, abs_tol=0.0)
+    ), "A measurement edit must preserve the gender blend."
+    assert (
+        math.isclose(
+        edited.breast_size,
+        neutral.breast_size,
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "A measurement edit must preserve the breast-size control."
+    assert (
+        generate_mesh(feminine)[0] != generate_mesh(masculine)[0]
+    ), "Different gender blends must change generated geometry."
+    assert (
+        generate_mesh(neutral)[0] != generate_mesh(fuller)[0]
+    ), "The breast-size control must change generated geometry."
 
 
 @pytest.mark.parametrize(
@@ -163,27 +148,24 @@ def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> N
     )
     restored = AvatarParameters.from_json(parameters.to_json())
     edited = parameters.with_measurements(waist=780.0)
-    require(
-        condition=parameters.schema_version == AVATAR_SCHEMA_VERSION,
-        message="The parameter record must use the current schema version.",
-    )
-    require(condition=restored == parameters, message="JSON round-trip must be stable.")
-    require(
-        condition=edited.phenotype_overrides == parameters.phenotype_overrides,
-        message="Measurement edits must preserve phenotype overrides.",
-    )
-    require(
-        condition=edited.local_change_overrides == parameters.local_change_overrides,
-        message="Measurement edits must preserve local morph overrides.",
-    )
-    require(
-        condition=math.isclose(restored.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0),
-        message="JSON round-trip must preserve the mass target.",
-    )
-    require(
-        condition=math.isclose(edited.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0),
-        message="Measurement edits must preserve the mass target.",
-    )
+    assert (
+        parameters.schema_version == AVATAR_SCHEMA_VERSION
+    ), "The parameter record must use the current schema version."
+    assert (
+        restored == parameters
+    ), "JSON round-trip must be stable."
+    assert (
+        edited.phenotype_overrides == parameters.phenotype_overrides
+    ), "Measurement edits must preserve phenotype overrides."
+    assert (
+        edited.local_change_overrides == parameters.local_change_overrides
+    ), "Measurement edits must preserve local morph overrides."
+    assert (
+        math.isclose(restored.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0)
+    ), "JSON round-trip must preserve the mass target."
+    assert (
+        math.isclose(edited.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0)
+    ), "Measurement edits must preserve the mass target."
 
 
 @pytest.mark.parametrize(
@@ -225,17 +207,18 @@ def test_skin_offset_changes_collision_geometry() -> None:
     """Ensure skin offset influences the generated collision geometry."""
     base = AvatarParameters(skin_offset=0.0)
     padded = AvatarParameters(skin_offset=_SKIN_OFFSET_TEST_MM)
-    require(
-        condition=generate_mesh(base)[0] != generate_mesh(padded)[0],
-        message="A larger skin offset must change the generated geometry.",
-    )
+    assert (
+        generate_mesh(base)[0] != generate_mesh(padded)[0]
+    ), "A larger skin offset must change the generated geometry."
 
 
 def test_pose_round_trip_is_persistent_and_validated() -> None:
     """Preserve a pose through JSON and reject unsupported presets."""
     params = AvatarParameters(pose=Pose("sewing"))
     restored = AvatarParameters.from_json(params.to_json())
-    require(condition=restored == params, message="Pose settings must survive JSON round-trips.")
+    assert (
+        restored == params
+    ), "Pose settings must survive JSON round-trips."
     with pytest.raises(ValueError, match="unsupported avatar pose"):
         Pose("invalid").validate()
 
@@ -257,35 +240,31 @@ def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope() -> None:
     """Keep the T-pose arm angles and its broader horizontal mesh envelope."""
     t_pose = AvatarParameters(pose=Pose("t_pose"))
     standing = AvatarParameters(pose=Pose("standing"))
-    require(
-        condition=math.isclose(
-            t_pose.pose.left_arm_angle or 0.0,
-            DEFAULT_POSE_ARM_ANGLES["t_pose"],
-            rel_tol=0.0,
-            abs_tol=0.0,
+    assert (
+        math.isclose(
+        t_pose.pose.left_arm_angle or 0.0,
+        DEFAULT_POSE_ARM_ANGLES["t_pose"],
+        rel_tol=0.0,
+        abs_tol=0.0,
         )
         and math.isclose(
-            t_pose.pose.right_arm_angle or 0.0,
-            DEFAULT_POSE_ARM_ANGLES["t_pose"],
-            rel_tol=0.0,
-            abs_tol=0.0,
-        ),
-        message="The T-pose must use the configured horizontal arm defaults.",
-    )
-    require(
-        condition=AvatarParameters.from_json(t_pose.to_json()) == t_pose,
-        message="The T-pose settings must survive JSON round-trips.",
-    )
+        t_pose.pose.right_arm_angle or 0.0,
+        DEFAULT_POSE_ARM_ANGLES["t_pose"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+        )
+    ), "The T-pose must use the configured horizontal arm defaults."
+    assert (
+        AvatarParameters.from_json(t_pose.to_json()) == t_pose
+    ), "The T-pose settings must survive JSON round-trips."
     horizontal = _mesh_x_bounds(t_pose)
     relaxed = _mesh_x_bounds(standing)
-    require(
-        condition=horizontal[0] < relaxed[0] - _POSE_ENVELOPE_MARGIN_MM,
-        message="The T-pose must extend farther on the left.",
-    )
-    require(
-        condition=horizontal[1] > relaxed[1] + _POSE_ENVELOPE_MARGIN_MM,
-        message="The T-pose must extend farther on the right.",
-    )
+    assert (
+        horizontal[0] < relaxed[0] - _POSE_ENVELOPE_MARGIN_MM
+    ), "The T-pose must extend farther on the left."
+    assert (
+        horizontal[1] > relaxed[1] + _POSE_ENVELOPE_MARGIN_MM
+    ), "The T-pose must extend farther on the right."
 
 
 def test_invalid_measurements_are_rejected() -> None:
@@ -340,15 +319,14 @@ def test_omitted_arm_angles_use_preset_defaults(preset: str) -> None:
     default_pose = Pose(preset)
     recovered = _parameters_with_omitted_arm_angles(preset)
     expected_angle = DEFAULT_POSE_ARM_ANGLES[preset]
-    require(
-        condition=(
-            default_pose.left_arm_angle == expected_angle
-            and default_pose.right_arm_angle == expected_angle
-            and recovered.pose.left_arm_angle == expected_angle
-            and recovered.pose.right_arm_angle == expected_angle
-        ),
-        message=f"Omitted arm angles must resolve to the {preset} default.",
-    )
+    assert (
+        (
+        default_pose.left_arm_angle == expected_angle
+        and default_pose.right_arm_angle == expected_angle
+        and recovered.pose.left_arm_angle == expected_angle
+        and recovered.pose.right_arm_angle == expected_angle
+        )
+    ), f"Omitted arm angles must resolve to the {preset} default."
 
 
 @pytest.mark.parametrize(
@@ -369,14 +347,13 @@ def test_explicit_arm_angles_survive_json_round_trip(
     """
     parameters = AvatarParameters(pose=Pose(preset, left_angle, right_angle))
     restored = AvatarParameters.from_json(parameters.to_json())
-    require(
-        condition=(
-            restored == parameters
-            and restored.pose.left_arm_angle == left_angle
-            and restored.pose.right_arm_angle == right_angle
-        ),
-        message=f"Explicit arm angles must survive the {preset} JSON round-trip.",
-    )
+    assert (
+        (
+        restored == parameters
+        and restored.pose.left_arm_angle == left_angle
+        and restored.pose.right_arm_angle == right_angle
+        )
+    ), f"Explicit arm angles must survive the {preset} JSON round-trip."
 
 
 def _generated_wrist_positions(
@@ -401,7 +378,6 @@ def test_explicit_arm_angles_change_generated_wrist_landmarks() -> None:
     """Ensure explicit arm angles change generated wrist coordinates."""
     baseline = AvatarParameters(pose=Pose("sewing"))
     posed = AvatarParameters(pose=Pose("sewing", -41.0, 16.0))
-    require(
-        condition=(_generated_wrist_positions(baseline) != _generated_wrist_positions(posed)),
-        message="Explicit sewing angles must alter generated wrist landmarks.",
-    )
+    assert (
+        (_generated_wrist_positions(baseline) != _generated_wrist_positions(posed))
+    ), "Explicit sewing angles must alter generated wrist landmarks."
