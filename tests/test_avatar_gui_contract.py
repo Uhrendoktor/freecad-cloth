@@ -95,6 +95,7 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
         == 1800.0
     )
 
+
 def test_measurement_properties_are_generated_from_model_measurements() -> None:
     """Ensure every canonical measurement has the corresponding persisted property."""
     expected = {
