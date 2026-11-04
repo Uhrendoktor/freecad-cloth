@@ -351,7 +351,9 @@ def test_semantic_seam_id_maps_to_native_index_not_ir_ordinal() -> None:
         EdgeAId="front:edge:7",
         EdgeASignature="native-v1:signature",
     )
-    resolver = lambda _piece, edge_id, _signature: {"id": edge_id, "ordinal": 1}
+    def resolver(_piece, edge_id, _signature):
+        return {"id": edge_id, "ordinal": 1}
+
     assert _seam_edge_index(piece, seam, "A", resolve_document_edge_fn=resolver) == 7
 
 
