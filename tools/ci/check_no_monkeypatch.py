@@ -27,7 +27,9 @@ def _is_sys_modules(node: ast.AST) -> bool:
     )
 
 
-def _targets(node: ast.AST) -> tuple[ast.AST, ...]:
+def _targets(
+    node: ast.Assign | ast.AnnAssign | ast.AugAssign | ast.NamedExpr | ast.Delete,
+) -> tuple[ast.expr, ...]:
     """Extract assignment targets from an AST mutation statement.
 
     Args:
@@ -36,14 +38,9 @@ def _targets(node: ast.AST) -> tuple[ast.AST, ...]:
     Returns:
         All target expressions exposed by the node, or an empty tuple when none exist.
     """
-    if isinstance(node, ast.Assign):
+    if isinstance(node, (ast.Assign, ast.Delete)):
         return tuple(node.targets)
-    if isinstance(node, (ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.Delete)):
-        target = node.target if hasattr(node, "target") else None
-        if target is not None:
-            return (target,)
-        return tuple(node.targets)
-    return ()
+    return (node.target,)
 
 
 def _record_forbidden_symbols(
@@ -138,7 +135,7 @@ def _is_imported_module_attribute(target: ast.AST, module_aliases: set[str]) -> 
 
 
 def _record_assignment_violations(
-    node: ast.AST,
+    node: ast.Assign | ast.AnnAssign | ast.AugAssign | ast.NamedExpr | ast.Delete,
     filename: str,
     *,
     in_tests: bool,

@@ -36,7 +36,7 @@ def missing_requested_modules(
     )
 
 
-def validate_collection_contract(items: Iterable[object], *, environ: Mapping[str, str]) -> None:
+def validate_collection_contract(items: Iterable[pytest.Item], *, environ: Mapping[str, str]) -> None:
     """Validate requested pytest modules using a caller-supplied environment.
 
     Args:
