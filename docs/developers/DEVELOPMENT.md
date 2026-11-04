@@ -23,7 +23,7 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 The canonical quality path favors a small set of tools with distinct responsibilities:
 
 - Ruff performs formatting and the explicitly selected high-signal lint checks over every tracked `.py` and `.pyi` file.
-- Pyright provides one repository-wide standard-mode type check, with the three deterministic simulation core modules additionally configured for strict analysis.
+- Pyright provides one standard-mode type profile over the explicitly reviewed production modules in `pyrightconfig.json`: the strict simulation core plus new production modules deliberately added to the scope. Tests, CI tools, and native FreeCAD acceptance scripts retain their focused validation paths.
 - Vulture checks high-confidence unused production code while avoiding dynamic FreeCAD GUI/command surfaces.
 - Hypothesis exercises generated geometry, numeric invariants, and state-machine behavior. CrossHair remains for bounded symbolic exploration of selected pure production math where its coverage is distinct.
 - Import Linter enforces package dependency direction.
