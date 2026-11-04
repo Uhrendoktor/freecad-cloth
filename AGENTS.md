@@ -61,13 +61,15 @@ Implementation code belongs under `freecad_cloth/`. The repository intentionally
 
 For multi-step refactors or architectural changes, use `.agent/PLANS.md` as the bounded execution-plan template. Keep evidence and review discussion in the governing issue/PR; do not turn the plan into a history log.
 
-## Documentation contract
+## Documentation and static-quality contract
 
-Every tracked Python module, class, function, method, nested function, test, and private helper must have a descriptive docstring. Use Google-style `Args`, `Returns`/`Yields`, and `Raises` sections when applicable. Describe every parameter other than the conventional `self`/`cls` receiver, every non-`None` return value, and every explicitly raised exception whose class is statically visible. Type annotations are mandatory for every parameter and return value.
+Document public modules, classes, methods, and non-obvious public functions with concise Google-style docstrings. Explain behavior and contracts rather than repeating symbol names. Include assumptions, units, valid ranges, invariants, side effects, lifecycle constraints, failure behavior, and recovery implications where they matter. Add `Args`, `Returns`/`Yields`, and `Raises` sections when they materially clarify a non-trivial API; do not require boilerplate sections for every short test or nested helper. Private implementation details should be documented when their complexity or API importance warrants it.
 
-Ruff selects `ALL` rules with preview checks enabled over every tracked `.py` and `.pyi` file. The only ignored rule codes are those Ruff documents as incompatible with its formatter. There is no per-file ignore list, inline `noqa`, or legacy-debt baseline. New Ruff releases automatically add newly available rules under `ALL`/preview; every finding must be fixed rather than grandfathered.
+Ruff applies a reviewed, explicit selection of correctness, security, import, typing, and documentation rules to every tracked `.py` and `.pyi` file. The selected rules and formatter settings live in `pyproject.toml`; avoid `ALL` plus blanket preview selection. Add rule families only when they catch a distinct, useful defect. Do not add broad ignore lists, inline `noqa` suppressions, or a legacy-debt baseline to hide findings.
 
-Docstrings explain behavior and contracts, not merely repeat symbol names. Include assumptions, units, valid ranges, invariants, side effects, lifecycle constraints, failure behavior, and recovery implications where relevant. Keep architecture in `docs/developers/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing PR/issue.
+Pyright standard mode covers the production package under `freecad_cloth/`, with strict analysis on the three configured simulation-core modules. Tests, CI tools, and native FreeCAD acceptance scripts retain their own focused tests and runtime validation; they are not folded into the production package's type scope merely to increase diagnostic volume.
+
+Keep architecture in `docs/developers/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing PR/issue.
 ## Verification
 
 Choose the smallest evidence set that proves the change. Use focused tests for core changes, real FreeCAD coverage for document/API changes, Xvfb for GUI changes, save/reload checks for persistence, deterministic solver checks for simulation changes, and the canonical workflow when its acceptance path is required.
