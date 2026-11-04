@@ -17,7 +17,6 @@ from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP,
     SHAPE_PROPERTY_MAP,
 )
-from tests.support.assertions import require
 
 
 def test_avatar_panel_property_mapping_matches_command_authority():
@@ -102,10 +101,9 @@ def test_measurement_properties_are_generated_from_model_measurements() -> None:
         name: "_".join(part.capitalize() for part in name.split("_"))
         for name in DEFAULT_MEASUREMENTS
     }
-    require(
-        condition=PROPERTY_MAP == expected,
-        message="measurement property names must derive from the AvatarParameters keys",
-    )
+    assert (
+        PROPERTY_MAP == expected
+    ), "measurement property names must derive from the AvatarParameters keys"
 
 
 def test_shape_properties_are_generated_from_model_field_metadata() -> None:
@@ -115,14 +113,12 @@ def test_shape_properties_are_generated_from_model_field_metadata() -> None:
         for field in fields(AvatarParameters)
         if field.metadata.get("freecad_property_group") == "shape"
     }
-    require(
-        condition=expected == {"gender": "Gender", "breast_size": "BreastSize"},
-        message="shape fields must carry stable FreeCAD grouping metadata on the model.",
-    )
-    require(
-        condition=SHAPE_PROPERTY_MAP == expected,
-        message="shape property names must be derived from AvatarParameters field metadata.",
-    )
+    assert (
+        expected == {"gender": "Gender", "breast_size": "BreastSize"}
+    ), "shape fields must carry stable FreeCAD grouping metadata on the model."
+    assert (
+        SHAPE_PROPERTY_MAP == expected
+    ), "shape property names must be derived from AvatarParameters field metadata."
 
 
 def test_pose_properties_cover_all_pose_angle_fields() -> None:
@@ -132,7 +128,6 @@ def test_pose_properties_cover_all_pose_angle_fields() -> None:
         for field in fields(Pose)
         if field.name.endswith("_angle")
     }
-    require(
-        condition=POSE_PROPERTY_MAP == expected,
-        message="pose property names must derive from the Pose angle fields",
-    )
+    assert (
+        POSE_PROPERTY_MAP == expected
+    ), "pose property names must derive from the Pose angle fields"
