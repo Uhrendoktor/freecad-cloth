@@ -1089,23 +1089,48 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         "S307",
         "S605",
     ]
-    require(condition=lint["select"] == expected_rules, message="Ruff must use the reviewed high-signal rule set.")
-    require(condition=lint["preview"] is True, message="Selected DOC rules require Ruff preview mode.")
-    require(condition=not lint.get("ignore"), message="The curated rules must not need a global ignore list.")
-    require(condition=not lint.get("per-file-ignores"), message="The curated rules must not need per-file ignores.")
+    require(
+        condition=lint["select"] == expected_rules,
+        message="Ruff must use the reviewed high-signal rule set.",
+    )
+    require(
+        condition=lint["preview"] is True,
+        message="Selected DOC rules require Ruff preview mode.",
+    )
+    require(
+        condition=not lint.get("ignore"),
+        message="The curated rules must not need a global ignore list.",
+    )
+    require(
+        condition=not lint.get("per-file-ignores"),
+        message="The curated rules must not need per-file ignores.",
+    )
     require(
         condition='path: "freecad_cloth tests tools/ci"' in workflow,
         message="Expected 'path: \"freecad_cloth tests tools/ci\"' in workflow.",
     )
 
 
-def test_pyright_covers_production_package_with_explicit_strict_core() -> None:
-    """One profile covers all production code and keeps the simulation core strict."""
+def test_pyright_covers_reviewed_production_modules_with_explicit_strict_core() -> None:
+    """One profile covers reviewed production modules and keeps the simulation core strict."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    reviewed_scope = (
+        "freecad_cloth/avatar/AvatarProperties.py",
+        "freecad_cloth/avatar/SkeletonTypes.py",
+        "freecad_cloth/avatar/avatar_commands.py",
+        "freecad_cloth/shared/CommandIds.py",
+        "freecad_cloth/shared/MeshTopology.py",
+        "freecad_cloth/shared/SeamColors.py",
+        "freecad_cloth/simulation/ClothSolver.py",
+        "freecad_cloth/simulation/DrapeFailureClassifier.py",
+        "freecad_cloth/simulation/MeshBoundary.py",
+        "freecad_cloth/simulation/_cloth_backend_compat.py",
+        "freecad_cloth/simulation/cloth_backend.py",
+    )
     strict_core = (
         "freecad_cloth/simulation/DrapeFailureClassifier.py",
         "freecad_cloth/simulation/cloth_backend.py",
@@ -1117,8 +1142,8 @@ def test_pyright_covers_production_package_with_explicit_strict_core() -> None:
         message='Expected config["typeCheckingMode"] == "standard".',
     )
     require(
-        condition=config["include"] == ["freecad_cloth"],
-        message='Expected config["include"] == ["freecad_cloth"].',
+        condition=config["include"] == list(reviewed_scope),
+        message="Pyright must match the explicitly reviewed production-module scope.",
     )
     require(
         condition=not config.get("exclude"),
@@ -1250,27 +1275,27 @@ def test_ruff_command_parser_rejects_and_chained_commands() -> None:
         message="Only the chained Ruff command must be reported missing.",
     )
 
-def test_pyright_coverage_contract_rejects_a_narrowed_scope() -> None:
-    """Reject configuration changes that remove production modules from Pyright."""
+def test_pyright_coverage_contract_rejects_an_unreviewed_scope() -> None:
+    """Reject include/exclude changes that escape or hide the reviewed module set."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["include"] = ["tests"]
+    config["include"] = ["freecad_cloth"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright include scope must cover the production package>",),
-        message="Pyright must reject an include that omits production code.",
+        == ("<Pyright include scope must match the reviewed production-module set>",),
+        message="Pyright must reject an unreviewed broad production scope.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["exclude"] = ["freecad_cloth/simulation/**"]
+    config["exclude"] = ["freecad_cloth/simulation/ClothSolver.py"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright exclude scope must not narrow production-package coverage>",),
-        message="Pyright must reject exclusions from production analysis.",
+        == ("<Pyright exclude scope must not hide reviewed production modules>",),
+        message="Pyright must reject exclusions from reviewed production modules.",
     )
 
 
-def test_new_production_modules_remain_in_pyright_scope() -> None:
-    """Keep newly added production modules covered by the production-package include."""
+def test_new_production_modules_require_explicit_pyright_inclusion() -> None:
+    """Require newly added production modules to be reviewed into the Pyright scope."""
     new_modules = (
         "freecad_cloth/common/new_model.py",
         "freecad_cloth/simulation/NewSimulationGui.py",
@@ -1280,8 +1305,12 @@ def test_new_production_modules_remain_in_pyright_scope() -> None:
         condition=pyright_coverage_contract_violations(
             PYRIGHT_CONFIG.read_text(encoding="utf-8"),
             new_modules,
-        ) == (),
-        message="The production-package Pyright scope must include new production modules.",
+        )
+        == tuple(
+            f"<new Python module is outside Pyright include/exclude scope: {path}>"
+            for path in new_modules
+        ),
+        message="New production modules must be deliberately added to the Pyright scope.",
     )
 
 
