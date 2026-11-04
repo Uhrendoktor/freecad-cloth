@@ -68,16 +68,17 @@ respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Reviewed correctness, security, import, typing, and public API documentation checks.
-# Preview is enabled for the explicitly selected DOC rules, not for every Ruff rule.
+# Stable correctness, security, import, typing, and public API documentation checks.
+# Preview rules remain opt-in so a Ruff release cannot silently expand the policy.
 select = [
-  "E",
+  "E4",
+  "E7",
+  "E9",
   "F",
   "W",
   "I",
   "B",
   "BLE",
-  "UP",
   "ANN401",
   "RUF",
   "D100",
@@ -86,14 +87,10 @@ select = [
   "D104",
   "D107",
   "D417",
-  "DOC201",
-  "DOC402",
-  "DOC501",
   "S102",
   "S307",
   "S605",
 ]
-preview = true
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
