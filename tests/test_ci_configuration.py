@@ -973,13 +973,14 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     expected_rules = [
-        "E",
+        "E4",
+        "E7",
+        "E9",
         "F",
         "W",
         "I",
         "B",
         "BLE",
-        "UP",
         "ANN401",
         "RUF",
         "D100",
@@ -988,9 +989,6 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         "D104",
         "D107",
         "D417",
-        "DOC201",
-        "DOC402",
-        "DOC501",
         "S102",
         "S307",
         "S605",
@@ -999,8 +997,8 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         lint["select"] == expected_rules
     ), "Ruff must use the reviewed high-signal rule set."
     assert (
-        lint["preview"] is True
-    ), "Selected DOC rules require Ruff preview mode."
+        lint.get("preview", False) is False
+    ), "The reviewed Ruff rule set must not enable preview rules."
     assert (
         not lint.get("ignore")
     ), "The curated rules must not need a global ignore list."
