@@ -134,6 +134,8 @@ async def _run_async(
         stdout, stderr = await process.communicate()
         stdout_text = stdout.decode("utf-8", errors="replace") if stdout is not None else ""
         stderr_text = stderr.decode("utf-8", errors="replace") if stderr is not None else ""
+        if deadline is None:
+            raise
         raise CommandTimeoutError(command, deadline, stdout_text, stderr_text) from exc
 
     if process.returncode is None:
