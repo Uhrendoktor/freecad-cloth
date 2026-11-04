@@ -478,7 +478,10 @@ class SkeletonPoseController:
             """Draw the requested skeleton segments into the supplied scene graph.
 
             Args:
-            parent: Parent Qt layout that receives the controls.
+                parent: Parent Qt layout that receives the controls.
+                segments: Ordered head/tail pairs to draw.
+                width: Line width in viewport pixels.
+                rgb: Red, green, and blue color components.
             """
             if not segments:
                 return
