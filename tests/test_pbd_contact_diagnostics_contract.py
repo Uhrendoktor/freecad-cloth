@@ -9,7 +9,6 @@ from math import isclose
 from pathlib import Path
 from types import SimpleNamespace
 
-from tests.support.assertions import require, require_contains
 from tests.support.pbd_contact_helpers import checkpoint_record, connected_components, seam_geometry
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -33,11 +32,9 @@ def _require_fragments(*, source: str, fragments: tuple[str, ...], contract: str
         contract: Short name used to explain a failed fragment check.
     """
     for fragment in fragments:
-        require_contains(
-            source=source,
-            fragment=fragment,
-            message=f"Missing {contract} fragment: {fragment!r}",
-        )
+        assert (
+            fragment in source
+        ), f"Missing {contract} fragment: {fragment!r}"
 
 
 def test_diagnostic_controls_are_static_and_one_step() -> None:
@@ -95,10 +92,9 @@ def test_canonical_workflow_uses_single_opt_in_dispatch_job() -> None:
         ),
         contract="workflow dispatch",
     )
-    require(
-        condition="needs: [diagnostic-pbd-contact]" not in _WORKFLOW,
-        message="The diagnostic-only job must not gate the normal simulation ladder.",
-    )
+    assert (
+        "needs: [diagnostic-pbd-contact]" not in _WORKFLOW
+    ), "The diagnostic-only job must not gate the normal simulation ladder."
 
 
 def test_diagnostic_entrypoint_and_failure_evidence_are_explicit() -> None:
@@ -138,15 +134,12 @@ def test_diagnostic_entrypoint_and_failure_evidence_are_explicit() -> None:
         (_WORKFLOW, "artifacts/pbd-contact-diagnostics/app-run.log"),
     )
     for source, fragment in source_contracts:
-        require_contains(
-            source=source,
-            fragment=fragment,
-            message=f"Missing diagnostic entrypoint/evidence contract: {fragment!r}",
-        )
-    require(
-        condition="App.exit()" not in _SOURCE,
-        message="The diagnostic shutdown contract must not call App.exit().",
-    )
+        assert (
+            fragment in source
+        ), f"Missing diagnostic entrypoint/evidence contract: {fragment!r}"
+    assert (
+        "App.exit()" not in _SOURCE
+    ), "The diagnostic shutdown contract must not call App.exit()."
     diagnostic_job = _WORKFLOW.split("  diagnostic-pbd-contact:", 1)[1].split(
         "  simulation-ladder:", 1
     )[0]
@@ -233,10 +226,9 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
         ),
         contract="cube-ladder startup",
     )
-    require(
-        condition="file=sys.stderr" not in source,
-        message="The cube ladder must not redirect its traceback to stderr.",
-    )
+    assert (
+        "file=sys.stderr" not in source
+    ), "The cube ladder must not redirect its traceback to stderr."
 
 
 def test_progressive_collision_ladder_is_a_normal_gate() -> None:
@@ -307,16 +299,14 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
         ),
     ):
         if fragments == ("runpy.run_path(",):
-            require(
-                condition=fragments[0] not in source,
-                message="PBD ladder scripts must not execute helpers via runpy.",
-            )
+            assert (
+                fragments[0] not in source
+            ), "PBD ladder scripts must not execute helpers via runpy."
         else:
             _require_fragments(source=source, fragments=fragments, contract=contract)
-    require(
-        condition='if __name__ == "__main__"' not in _HELPERS,
-        message="The shared PBD helper module must remain import-safe.",
-    )
+    assert (
+        'if __name__ == "__main__"' not in _HELPERS
+    ), "The shared PBD helper module must remain import-safe."
 
 
 def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> None:
@@ -324,15 +314,14 @@ def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> N
     backend = SimpleNamespace(positions=lambda: ((0.0, 0.0, 0.0), (0.0, 0.0, 2.0)))
     base = SimpleNamespace(backend=backend, seam_stitch_pairs={"side": ((0, 1),)})
     geometry = seam_geometry(backend, base.seam_stitch_pairs)
-    require(
-        condition=isclose(
-            geometry[0]["max_span_mm"],
-            _EXPECTED_SEAM_SPAN_MM,
-            rel_tol=_EXACT_FLOAT_TOLERANCE,
-            abs_tol=_EXACT_FLOAT_TOLERANCE,
-        ),
-        message="The side seam span must match the two-millimeter diagnostic fixture.",
-    )
+    assert (
+        isclose(
+        geometry[0]["max_span_mm"],
+        _EXPECTED_SEAM_SPAN_MM,
+        rel_tol=_EXACT_FLOAT_TOLERANCE,
+        abs_tol=_EXACT_FLOAT_TOLERANCE,
+        )
+    ), "The side seam span must match the two-millimeter diagnostic fixture."
     record = checkpoint_record(
         1,
         "step-001.png",
@@ -344,24 +333,20 @@ def test_shared_checkpoint_builder_preserves_case_specific_contact_labels() -> N
         connected_components,
         "diagnostic-only-cube",
     )
-    require(
-        condition=record["contact_state"] == "diagnostic-only-cube",
-        message="The cube checkpoint must retain its diagnostic-only contact label.",
-    )
-    require(
-        condition=record["components"] == 1,
-        message="The cube checkpoint must preserve the single connected component.",
-    )
-    require(
-        condition=isclose(
-            record["penetration_mm"],
-            _ZERO_PENETRATION_MM,
-            rel_tol=_EXACT_FLOAT_TOLERANCE,
-            abs_tol=_EXACT_FLOAT_TOLERANCE,
-        ),
-        message="The cube contact-control checkpoint must show zero penetration.",
-    )
-    require(
-        condition=record["seam_world_spans_mm"] == geometry,
-        message="Checkpoint seam measurements must match the reference geometry.",
-    )
+    assert (
+        record["contact_state"] == "diagnostic-only-cube"
+    ), "The cube checkpoint must retain its diagnostic-only contact label."
+    assert (
+        record["components"] == 1
+    ), "The cube checkpoint must preserve the single connected component."
+    assert (
+        isclose(
+        record["penetration_mm"],
+        _ZERO_PENETRATION_MM,
+        rel_tol=_EXACT_FLOAT_TOLERANCE,
+        abs_tol=_EXACT_FLOAT_TOLERANCE,
+        )
+    ), "The cube contact-control checkpoint must show zero penetration."
+    assert (
+        record["seam_world_spans_mm"] == geometry
+    ), "Checkpoint seam measurements must match the reference geometry."
