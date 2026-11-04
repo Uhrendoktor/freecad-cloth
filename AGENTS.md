@@ -67,7 +67,7 @@ Document public modules, classes, methods, and non-obvious public functions with
 
 Ruff applies a reviewed, explicit selection of correctness, security, import, typing, and documentation rules to every tracked `.py` and `.pyi` file. The selected rules and formatter settings live in `pyproject.toml`; avoid `ALL` plus blanket preview selection. Add rule families only when they catch a distinct, useful defect. Do not add broad ignore lists, inline `noqa` suppressions, or a legacy-debt baseline to hide findings.
 
-Pyright standard mode covers the production package under `freecad_cloth/`, with strict analysis on the three configured simulation-core modules. Tests, CI tools, and native FreeCAD acceptance scripts retain their own focused tests and runtime validation; they are not folded into the production package's type scope merely to increase diagnostic volume.
+Pyright standard mode is limited to the explicitly reviewed production-module paths in `pyrightconfig.json`: the three simulation-core modules and production modules newly introduced by the PR. Those core modules use strict mode. Add future production modules to the include list deliberately. Tests, CI tools, and native FreeCAD acceptance scripts retain their own focused checks rather than being swept into the production type scope.
 
 Keep architecture in `docs/developers/ARCHITECTURE.md`, durable decisions in `docs/DECISIONS.md`, current state in `AGENT_STATUS.md`/`TOOL_STATE.md`, and task evidence in the governing PR/issue.
 ## Verification
