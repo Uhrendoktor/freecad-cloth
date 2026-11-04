@@ -8,7 +8,6 @@ from typing import cast
 import pytest
 
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
-from tests.support.assertions import require, require_not_none
 
 
 def _scene() -> SimpleNamespace:
@@ -55,19 +54,16 @@ def _snapshot(panel: SimulationQualityTaskPanel) -> dict[str, object]:
 
     """
     snapshot = cast("dict[str, object] | None", getattr(panel, "_snapshot", None))
-    return require_not_none(
-        snapshot,
-        message="Snapshot capture must initialize the snapshot state.",
-    )
+    assert snapshot is not None, "Snapshot capture must initialize the snapshot state."
+    return snapshot
 
 
 def test_snapshot_property_set_is_unique_and_covers_persistent_controls() -> None:
     """Keep the snapshot schema unique and cover persisted quality controls."""
     properties = SimulationQualityTaskPanel.SNAPSHOT_PROPERTIES
-    require(
-        condition=len(properties) == len(set(properties)),
-        message="Snapshot property names must be unique.",
-    )
+    assert (
+        len(properties) == len(set(properties))
+    ), "Snapshot property names must be unique."
     for name in (
         "QualityPreset",
         "FabricDensity",
@@ -75,10 +71,9 @@ def test_snapshot_property_set_is_unique_and_covers_persistent_controls() -> Non
         "Steps",
         "PinMode",
     ):
-        require(
-            condition=name in properties,
-            message=f"Snapshot schema must include {name}.",
-        )
+        assert (
+            name in properties
+        ), f"Snapshot schema must include {name}."
 
 
 def test_capture_snapshot_records_only_existing_scene_properties() -> None:
@@ -89,14 +84,12 @@ def test_capture_snapshot_records_only_existing_scene_properties() -> None:
     panel.scene = scene
     _panel_method(panel, "_capture_snapshot")()
     snapshot = _snapshot(panel)
-    require(
-        condition="PinMode" not in snapshot,
-        message="Snapshot capture must skip absent scene properties.",
-    )
-    require(
-        condition=snapshot["QualityPreset"] == 1,
-        message="Snapshot capture must retain existing property values.",
-    )
+    assert (
+        "PinMode" not in snapshot
+    ), "Snapshot capture must skip absent scene properties."
+    assert (
+        snapshot["QualityPreset"] == 1
+    ), "Snapshot capture must retain existing property values."
 
 
 def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
@@ -123,18 +116,15 @@ def test_restore_snapshot_reverts_all_captured_values_and_recomputes(
     recomputes: list[str] = []
     scene.Document.recompute = lambda: recomputes.append("recompute")
     _panel_method(panel, "_restore_snapshot")()
-    require(
-        condition=scene.Steps == original["Steps"],
-        message="Restoring a snapshot must restore the step count.",
-    )
-    require(
-        condition=scene.FabricDensity == original["FabricDensity"],
-        message="Restoring a snapshot must restore fabric density.",
-    )
-    require(
-        condition=recomputes == ["recompute"],
-        message="Restoring a snapshot must recompute the document once.",
-    )
+    assert (
+        scene.Steps == original["Steps"]
+    ), "Restoring a snapshot must restore the step count."
+    assert (
+        scene.FabricDensity == original["FabricDensity"]
+    ), "Restoring a snapshot must restore fabric density."
+    assert (
+        recomputes == ["recompute"]
+    ), "Restoring a snapshot must recompute the document once."
 
 
 def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
@@ -155,14 +145,12 @@ def test_accept_refreshes_the_panel_baseline_after_parameter_changes(
 
     monkeypatch.setattr(panel, "_parameters_changed", parameters_changed)
     monkeypatch.setattr(panel, "_capture_snapshot", capture_snapshot)
-    require(
-        condition=panel.accept() is True,
-        message="Accepting the panel must report success.",
-    )
-    require(
-        condition=calls == ["parameters", "snapshot"],
-        message="Accepting the panel must update parameters before capturing a snapshot.",
-    )
+    assert (
+        panel.accept() is True
+    ), "Accepting the panel must report success."
+    assert (
+        calls == ["parameters", "snapshot"]
+    ), "Accepting the panel must update parameters before capturing a snapshot."
 
 
 def test_reject_restores_snapshot_before_closing_dialog(
@@ -202,11 +190,9 @@ def test_reject_restores_snapshot_before_closing_dialog(
         ),
         raising=False,
     )
-    require(
-        condition=panel.reject() is True,
-        message="Rejecting the panel must report success.",
-    )
-    require(
-        condition=calls == ["restore", "close"],
-        message="Rejecting the panel must restore values before closing the dialog.",
-    )
+    assert (
+        panel.reject() is True
+    ), "Rejecting the panel must report success."
+    assert (
+        calls == ["restore", "close"]
+    ), "Rejecting the panel must restore values before closing the dialog."
