@@ -4,7 +4,6 @@
 from types import SimpleNamespace
 
 from freecad_cloth.simulation.DrapeTarget import source_signature, target_status
-from tests.support.assertions import require
 
 DEFLECTION_MM = 1.0
 ZERO_THICKNESS_MM = 0.0
@@ -80,39 +79,33 @@ def test_target_status_requires_a_built_collision_cache() -> None:
         CollisionVertexCount=0,
         CollisionTriangleCount=0,
     )
-    require(
-        condition=target_status(target) == EXPECTED_MISSING_CACHE_STATUS,
-        message="A target with missing cache data must report the explicit unbuilt state.",
-    )
+    assert (
+        target_status(target) == EXPECTED_MISSING_CACHE_STATUS
+    ), "A target with missing cache data must report the explicit unbuilt state."
 
 
 def test_target_status_detects_geometry_change_without_silent_retargeting() -> None:
     """Report stale source geometry rather than treating changed content as current."""
     source = SimpleNamespace(Name=BODY_NAME, Label=BODY_NAME, Shape=_shape(SHAPE_HASH_INITIAL))
     target = _target(source)
-    require(
-        condition=target_status(target)["state"] == "ready",
-        message="An unchanged target signature must be ready.",
-    )
+    assert (
+        target_status(target)["state"] == "ready"
+    ), "An unchanged target signature must be ready."
 
     source.__dict__["Shape"] = _shape(SHAPE_HASH_CHANGED)
     status = target_status(target)
-    require(
-        condition=status["state"] == "stale",
-        message="Changed source geometry must mark the collision target stale.",
-    )
-    require(
-        condition=status["stale"] is True,
-        message="A target with changed geometry must be marked stale.",
-    )
-    require(
-        condition="rebuild collision surface" in str(status["message"]),
-        message="The stale message must explain that the collision surface needs rebuilding.",
-    )
-    require(
-        condition="source" in str(status["reason"]),
-        message="The stale reason must identify source changes.",
-    )
+    assert (
+        status["state"] == "stale"
+    ), "Changed source geometry must mark the collision target stale."
+    assert (
+        status["stale"] is True
+    ), "A target with changed geometry must be marked stale."
+    assert (
+        "rebuild collision surface" in str(status["message"])
+    ), "The stale message must explain that the collision surface needs rebuilding."
+    assert (
+        "source" in str(status["reason"])
+    ), "The stale reason must identify source changes."
 
 
 def test_target_status_reports_disabled_without_calling_it_stale() -> None:
@@ -120,18 +113,15 @@ def test_target_status_reports_disabled_without_calling_it_stale() -> None:
     source = SimpleNamespace(Name=BODY_NAME, Label=BODY_NAME, Shape=_shape(SHAPE_HASH_INITIAL))
     target = _target(source, Enabled=False)
     status = target_status(target)
-    require(
-        condition=status["state"] == "disabled",
-        message="A disabled target must report the disabled state.",
-    )
-    require(
-        condition=status["stale"] is False,
-        message="A disabled but otherwise current target must not be marked stale.",
-    )
-    require(
-        condition=status["reason"] == "target disabled",
-        message="A disabled target must report its disabled reason.",
-    )
+    assert (
+        status["state"] == "disabled"
+    ), "A disabled target must report the disabled state."
+    assert (
+        status["stale"] is False
+    ), "A disabled but otherwise current target must not be marked stale."
+    assert (
+        status["reason"] == "target disabled"
+    ), "A disabled target must report its disabled reason."
 
 
 def test_target_status_detects_collision_parameter_change() -> None:
@@ -140,15 +130,12 @@ def test_target_status_detects_collision_parameter_change() -> None:
     target = _target(source)
     target.CollisionDeflection = ALTERNATE_DEFLECTION_MM
     status = target_status(target)
-    require(
-        condition=status["state"] == "stale",
-        message="A changed deflection must invalidate the source signature.",
-    )
-    require(
-        condition=status["stale"] is True,
-        message="A target with changed collision settings must be marked stale.",
-    )
-    require(
-        condition="tessellation" in str(status["reason"]),
-        message="The stale reason must mention changed tessellation settings.",
-    )
+    assert (
+        status["state"] == "stale"
+    ), "A changed deflection must invalidate the source signature."
+    assert (
+        status["stale"] is True
+    ), "A target with changed collision settings must be marked stale."
+    assert (
+        "tessellation" in str(status["reason"])
+    ), "The stale reason must mention changed tessellation settings."
