@@ -8,6 +8,7 @@ import json
 import math
 import os
 import platform
+import runpy
 import sys
 import time
 from pathlib import Path
@@ -235,11 +236,7 @@ def main() -> None:
     patches: list[tuple[object, str, object]] = []
     try:
         init_gui = ROOT / "InitGui.py"
-        exec(
-            compile(init_gui.read_text(encoding="utf-8"), str(init_gui), "exec"),
-            globals(),
-            globals(),
-        )
+        runpy.run_path(str(init_gui))
         Gui.updateGui()
         scene = create_quality_simulation_scene(doc)
         _add_tunic_preview_fixture(doc, scene)
