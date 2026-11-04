@@ -4,7 +4,6 @@
 from types import SimpleNamespace
 
 from freecad_cloth.pattern import PatternGui
-from tests.support.assertions import require
 
 EXPECTED_RECOMPUTE_COUNT = 1
 EXPECTED_ORIGINAL_WIDTH_MM = 100.0
@@ -36,25 +35,22 @@ class _App:
 def test_sketch_authority_predicate_requires_linked_sketch() -> None:
     """Require a native Sketcher link before declaring a pattern authoritative."""
     obj = SimpleNamespace(GeometryAuthority="Sketcher", Sketch=object())
-    require(
-        condition=PatternGui._is_sketch_authoritative(obj) is True,
-        message="A Sketcher-authoritative piece with a linked sketch must pass.",
-    )
+    assert (
+        PatternGui._is_sketch_authoritative(obj) is True
+    ), "A Sketcher-authoritative piece with a linked sketch must pass."
 
     obj.Sketch = None
-    require(
-        condition=PatternGui._is_sketch_authoritative(obj) is False,
-        message="A Sketcher-authoritative piece without a linked sketch must fail.",
-    )
+    assert (
+        PatternGui._is_sketch_authoritative(obj) is False
+    ), "A Sketcher-authoritative piece without a linked sketch must fail."
 
 
 def test_sketch_authority_predicate_rejects_parameter_geometry() -> None:
     """Reject parameter-driven geometry as native Sketcher authority."""
     obj = SimpleNamespace(GeometryAuthority="PatternParameters", Sketch=object())
-    require(
-        condition=PatternGui._is_sketch_authoritative(obj) is False,
-        message="Parameter-generated geometry must not claim Sketcher authority.",
-    )
+    assert (
+        PatternGui._is_sketch_authoritative(obj) is False
+    ), "Parameter-generated geometry must not claim Sketcher authority."
 
 
 def test_pattern_piece_reject_restores_original_properties() -> None:
@@ -88,24 +84,20 @@ def test_pattern_piece_reject_restores_original_properties() -> None:
     obj.GrainlineAngle = -30.0
     panel.reject()
 
-    require(
-        condition=(obj.Label, obj.GeometryMode) == ("Original", "Rectangle"),
-        message="Reject must restore the original label and geometry mode.",
-    )
-    require(
-        condition=(obj.Width, obj.Height)
-        == (EXPECTED_ORIGINAL_WIDTH_MM, EXPECTED_ORIGINAL_HEIGHT_MM),
-        message="Reject must restore the original width and height.",
-    )
-    require(
-        condition=(obj.SeamAllowance, obj.GrainlineAngle)
-        == (EXPECTED_ORIGINAL_ALLOWANCE_MM, EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG),
-        message="Reject must restore the original allowance and grainline angle.",
-    )
-    require(
-        condition=panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT,
-        message="Reject must recompute the active document exactly once.",
-    )
+    assert (
+        (obj.Label, obj.GeometryMode) == ("Original", "Rectangle")
+    ), "Reject must restore the original label and geometry mode."
+    assert (
+        (obj.Width, obj.Height)
+        == (EXPECTED_ORIGINAL_WIDTH_MM, EXPECTED_ORIGINAL_HEIGHT_MM)
+    ), "Reject must restore the original width and height."
+    assert (
+        (obj.SeamAllowance, obj.GrainlineAngle)
+        == (EXPECTED_ORIGINAL_ALLOWANCE_MM, EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG)
+    ), "Reject must restore the original allowance and grainline angle."
+    assert (
+        panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+    ), "Reject must recompute the active document exactly once."
 
 
 def test_drafting_reject_restores_persisted_boundary() -> None:
@@ -134,23 +126,19 @@ def test_drafting_reject_restores_persisted_boundary() -> None:
     obj.Height = 90.0
     panel.reject()
 
-    require(
-        condition=obj.GeometryMode == "Custom",
-        message="Reject must restore the custom drafting mode.",
-    )
-    require(
-        condition=obj.DraftingBoundary == original_boundary,
-        message="Reject must restore the persisted drafting boundary.",
-    )
-    require(
-        condition=(obj.Width, obj.Height)
-        == (EXPECTED_ORIGINAL_WIDTH_MM, EXPECTED_ORIGINAL_HEIGHT_MM),
-        message="Reject must restore the persisted drafting dimensions.",
-    )
-    require(
-        condition=panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT,
-        message="Reject must recompute the active document exactly once.",
-    )
+    assert (
+        obj.GeometryMode == "Custom"
+    ), "Reject must restore the custom drafting mode."
+    assert (
+        obj.DraftingBoundary == original_boundary
+    ), "Reject must restore the persisted drafting boundary."
+    assert (
+        (obj.Width, obj.Height)
+        == (EXPECTED_ORIGINAL_WIDTH_MM, EXPECTED_ORIGINAL_HEIGHT_MM)
+    ), "Reject must restore the persisted drafting dimensions."
+    assert (
+        panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+    ), "Reject must recompute the active document exactly once."
 
 
 def test_drafting_editor_never_removes_last_three_points() -> None:
@@ -160,7 +148,6 @@ def test_drafting_editor_never_removes_last_three_points() -> None:
     panel.selected = 1
     original = list(panel.points)
     panel.remove_selected_point()
-    require(
-        condition=panel.points == original,
-        message="A drafting boundary must retain all three points when removal is refused.",
-    )
+    assert (
+        panel.points == original
+    ), "A drafting boundary must retain all three points when removal is refused."
