@@ -19,7 +19,6 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
-from tests.support.assertions import require
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.SkeletonTypes import SkeletonData
@@ -42,37 +41,39 @@ def test_skeleton_fit_ignores_skin_padding_and_unrelated_hip_changes() -> None:
         variant_source, variant_skeleton, _variant_mapper, variant_transforms = pose_world_state(
             variant
         )
-        require(condition=variant_skeleton == skeleton, message="regression contract")
+        assert (
+            variant_skeleton == skeleton
+        ), "regression contract"
         unchanged_bones = (
             ("head", "neck01", "clavicle.L")
             if variant is hip_changed
             else ("head", "neck01", "spine05", "clavicle.L")
         )
         for bone_name in unchanged_bones:
-            require(
-                condition=baseline_transforms[bone_name] == variant_transforms[bone_name],
-                message=f"{bone_name} transform is unchanged",
-            )
-        require(condition=variant_source == source, message="regression contract")
+            assert (
+                baseline_transforms[bone_name] == variant_transforms[bone_name]
+            ), f"{bone_name} transform is unchanged"
+        assert (
+            variant_source == source
+        ), "regression contract"
 
 
 def test_joint_rotation_bounds_and_mirror() -> None:
     """Validate mirrored joint rotations and their coordinate signs."""
     rotation = JointRotation("upperarm01.L", 12.0, 20.0, 30.0).validate()
     mirrored = rotation.mirrored()
-    require(condition=mirrored.bone == "upperarm01.R", message="regression contract")
-    require(
-        condition=mirrored.x == pytest.approx(MIRROR_EXPECTED_X),
-        message="mirrored X rotation is preserved",
-    )
-    require(
-        condition=mirrored.y == pytest.approx(MIRROR_EXPECTED_Y),
-        message="mirrored Y rotation changes sign",
-    )
-    require(
-        condition=mirrored.z == pytest.approx(MIRROR_EXPECTED_Z),
-        message="mirrored Z rotation changes sign",
-    )
+    assert (
+        mirrored.bone == "upperarm01.R"
+    ), "regression contract"
+    assert (
+        mirrored.x == pytest.approx(MIRROR_EXPECTED_X)
+    ), "mirrored X rotation is preserved"
+    assert (
+        mirrored.y == pytest.approx(MIRROR_EXPECTED_Y)
+    ), "mirrored Y rotation changes sign"
+    assert (
+        mirrored.z == pytest.approx(MIRROR_EXPECTED_Z)
+    ), "mirrored Z rotation changes sign"
 
 
 def test_joint_rotations_round_trip_is_deterministic() -> None:
@@ -83,20 +84,18 @@ def test_joint_rotations_round_trip_is_deterministic() -> None:
     )
     payload = joint_rotations_to_json(rotations)
     restored = joint_rotations_from_json(payload)
-    require(
-        condition=(
-            restored
-            == (
-                JointRotation("upperarm01.L", -10.0, 20.0, -30.0),
-                JointRotation("wrist.R", 1.0, 2.0, 3.0),
-            )
-        ),
-        message="regression contract",
-    )
-    require(
-        condition=json.loads(payload)["units"] == "deg",
-        message="serialized rotations record degree units",
-    )
+    assert (
+        (
+        restored
+        == (
+        JointRotation("upperarm01.L", -10.0, 20.0, -30.0),
+        JointRotation("wrist.R", 1.0, 2.0, 3.0),
+        )
+        )
+    ), "regression contract"
+    assert (
+        json.loads(payload)["units"] == "deg"
+    ), "serialized rotations record degree units"
 
 
 @pytest.mark.parametrize(
@@ -127,11 +126,12 @@ def test_pose_and_avatar_parameters_persist_manual_joints() -> None:
         )
     )
     restored = AvatarParameters.from_json(params.to_json())
-    require(condition=restored == params, message="manual joints survive persistence")
-    require(
-        condition=(restored.pose.joint_rotations[0].bone == "lowerarm01.L"),
-        message="regression contract",
-    )
+    assert (
+        restored == params
+    ), "manual joints survive persistence"
+    assert (
+        (restored.pose.joint_rotations[0].bone == "lowerarm01.L")
+    ), "regression contract"
 
 
 def test_manual_pose_moves_fitting_landmark_from_baseline() -> None:
@@ -149,14 +149,12 @@ def test_manual_pose_moves_fitting_landmark_from_baseline() -> None:
         {"clavicle.L": IDENTITY, "spine04": IDENTITY},
         {"clavicle.L": rotation, "spine04": IDENTITY},
     )
-    require(
-        condition=(posed[0].position == pytest.approx((1.0, 1.0, 0.0))),
-        message="regression contract",
-    )
-    require(
-        condition=posed[1] == landmarks[1],
-        message="unaffected landmarks remain unchanged",
-    )
+    assert (
+        (posed[0].position == pytest.approx((1.0, 1.0, 0.0)))
+    ), "regression contract"
+    assert (
+        posed[1] == landmarks[1]
+    ), "unaffected landmarks remain unchanged"
 
 
 def test_affine_transform_inverse_round_trips_rigid_points() -> None:
@@ -166,10 +164,9 @@ def test_affine_transform_inverse_round_trips_rigid_points() -> None:
         (4.0, -3.0, 2.0),
     )
     point = (1.25, -2.5, 9.0)
-    require(
-        condition=(transform.inverse().apply(transform.apply(point)) == pytest.approx(point)),
-        message="regression contract",
-    )
+    assert (
+        (transform.inverse().apply(transform.apply(point)) == pytest.approx(point))
+    ), "regression contract"
 
 
 def test_affine_transform_composition_matches_sequential_application() -> None:
@@ -183,13 +180,12 @@ def test_affine_transform_composition_matches_sequential_application() -> None:
         (-2.0, 5.0, 1.0),
     )
     point = (1.25, -2.5, 9.0)
-    require(
-        condition=(
-            compose_transforms(first, second).apply(point)
-            == pytest.approx(first.apply(second.apply(point)))
-        ),
-        message="regression contract",
-    )
+    assert (
+        (
+        compose_transforms(first, second).apply(point)
+        == pytest.approx(first.apply(second.apply(point)))
+        )
+    ), "regression contract"
 
 
 def test_joint_map_rejects_unknown_bones() -> None:
@@ -228,29 +224,25 @@ def test_weighted_fk_rotates_a_selected_joint_and_inherits_to_child() -> None:
         lambda point: point,
         (JointRotation("upperarm01.L", z=90.0),),
     )
-    require(
-        condition=posed[2] == pytest.approx((0.0, 2.0, 0.0)),
-        message="child joint inherits the upper-arm rotation",
-    )
+    assert (
+        posed[2] == pytest.approx((0.0, 2.0, 0.0))
+    ), "child joint inherits the upper-arm rotation"
 
 
 def test_controllable_joint_order_is_stable() -> None:
     """Keep the controllable joint order and head rotation mapping stable."""
-    require(
-        condition=(CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head")),
-        message="regression contract",
-    )
-    require(
-        condition=(len(CONTROLLABLE_BONES) == CONTROLLABLE_JOINT_COUNT),
-        message="regression contract",
-    )
-    require(
-        condition=(
-            joint_rotation_map((JointRotation("head", z=HEAD_ROTATION_DEGREES),))["head"].z
-            == pytest.approx(HEAD_ROTATION_DEGREES)
-        ),
-        message="regression contract",
-    )
+    assert (
+        (CONTROLLABLE_BONES[:4] == ("spine05", "spine03", "neck01", "head"))
+    ), "regression contract"
+    assert (
+        (len(CONTROLLABLE_BONES) == CONTROLLABLE_JOINT_COUNT)
+    ), "regression contract"
+    assert (
+        (
+        joint_rotation_map((JointRotation("head", z=HEAD_ROTATION_DEGREES),))["head"].z
+        == pytest.approx(HEAD_ROTATION_DEGREES)
+        )
+    ), "regression contract"
 
 
 def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() -> None:
@@ -279,15 +271,12 @@ def test_weighted_fk_vectorizes_sparse_weights_and_preserves_blend_contract() ->
         lambda point: point,
         (JointRotation("upperarm01.L", z=90.0),),
     )
-    require(
-        condition=posed[0] == pytest.approx(source[0]),
-        message="unweighted vertices remain unchanged",
-    )
-    require(
-        condition=posed[1] == pytest.approx((0.5, 0.5, 0.0)),
-        message="overlapping weights are normalized",
-    )
-    require(
-        condition=(posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0))),
-        message="regression contract",
-    )
+    assert (
+        posed[0] == pytest.approx(source[0])
+    ), "unweighted vertices remain unchanged"
+    assert (
+        posed[1] == pytest.approx((0.5, 0.5, 0.0))
+    ), "overlapping weights are normalized"
+    assert (
+        (posed[2] == pytest.approx((2.0 / 3.0, 4.0 / 3.0, 0.0)))
+    ), "regression contract"
