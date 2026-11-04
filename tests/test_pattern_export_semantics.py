@@ -100,7 +100,6 @@ class _PatternPiece(_PieceSeed, Protocol):
     Document: _ExportDocument
 
 
-
 EXPECTED_CUT_WIDTH_MM = 110.0
 EXPECTED_CUT_HEIGHT_MM = 70.0
 EXPECTED_COORDINATE_TOLERANCE = 1e-6
@@ -241,6 +240,7 @@ def _piece_sketch(piece: object) -> _NativeSketch:
         The native sketch with stable semantic edge identities.
     """
     return cast("_NativeSketch", getattr(piece, _SKETCH_PROPERTY_NAME))
+
 
 def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     """Verify that SVG and DXF preserve piece identity, construction marks, and seam metadata."""
@@ -773,7 +773,7 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     require(
         condition=(
             math.isclose(
-                float(metadata["scale"]),
+                float(cast("float", metadata["scale"])),
                 EXPECTED_SCALE,
                 rel_tol=0.0,
                 abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -849,7 +849,7 @@ def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
     require(
         condition=(
             math.isclose(
-                float(metadata["overlap_mm"]),
+                float(cast("float", metadata["overlap_mm"])),
                 EXPECTED_OVERLAP_MM,
                 rel_tol=0.0,
                 abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -925,7 +925,7 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     require(
         condition=(
             math.isclose(
-                float(metadata["scale"]),
+                float(cast("float", metadata["scale"])),
                 EXPECTED_SCALE,
                 rel_tol=0.0,
                 abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -936,7 +936,7 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     require(
         condition=(
             math.isclose(
-                float(metadata["seam_allowance_mm"]),
+                float(cast("float", metadata["seam_allowance_mm"])),
                 EXPECTED_SEAM_ALLOWANCE_MM,
                 rel_tol=0.0,
                 abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -1061,7 +1061,12 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
     piece = _native_piece(Piece())
     piece.Document = Document()
     piece.Document.Objects = (piece, Seam())
-    before = (piece.Label, piece.SeamAllowance, piece.GrainlineAngle, _piece_sketch(piece).SemanticEdgeIds)
+    before = (
+        piece.Label,
+        piece.SeamAllowance,
+        piece.GrainlineAngle,
+        _piece_sketch(piece).SemanticEdgeIds,
+    )
 
     for fmt in ("svg", "dxf", "pdf"):
         first = tmp_path / (f"front.{fmt}")
@@ -1093,7 +1098,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
         require(
             condition=(
                 math.isclose(
-                    float(metadata["scale"]),
+                    float(cast("float", metadata["scale"])),
                     EXPECTED_SCALE,
                     rel_tol=0.0,
                     abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -1104,7 +1109,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
         require(
             condition=(
                 math.isclose(
-                    float(metadata["seam_allowance_mm"]),
+                    float(cast("float", metadata["seam_allowance_mm"])),
                     EXPECTED_SEAM_ALLOWANCE_MM,
                     rel_tol=0.0,
                     abs_tol=EXPECTED_COORDINATE_TOLERANCE,
@@ -1159,7 +1164,9 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
         Status = "Changed reference"
 
     class Document:
-        Objects = ()
+        """Document fixture containing a piece and a stale seam reference."""
+
+        Objects: tuple[object, ...] = ()
 
     piece = _native_piece(Piece())
     piece.Document = Document()
@@ -1243,7 +1250,9 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
             self.Text = text
 
     class Document:
-        Objects = ()
+        """Document fixture holding the pattern piece and its persisted marks."""
+
+        Objects: tuple[object, ...] = ()
 
     piece = _native_piece(Piece())
     notch = Mark("notch-front", "Notch")
@@ -1369,7 +1378,9 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
         Text = "Internal mark"
 
     class Document:
-        Objects = ()
+        """Document fixture containing a piece and a stale construction mark."""
+
+        Objects: tuple[object, ...] = ()
 
     piece = _native_piece(Piece())
     mark = Mark()
