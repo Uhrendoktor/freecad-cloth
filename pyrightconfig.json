@@ -1,6 +1,16 @@
 {
   "include": [
-    "freecad_cloth"
+    "freecad_cloth/avatar/AvatarProperties.py",
+    "freecad_cloth/avatar/SkeletonTypes.py",
+    "freecad_cloth/avatar/avatar_commands.py",
+    "freecad_cloth/shared/CommandIds.py",
+    "freecad_cloth/shared/MeshTopology.py",
+    "freecad_cloth/shared/SeamColors.py",
+    "freecad_cloth/simulation/ClothSolver.py",
+    "freecad_cloth/simulation/DrapeFailureClassifier.py",
+    "freecad_cloth/simulation/MeshBoundary.py",
+    "freecad_cloth/simulation/_cloth_backend_compat.py",
+    "freecad_cloth/simulation/cloth_backend.py"
   ],
   "strict": [
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
