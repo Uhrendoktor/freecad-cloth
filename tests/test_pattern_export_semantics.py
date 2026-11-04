@@ -263,7 +263,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     )
     require(
         condition=(cut_path.attrib["data-notch-ids"] == "notch-1"),
-        message="Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"notch-1",
+        message='Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1',
     )
     coordinates = [
         (float(x), float(y))
