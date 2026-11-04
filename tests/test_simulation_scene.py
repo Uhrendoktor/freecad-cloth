@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, cast
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.simulation import SimulationObjects
 from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
-from tests.support.assertions import require
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -67,26 +66,21 @@ def test_pin_mode_semantics_preserve_automatic_defaults_and_support_no_pins() ->
     explicit_empty = SimpleNamespace(PinSelection=[], PinMode="Explicit")
     none = SimpleNamespace(PinSelection=["2", "5"], PinMode="None")
 
-    require(
-        condition=resolve_pin_indices(legacy, 8, (0, 7)) == (0, 7),
-        message="Legacy scenes must retain their automatic pin defaults.",
-    )
-    require(
-        condition=resolve_pin_indices(automatic, 8, (0, 7)) == (0, 7),
-        message="Automatic pin mode must preserve the supplied defaults.",
-    )
-    require(
-        condition=resolve_pin_indices(explicit, 8, (0, 7)) == (2, 5),
-        message="Explicit pin mode must resolve the selected indices.",
-    )
-    require(
-        condition=resolve_pin_indices(explicit_empty, 8, (0, 7)) == (),
-        message="An empty explicit selection must produce no pinned indices.",
-    )
-    require(
-        condition=resolve_pin_indices(none, 8, (0, 7)) == (),
-        message="Disabled pin mode must ignore a stored pin selection.",
-    )
+    assert (
+        resolve_pin_indices(legacy, 8, (0, 7)) == (0, 7)
+    ), "Legacy scenes must retain their automatic pin defaults."
+    assert (
+        resolve_pin_indices(automatic, 8, (0, 7)) == (0, 7)
+    ), "Automatic pin mode must preserve the supplied defaults."
+    assert (
+        resolve_pin_indices(explicit, 8, (0, 7)) == (2, 5)
+    ), "Explicit pin mode must resolve the selected indices."
+    assert (
+        resolve_pin_indices(explicit_empty, 8, (0, 7)) == ()
+    ), "An empty explicit selection must produce no pinned indices."
+    assert (
+        resolve_pin_indices(none, 8, (0, 7)) == ()
+    ), "Disabled pin mode must ignore a stored pin selection."
 
 
 def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection() -> None:
@@ -99,18 +93,15 @@ def test_pin_mode_is_part_of_rebuild_signature_and_none_ignores_pin_selection() 
     none_b = SimpleNamespace(**base, PinMode="None", PinSelection=["6", "7"])
     source_signature = _simulation_signature()
 
-    require(
-        condition=source_signature(automatic, []) != source_signature(explicit, []),
-        message="Changing automatic to explicit pins must change the rebuild signature.",
-    )
-    require(
-        condition=source_signature(explicit, []) != source_signature(none_a, []),
-        message="Changing the pin mode to None must change the rebuild signature.",
-    )
-    require(
-        condition=source_signature(none_a, []) == source_signature(none_b, []),
-        message="Pin selections must not affect rebuild signatures when pin mode is None.",
-    )
+    assert (
+        source_signature(automatic, []) != source_signature(explicit, [])
+    ), "Changing automatic to explicit pins must change the rebuild signature."
+    assert (
+        source_signature(explicit, []) != source_signature(none_a, [])
+    ), "Changing the pin mode to None must change the rebuild signature."
+    assert (
+        source_signature(none_a, []) == source_signature(none_b, [])
+    ), "Pin selections must not affect rebuild signatures when pin mode is None."
 
 
 def test_pin_selection_is_part_of_rebuild_signature() -> None:
@@ -130,10 +121,9 @@ def test_pin_selection_is_part_of_rebuild_signature() -> None:
     )
     source_signature = _simulation_signature()
 
-    require(
-        condition=source_signature(scene_a, []) != source_signature(scene_b, []),
-        message="Changing an explicit pin selection must change the rebuild signature.",
-    )
+    assert (
+        source_signature(scene_a, []) != source_signature(scene_b, [])
+    ), "Changing an explicit pin selection must change the rebuild signature."
 
 
 def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
@@ -193,14 +183,12 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
         _EXPECTED_SEAM_SAMPLE_COUNT,
     )
 
-    require(
-        condition=pairs == ((0, 5), (1, 4), (2, 3)),
-        message="Reversed seam stitching must preserve the authored pair order.",
-    )
-    require(
-        condition=records == (("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),),
-        message="Seam records must preserve the seam ID and both piece names.",
-    )
+    assert (
+        pairs == ((0, 5), (1, 4), (2, 3))
+    ), "Reversed seam stitching must preserve the authored pair order."
+    assert (
+        records == (("seam-1", "PieceA", "PieceB", ((0, 5), (1, 4), (2, 3))),)
+    ), "Seam records must preserve the seam ID and both piece names."
 
 
 def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> None:
@@ -282,15 +270,14 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
     proxy.source_signature = _simulation_signature()(scene, [])
     proxy.execute(scene)
 
-    require(
-        condition=fake_backend.calls
+    assert (
+        fake_backend.calls
         == [
-            (
-                scene.TimeStep,
-                scene.Iterations,
-                (scene.GravityX, scene.GravityY, scene.GravityZ),
-                proxy.collision_surface,
-            )
-        ],
-        message="The proxy must pass the surface without enabling legacy sphere controls.",
-    )
+        (
+        scene.TimeStep,
+        scene.Iterations,
+        (scene.GravityX, scene.GravityY, scene.GravityZ),
+        proxy.collision_surface,
+        )
+        ]
+    ), "The proxy must pass the surface without enabling legacy sphere controls."
