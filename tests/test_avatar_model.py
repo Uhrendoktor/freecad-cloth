@@ -301,6 +301,7 @@ def test_avatar_parameter_loading_rejects_pre_release_schema_versions() -> None:
         with pytest.raises(ValueError, match="unsupported avatar schema version"):
             AvatarParameters.from_json(payload)
 
+
 _POSE_PRESETS = tuple(DEFAULT_POSE_ARM_ANGLES)
 _EXPLICIT_ARM_ANGLE_CASES = (
     ("t_pose", -24.0, 32.0),
