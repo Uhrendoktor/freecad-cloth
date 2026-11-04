@@ -45,7 +45,7 @@ class CollisionSurface:
         if not count:
             return (0.0, 0.0, 0.0)
         center = np.asarray(self.vertices, dtype=np.float64).mean(axis=0)
-        return tuple(float(value) for value in center)
+        return (float(center[0]), float(center[1]), float(center[2]))
 
     def with_thickness(self, thickness: float) -> "CollisionSurface":
         """Return the same surface with a different collision thickness.
