@@ -16,6 +16,16 @@ PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
 
 
 def _mesh_object(doc, name, label):
+    """Create one persistent FreeCAD mesh feature for simulation visualization.
+
+    Args:
+        doc: FreeCAD document that will own the mesh feature.
+        name: Stable document object name.
+        label: User-visible feature label.
+
+    Returns:
+        New Mesh::Feature with its ClothMeshType property initialized.
+    """
     obj = doc.addObject("Mesh::Feature", name)
     obj.Label = label
     obj.addProperty(
@@ -43,6 +53,14 @@ _MESH_OBJECT_BUFFERS: dict[tuple[str, str], object] = {}
 
 
 def _mesh_object_key(obj: object) -> tuple[str, str]:
+    """Return the stable document/object key used by mutable mesh-buffer caches.
+
+    Args:
+        obj: FreeCAD document object whose Mesh buffer is cached separately.
+
+    Returns:
+        Document name and object name, or a process-local fallback for detached objects.
+    """
     document = getattr(obj, "Document", None)
     document_name = getattr(document, "Name", None)
     object_name = getattr(obj, "Name", None)
@@ -52,6 +70,16 @@ def _mesh_object_key(obj: object) -> tuple[str, str]:
 
 
 def _write_mesh(obj, positions, triangles):
+    """Update a FreeCAD mesh feature while reusing its separately owned mutable buffer.
+
+    Args:
+        obj: Mesh::Feature receiving the newly generated mesh.
+        positions: Ordered XYZ vertex coordinates in document space.
+        triangles: Indexed triangle faces referencing the supplied positions.
+
+    The indexed topology is cached by document/object identity. Empty face sets
+    clear both the document mesh and its auxiliary cache entries.
+    """
     import FreeCAD as App
     import Mesh
 
@@ -112,6 +140,15 @@ def _write_mesh(obj, positions, triangles):
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
+    """Triangulate a structured grid and write its faces to a FreeCAD mesh object.
+
+    Args:
+        obj: Mesh::Feature receiving the generated grid surface.
+        positions: XYZ coordinates stored in the grid's vertex order.
+        indices: Flat grid-index array mapping cell coordinates to mesh vertices.
+        nx: Number of grid vertices along the horizontal axis.
+        ny: Number of grid vertices along the vertical axis.
+    """
     triangles = []
     for j in range(ny - 1):
         for i in range(nx - 1):
@@ -124,6 +161,15 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
 
 
 def _parse_pair_list(values, particle_count=None):
+    """Parse serialized particle-index pairs and discard malformed/out-of-range values.
+
+    Args:
+        values: Iterable of strings containing two integer indices per entry.
+        particle_count: Optional upper bound used to reject invalid particle indices.
+
+    Returns:
+        Deduplicated immutable pairs in their first-seen order.
+    """
     pairs = []
     for value in values or ():
         parts = [p.strip() for p in str(value).replace(",", "-").split("-") if p.strip()]
@@ -138,6 +184,15 @@ def _parse_pair_list(values, particle_count=None):
 
 
 def _parse_int_list(values, particle_count=None):
+    """Parse serialized integer selections and keep valid particle indices.
+
+    Args:
+        values: Iterable of strings containing delimited integer values.
+        particle_count: Optional exclusive upper bound for accepted indices.
+
+    Returns:
+        Deduplicated immutable indices in their first-seen order.
+    """
     result = []
     for value in values or ():
         for part in str(value).replace(";", ",").split(","):
@@ -215,6 +270,16 @@ def _simulation_source_signature(obj, pieces):
 
 
 def _piece_mesh(piece, start_height, piece_ir=None):
+    """Triangulate one PatternPiece and place its mesh vertices in world coordinates.
+
+    Args:
+        piece: Native PatternPiece document object supplying placement and geometry.
+        start_height: Initial Z elevation used for the panel before placement.
+        piece_ir: Optional resolved PatternIR piece reused by the caller.
+
+    Returns:
+        World-space vertices, indexed triangles, and semantic boundary vertex chains.
+    """
     import FreeCAD as App
 
     from freecad_cloth.pattern.PatternMesh import triangulate
@@ -243,6 +308,15 @@ def _piece_mesh(piece, start_height, piece_ir=None):
 
 
 def _mesh_constraints(positions, triangles):
+    """Build one distance constraint for every unique undirected triangle edge.
+
+    Args:
+        positions: Ordered particle XYZ coordinates for the combined cloth mesh.
+        triangles: Indexed triangle faces defining the surface topology.
+
+    Returns:
+        Distance constraints with rest lengths measured from the initial positions.
+    """
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
 
     particles = list(starmap(Particle, positions))
@@ -473,6 +547,13 @@ class SimulationProxy:
         return
 
     def _build(self, obj, signature=None, piece_mesh=None):
+        """Build a pattern-driven scene when pieces exist, otherwise the demo cloth.
+
+        Args:
+            obj: Persistent simulation feature containing piece and scene properties.
+            signature: Optional precomputed source signature for cache invalidation.
+            piece_mesh: Optional injected piece-mesh builder for tests and host adapters.
+        """
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
@@ -484,6 +565,17 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+        """Build the particle system and visualization panels from native PatternIR.
+
+        Args:
+            obj: Persistent simulation feature receiving runtime state and panels.
+            pieces: PatternPiece document objects included in the simulation scene.
+            signature: Source signature used to detect changes to authoritative inputs.
+            piece_mesh: Optional callback that triangulates each resolved piece.
+
+        Raises:
+            ValueError: If pattern topology or seam correspondence cannot be resolved.
+        """
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
@@ -584,6 +676,11 @@ class SimulationProxy:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
     def _build_demo(self, obj):
+        """Build the two-panel demonstration cloth used without authored PatternPieces.
+
+        Args:
+            obj: Persistent simulation feature receiving the demo particle system.
+        """
         from freecad_cloth.simulation.ClothSolver import ClothSystem
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
