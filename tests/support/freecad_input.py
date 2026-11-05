@@ -206,6 +206,11 @@ class _NativeXInput:
     """Inject real X11 pointer events so native Coin draggers keep button state."""
 
     def __init__(self) -> None:
+        """Open native X11/XTest libraries and prepare native pointer/key injection.
+
+        Raises:
+            RuntimeError: If the X11 libraries or current display cannot be opened.
+        """
         x11_name = ctypes.util.find_library("X11") or "libX11.so.6"
         xtst_name = ctypes.util.find_library("Xtst") or "libXtst.so.6"
         try:
@@ -709,6 +714,20 @@ class UiGifRecorder:
         max_frames: int = 120,
         show_cursor: bool = True,
     ) -> None:
+        """Initialize bounded animated capture of the FreeCAD main window.
+
+        Args:
+            path: Destination GIF path, created when recording is finalized.
+            gui: FreeCAD GUI module used to resolve the main window.
+            window: Optional explicit main window; otherwise the active one is captured.
+            fps: Frame sampling rate, restricted to 1 through 30 frames per second.
+            scale: Output image scale relative to the original capture dimensions.
+            max_frames: Maximum number of frames retained in memory.
+            show_cursor: Whether a visible cursor indicator is composited into each frame.
+
+        Raises:
+            ValueError: If the frame rate, scale, or maximum frame count is invalid.
+        """
         if fps < 1 or fps > 30:
             msg = "GIF frame rate must be between 1 and 30 FPS"
             raise ValueError(msg)
