@@ -147,6 +147,14 @@ def connected_components(vertices, triangles):
     parent = list(range(len(vertices)))
 
     def find(index):
+        """Resolve the representative vertex index for one union-find entry.
+
+        Args:
+            index: Vertex index whose connected-component root is requested.
+
+        Returns:
+            Root vertex index after path compression.
+        """
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
@@ -1139,6 +1147,11 @@ def surface_signed_clearance(
     """
 
     def mark(message: str) -> None:
+        """Emit one diagnostic phase marker when tracing is enabled.
+
+        Args:
+            message: Trace label describing the current distance-query phase.
+        """
         if trace is not None:
             trace(message)
 
