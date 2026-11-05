@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 
 if __package__:
-    from tools.ci.command_runner import run_command
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -179,9 +179,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
             "--",
             "freecad_cloth",
         ],
-        capture_output=True,
-        check=True,
-        timeout=30,
+        options=CommandOptions(capture_output=True, timeout=30),
     )
     return tuple(
         sorted(
