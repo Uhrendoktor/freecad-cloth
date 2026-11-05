@@ -46,6 +46,7 @@ dev = [
   "hypothesis==6.168.3",
   "vulture==2.16",
   "crosshair-tool==0.0.111",
+  "defusedxml>=0.7.1,<1",
   "ast-grep-cli==0.45.3",
 ]
 
@@ -59,7 +60,7 @@ include = ["freecad_cloth*"]
 freecad_cloth = ["resources/**/*"]
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "tests"]
 
 [tool.ruff]
 target-version = "py312"
@@ -68,21 +69,25 @@ respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Stable correctness, security, import, typing, and targeted API documentation checks.
-# Preview and broad style-modernization families remain opt-in.
-select = [
-  "E7",
-  "E9",
-  "F",
-  "W",
-  "I",
-  "B",
-  "ANN401",
-  "D417",
-  "RUF059",
-  "S102",
-  "S307",
-  "S605",
+# Full repository lint coverage; only the formatter-incompatible rules documented by Ruff
+# are disabled. Preview diagnostics remain enabled.
+select = ["ALL"]
+preview = true
+ignore = [
+  "W191",
+  "E111",
+  "E114",
+  "E117",
+  "D203",
+  "D206",
+  "D300",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "Q004",
+  "COM812",
+  "COM819",
 ]
 
 [tool.ruff.lint.pydocstyle]
