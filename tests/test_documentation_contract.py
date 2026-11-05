@@ -168,23 +168,9 @@ def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
         condition=set(lint.get("ignore", [])) == allowed_ignores,
         message="Only formatter-conflicting rules may be ignored",
     )
-    expected_per_file_ignores = {
-        "freecad_cloth/bootstrap.py": ["PLC0415"],
-        "freecad_cloth/avatar/AvatarCommands.py": ["PLC0415"],
-        "freecad_cloth/avatar/AvatarGui.py": ["PLC0415"],
-        "freecad_cloth/avatar/AvatarPoseGui.py": ["PLC0415"],
-        "freecad_cloth/simulation/FittingHandoff.py": ["PLC0415"],
-        "freecad_cloth/simulation/DrapeCommands.py": ["PLC0415"],
-        "freecad_cloth/simulation/SimulationCommands.py": ["PLC0415"],
-        "freecad_cloth/simulation/SimulationQualityGui.py": ["PLC0415"],
-        "freecad_cloth/pattern/PatternMesh.py": ["PLC0415"],
-        "tests/freecad_*.py": ["PLC0415"],
-        "tests/support/pbd_contact_helpers.py": ["PLC0415"],
-        "tests/test_avatar_fitting.py": ["PLC0415"],
-    }
     _require(
-        condition=lint.get("per-file-ignores", {}) == expected_per_file_ignores,
-        message="Only the documented local-import boundaries may ignore PLC0415",
+        condition=not lint.get("per-file-ignores"),
+        message="Per-file Ruff exemptions are prohibited",
     )
 
 
