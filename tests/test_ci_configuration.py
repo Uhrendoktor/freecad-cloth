@@ -8,6 +8,8 @@ from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
 
+from tests.support.assertions import require
+
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
 from tools.ci.validate_ci_structure import (
@@ -829,102 +831,84 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
 
 def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
-    """Require Ruff format and lint checks over every tracked Python source file."""
+    """Require ALL and preview lint rules over every tracked source without auto-fixing."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-
-    assert "git ls-files -z -- '*.py' '*.pyi'" in quality, (
-        "Expected \"git ls-files -z -- '*.py' '*.pyi'\" in quality."
-    )
-    assert (
-        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"'
-    ) in quality, (
-        "Expected ( ( 'xargs -0 -r python -m ruff format --check < ' "
-        "'\"$RUNNER_TEMP/python-files.zlist\"' ) in quality )."
-    )
-    assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality, (
-        "Expected 'xargs -0 -r python -m ruff check < "
-        '"$RUNNER_TEMP/python-files.zlist"\' in quality.'
-    )
-    assert "python -m ruff check --fix" not in quality, (
-        'Expected "python -m ruff check --fix" not in quality.'
-    )
-    assert "xargs -r python -m ruff check <" not in quality, (
-        'Expected "xargs -r python -m ruff check <" not in quality.'
-    )
-    assert "pyright -p pyrightconfig.agent-strict.json" not in quality, (
-        'Expected "pyright -p pyrightconfig.agent-strict.json" not in quality.'
-    )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
-    expected_rules = [
-        "E7",
-        "E9",
-        "F",
-        "W",
-        "I",
-        "B",
-        "ANN401",
-        "D417",
-        "RUF059",
-        "S102",
-        "S307",
-        "S605",
-    ]
-    assert lint["select"] == expected_rules, "Ruff must use the reviewed high-signal rule set."
-    assert lint.get("preview", False) is False, (
-        "The reviewed Ruff rule set must not enable preview rules."
+    formatter_conflicts = {
+        "W191", "E111", "E114", "E117", "D203", "D206", "D300",
+        "Q000", "Q001", "Q002", "Q003", "Q004", "COM812", "COM819",
+    }
+
+    require(
+        condition="git ls-files -z -- '*.py' '*.pyi'" in quality,
+        message="Ruff inventory must contain every tracked Python source and stub.",
     )
-    assert not lint.get("ignore"), "The curated rules must not need a global ignore list."
-    assert not lint.get("per-file-ignores"), "The curated rules must not need per-file ignores."
-    assert 'path: "freecad_cloth tests tools/ci"' in workflow, (
-        "Expected 'path: \"freecad_cloth tests tools/ci\"' in workflow."
+    require(
+        condition='xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality,
+        message="Ruff formatting must be a read-only repository-wide gate.",
+    )
+    require(
+        condition='xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality,
+        message="Ruff lint must be a read-only repository-wide gate.",
+    )
+    require(
+        condition=lint["select"] == ["ALL"],
+        message=f"Ruff must select all stable and preview rules, got {lint['select']!r}.",
+    )
+    require(condition=lint.get("preview") is True, message="Ruff preview must be enabled.")
+    require(
+        condition=set(lint.get("ignore", [])) == formatter_conflicts,
+        message="Only formatter-conflicting Ruff rules may be ignored.",
+    )
+    require(
+        condition=not lint.get("per-file-ignores"),
+        message="Per-file lint exemptions are prohibited.",
+    )
+    require(
+        condition="python -m ruff check --fix" not in quality,
+        message="The canonical workflow must not auto-fix source files.",
+    )
+    require(
+        condition='path: "freecad_cloth tests tools/ci"' in workflow,
+        message="The PR duplication gate must cover production and CI Python.",
     )
 
 
-def test_pyright_covers_reviewed_production_modules_with_explicit_strict_core() -> None:
-    """One profile covers reviewed production modules and keeps the simulation core strict."""
+def test_pyright_checks_every_repository_python_file_in_strict_mode() -> None:
+    """Require one repository-wide Pyright profile with globally strict diagnostics."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    reviewed_scope = (
-        "freecad_cloth/shared/Collision.py",
-        "freecad_cloth/shared/Targets.py",
-        "freecad_cloth/shared/ViewportGizmoStyle.py",
-        "freecad_cloth/avatar/AvatarProperties.py",
-        "freecad_cloth/avatar/SkeletonTypes.py",
-        "freecad_cloth/avatar/avatar_commands.py",
-        "freecad_cloth/shared/CommandIds.py",
-        "freecad_cloth/shared/MeshTopology.py",
-        "freecad_cloth/shared/SeamColors.py",
-        "freecad_cloth/simulation/ClothSolver.py",
-        "freecad_cloth/simulation/DrapeFailureClassifier.py",
-        "freecad_cloth/simulation/MeshBoundary.py",
-        "freecad_cloth/simulation/_cloth_backend_compat.py",
-        "freecad_cloth/simulation/cloth_backend.py",
+
+    require(
+        condition=config.get("include") == ["."],
+        message="Pyright must include the entire repository root.",
     )
-    strict_core = (
-        "freecad_cloth/simulation/DrapeFailureClassifier.py",
-        "freecad_cloth/simulation/cloth_backend.py",
-        "freecad_cloth/simulation/ClothSolver.py",
+    require(
+        condition=config.get("typeCheckingMode") == "strict",
+        message="Pyright must use global strict mode, not a path-specific strict subset.",
+    )
+    require(
+        condition=not config.get("strict") and not config.get("exclude"),
+        message="Pyright must not use strict allowlists or excluded paths.",
+    )
+    require(
+        condition=config.get("reportMissingImports") == "error"
+        and config.get("reportMissingModuleSource") == "error",
+        message="Pyright import resolution diagnostics must remain errors.",
+    )
+    require(
+        condition=quality.count("pyright -p pyrightconfig.json") == 1,
+        message="The canonical workflow must run exactly one blocking Pyright profile.",
     )
 
-    assert config["typeCheckingMode"] == "standard", (
-        'Expected config["typeCheckingMode"] == "standard".'
-    )
-    assert config["include"] == list(reviewed_scope), (
-        "Pyright must match the explicitly reviewed production-module scope."
-    )
-    assert not config.get("exclude"), 'Expected not config.get("exclude").'
-    assert not (ROOT / "pyrightconfig.agent-strict.json").exists(), (
-        'Expected not (ROOT / "pyrightconfig.agent-strict.json").exists().'
-    )
-    assert quality.count("pyright -p ") == 1, 'Expected quality.count("pyright -p ") == 1.'
-    assert config["strict"] == list(strict_core), 'Expected config["strict"] == list(strict_core).'
+
 
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
@@ -1018,35 +1002,56 @@ def test_ruff_command_parser_rejects_and_chained_commands() -> None:
     )
 
 
-def test_pyright_coverage_contract_rejects_an_unreviewed_scope() -> None:
-    """Reject include/exclude changes that escape or hide the reviewed module set."""
+def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
+    """Reject narrow includes, excluded paths, or non-strict repository analysis."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth"]
-    assert pyright_coverage_contract_violations(json.dumps(config)) == (
-        "<Pyright include scope must match the reviewed production-module set>",
-    ), "Pyright must reject an unreviewed broad production scope."
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright must include the entire repository root>",),
+        message="A production-only include must not pass repository-wide Pyright policy.",
+    )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["exclude"] = ["freecad_cloth/simulation/ClothSolver.py"]
-    assert pyright_coverage_contract_violations(json.dumps(config)) == (
-        "<Pyright exclude scope must not hide reviewed production modules>",
-    ), "Pyright must reject exclusions from reviewed production modules."
+    config["exclude"] = ["tests"]
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright exclude scope must not hide repository files>",),
+        message="Pyright must not exclude tests or other repository paths.",
+    )
+
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["typeCheckingMode"] = "standard"
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright must use global strict type checking>",),
+        message="Repository-wide standard mode is not an acceptable strict gate.",
+    )
+
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["reportMissingImports"] = "none"
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright missing-import diagnostics must remain errors>",),
+        message="Missing import diagnostics must not be suppressed.",
+    )
 
 
-def test_new_production_modules_require_explicit_pyright_inclusion() -> None:
-    """Require newly added production modules to be reviewed into the Pyright scope."""
+def test_new_python_modules_are_covered_automatically_by_repository_root() -> None:
+    """Ensure future production modules are included without editing a file allowlist."""
     new_modules = (
         "freecad_cloth/common/new_model.py",
         "freecad_cloth/simulation/NewSimulationGui.py",
         "freecad_cloth/bootstrap.py",
+        "tests/new_test_contract.py",
+        "tools/ci/new_validator.py",
     )
-    assert pyright_coverage_contract_violations(
-        PYRIGHT_CONFIG.read_text(encoding="utf-8"),
-        new_modules,
-    ) == tuple(
-        f"<new Python module is outside Pyright include/exclude scope: {path}>"
-        for path in new_modules
-    ), "New production modules must be deliberately added to the Pyright scope."
+    require(
+        condition=pyright_coverage_contract_violations(
+            PYRIGHT_CONFIG.read_text(encoding="utf-8"), new_modules
+        ) == (),
+        message="Repository-root Pyright include must automatically cover new Python modules.",
+    )
 
 
 def test_typecheck_and_policy_commands_must_be_standalone() -> None:
