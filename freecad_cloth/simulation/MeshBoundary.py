@@ -7,7 +7,8 @@ from collections.abc import Sequence
 from functools import lru_cache
 from typing import TYPE_CHECKING
 
-from shapely.geometry import LineString, Point as ShapelyPoint
+from shapely.geometry import LineString
+from shapely.geometry import Point as ShapelyPoint
 
 from freecad_cloth.pattern.PatternIR import PieceIR
 

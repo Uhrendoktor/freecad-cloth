@@ -22,10 +22,6 @@ from pivy import coin
 
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
-from tests.support.freecad_input import wait_for_gui_ready
-from tests.support.freecad_mesh_geometry import opposite_top_edge_vertices
-
-
 import contextlib
 import pathlib
 
@@ -37,6 +33,8 @@ from freecad_cloth.simulation.DrapeVisualSanity import (
     mesh_shape_sanity,
 )
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
+from tests.support.freecad_input import wait_for_gui_ready
+from tests.support.freecad_mesh_geometry import opposite_top_edge_vertices
 
 # Keep the README turntable on the same geometry-appropriate collision path as
 # the standalone blanket acceptance when the target is generic FreeCAD geometry.

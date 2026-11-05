@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 if TYPE_CHECKING:
-    from types import ModuleType, TracebackType
     from collections.abc import Callable
+    from types import ModuleType, TracebackType
+
     from PIL.Image import Image as PillowImage
 
 QtInputValue: TypeAlias = int | Enum

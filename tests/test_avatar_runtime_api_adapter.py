@@ -8,7 +8,6 @@ from types import SimpleNamespace
 from typing import cast
 from unittest.mock import Mock
 
-
 _avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
 
 
@@ -90,22 +89,21 @@ def test_runtime_adapters_preserve_the_freecad_api_spelling() -> None:
         "ClothSewing",
     )
 
-    assert (
-        created is feature and found is feature and new_document is document
-    ), "FreeCAD adapter helpers must return the objects exposed by the runtime API"
-    assert (
-        document.addObject.call_args.args == ("Mesh::Feature", "ClothAvatar")
-    ), "Object creation must preserve the FreeCAD type and name arguments"
-    assert (
-        document.getObject.call_args.args == ("DrapeTarget",)
-    ), "Object lookup must preserve the requested internal document name"
-    assert (
-        feature.addProperty.call_args.args
-        == ("App::PropertyString", "AvatarType", "Avatar")
-    ), "Property creation must preserve the FreeCAD property contract"
-    assert (
-        application.newDocument.call_args.args == ("ClothSewing",)
-    ), "Document creation must preserve the requested internal name"
+    assert created is feature and found is feature and new_document is document, (
+        "FreeCAD adapter helpers must return the objects exposed by the runtime API"
+    )
+    assert document.addObject.call_args.args == ("Mesh::Feature", "ClothAvatar"), (
+        "Object creation must preserve the FreeCAD type and name arguments"
+    )
+    assert document.getObject.call_args.args == ("DrapeTarget",), (
+        "Object lookup must preserve the requested internal document name"
+    )
+    assert feature.addProperty.call_args.args == ("App::PropertyString", "AvatarType", "Avatar"), (
+        "Property creation must preserve the FreeCAD property contract"
+    )
+    assert application.newDocument.call_args.args == ("ClothSewing",), (
+        "Document creation must preserve the requested internal name"
+    )
 
 
 def test_legacy_pose_loader_only_accepts_schema_one_payloads() -> None:
@@ -124,27 +122,21 @@ def test_legacy_pose_loader_only_accepts_schema_one_payloads() -> None:
         }
     )
     pose_data = _legacy_pose_data(payload)
-    assert (
-        pose_data
-        == {
+    assert pose_data == {
         "preset": "standing",
         "left_arm_angle": LEGACY_ARM_ANGLE,
         "right_arm_angle": LEGACY_ARM_ANGLE,
-        }
-    ), "Schema-one payloads must expose their serialized pose mapping"
+    }, "Schema-one payloads must expose their serialized pose mapping"
 
     angles = {
         "left_arm_angle": LEGACY_ARM_ANGLE,
         "right_arm_angle": LEGACY_ARM_ANGLE,
     }
     _migrate_legacy_pose_angles(payload, "standing", angles)
-    assert (
-        angles
-        == {
+    assert angles == {
         "left_arm_angle": STANDING_ARM_ANGLE,
         "right_arm_angle": STANDING_ARM_ANGLE,
-        }
-    ), "Legacy sentinel angles must migrate to the standing preset defaults"
+    }, "Legacy sentinel angles must migrate to the standing preset defaults"
 
     newer_payload = json.dumps(
         {
@@ -156,16 +148,14 @@ def test_legacy_pose_loader_only_accepts_schema_one_payloads() -> None:
             },
         }
     )
-    assert (
-        _legacy_pose_data(newer_payload) is None
-    ), "Current-schema payloads must not be treated as legacy migration inputs"
+    assert _legacy_pose_data(newer_payload) is None, (
+        "Current-schema payloads must not be treated as legacy migration inputs"
+    )
 
 
 def test_legacy_avatar_command_dotted_import_resolves_to_current_module() -> None:
     """Keep legacy dotted imports working after the lowercase source-file rename."""
     legacy_commands = import_module("freecad_cloth.avatar.AvatarCommands")
-    assert (
-        legacy_commands.create_avatar is _avatar_commands.create_avatar
-    ), (
-            "The legacy module path must resolve to the canonical avatar command implementation"
-        )
+    assert legacy_commands.create_avatar is _avatar_commands.create_avatar, (
+        "The legacy module path must resolve to the canonical avatar command implementation"
+    )

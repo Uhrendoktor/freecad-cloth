@@ -248,19 +248,19 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
         piece_id="bodice-front",
         seam_ids=("seam-neck", "seam-side"),
     )
-    assert (
-        ('data-piece-id="bodice-front"' in svg)
-    ), "Export contract failed: 'data-piece-id=\"bodice-front\"' in svg"
-    assert (
-        ('data-edge-ids="bottom right armhole left"' in svg)
-    ), "Export contract failed: 'data-edge-ids=\"bottom right armhole left\"' i"
+    assert 'data-piece-id="bodice-front"' in svg, (
+        "Export contract failed: 'data-piece-id=\"bodice-front\"' in svg"
+    )
+    assert 'data-edge-ids="bottom right armhole left"' in svg, (
+        "Export contract failed: 'data-edge-ids=\"bottom right armhole left\"' i"
+    )
     svg_root = ElementTree.fromstring(svg)
     cut_path = next(
         element for element in svg_root.iter() if element.attrib.get("id") == "cut-perimeter"
     )
-    assert (
-        (cut_path.attrib["data-notch-ids"] == "notch-1")
-    ), 'Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1'
+    assert cut_path.attrib["data-notch-ids"] == "notch-1", (
+        'Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1'
+    )
     coordinates = [
         (float(x), float(y))
         for x, y in re.findall(
@@ -290,20 +290,16 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
     previous_y = coordinates[notch_apex - 1][1]
     apex_y = coordinates[notch_apex][1]
     following_y = coordinates[(notch_apex + 1) % len(coordinates)][1]
-    assert (
-        ((previous_y - apex_y) * (following_y - apex_y) < 0)
-    ), "Export contract failed: (previous_y - apex_y) * (following_y - apex_y"
-    assert (
-        (
-        not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter())
-        )
-    ), "Export contract failed: not any(element.attrib.get(\"id\") == \"notch-no"
-    assert (
-        ('data-mark-id="grain-1"' in svg)
-    ), "Export contract failed: 'data-mark-id=\"grain-1\"' in svg"
-    assert (
-        (
-        from_svg_metadata(svg) == {
+    assert (previous_y - apex_y) * (following_y - apex_y) < 0, (
+        "Export contract failed: (previous_y - apex_y) * (following_y - apex_y"
+    )
+    assert not any(element.attrib.get("id") == "notch-notch-1" for element in svg_root.iter()), (
+        'Export contract failed: not any(element.attrib.get("id") == "notch-no'
+    )
+    assert 'data-mark-id="grain-1"' in svg, (
+        "Export contract failed: 'data-mark-id=\"grain-1\"' in svg"
+    )
+    assert from_svg_metadata(svg) == {
         "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
@@ -313,9 +309,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
         "seam_allowance_mm": 0.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
-        }
-        )
-    ), "Export contract failed: from_svg_metadata(svg) == { \"version\": 2, \"un"
+    }, 'Export contract failed: from_svg_metadata(svg) == { "version": 2, "un'
 
     dxf = to_dxf(
         pattern,
@@ -324,9 +318,7 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
         piece_id="bodice-front",
         seam_ids=("seam-neck", "seam-side"),
     )
-    assert (
-        (
-        from_dxf_metadata(dxf) == {
+    assert from_dxf_metadata(dxf) == {
         "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
@@ -336,21 +328,17 @@ def test_svg_and_dxf_preserve_piece_and_construction_semantics() -> None:
         "seam_allowance_mm": 0.0,
         "notch_ids": ["notch-1"],
         "mark_ids": ["grain-1"],
-        }
-        )
-    ), "Export contract failed: from_dxf_metadata(dxf) == { \"version\": 2, \"un"
+    }, 'Export contract failed: from_dxf_metadata(dxf) == { "version": 2, "un'
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
-    assert (
-        ("10\n102.000000\n20\n30.000000" in cut_section)
-    ), "Export contract failed: \"10\\n102.000000\\n20\\n30.000000\" in cut_sectio"
+    assert "10\n102.000000\n20\n30.000000" in cut_section, (
+        'Export contract failed: "10\\n102.000000\\n20\\n30.000000" in cut_sectio'
+    )
 
 
 def test_standalone_export_uses_complete_current_metadata_schema() -> None:
     """Emit the complete schema even when standalone geometry has no document ID."""
     metadata = from_dxf_metadata(to_dxf(_curved_pattern()))
-    assert (
-        (
-        metadata == {
+    assert metadata == {
         "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "armhole", "left"],
@@ -360,9 +348,7 @@ def test_standalone_export_uses_complete_current_metadata_schema() -> None:
         "seam_allowance_mm": 0.0,
         "notch_ids": [],
         "mark_ids": [],
-        }
-        )
-    ), "Export contract failed: metadata == { \"version\": 2, \"units\": \"mm\", \"e"
+    }, 'Export contract failed: metadata == { "version": 2, "units": "mm", "e'
 
 
 def test_release_gate_validates_deterministic_svg_and_dxf_round_trip() -> None:
@@ -378,21 +364,17 @@ def test_release_gate_validates_deterministic_svg_and_dxf_round_trip() -> None:
 
     svg = to_svg(pattern, **kwargs)
     result = validate_export(pattern, svg, "svg", **kwargs)
-    assert (
-        (result["valid"] is True)
-    ), "Export contract failed: result[\"valid\"] is True"
-    assert (
-        (result["metadata"]["piece_id"] == "bodice-front")
-    ), "Export contract failed: result[\"metadata\"][\"piece_id\"] == \"bodice-fro"
+    assert result["valid"] is True, 'Export contract failed: result["valid"] is True'
+    assert result["metadata"]["piece_id"] == "bodice-front", (
+        'Export contract failed: result["metadata"]["piece_id"] == "bodice-fro'
+    )
 
     dxf = to_dxf(pattern, **kwargs)
     result = validate_export(pattern, dxf, "dxf", **kwargs)
-    assert (
-        (result["valid"] is True)
-    ), "Export contract failed: result[\"valid\"] is True"
-    assert (
-        (result["metadata"]["seam_ids"] == ["seam-neck", "seam-side"])
-    ), "Export contract failed: result[\"metadata\"][\"seam_ids\"] == [\"seam-neck"
+    assert result["valid"] is True, 'Export contract failed: result["valid"] is True'
+    assert result["metadata"]["seam_ids"] == ["seam-neck", "seam-side"], (
+        'Export contract failed: result["metadata"]["seam_ids"] == ["seam-neck'
+    )
 
 
 def test_release_gate_rejects_geometry_or_semantic_drift() -> None:
@@ -404,9 +386,7 @@ def test_release_gate_rejects_geometry_or_semantic_drift() -> None:
         "1.000000,12.500000",
         1,
     )
-    assert (
-        (tampered_svg != svg)
-    ), "Export contract failed: tampered_svg != svg"
+    assert tampered_svg != svg, "Export contract failed: tampered_svg != svg"
     with pytest.raises(ValueError, match="deterministic authoritative pattern"):
         validate_export(
             pattern,
@@ -452,34 +432,34 @@ def test_svg_contains_visible_print_safe_geometry() -> None:
     text = next(element for element in elements if element.attrib.get("data-mark-id") == "grain-1")
 
     for element in (sewing_path, cut_path, grainline):
-        assert (
-            (element.attrib.get("stroke") == "#000000")
-        ), "Export contract failed: element.attrib.get(\"stroke\") == \"#000000\""
-    assert (
-        (cut_path.attrib["data-notch-ids"] == "notch-1")
-    ), "Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"notch-1"
-    assert (
-        (not any(element.attrib.get("id") == "notch-notch-1" for element in elements))
-    ), "Export contract failed: not any(element.attrib.get(\"id\") == \"notch-no"
-    assert (
-        (sewing_path.attrib.get("fill") == "none")
-    ), "Export contract failed: sewing_path.attrib.get(\"fill\") == \"none\""
-    assert (
-        (cut_path.attrib.get("fill") == "none")
-    ), "Export contract failed: cut_path.attrib.get(\"fill\") == \"none\""
-    assert (
-        (text.attrib.get("fill") == "#000000")
-    ), "Export contract failed: text.attrib.get(\"fill\") == \"#000000\""
+        assert element.attrib.get("stroke") == "#000000", (
+            'Export contract failed: element.attrib.get("stroke") == "#000000"'
+        )
+    assert cut_path.attrib["data-notch-ids"] == "notch-1", (
+        'Export contract failed: cut_path.attrib["data-notch-ids"] == "notch-1'
+    )
+    assert not any(element.attrib.get("id") == "notch-notch-1" for element in elements), (
+        'Export contract failed: not any(element.attrib.get("id") == "notch-no'
+    )
+    assert sewing_path.attrib.get("fill") == "none", (
+        'Export contract failed: sewing_path.attrib.get("fill") == "none"'
+    )
+    assert cut_path.attrib.get("fill") == "none", (
+        'Export contract failed: cut_path.attrib.get("fill") == "none"'
+    )
+    assert text.attrib.get("fill") == "#000000", (
+        'Export contract failed: text.attrib.get("fill") == "#000000"'
+    )
     # The viewBox coordinates are millimetres, so font-size must be unitless.
-    assert (
-        (text.attrib.get("font-size") == "3")
-    ), "Export contract failed: text.attrib.get(\"font-size\") == \"3\""
-    assert (
-        (root.attrib["width"].endswith("mm"))
-    ), "Export contract failed: root.attrib[\"width\"].endswith(\"mm\")"
-    assert (
-        (root.attrib["height"].endswith("mm"))
-    ), "Export contract failed: root.attrib[\"height\"].endswith(\"mm\")"
+    assert text.attrib.get("font-size") == "3", (
+        'Export contract failed: text.attrib.get("font-size") == "3"'
+    )
+    assert root.attrib["width"].endswith("mm"), (
+        'Export contract failed: root.attrib["width"].endswith("mm")'
+    )
+    assert root.attrib["height"].endswith("mm"), (
+        'Export contract failed: root.attrib["height"].endswith("mm")'
+    )
 
 
 def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Path) -> None:
@@ -509,50 +489,46 @@ def test_svg_physical_dimensions_are_independently_rendered_to_png(tmp_path: Pat
         output_path=png_path,
     )
 
-    assert (
-        (result["valid"] is True)
-    ), "Export contract failed: result[\"valid\"] is True"
+    assert result["valid"] is True, 'Export contract failed: result["valid"] is True'
     report = cast("_RenderReport", result["render"])
-    assert (
-        (report["valid"] is True)
-    ), "Export contract failed: report[\"valid\"] is True"
-    assert (
-        (report["renderer"] == "QtSvg")
-    ), "Export contract failed: report[\"renderer\"] == \"QtSvg\""
-    assert (
-        (
-        math.isclose(float(report["physical_width_mm"]), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: report[\"physical_width_mm\"] == 110.0"
-    assert (
-        (
-        math.isclose(float(report["physical_height_mm"]), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: report[\"physical_height_mm\"] == 70.0"
-    assert (
-        (report["viewbox"] == [0.0, 0.0, EXPECTED_CUT_WIDTH_MM, EXPECTED_CUT_HEIGHT_MM])
-    ), "Export contract failed: report[\"viewbox\"] == [0.0, 0.0, 110.0, 70.0]"
-    assert (
-        (report["raster_width_px"] == EXPECTED_RENDER_WIDTH_PX)
-    ), "Export contract failed: report[\"raster_width_px\"] == 624"
-    assert (
-        (report["raster_height_px"] == EXPECTED_RENDER_HEIGHT_PX)
-    ), "Export contract failed: report[\"raster_height_px\"] == 397"
-    assert (
-        (report["ink_pixel_count"] > MINIMUM_RENDERED_INK_PIXELS)
-    ), "Export contract failed: report[\"ink_pixel_count\"] > 100"
-    assert (
-        (report["ink_bounds_px"][2] >= report["ink_bounds_px"][0])
-    ), "Export contract failed: report[\"ink_bounds_px\"][2] >= report[\"ink_bou"
-    assert (
-        (report["ink_bounds_px"][3] >= report["ink_bounds_px"][1])
-    ), "Export contract failed: report[\"ink_bounds_px\"][3] >= report[\"ink_bou"
-    assert (
-        (png_path.read_bytes().startswith(bytes((137, 80, 78, 71, 13, 10, 26, 10))))
-    ), "Export contract failed: png_path.read_bytes().startswith(bytes((137, "
-    assert (
-        (report["png_path"] == str(png_path))
-    ), "Export contract failed: report[\"png_path\"] == str(png_path)"
+    assert report["valid"] is True, 'Export contract failed: report["valid"] is True'
+    assert report["renderer"] == "QtSvg", 'Export contract failed: report["renderer"] == "QtSvg"'
+    assert math.isclose(
+        float(report["physical_width_mm"]),
+        EXPECTED_CUT_WIDTH_MM,
+        rel_tol=0.0,
+        abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+    ), 'Export contract failed: report["physical_width_mm"] == 110.0'
+    assert math.isclose(
+        float(report["physical_height_mm"]),
+        EXPECTED_CUT_HEIGHT_MM,
+        rel_tol=0.0,
+        abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+    ), 'Export contract failed: report["physical_height_mm"] == 70.0'
+    assert report["viewbox"] == [0.0, 0.0, EXPECTED_CUT_WIDTH_MM, EXPECTED_CUT_HEIGHT_MM], (
+        'Export contract failed: report["viewbox"] == [0.0, 0.0, 110.0, 70.0]'
+    )
+    assert report["raster_width_px"] == EXPECTED_RENDER_WIDTH_PX, (
+        'Export contract failed: report["raster_width_px"] == 624'
+    )
+    assert report["raster_height_px"] == EXPECTED_RENDER_HEIGHT_PX, (
+        'Export contract failed: report["raster_height_px"] == 397'
+    )
+    assert report["ink_pixel_count"] > MINIMUM_RENDERED_INK_PIXELS, (
+        'Export contract failed: report["ink_pixel_count"] > 100'
+    )
+    assert report["ink_bounds_px"][2] >= report["ink_bounds_px"][0], (
+        'Export contract failed: report["ink_bounds_px"][2] >= report["ink_bou'
+    )
+    assert report["ink_bounds_px"][3] >= report["ink_bounds_px"][1], (
+        'Export contract failed: report["ink_bounds_px"][3] >= report["ink_bou'
+    )
+    assert png_path.read_bytes().startswith(bytes((137, 80, 78, 71, 13, 10, 26, 10))), (
+        "Export contract failed: png_path.read_bytes().startswith(bytes((137, "
+    )
+    assert report["png_path"] == str(png_path), (
+        'Export contract failed: report["png_path"] == str(png_path)'
+    )
 
 
 def test_svg_render_validation_rejects_physical_dimension_drift() -> None:
@@ -590,36 +566,36 @@ def test_notch_is_cut_into_cut_perimeter_toward_sewing_boundary() -> None:
     apex_index = next(
         index
         for index, (x, y) in enumerate(coordinates)
-        if math.isclose(x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        and math.isclose(y, EXPECTED_CUT_HEIGHT_MM / 2, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
+        if math.isclose(
+            x, EXPECTED_CUT_WIDTH_MM - 3.0, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
+        and math.isclose(
+            y, EXPECTED_CUT_HEIGHT_MM / 2, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+        )
     )
     previous = coordinates[apex_index - 1]
     following = coordinates[(apex_index + 1) % len(coordinates)]
-    assert (
-        (
-        math.isclose(previous[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
+    assert math.isclose(
+        previous[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
     ), "Exported perimeter width must match the expected cut size."
-    assert (
-        (
-        math.isclose(following[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
+    assert math.isclose(
+        following[0], EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
     ), "Exported perimeter width must match the expected cut size."
-    assert (
-        ((previous[1] - 35.0) * (following[1] - 35.0) < 0)
-    ), "Export contract failed: (previous[1] - 35.0) * (following[1] - 35.0) "
-    assert (
-        (cut_path.attrib["data-notch-ids"] == "right-notch")
-    ), "Export contract failed: cut_path.attrib[\"data-notch-ids\"] == \"right-n"
+    assert (previous[1] - 35.0) * (following[1] - 35.0) < 0, (
+        "Export contract failed: (previous[1] - 35.0) * (following[1] - 35.0) "
+    )
+    assert cut_path.attrib["data-notch-ids"] == "right-notch", (
+        'Export contract failed: cut_path.attrib["data-notch-ids"] == "right-n'
+    )
 
     dxf = to_dxf(pattern, derived=derived)
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
-    assert (
-        ("10\n102.000000\n20\n30.000000" in cut_section)
-    ), "Export contract failed: \"10\\n102.000000\\n20\\n30.000000\" in cut_sectio"
-    assert (
-        ("8\nMARK\n" not in cut_section)
-    ), "Export contract failed: \"8\\nMARK\\n\" not in cut_section"
+    assert "10\n102.000000\n20\n30.000000" in cut_section, (
+        'Export contract failed: "10\\n102.000000\\n20\\n30.000000" in cut_sectio'
+    )
+    assert "8\nMARK\n" not in cut_section, (
+        'Export contract failed: "8\\nMARK\\n" not in cut_section'
+    )
 
 
 def test_zero_allowance_notch_falls_inward_not_outward() -> None:
@@ -631,12 +607,12 @@ def test_zero_allowance_notch_falls_inward_not_outward() -> None:
     )
     dxf = to_dxf(pattern, derived=derived)
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
-    assert (
-        ("10\n97.000000\n20\n30.000000" in cut_section)
-    ), "Export contract failed: \"10\\n97.000000\\n20\\n30.000000\" in cut_section"
-    assert (
-        ("10\n103.000000\n20\n30.000000" not in cut_section)
-    ), "Export contract failed: \"10\\n103.000000\\n20\\n30.000000\" not in cut_se"
+    assert "10\n97.000000\n20\n30.000000" in cut_section, (
+        'Export contract failed: "10\\n97.000000\\n20\\n30.000000" in cut_section'
+    )
+    assert "10\n103.000000\n20\n30.000000" not in cut_section, (
+        'Export contract failed: "10\\n103.000000\\n20\\n30.000000" not in cut_se'
+    )
 
 
 def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
@@ -652,54 +628,36 @@ def test_pdf_export_is_deterministic_actual_size_and_calibrated() -> None:
     )
     first = to_pdf(pattern, options)
     second = to_pdf(pattern, options)
-    assert (
-        (first == second)
-    ), "Export contract failed: first == second"
-    assert (
-        (first.startswith(b"%PDF-1.4"))
-    ), "Export contract failed: first.startswith(b\"%PDF-1.4\")"
-    assert (
-        (b"/Count 1" in first)
-    ), "Export contract failed: b\"/Count 1\" in first"
-    assert (
-        (b"/MediaBox [0 0 595.27559 841.88976]" in first)
-    ), "Export contract failed: b\"/MediaBox [0 0 595.27559 841.88976]\" in fir"
-    assert (
-        (b"70.86614 70.86614 re S" in first)
-    ), "Export contract failed: b\"70.86614 70.86614 re S\" in first"
-    assert (
-        (first.count(b"25 mm CALIBRATION SQUARE") == 1)
-    ), "Export contract failed: first.count(b\"25 mm CALIBRATION SQUARE\") == 1"
-    assert (
-        (first.count(b"Print at ACTUAL SIZE / 100%") == 1)
-    ), "Export contract failed: first.count(b\"Print at ACTUAL SIZE / 100%\") ="
-    assert (
-        (b"Fit to Page" in first)
-    ), "Export contract failed: b\"Fit to Page\" in first"
+    assert first == second, "Export contract failed: first == second"
+    assert first.startswith(b"%PDF-1.4"), 'Export contract failed: first.startswith(b"%PDF-1.4")'
+    assert b"/Count 1" in first, 'Export contract failed: b"/Count 1" in first'
+    assert b"/MediaBox [0 0 595.27559 841.88976]" in first, (
+        'Export contract failed: b"/MediaBox [0 0 595.27559 841.88976]" in fir'
+    )
+    assert b"70.86614 70.86614 re S" in first, (
+        'Export contract failed: b"70.86614 70.86614 re S" in first'
+    )
+    assert first.count(b"25 mm CALIBRATION SQUARE") == 1, (
+        'Export contract failed: first.count(b"25 mm CALIBRATION SQUARE") == 1'
+    )
+    assert first.count(b"Print at ACTUAL SIZE / 100%") == 1, (
+        'Export contract failed: first.count(b"Print at ACTUAL SIZE / 100%") ='
+    )
+    assert b"Fit to Page" in first, 'Export contract failed: b"Fit to Page" in first'
     metadata = from_pdf_metadata(first)
-    assert (
-        (metadata["format"] == "pdf")
-    ), "Export contract failed: metadata[\"format\"] == \"pdf\""
-    assert (
-        (metadata["units"] == "mm")
-    ), "Export contract failed: metadata[\"units\"] == \"mm\""
-    assert (
-        (
-        math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: metadata[\"scale\"] == 1.0"
-    assert (
-        (metadata["paper_size"] == "A4")
-    ), "Export contract failed: metadata[\"paper_size\"] == \"A4\""
-    assert (
-        (metadata["page_count"] == 1)
-    ), "Export contract failed: metadata[\"page_count\"] == 1"
-    assert (
-        (metadata["notch_ids"] == ["right-notch"])
-    ), "Export contract failed: metadata[\"notch_ids\"] == [\"right-notch\"]"
-    assert (
-        (validate_pdf_export(pattern, first, options)["valid"] is True)
-    ), "Export contract failed: validate_pdf_export(pattern, first, options)["
+    assert metadata["format"] == "pdf", 'Export contract failed: metadata["format"] == "pdf"'
+    assert metadata["units"] == "mm", 'Export contract failed: metadata["units"] == "mm"'
+    assert math.isclose(
+        float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+    ), 'Export contract failed: metadata["scale"] == 1.0'
+    assert metadata["paper_size"] == "A4", 'Export contract failed: metadata["paper_size"] == "A4"'
+    assert metadata["page_count"] == 1, 'Export contract failed: metadata["page_count"] == 1'
+    assert metadata["notch_ids"] == ["right-notch"], (
+        'Export contract failed: metadata["notch_ids"] == ["right-notch"]'
+    )
+    assert validate_pdf_export(pattern, first, options)["valid"] is True, (
+        "Export contract failed: validate_pdf_export(pattern, first, options)["
+    )
     with pytest.raises(ValueError, match="deterministic authoritative"):
         validate_pdf_export(pattern, first + b"tampered", options)
 
@@ -713,50 +671,47 @@ def test_pdf_tiles_long_pattern_with_overlap_and_registration_marks() -> None:
         PdfExportOptions(derived=derived, piece_id="long-panel", seam_allowance=5.0),
     )
     metadata = from_pdf_metadata(pdf)
-    assert (
-        (metadata["tile_columns"] == EXPECTED_TILE_COLUMNS)
-    ), "Export contract failed: metadata[\"tile_columns\"] == 3"
-    assert (
-        (metadata["tile_rows"] == EXPECTED_TILE_ROWS)
-    ), "Export contract failed: metadata[\"tile_rows\"] == 2"
-    assert (
-        (metadata["page_count"] == EXPECTED_TILE_PAGE_COUNT)
-    ), "Export contract failed: metadata[\"page_count\"] == 6"
-    assert (
-        (f"/Count {EXPECTED_TILE_PAGE_COUNT}".encode() in pdf)
-    ), "Export contract failed: b\"/Count 6\" in pdf"
-    assert (
-        (pdf.count(b"/Type /Page ") == EXPECTED_TILE_PAGE_COUNT)
-    ), "Export contract failed: pdf.count(b\"/Type /Page \") == 6"
-    assert (
-        (pdf.count(b"25 mm CALIBRATION SQUARE") == EXPECTED_TILE_PAGE_COUNT)
-    ), "Export contract failed: pdf.count(b\"25 mm CALIBRATION SQUARE\") == 6"
-    assert (
-        (pdf.count(b"Print at ACTUAL SIZE / 100%") == EXPECTED_TILE_PAGE_COUNT)
-    ), "Export contract failed: pdf.count(b\"Print at ACTUAL SIZE / 100%\") == "
-    assert (
-        (b"H1-1" in pdf)
-    ), "Export contract failed: b\"H1-1\" in pdf"
-    assert (
-        (b"V1-1" in pdf)
-    ), "Export contract failed: b\"V1-1\" in pdf"
-    assert (
-        (
-        math.isclose(float(metadata["overlap_mm"]), EXPECTED_OVERLAP_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: metadata[\"overlap_mm\"] == 10.0"
+    assert metadata["tile_columns"] == EXPECTED_TILE_COLUMNS, (
+        'Export contract failed: metadata["tile_columns"] == 3'
+    )
+    assert metadata["tile_rows"] == EXPECTED_TILE_ROWS, (
+        'Export contract failed: metadata["tile_rows"] == 2'
+    )
+    assert metadata["page_count"] == EXPECTED_TILE_PAGE_COUNT, (
+        'Export contract failed: metadata["page_count"] == 6'
+    )
+    assert f"/Count {EXPECTED_TILE_PAGE_COUNT}".encode() in pdf, (
+        'Export contract failed: b"/Count 6" in pdf'
+    )
+    assert pdf.count(b"/Type /Page ") == EXPECTED_TILE_PAGE_COUNT, (
+        'Export contract failed: pdf.count(b"/Type /Page ") == 6'
+    )
+    assert pdf.count(b"25 mm CALIBRATION SQUARE") == EXPECTED_TILE_PAGE_COUNT, (
+        'Export contract failed: pdf.count(b"25 mm CALIBRATION SQUARE") == 6'
+    )
+    assert pdf.count(b"Print at ACTUAL SIZE / 100%") == EXPECTED_TILE_PAGE_COUNT, (
+        'Export contract failed: pdf.count(b"Print at ACTUAL SIZE / 100%") == '
+    )
+    assert b"H1-1" in pdf, 'Export contract failed: b"H1-1" in pdf'
+    assert b"V1-1" in pdf, 'Export contract failed: b"V1-1" in pdf'
+    assert math.isclose(
+        float(metadata["overlap_mm"]),
+        EXPECTED_OVERLAP_MM,
+        rel_tol=0.0,
+        abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+    ), 'Export contract failed: metadata["overlap_mm"] == 10.0'
 
 
 def test_pdf_letter_page_size_and_layout_validation() -> None:
     """Verify that pdf letter page size and layout validation."""
     pattern = rectangle(100.0, 60.0)
     letter_pdf = to_pdf(pattern, PdfExportOptions(paper_size="Letter"))
-    assert (
-        (b"/MediaBox [0 0 612 792]" in letter_pdf)
-    ), "Export contract failed: b\"/MediaBox [0 0 612 792]\" in letter_pdf"
-    assert (
-        (from_pdf_metadata(letter_pdf)["paper_size"] == "Letter")
-    ), "Export contract failed: from_pdf_metadata(letter_pdf)[\"paper_size\"] ="
+    assert b"/MediaBox [0 0 612 792]" in letter_pdf, (
+        'Export contract failed: b"/MediaBox [0 0 612 792]" in letter_pdf'
+    )
+    assert from_pdf_metadata(letter_pdf)["paper_size"] == "Letter", (
+        'Export contract failed: from_pdf_metadata(letter_pdf)["paper_size"] ='
+    )
     with pytest.raises(ValueError, match="paper_size"):
         to_pdf(pattern, PdfExportOptions(paper_size="Legal"))
     with pytest.raises(ValueError, match="overlap"):
@@ -771,8 +726,10 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -794,28 +751,23 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     result = export_pattern_piece(piece, path, "pdf", curve_samples=16)
     payload = path.read_bytes()
     metadata = from_pdf_metadata(payload)
-    assert (
-        (result["valid"] is True)
-    ), "Export contract failed: result[\"valid\"] is True"
-    assert (
-        (payload.startswith(b"%PDF-1.4"))
-    ), "Export contract failed: payload.startswith(b\"%PDF-1.4\")"
-    assert (
-        (metadata["piece_id"] == "piece-front")
-    ), "Export contract failed: metadata[\"piece_id\"] == \"piece-front\""
-    assert (
-        (
-        math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: metadata[\"scale\"] == 1.0"
-    assert (
-        (
-        math.isclose(float(metadata["seam_allowance_mm"]), EXPECTED_SEAM_ALLOWANCE_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
-    ), "Export contract failed: metadata[\"seam_allowance_mm\"] == 5.0"
-    assert (
-        (metadata["page_count"] == 1)
-    ), "Export contract failed: metadata[\"page_count\"] == 1"
+    assert result["valid"] is True, 'Export contract failed: result["valid"] is True'
+    assert payload.startswith(b"%PDF-1.4"), (
+        'Export contract failed: payload.startswith(b"%PDF-1.4")'
+    )
+    assert metadata["piece_id"] == "piece-front", (
+        'Export contract failed: metadata["piece_id"] == "piece-front"'
+    )
+    assert math.isclose(
+        float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
+    ), 'Export contract failed: metadata["scale"] == 1.0'
+    assert math.isclose(
+        float(metadata["seam_allowance_mm"]),
+        EXPECTED_SEAM_ALLOWANCE_MM,
+        rel_tol=0.0,
+        abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+    ), 'Export contract failed: metadata["seam_allowance_mm"] == 5.0'
+    assert metadata["page_count"] == 1, 'Export contract failed: metadata["page_count"] == 1'
 
 
 def test_export_rejects_units_that_would_relabel_without_conversion() -> None:
@@ -830,12 +782,10 @@ def test_export_rejects_units_that_would_relabel_without_conversion() -> None:
 def test_dxf_declares_millimetres_in_standard_header() -> None:
     """Verify that dxf declares millimetres in standard header."""
     dxf = to_dxf(_curved_pattern())
-    assert (
-        ("$INSUNITS\n70\n4\n" in dxf)
-    ), "Export contract failed: \"$INSUNITS\\n70\\n4\\n\" in dxf"
-    assert (
-        (from_dxf_metadata(dxf)["units"] == "mm")
-    ), "Export contract failed: from_dxf_metadata(dxf)[\"units\"] == \"mm\""
+    assert "$INSUNITS\n70\n4\n" in dxf, 'Export contract failed: "$INSUNITS\\n70\\n4\\n" in dxf'
+    assert from_dxf_metadata(dxf)["units"] == "mm", (
+        'Export contract failed: from_dxf_metadata(dxf)["units"] == "mm"'
+    )
 
 
 def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
@@ -843,36 +793,27 @@ def test_cut_perimeter_is_closed_and_has_expected_allowance_extent() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0)
     contour = derived.cut_contour
-    assert (
-        (len(contour) >= MINIMUM_CUT_CONTOUR_POINTS)
-    ), "Export contract failed: len(contour) >= MINIMUM_CUT_CONTOUR_POINTS"
+    assert len(contour) >= MINIMUM_CUT_CONTOUR_POINTS, (
+        "Export contract failed: len(contour) >= MINIMUM_CUT_CONTOUR_POINTS"
+    )
     xs = [point[0] for point in contour]
     ys = [point[1] for point in contour]
-    assert (
-        (
-        math.isclose(max(xs) - min(xs), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
+    assert math.isclose(
+        max(xs) - min(xs), EXPECTED_CUT_WIDTH_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE
     ), "Cut-contour width must match the expected cut size."
-    assert (
-        (
-        math.isclose(max(ys) - min(ys), EXPECTED_CUT_HEIGHT_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-        )
+    assert math.isclose(
+        max(ys) - min(ys),
+        EXPECTED_CUT_HEIGHT_MM,
+        rel_tol=0.0,
+        abs_tol=EXPECTED_COORDINATE_TOLERANCE,
     ), "Cut-contour height must match the expected cut size."
-    assert (
-        (
-        all(
+    assert all(
         contour[index] != contour[(index + 1) % len(contour)] for index in range(len(contour))
-        )
-        )
     ), "Export contract failed: all( contour[index] != contour[(index + 1) % "
     dxf = to_dxf(pattern, derived=derived)
-    assert (
-        ("8\nCUT\n" in dxf)
-    ), "Export contract failed: \"8\\nCUT\\n\" in dxf"
+    assert "8\nCUT\n" in dxf, 'Export contract failed: "8\\nCUT\\n" in dxf'
     cut_section = dxf.split("8\nCUT\n", 1)[1].split("0\nENDSEC", 1)[0]
-    assert (
-        ("70\n1\n" in cut_section)
-    ), "Export contract failed: \"70\\n1\\n\" in cut_section"
+    assert "70\n1\n" in cut_section, 'Export contract failed: "70\\n1\\n" in cut_section'
 
 
 def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: Path) -> None:
@@ -881,8 +822,10 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -894,6 +837,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
 
     class Seam:
         """Persisted seam double used to verify export validation."""
+
         SeamId = "front-back"
         PieceA = "piece-front"
         PieceB = "piece-back"
@@ -914,47 +858,45 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
         second = tmp_path / (f"front-second.{fmt}")
         first_result = export_pattern_piece(piece, first, fmt, curve_samples=16)
         export_pattern_piece(piece, second, fmt, curve_samples=16)
-        assert (
-            (first.read_bytes() == second.read_bytes())
-        ), "Export contract failed: first.read_bytes() == second.read_bytes()"
-        assert (
-            (first_result["valid"] is True)
-        ), "Export contract failed: first_result[\"valid\"] is True"
+        assert first.read_bytes() == second.read_bytes(), (
+            "Export contract failed: first.read_bytes() == second.read_bytes()"
+        )
+        assert first_result["valid"] is True, (
+            'Export contract failed: first_result["valid"] is True'
+        )
         if fmt == "pdf":
             metadata = from_pdf_metadata(first.read_bytes())
         elif fmt == "svg":
             metadata = from_svg_metadata(first.read_text(encoding="utf-8"))
         else:
             metadata = from_dxf_metadata(first.read_text(encoding="utf-8"))
-        assert (
-            (metadata["piece_id"] == "piece-front")
-        ), "Export contract failed: metadata[\"piece_id\"] == \"piece-front\""
-        assert (
-            (metadata["seam_ids"] == ["front-back"])
-        ), "Export contract failed: metadata[\"seam_ids\"] == [\"front-back\"]"
-        assert (
-            (
-            math.isclose(float(metadata["scale"]), EXPECTED_SCALE, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-            )
-        ), "Export contract failed: metadata[\"scale\"] == 1.0"
-        assert (
-            (
-            math.isclose(float(metadata["seam_allowance_mm"]), EXPECTED_SEAM_ALLOWANCE_MM, rel_tol=0.0, abs_tol=EXPECTED_COORDINATE_TOLERANCE)
-            )
-        ), "Export contract failed: metadata[\"seam_allowance_mm\"] == 5.0"
-        assert (
-            (metadata["mark_ids"] == ["piece-front:grainline"])
-        ), "Export contract failed: metadata[\"mark_ids\"] == [\"piece-front:grainli"
+        assert metadata["piece_id"] == "piece-front", (
+            'Export contract failed: metadata["piece_id"] == "piece-front"'
+        )
+        assert metadata["seam_ids"] == ["front-back"], (
+            'Export contract failed: metadata["seam_ids"] == ["front-back"]'
+        )
+        assert math.isclose(
+            float(metadata["scale"]),
+            EXPECTED_SCALE,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        ), 'Export contract failed: metadata["scale"] == 1.0'
+        assert math.isclose(
+            float(metadata["seam_allowance_mm"]),
+            EXPECTED_SEAM_ALLOWANCE_MM,
+            rel_tol=0.0,
+            abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+        ), 'Export contract failed: metadata["seam_allowance_mm"] == 5.0'
+        assert metadata["mark_ids"] == ["piece-front:grainline"], (
+            'Export contract failed: metadata["mark_ids"] == ["piece-front:grainli'
+        )
 
-    assert (
-        (
-        before == (
+    assert before == (
         piece.Label,
         piece.SeamAllowance,
         piece.GrainlineAngle,
         piece.Sketch.SemanticEdgeIds,
-        )
-        )
     ), "Export contract failed: before == ( piece.Label, piece.SeamAllowance,"
 
 
@@ -964,8 +906,10 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -977,6 +921,7 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
 
     class Seam:
         """Persisted seam double used to verify export validation."""
+
         SeamId = "front-back"
         PieceA = "piece-front"
         PieceB = "piece-back"
@@ -996,16 +941,10 @@ def test_export_boundary_is_closed_and_continuous() -> None:
     """Verify SVG and DXF export a closed, continuous boundary."""
     pattern = _curved_pattern()
     svg = to_svg(pattern, curve_samples=24)
-    assert (
-        ('<path d="' in svg)
-    ), "Export contract failed: '<path d=\"' in svg"
-    assert (
-        (' Z"' in svg)
-    ), "Export contract failed: ' Z\"' in svg"
+    assert '<path d="' in svg, "Export contract failed: '<path d=\"' in svg"
+    assert ' Z"' in svg, "Export contract failed: ' Z\"' in svg"
     dxf = to_dxf(pattern, curve_samples=24)
-    assert (
-        ("\n70\n1\n" in dxf)
-    ), "Export contract failed: \"\\n70\\n1\\n\" in dxf"
+    assert "\n70\n1\n" in dxf, 'Export contract failed: "\\n70\\n1\\n" in dxf'
 
 
 def test_export_rejects_disconnected_boundary_segments() -> None:
@@ -1027,8 +966,10 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -1077,65 +1018,63 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
         raw_payload = output.read_bytes()
         if fmt == "pdf":
             metadata = from_pdf_metadata(raw_payload)
-            assert (
-                (metadata["piece_id"] == "piece-front")
-            ), "Export contract failed: metadata[\"piece_id\"] == \"piece-front\""
-            assert (
-                (metadata["notch_ids"] == ["notch-front"])
-            ), "Export contract failed: metadata[\"notch_ids\"] == [\"notch-front\"]"
-            assert (
-                (metadata["mark_ids"] == ["grain-front", "mark-front"])
-            ), "Export metadata must preserve grainline and internal mark IDs."
-            assert (
-                (b"25 mm CALIBRATION SQUARE" in raw_payload)
-            ), "Export contract failed: b\"25 mm CALIBRATION SQUARE\" in raw_payload"
+            assert metadata["piece_id"] == "piece-front", (
+                'Export contract failed: metadata["piece_id"] == "piece-front"'
+            )
+            assert metadata["notch_ids"] == ["notch-front"], (
+                'Export contract failed: metadata["notch_ids"] == ["notch-front"]'
+            )
+            assert metadata["mark_ids"] == ["grain-front", "mark-front"], (
+                "Export metadata must preserve grainline and internal mark IDs."
+            )
+            assert b"25 mm CALIBRATION SQUARE" in raw_payload, (
+                'Export contract failed: b"25 mm CALIBRATION SQUARE" in raw_payload'
+            )
             continue
         payload = raw_payload.decode("utf-8")
         metadata = from_svg_metadata(payload) if fmt == "svg" else from_dxf_metadata(payload)
-        assert (
-            (metadata["piece_id"] == "piece-front")
-        ), "Export contract failed: metadata[\"piece_id\"] == \"piece-front\""
-        assert (
-            (metadata["notch_ids"] == ["notch-front"])
-        ), "Export contract failed: metadata[\"notch_ids\"] == [\"notch-front\"]"
-        assert (
-            (metadata["mark_ids"] == ["grain-front", "mark-front"])
-        ), "Export contract failed: metadata[\"mark_ids\"] == [\"grain-front\", \"mark"
+        assert metadata["piece_id"] == "piece-front", (
+            'Export contract failed: metadata["piece_id"] == "piece-front"'
+        )
+        assert metadata["notch_ids"] == ["notch-front"], (
+            'Export contract failed: metadata["notch_ids"] == ["notch-front"]'
+        )
+        assert metadata["mark_ids"] == ["grain-front", "mark-front"], (
+            'Export contract failed: metadata["mark_ids"] == ["grain-front", "mark'
+        )
 
         if fmt == "svg":
-            assert (
-                ('data-notch-ids="notch-front"' in payload)
-            ), "Export contract failed: 'data-notch-ids=\"notch-front\"' in payload"
-            assert (
-                ('id="mark-grain-front"' in payload)
-            ), "Export contract failed: 'id=\"mark-grain-front\"' in payload"
-            assert (
-                ('id="mark-mark-front"' in payload)
-            ), "Export contract failed: 'id=\"mark-mark-front\"' in payload"
-            assert (
-                ("55.000000,67.000000" in payload)
-            ), "Export contract failed: \"55.000000,67.000000\" in payload"
-            assert (
-                ('cx="55.000000" cy="65.000000"' not in payload)
-            ), "Export contract failed: 'cx=\"55.000000\" cy=\"65.000000\"' not in payloa"
-            assert (
-                (
-                'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload
-                )
-            ), "SVG must preserve the authored grainline endpoints."
+            assert 'data-notch-ids="notch-front"' in payload, (
+                "Export contract failed: 'data-notch-ids=\"notch-front\"' in payload"
+            )
+            assert 'id="mark-grain-front"' in payload, (
+                "Export contract failed: 'id=\"mark-grain-front\"' in payload"
+            )
+            assert 'id="mark-mark-front"' in payload, (
+                "Export contract failed: 'id=\"mark-mark-front\"' in payload"
+            )
+            assert "55.000000,67.000000" in payload, (
+                'Export contract failed: "55.000000,67.000000" in payload'
+            )
+            assert 'cx="55.000000" cy="65.000000"' not in payload, (
+                'Export contract failed: \'cx="55.000000" cy="65.000000"\' not in payloa'
+            )
+            assert 'x1="35.000000" y1="65.000000" x2="75.000000" y2="65.000000"' in payload, (
+                "SVG must preserve the authored grainline endpoints."
+            )
         else:
-            assert (
-                ('"notch_ids":["notch-front"]' in payload)
-            ), "Export contract failed: '\"notch_ids\":[\"notch-front\"]' in payload"
-            assert (
-                ('"mark_ids":["grain-front","mark-front"]' in payload)
-            ), "SVG metadata must retain both persisted mark identifiers."
-            assert (
-                ("10\n50.000000\n20\n-2.000000" in payload)
-            ), "Export contract failed: \"10\\n50.000000\\n20\\n-2.000000\" in payload"
-            assert (
-                ("10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload)
-            ), "DXF export must preserve the expected entity coordinates."
+            assert '"notch_ids":["notch-front"]' in payload, (
+                'Export contract failed: \'"notch_ids":["notch-front"]\' in payload'
+            )
+            assert '"mark_ids":["grain-front","mark-front"]' in payload, (
+                "SVG metadata must retain both persisted mark identifiers."
+            )
+            assert "10\n50.000000\n20\n-2.000000" in payload, (
+                'Export contract failed: "10\\n50.000000\\n20\\n-2.000000" in payload'
+            )
+            assert "10\n30.000000\n20\n0.000000\n10\n70.000000\n20\n0.000000" in payload, (
+                "DXF export must preserve the expected entity coordinates."
+            )
 
 
 def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path) -> None:
@@ -1144,8 +1083,10 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
     Args:
         tmp_path: Temporary directory used for generated export artifacts.
     """
+
     class Piece:
         """Minimal FreeCAD pattern-piece double used by export tests."""
+
         PatternType = "PatternPiece"
         Name = "Front"
         Label = "Front"
@@ -1179,6 +1120,4 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
     output = tmp_path / "blocked.svg"
     with pytest.raises(ValueError, match="references missing edge"):
         export_pattern_piece(piece, output, "svg")
-    assert (
-        (not output.exists())
-    ), "Export contract failed: not output.exists()"
+    assert not output.exists(), "Export contract failed: not output.exists()"

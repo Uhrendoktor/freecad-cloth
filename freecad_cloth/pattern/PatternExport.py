@@ -22,7 +22,6 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
     notch_point,
 )
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment,
     ParametricPattern,
     Point,
     PolylineSegment,

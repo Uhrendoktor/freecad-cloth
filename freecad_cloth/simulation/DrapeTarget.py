@@ -257,7 +257,7 @@ def create_drape_target(
     if source is None and target_type != "Mannequin":
         msg = "a FreeCAD Geometry target requires a source object"
         raise ValueError(msg)
-    add_object = cast("Callable[[str, str], object]", getattr(doc, "addObject"))
+    add_object = cast("Callable[[str, str], object]", doc.addObject)
     target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
     for type_name, name, group in (

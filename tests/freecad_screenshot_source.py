@@ -1285,7 +1285,7 @@ def _make_tunic_sketch(
 
     sketch = cast(
         "_NativeSketch",
-        getattr(doc, "addObject")("Sketcher::SketchObject", name + "Sketch"),
+        doc.addObject("Sketcher::SketchObject", name + "Sketch"),
     )
     neck_z = (1.0 - float(neckline_drop)) * garment_height
     x_offset = 0.5 * (float(hem_width) - float(panel_width))
@@ -1357,15 +1357,13 @@ def _make_tunic_sketch(
         else:
             geometry.append(Part.LineSegment(start_vector, end_vector))
 
-    getattr(sketch, "addGeometry")(geometry, False)
+    sketch.addGeometry(geometry, False)
     # This fixture authors every segment explicitly; preserve each segment's
     # coordinates so an underconstrained Sketcher solve cannot fold the straight
     # shoulders/sides/hem across the outline while retaining the two fixed arcs.
     # Shared endpoints are authored from the same point tuples, so no coincidence
     # solver movement is needed to close this deterministic test profile.
-    getattr(sketch, "addConstraint")(
-        [Sketcher.Constraint("Block", index) for index in range(len(geometry))]
-    )
+    sketch.addConstraint([Sketcher.Constraint("Block", index) for index in range(len(geometry))])
     cast("_RecomputableDocument", doc).recompute()
     for index in (2, 6):
         curve = sketch.Geometry[index]

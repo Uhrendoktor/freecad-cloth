@@ -9,8 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
-from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
 from freecad_cloth.gui import ClothWorkbenchBase
+from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
 
 
 class ClothSimulationWorkbench(ClothWorkbenchBase):

@@ -37,12 +37,10 @@ def test_mesh_signature_tracks_vector_coordinates_and_is_deterministic() -> None
     moved_coordinates = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 2.0, 0.0))
     moved = source_signature(_mesh_target(moved_coordinates))
 
-    assert (
-        original == repeat
-    ), "Identical mesh vertices and triangles must produce a stable signature."
-    assert (
-        original != moved
-    ), "A changed vector coordinate must invalidate the source signature."
+    assert original == repeat, (
+        "Identical mesh vertices and triangles must produce a stable signature."
+    )
+    assert original != moved, "A changed vector coordinate must invalidate the source signature."
 
 
 def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None:
@@ -69,6 +67,6 @@ def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None
     geometry = cast("tuple[object, ...]", signature[1])
     shape_content = cast("tuple[object, ...]", geometry[-1])
 
-    assert (
-        shape_content[0] == "TessellatedShape"
-    ), "Invalid BRep output must fall back to the tessellated geometry signature."
+    assert shape_content[0] == "TessellatedShape", (
+        "Invalid BRep output must fall back to the tessellated geometry signature."
+    )

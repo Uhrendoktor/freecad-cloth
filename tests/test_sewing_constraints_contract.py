@@ -73,22 +73,22 @@ def test_sewing_constraints_resolve_integer_and_stable_edge_references(
         SewingPatternMesh(pattern_a, mesh_a), SewingPatternMesh(pattern_b, mesh_b), seam
     )
 
-    assert (
-        expected_key in constraints.seam_map
-    ), "The seam map must preserve the canonical edge references."
-    assert (
-        bool(constraints.stitches)
-    ), "Valid corresponding seam edges must produce stitch constraints."
+    assert expected_key in constraints.seam_map, (
+        "The seam map must preserve the canonical edge references."
+    )
+    assert bool(constraints.stitches), (
+        "Valid corresponding seam edges must produce stitch constraints."
+    )
     segment_id_a = edge_a if isinstance(edge_a, str) else pattern_a.segments[edge_a].id
     segment_id_b = edge_b if isinstance(edge_b, str) else pattern_b.segments[edge_b].id
     vertices_a = _vertices_on_segment(mesh_a, segment_id_a)
     vertices_b = _vertices_on_segment(mesh_b, segment_id_b)
-    assert (
-        all(stitch.vertex_a in vertices_a for stitch in constraints.stitches)
-    ), "Every first-side stitch vertex must belong to the selected seam segment."
-    assert (
-        all(stitch.vertex_b in vertices_b for stitch in constraints.stitches)
-    ), "Every second-side stitch vertex must belong to the selected seam segment."
+    assert all(stitch.vertex_a in vertices_a for stitch in constraints.stitches), (
+        "Every first-side stitch vertex must belong to the selected seam segment."
+    )
+    assert all(stitch.vertex_b in vertices_b for stitch in constraints.stitches), (
+        "Every second-side stitch vertex must belong to the selected seam segment."
+    )
 
 
 def test_sewing_constraints_reject_unknown_stable_segment_identifier() -> None:

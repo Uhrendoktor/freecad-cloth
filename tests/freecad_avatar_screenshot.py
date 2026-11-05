@@ -24,7 +24,6 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 from tests.support.freecad_input import wait_for_gui_ready
 
-
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")

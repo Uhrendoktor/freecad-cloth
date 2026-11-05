@@ -6,17 +6,17 @@ from __future__ import annotations
 import base64
 import json
 from math import ceil, cos, isfinite, radians, sin
+from typing import TYPE_CHECKING
 
 import numpy as np
 from pydantic.dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
     _metadata,
-    _validate_metadata,
     _sampled_sewing,
+    _validate_metadata,
     _validate_units,
 )
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, Point

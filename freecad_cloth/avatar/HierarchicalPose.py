@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 
 import numpy as np
-from collections.abc import Callable
 
 from freecad_cloth.avatar.AnnyAvatarBackend import (
     build_avatar_rig_vertices,
@@ -26,7 +26,6 @@ from freecad_cloth.avatar.HumanoidMesh import (
     load_makehuman_skeleton,
     load_makehuman_weights,
 )
-from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 from freecad_cloth.avatar.SkeletonPose import (
     AffineTransform,
     JointRotation,
@@ -34,6 +33,7 @@ from freecad_cloth.avatar.SkeletonPose import (
     build_bone_transforms,
     joint_rotation_map,
 )
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 
 Point = tuple[float, float, float]
 Mapper = Callable[[Point], Point]

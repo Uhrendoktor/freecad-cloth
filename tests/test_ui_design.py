@@ -14,7 +14,6 @@ from freecad_cloth.common.UiDesign import (
 )
 
 
-
 class _QtMethodAdapter:
     """Resolve selected Qt camelCase calls to snake_case test-double methods."""
 
@@ -406,21 +405,17 @@ def test_set_status_sets_text_semantic_state_and_wrap() -> None:
 
     status_setter(label, "Select two edges, then Preview.", state="warning")
 
-    assert (
-        (label.text == "Select two edges, then Preview.")
-    ), "Status text should match the user-facing message."
-    assert (
-        (label.wrap is True)
-    ), "Status text should be configured to wrap."
-    assert (
-        (label.properties == {"clothRole": "status", "clothState": "warning"})
-    ), "Status role and semantic state should be assigned."
-    assert (
-        ([event[0] for event in label.style_events] == ["unpolish", "polish"])
-    ), "The UI design helper did not preserve the expected contract."
-    assert (
-        (label.events == ["update"])
-    ), "Status updates should request a repaint."
+    assert label.text == "Select two edges, then Preview.", (
+        "Status text should match the user-facing message."
+    )
+    assert label.wrap is True, "Status text should be configured to wrap."
+    assert label.properties == {"clothRole": "status", "clothState": "warning"}, (
+        "Status role and semantic state should be assigned."
+    )
+    assert [event[0] for event in label.style_events] == ["unpolish", "polish"], (
+        "The UI design helper did not preserve the expected contract."
+    )
+    assert label.events == ["update"], "Status updates should request a repaint."
 
 
 def test_set_status_falls_back_to_info_for_unknown_states() -> None:
@@ -430,9 +425,9 @@ def test_set_status_falls_back_to_info_for_unknown_states() -> None:
 
     status_setter(label, "Ready", state="unexpected")
 
-    assert (
-        (label.properties["clothState"] == "info")
-    ), "Unknown status values should use the informational state."
+    assert label.properties["clothState"] == "info", (
+        "Unknown status values should use the informational state."
+    )
 
 
 def test_mark_button_assigns_role_and_refreshes_style() -> None:
@@ -441,12 +436,12 @@ def test_mark_button_assigns_role_and_refreshes_style() -> None:
     button = _Button()
     cast("Callable[..., None]", mark_button)(button, "primary")
 
-    assert (
-        (button.properties["clothEmphasis"] == "primary")
-    ), "The button should be assigned the requested emphasis role."
-    assert (
-        ([event[0] for event in button.style_events] == ["unpolish", "polish"])
-    ), "The UI design helper did not preserve the expected contract."
+    assert button.properties["clothEmphasis"] == "primary", (
+        "The button should be assigned the requested emphasis role."
+    )
+    assert [event[0] for event in button.style_events] == ["unpolish", "polish"], (
+        "The UI design helper did not preserve the expected contract."
+    )
 
 
 def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
@@ -455,21 +450,19 @@ def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     panel = _Panel()
     cast("Callable[..., None]", apply_panel_style)(panel, layout_type=_QtLayout)
 
-    assert (
-        (panel.stylesheet == PANEL_STYLE)
-    ), "The panel should receive the canonical stylesheet."
-    assert (
-        (panel.outer_layout.margins == (8, 8, 8, 8))
-    ), "The outer layout should use canonical margins."
-    assert (
-        (panel.outer_layout.spacing == EXPECTED_LAYOUT_SPACING)
-    ), "The outer layout should use canonical spacing."
-    assert (
-        (panel.requested_child_type is _QtLayout)
-    ), "Nested layout lookup should use the supplied Qt layout type."
-    assert (
-        (panel.nested_layouts[0].spacing == EXPECTED_LAYOUT_SPACING)
-    ), "Nested layouts should use canonical spacing."
+    assert panel.stylesheet == PANEL_STYLE, "The panel should receive the canonical stylesheet."
+    assert panel.outer_layout.margins == (8, 8, 8, 8), (
+        "The outer layout should use canonical margins."
+    )
+    assert panel.outer_layout.spacing == EXPECTED_LAYOUT_SPACING, (
+        "The outer layout should use canonical spacing."
+    )
+    assert panel.requested_child_type is _QtLayout, (
+        "Nested layout lookup should use the supplied Qt layout type."
+    )
+    assert panel.nested_layouts[0].spacing == EXPECTED_LAYOUT_SPACING, (
+        "Nested layouts should use canonical spacing."
+    )
 
 
 def test_make_disclosure_toggles_content_and_arrow() -> None:
@@ -500,40 +493,26 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     wrapper = cast("_DisclosureWidget", wrapper_value)
     toggle = cast("_ToolButton", toggle_value)
 
-    assert (
-        isinstance(wrapper, _DisclosureWidget)
-    ), "The disclosure wrapper should be a widget."
-    assert (
-        toggle.text == "Advanced settings"
-    ), "The disclosure should expose its requested caption."
-    assert (
-        toggle.checkable is True
-    ), "The disclosure toggle should be checkable."
-    assert (
-        toggle.checked is False
-    ), "The disclosure toggle should start collapsed."
-    assert (
-        toggle.arrow == "right"
-    ), "The disclosure arrow should reflect its expanded or collapsed state."
-    assert (
-        content.visible is False
-    ), "Disclosure content visibility should follow toggle state."
-    assert (
-        toggle.tooltip == "Show or hide optional advanced settings."
-    ), "The disclosure should provide the expected tooltip."
+    assert isinstance(wrapper, _DisclosureWidget), "The disclosure wrapper should be a widget."
+    assert toggle.text == "Advanced settings", "The disclosure should expose its requested caption."
+    assert toggle.checkable is True, "The disclosure toggle should be checkable."
+    assert toggle.checked is False, "The disclosure toggle should start collapsed."
+    assert toggle.arrow == "right", (
+        "The disclosure arrow should reflect its expanded or collapsed state."
+    )
+    assert content.visible is False, "Disclosure content visibility should follow toggle state."
+    assert toggle.tooltip == "Show or hide optional advanced settings.", (
+        "The disclosure should provide the expected tooltip."
+    )
 
     toggle.set_checked(True)
-    assert (
-        content.visible is True
-    ), "Disclosure content visibility should follow toggle state."
-    assert (
-        toggle.arrow == "down"
-    ), "The disclosure arrow should reflect its expanded or collapsed state."
+    assert content.visible is True, "Disclosure content visibility should follow toggle state."
+    assert toggle.arrow == "down", (
+        "The disclosure arrow should reflect its expanded or collapsed state."
+    )
 
     toggle.set_checked(False)
-    assert (
-        content.visible is False
-    ), "Disclosure content visibility should follow toggle state."
-    assert (
-        toggle.arrow == "right"
-    ), "The disclosure arrow should reflect its expanded or collapsed state."
+    assert content.visible is False, "Disclosure content visibility should follow toggle state."
+    assert toggle.arrow == "right", (
+        "The disclosure arrow should reflect its expanded or collapsed state."
+    )

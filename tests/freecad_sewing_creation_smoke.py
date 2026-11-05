@@ -32,6 +32,8 @@ from tests.support.freecad_input import (
     _qt_modules,
     click_widget,
     focus_main_window,
+)
+from tests.support.freecad_input import (
     wait_for_task_dialog_close as wait_for_task_dialog_close_common,
 )
 

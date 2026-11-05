@@ -6,9 +6,8 @@ from __future__ import annotations
 import math
 from typing import cast
 
-from pydantic import ValidationError
-
 import pytest
+from pydantic import ValidationError
 
 from freecad_cloth.common.MeshValidation import nearest_target_clearance, validate_mesh
 from freecad_cloth.common.ValidationModels import (
@@ -52,12 +51,10 @@ def test_mesh_schema_normalizes_coordinates_but_keeps_indices_exact() -> None:
     mesh = MeshArrays.model_validate(
         {"vertices": [[0, 0, 0], [1, 0, 0], [0, 1, 0]], "triangles": [[0, 1, 2]]}
     )
-    assert (
-        mesh.vertices == ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
-    ), "Mesh schema did not normalize vertex coordinates."
-    assert (
-        mesh.triangles == ((0, 1, 2),)
-    ), "Mesh schema changed exact face indices."
+    assert mesh.vertices == ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)), (
+        "Mesh schema did not normalize vertex coordinates."
+    )
+    assert mesh.triangles == ((0, 1, 2),), "Mesh schema changed exact face indices."
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf, "1.0", True])
@@ -152,13 +149,11 @@ def test_correspondence_schema_keeps_range_status_separate_from_numeric_validity
     with pytest.raises(ValidationError):
         CorrespondenceAnalysisInput(length_a=math.nan, length_b=10.0)
     data = CorrespondenceAnalysisInput(length_a=10.0, length_b=10.0, start_a=0.8, end_a=0.2)
-    assert (
-        (data.start_a, data.end_a) == (0.8, 0.2)
-    ), "Schema normalization changed the invalid seam range."
+    assert (data.start_a, data.end_a) == (0.8, 0.2), (
+        "Schema normalization changed the invalid seam range."
+    )
     report = analyze_correspondence(10.0, 10.0, start_a=0.8, end_a=0.2)
-    assert (
-        report.status == "invalid_range"
-    ), "Invalid seam ranges were not classified separately."
+    assert report.status == "invalid_range", "Invalid seam ranges were not classified separately."
 
 
 def test_seam_parameter_sampling_rejects_invalid_options() -> None:
@@ -197,10 +192,11 @@ def test_pattern_geometry_rejects_nonfinite_coordinates_and_dimensions() -> None
 
 def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     """Require matching three-dimensional points for clearance calculations."""
-    assert (
-        nearest_target_clearance(((0.0, 0.0, EXPECTED_CLEARANCE_MM),), ((0.0, 0.0, 0.0),))
-        == pytest.approx(EXPECTED_CLEARANCE_MM)
-    ), "Vertex clearance is not calculated in three dimensions."
+    assert nearest_target_clearance(
+        ((0.0, 0.0, EXPECTED_CLEARANCE_MM),), ((0.0, 0.0, 0.0),)
+    ) == pytest.approx(EXPECTED_CLEARANCE_MM), (
+        "Vertex clearance is not calculated in three dimensions."
+    )
     with pytest.raises(ValueError, match="3 items"):
         nearest_target_clearance(
             cast("tuple[tuple[float, float, float], ...]", ((0.0, 0.0),)),
@@ -218,9 +214,9 @@ def test_fallback_components_do_not_merge_faces_touching_at_only_one_vertex() ->
         (0.0, -1.0, 0.0),
     )
     result = validate_mesh(vertices, ((0, 1, 2), (0, 3, 4)), prefer_trimesh=False)
-    assert (
-        result.components == EXPECTED_DISCONNECTED_COMPONENTS
-    ), "Faces that only share a vertex were merged into one component."
+    assert result.components == EXPECTED_DISCONNECTED_COMPONENTS, (
+        "Faces that only share a vertex were merged into one component."
+    )
 
 
 def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
@@ -237,13 +233,9 @@ def test_triangle_mesh_rejects_out_of_range_boundary_indices() -> None:
 def test_interpolation_avoids_overflow_for_finite_opposite_extremes() -> None:
     """Interpolate opposite large finite endpoints without overflowing intermediate values."""
     line = LineSegment("extreme-line", (-1e308, 0.0), (1e308, 0.0))
-    assert (
-        line.point(0.5) == (0.0, 0.0)
-    ), "Line interpolation overflowed."
+    assert line.point(0.5) == (0.0, 0.0), "Line interpolation overflowed."
     curve = QuadraticBezier("extreme-bezier", (-1e308, 0.0), (1e308, 0.0), (-1e308, 0.0))
-    assert (
-        curve.point(0.5) == (0.0, 0.0)
-    ), "Bezier interpolation overflowed."
+    assert curve.point(0.5) == (0.0, 0.0), "Bezier interpolation overflowed."
 
 
 def test_computed_polygon_area_overflow_fails_closed() -> None:
@@ -338,16 +330,15 @@ def test_transform_rejects_nonfinite_matrix_and_overflowing_result() -> None:
 def test_polyline_interpolation_avoids_overflow_for_large_same_sign_points() -> None:
     """Preserve accurate interpolation for large same-sign coordinates."""
     segment = PolylineSegment("extreme-polyline", ((1e308, 0.0), (1.1e308, 0.0)))
-    assert (
-        segment.point(0.5) == pytest.approx((1.05e308, 0.0))
-    ), "Large finite polyline interpolation lost precision."
+    assert segment.point(0.5) == pytest.approx((1.05e308, 0.0)), (
+        "Large finite polyline interpolation lost precision."
+    )
 
 
 def test_png_options_validate_dimensions_and_thresholds() -> None:
     """Accept valid PNG dimensions and reject invalid capture thresholds."""
     assert (
-        PngCaptureOptions(expected_width=EXPECTED_PNG_WIDTH).expected_width
-        == EXPECTED_PNG_WIDTH
+        PngCaptureOptions(expected_width=EXPECTED_PNG_WIDTH).expected_width == EXPECTED_PNG_WIDTH
     ), "PNG capture width was not preserved."
     assert (
         PngCaptureOptions(expected_height=EXPECTED_PNG_HEIGHT).expected_height

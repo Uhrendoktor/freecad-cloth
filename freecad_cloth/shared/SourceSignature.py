@@ -13,7 +13,6 @@ import json
 from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol, cast
 
-
 POINT_COORDINATE_COUNT = 3
 TESSELLATION_COMPONENT_COUNT = 2
 

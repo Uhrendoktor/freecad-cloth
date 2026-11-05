@@ -7,7 +7,6 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from importlib import import_module
 from typing import Protocol, SupportsFloat, SupportsInt, cast
 
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
@@ -234,7 +233,7 @@ def _ensure_anchor_property(scene: object) -> None:
     add_property = getattr(scene, "addProperty", None)
     if callable(add_property):
         add_property("App::PropertyStringList", "ArrangementAnchorData", "Arrangement")
-        setattr(scene, "ArrangementAnchorData", [])
+        scene.ArrangementAnchorData = []
 
 
 def _anchor_records(scene: object) -> dict[str, dict[str, object]]:
@@ -272,14 +271,10 @@ def _store_anchor_records(
         records: Anchor records indexed by arrangement-point name.
     """
     _ensure_anchor_property(scene)
-    setattr(
-        scene,
-        "ArrangementAnchorData",
-        [
-            json.dumps(dict(records[name]), sort_keys=True, separators=(",", ":"))
-            for name in sorted(records)
-        ],
-    )
+    scene.ArrangementAnchorData = [
+        json.dumps(dict(records[name]), sort_keys=True, separators=(",", ":"))
+        for name in sorted(records)
+    ]
 
 
 def _point_xyz(point: object) -> Point3:
@@ -296,9 +291,9 @@ def _point_xyz(point: object) -> Point3:
         return cast("Point3", tuple(float(value) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
         return (
-            float(getattr(point, "x")),
-            float(getattr(point, "y")),
-            float(getattr(point, "z")),
+            float(point.x),
+            float(point.y),
+            float(point.z),
         )
 
 
@@ -340,9 +335,9 @@ def _points_in_local_space(
         if host_module is None:
             msg = "FreeCAD must be loaded when converting placed mesh coordinates"
             raise ImportError(msg)
-        make_vector = cast("Callable[..., object]", getattr(host_module, "Vector"))
-    inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
-    transform = cast("Callable[[object], object]", getattr(inverse, "multVec"))
+        make_vector = cast("Callable[..., object]", host_module.Vector)
+    inverse = cast("Callable[[], object]", placement.inverse)()
+    transform = cast("Callable[[object], object]", inverse.multVec)
     return tuple(_point_xyz(transform(make_vector(*point))) for point in points)
 
 
@@ -495,13 +490,13 @@ def _normalized_shape_copy(target: object, shape: object) -> object:
         ValueError: If the copy cannot be normalized or the resulting shape is null.
     """
     try:
-        normalized = cast("Callable[[], object]", getattr(shape, "copy"))()
+        normalized = cast("Callable[[], object]", shape.copy)()
         placement = getattr(target, "Placement", None)
         if placement is not None:
-            inverse = cast("Callable[[], object]", getattr(placement, "inverse"))()
-            matrix = cast("Callable[[], object]", getattr(inverse, "toMatrix"))()
-            cast("Callable[[object], object]", getattr(normalized, "transformShape"))(matrix)
-        if bool(cast("Callable[[], object]", getattr(normalized, "isNull"))()):
+            inverse = cast("Callable[[], object]", placement.inverse)()
+            matrix = cast("Callable[[], object]", inverse.toMatrix)()
+            cast("Callable[[object], object]", normalized.transformShape)(matrix)
+        if bool(cast("Callable[[], object]", normalized.isNull)()):
             msg = "the selected target shape is null"
             raise ValueError(msg)
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
@@ -539,45 +534,42 @@ def _shape_signature_components(
         Sorted geometry components and the combined local-shape signature tuple.
     """
     vertices = tuple(
-        sorted(
-            _rounded_point(getattr(vertex, "Point"))
-            for vertex in cast("Sequence[object]", getattr(shape, "Vertexes"))
-        )
+        sorted(_rounded_point(vertex.Point) for vertex in cast("Sequence[object]", shape.Vertexes))
     )
     edges = tuple(
         sorted(
             (
-                _geometry_round(float(getattr(edge, "Length"))),
-                _rounded_point(getattr(edge, "CenterOfMass")),
+                _geometry_round(float(edge.Length)),
+                _rounded_point(edge.CenterOfMass),
             )
-            for edge in cast("Sequence[object]", getattr(shape, "Edges"))
+            for edge in cast("Sequence[object]", shape.Edges)
         )
     )
     faces = tuple(
         sorted(
             (
-                type(getattr(face, "Surface")).__name__,
-                _geometry_round(float(getattr(face, "Area"))),
-                _rounded_point(getattr(face, "CenterOfMass")),
-                len(tuple(cast("Sequence[object]", getattr(face, "Edges")))),
+                type(face.Surface).__name__,
+                _geometry_round(float(face.Area)),
+                _rounded_point(face.CenterOfMass),
+                len(tuple(cast("Sequence[object]", face.Edges))),
             )
-            for face in cast("Sequence[object]", getattr(shape, "Faces"))
+            for face in cast("Sequence[object]", shape.Faces)
         )
     )
-    box = getattr(shape, "BoundBox")
+    box = shape.BoundBox
     signature = (
         "ShapeLocal",
-        len(tuple(cast("Sequence[object]", getattr(shape, "Solids")))),
+        len(tuple(cast("Sequence[object]", shape.Solids))),
         len(vertices),
         vertices,
         edges,
         faces,
-        _geometry_round(float(getattr(box, "XMin"))),
-        _geometry_round(float(getattr(box, "XMax"))),
-        _geometry_round(float(getattr(box, "YMin"))),
-        _geometry_round(float(getattr(box, "YMax"))),
-        _geometry_round(float(getattr(box, "ZMin"))),
-        _geometry_round(float(getattr(box, "ZMax"))),
+        _geometry_round(float(box.XMin)),
+        _geometry_round(float(box.XMax)),
+        _geometry_round(float(box.YMin)),
+        _geometry_round(float(box.YMax)),
+        _geometry_round(float(box.ZMin)),
+        _geometry_round(float(box.ZMax)),
     )
     return vertices, edges, faces, signature
 

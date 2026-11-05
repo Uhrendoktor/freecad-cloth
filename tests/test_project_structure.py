@@ -6,9 +6,10 @@ import re
 import tomllib
 from pathlib import Path
 
+from support.assertions import require
+
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.Targets import DrapeTargetRef
-from support.assertions import require
 
 EXPECTED_SINGLE_REGISTRATION_COUNT = 1
 EXPECTED_TARGET_REVISION = 2

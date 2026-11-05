@@ -71,64 +71,38 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     block = workflow[start:end]
-    assert (
-        ("group: [core, pattern, sewing, gui, pytest]" in block)
-    ), "canonical CI contract"
-    assert (
-        "python_validation.py" in block
-    ), "canonical CI contract"
+    assert "group: [core, pattern, sewing, gui, pytest]" in block, "canonical CI contract"
+    assert "python_validation.py" in block, "canonical CI contract"
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
-    assert (
-        ('"tools.ci.pytest_collection_contract"' in runner)
-    ), "canonical CI contract"
-    assert (
-        ("CLOTH_EXPECTED_TEST_MODULES" in runner)
-    ), "canonical CI contract"
-    assert (
-        ("check_test_collection.py" not in runner)
-    ), "canonical CI contract"
-    assert (
-        ("matrix.group != 'gui'" in block)
-    ), "canonical CI contract"
-    assert (
-        ("test-args: gui" in block)
-    ), "canonical CI contract"
+    assert '"tools.ci.pytest_collection_contract"' in runner, "canonical CI contract"
+    assert "CLOTH_EXPECTED_TEST_MODULES" in runner, "canonical CI contract"
+    assert "check_test_collection.py" not in runner, "canonical CI contract"
+    assert "matrix.group != 'gui'" in block, "canonical CI contract"
+    assert "test-args: gui" in block, "canonical CI contract"
 
 
 def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
-    assert (
-        (
-        set(validate_acceptance.CASES)
-        == {
+    assert set(validate_acceptance.CASES) == {
         "avatar-pose",
         "avatar-shape-editor",
         "fitting",
         "simulation-quality",
         "surface-pen",
-        }
-        )
-    ), "canonical CI contract"
+    }, "canonical CI contract"
     assert (
-        (
         len(validate_acceptance.REQUIRED_SCREENSHOTS["simulation-quality"])
         == EXPECTED_SIMULATION_SCREENSHOTS
-        )
     ), "canonical CI contract"
+    assert len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == EXPECTED_SURFACE_PEN_FRAMES, (
+        "canonical CI contract"
+    )
     assert (
-        (
-        len(validate_acceptance.REQUIRED_FRAMES["surface-pen"]) == EXPECTED_SURFACE_PEN_FRAMES
-        )
+        len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"]) == EXPECTED_AVATAR_SHAPE_GIFS
     ), "canonical CI contract"
-    assert (
-        (
-        len(validate_acceptance.REQUIRED_GIFS["avatar-shape-editor"])
-        == EXPECTED_AVATAR_SHAPE_GIFS
-        )
-    ), "canonical CI contract"
-    assert (
-        (all(path.suffix == ".png" for path in validate_acceptance.CASES.values()))
-    ), "canonical CI contract"
+    assert all(path.suffix == ".png" for path in validate_acceptance.CASES.values()), (
+        "canonical CI contract"
+    )
 
 
 def test_simulation_evidence_publisher_uses_authenticated_checked_out_head() -> None:
@@ -140,18 +114,10 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head() -> 
     match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    assert (
-        ("publish-visual-evidence@" in publisher)
-    ), "simulation evidence contract"
-    assert (
-        ("evidence-head:" in publisher)
-    ), "simulation evidence contract"
-    assert (
-        ("source-sha:" in publisher)
-    ), "simulation evidence contract"
-    assert (
-        ("mode: pr" in publisher)
-    ), "simulation evidence contract"
+    assert "publish-visual-evidence@" in publisher, "simulation evidence contract"
+    assert "evidence-head:" in publisher, "simulation evidence contract"
+    assert "source-sha:" in publisher, "simulation evidence contract"
+    assert "mode: pr" in publisher, "simulation evidence contract"
 
 
 def test_main_visual_publisher_uses_local_visual_action_with_pinned_downloads() -> None:
@@ -167,21 +133,15 @@ def test_main_visual_publisher_uses_local_visual_action_with_pinned_downloads() 
         encoding="utf-8"
     )
 
-    assert (
-        ("uses: ./.github/actions/publish-visual-evidence" in publisher)
-    ), "visual publication contract"
-    assert (
-        ("Download Surface Pen artifacts" in action)
-    ), "visual publication contract"
-    assert (
-        ("name: surface-pen" in action)
-    ), "visual publication contract"
-    assert (
-        ("turntable-doc-assets" in action)
-    ), "visual publication contract"
-    assert (
-        (re.search(r"uses: actions/download-artifact@[0-9a-f]{40}", action) is not None)
-    ), "visual publication contract"
+    assert "uses: ./.github/actions/publish-visual-evidence" in publisher, (
+        "visual publication contract"
+    )
+    assert "Download Surface Pen artifacts" in action, "visual publication contract"
+    assert "name: surface-pen" in action, "visual publication contract"
+    assert "turntable-doc-assets" in action, "visual publication contract"
+    assert re.search(r"uses: actions/download-artifact@[0-9a-f]{40}", action) is not None, (
+        "visual publication contract"
+    )
 
 
 def test_group_collection_is_checked_during_the_execution_run() -> None:
@@ -190,24 +150,12 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     plugin = ROOT / "tools" / "ci" / "pytest_collection_contract.py"
     old_checker = ROOT / "tools" / "ci" / "check_test_collection.py"
 
-    assert (
-        (plugin.is_file())
-    ), "canonical CI contract"
-    assert (
-        (not old_checker.exists())
-    ), "canonical CI contract"
-    assert (
-        ('"-p"' in runner)
-    ), "canonical CI contract"
-    assert (
-        ('"tools.ci.pytest_collection_contract"' in runner)
-    ), "canonical CI contract"
-    assert (
-        ("CLOTH_EXPECTED_TEST_MODULES" in runner)
-    ), "canonical CI contract"
-    assert (
-        ("collection_command" not in runner)
-    ), "canonical CI contract"
+    assert plugin.is_file(), "canonical CI contract"
+    assert not old_checker.exists(), "canonical CI contract"
+    assert '"-p"' in runner, "canonical CI contract"
+    assert '"tools.ci.pytest_collection_contract"' in runner, "canonical CI contract"
+    assert "CLOTH_EXPECTED_TEST_MODULES" in runner, "canonical CI contract"
+    assert "collection_command" not in runner, "canonical CI contract"
 
 
 def _valid_realtime_benchmark_metrics() -> dict[str, object]:
@@ -270,9 +218,7 @@ def _valid_realtime_benchmark_metrics() -> dict[str, object]:
 def test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
     assert (
-        (
         validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
-        )
     ), "canonical CI contract"
 
 
@@ -286,15 +232,11 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
 
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
-    assert (
-        (any("mean_frame_interval_ms exceeds" in error for error in errors))
-    ), "canonical CI contract"
-    assert (
-        ("backend_finite must be true" in errors)
-    ), "canonical CI contract"
-    assert (
-        ("profile.pbd_substeps must be 1" in errors)
-    ), "canonical CI contract"
+    assert any("mean_frame_interval_ms exceeds" in error for error in errors), (
+        "canonical CI contract"
+    )
+    assert "backend_finite must be true" in errors, "canonical CI contract"
+    assert "profile.pbd_substeps must be 1" in errors, "canonical CI contract"
 
 
 def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
@@ -305,9 +247,7 @@ def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
 
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
-    assert (
-        ("stage_timings.viewport_redraw must be a JSON object" in errors)
-    ), "canonical CI contract"
+    assert "stage_timings.viewport_redraw must be a JSON object" in errors, "canonical CI contract"
 
 
 def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> None:
@@ -317,9 +257,7 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
 
     errors = validate_realtime_benchmark.validate_metrics(metrics)
 
-    assert (
-        ("measured_intervals must equal frames_requested" in errors)
-    ), "canonical CI contract"
+    assert "measured_intervals must equal frames_requested" in errors, "canonical CI contract"
 
 
 def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
@@ -333,44 +271,19 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
         for node in ast.walk(parsed)
         if isinstance(node, ast.Constant) and isinstance(node.value, str)
     }
-    assert (
-        ("_Preview" in identifiers)
-    ), "canonical CI contract"
-    assert (
-        ("_prepare" in identifiers)
-    ), "canonical CI contract"
-    assert (
-        ("QEventLoop" in attributes)
-    ), "canonical CI contract"
-    assert (
-        ("disconnect" in attributes)
-    ), "canonical CI contract"
-    assert (
-        ("connect" in attributes)
-    ), "canonical CI contract"
-    assert (
-        ("WARMUP_FRAMES" in identifiers)
-    ), "canonical CI contract"
-    assert (
-        ("FRAMES" in identifiers)
-    ), "canonical CI contract"
-    assert (
-        ("stage_timings" in identifiers)
-    ), "canonical CI contract"
-    assert (
-        ("solver_step" in string_constants)
-    ), "canonical CI contract"
-    assert (
-        ("viewport_redraw" in string_constants)
-    ), "canonical CI contract"
-    assert (
-        (
-        "validate_realtime_benchmark.py"
-        in (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-        )
-        )
-    ), "canonical CI contract"
+    assert "_Preview" in identifiers, "canonical CI contract"
+    assert "_prepare" in identifiers, "canonical CI contract"
+    assert "QEventLoop" in attributes, "canonical CI contract"
+    assert "disconnect" in attributes, "canonical CI contract"
+    assert "connect" in attributes, "canonical CI contract"
+    assert "WARMUP_FRAMES" in identifiers, "canonical CI contract"
+    assert "FRAMES" in identifiers, "canonical CI contract"
+    assert "stage_timings" in identifiers, "canonical CI contract"
+    assert "solver_step" in string_constants, "canonical CI contract"
+    assert "viewport_redraw" in string_constants, "canonical CI contract"
+    assert "validate_realtime_benchmark.py" in (
+        ROOT / ".github" / "workflows" / "canonical-execution.yml"
+    ).read_text(encoding="utf-8"), "canonical CI contract"
 
 
 def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
@@ -436,12 +349,10 @@ def _valid_workbench_benchmark_metrics(workbench: str = "Pattern") -> dict[str, 
 def test_workbench_benchmark_validator_accepts_matching_schema_two_artifact() -> None:
     """Fresh workbench output satisfies its own strict, distinct schema contract."""
     assert (
-        (
         validate_workbench_benchmark.validate_metrics(
-        _valid_workbench_benchmark_metrics(), "Pattern"
+            _valid_workbench_benchmark_metrics(), "Pattern"
         )
         == []
-        )
     ), "canonical CI contract"
 
 
@@ -455,22 +366,16 @@ def test_workbench_benchmark_validator_rejects_wrong_schema_and_sample_count() -
 
     errors = validate_workbench_benchmark.validate_metrics(metrics, "Pattern")
 
-    assert (
-        ("schema must be 2" in errors)
-    ), "canonical CI contract"
-    assert (
-        ("initialize_samples must equal repeats" in errors)
-    ), "canonical CI contract"
+    assert "schema must be 2" in errors, "canonical CI contract"
+    assert "initialize_samples must equal repeats" in errors, "canonical CI contract"
 
 
 def test_workbench_benchmark_validator_rejects_wrong_matrix_entry_and_nonfinite_timing() -> None:
     """A stale artifact for another matrix job or malformed timing cannot pass."""
     metrics = _valid_workbench_benchmark_metrics()
     assert (
-        (
         "workbenches must contain only 'Sewing'"
         in validate_workbench_benchmark.validate_metrics(metrics, "Sewing")
-        )
     ), "workbench matrix contract"
 
     workbenches = _require_mapping(metrics["workbenches"], label="workbenches")
@@ -478,10 +383,8 @@ def test_workbench_benchmark_validator_rejects_wrong_matrix_entry_and_nonfinite_
     pattern["initialize_ms"] = float("nan")
 
     assert (
-        (
         "initialize_ms must be a finite non-negative number"
         in validate_workbench_benchmark.validate_metrics(metrics, "Pattern")
-        )
     ), "workbench matrix contract"
 
 
@@ -492,19 +395,15 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     )
     benchmark_job = workflow.split("  benchmark:", maxsplit=1)[1]
 
+    assert "tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json" in benchmark_job, (
+        "canonical CI contract"
+    )
+    assert "validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job, (
+        "canonical CI contract"
+    )
     assert (
-        (
-        "tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json" in benchmark_job
-        )
-    ), "canonical CI contract"
-    assert (
-        ("validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job)
-    ), "canonical CI contract"
-    assert (
-        (
         "python3 tools/ci/validate_realtime_benchmark.py "
         "artifacts/freecad-realtime/metrics.json" in workflow
-        )
     ), "canonical CI contract"
 
 
@@ -520,9 +419,9 @@ def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
         "python_validation.py" in workflow
         and "group: [core, pattern, sewing, gui, pytest]" in workflow
     ), "The canonical workflow must execute the complete Python validation matrix."
-    assert (
-        "def validate_test_routing()" in runner and "unrouted pytest modules" in runner
-    ), "The matrix runner must reject missing and duplicate pytest module routes."
-    assert (
-        "python -m pytest -q" not in quality
-    ), "Static preflight must not execute pytest modules a second time."
+    assert "def validate_test_routing()" in runner and "unrouted pytest modules" in runner, (
+        "The matrix runner must reject missing and duplicate pytest module routes."
+    )
+    assert "python -m pytest -q" not in quality, (
+        "Static preflight must not execute pytest modules a second time."
+    )

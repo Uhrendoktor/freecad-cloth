@@ -4,12 +4,12 @@
 from pathlib import Path
 
 import pytest
-
 from freecad_cloth.shared.collision import surface_from_triangles
 from freecad_cloth.simulation.ClothBackend import (
     ClothSimulationBackend,
     validate_pinned_stitch_pairs,
 )
+
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,9 +34,9 @@ def test_backend_boundary_is_small_and_solver_neutral() -> None:
     backend_methods = {
         name for name in EXPECTED_BACKEND_METHODS if hasattr(ClothSimulationBackend, name)
     }
-    assert (
-        backend_methods == EXPECTED_BACKEND_METHODS
-    ), "The simulation boundary must expose the six solver-neutral operations."
+    assert backend_methods == EXPECTED_BACKEND_METHODS, (
+        "The simulation boundary must expose the six solver-neutral operations."
+    )
 
 
 def test_pbd_is_the_only_runtime_backend_implementation() -> None:
@@ -47,21 +47,21 @@ def test_pbd_is_the_only_runtime_backend_implementation() -> None:
     pbd_source = (
         ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
     ).read_text(encoding="utf-8")
-    assert (
-        "default_backend_registry" not in backend_source
-    ), "The backend interface must not contain a runtime backend registry."
-    assert (
-        "preferred_backend_name" not in backend_source
-    ), "The backend interface must not select a preferred implementation."
-    assert (
-        "class XPBDBackend" not in backend_source
-    ), "The interface module must not define a second runtime solver."
-    assert (
-        "class PositionBasedDynamicsBackend" in pbd_source
-    ), "The PBD adapter must remain the concrete runtime implementation."
-    assert (
-        "class PositionBasedDynamicsBackend(ClothSimulationBackend)" in pbd_source
-    ), "The PBD adapter must implement the shared backend boundary."
+    assert "default_backend_registry" not in backend_source, (
+        "The backend interface must not contain a runtime backend registry."
+    )
+    assert "preferred_backend_name" not in backend_source, (
+        "The backend interface must not select a preferred implementation."
+    )
+    assert "class XPBDBackend" not in backend_source, (
+        "The interface module must not define a second runtime solver."
+    )
+    assert "class PositionBasedDynamicsBackend" in pbd_source, (
+        "The PBD adapter must remain the concrete runtime implementation."
+    )
+    assert "class PositionBasedDynamicsBackend(ClothSimulationBackend)" in pbd_source, (
+        "The PBD adapter must implement the shared backend boundary."
+    )
 
 
 def test_pinned_stitch_rejects_nonzero_initial_separation() -> None:
@@ -70,9 +70,9 @@ def test_pinned_stitch_rejects_nonzero_initial_separation() -> None:
     seam_records = (("TunicRightShoulder", "Front", "Back", ((0, 1),)),)
     with pytest.raises(ValueError, match="impossible pinned-pinned sewing constraint") as exc:
         validate_pinned_stitch_pairs(positions, (0, 1), seam_records)
-    assert (
-        "seam=TunicRightShoulder" in str(exc.value)
-    ), "The validation error must identify the seam that violates the pin contract."
+    assert "seam=TunicRightShoulder" in str(exc.value), (
+        "The validation error must identify the seam that violates the pin contract."
+    )
 
 
 def test_pinned_stitch_allows_numerical_zero_separation() -> None:
@@ -85,12 +85,12 @@ def test_pinned_stitch_allows_numerical_zero_separation() -> None:
 def test_simulation_workbench_does_not_force_a_backend_selector() -> None:
     """Keep runtime solver choice out of the workbench registration boundary."""
     source = (ROOT / "freecad_cloth" / "simulation" / "workbench.py").read_text(encoding="utf-8")
-    assert (
-        "CLOTH_SIMULATION_BACKEND" not in source
-    ), "The simulation workbench must not inject a backend environment selector."
-    assert (
-        "preferred_backend_name" not in source
-    ), "The simulation workbench must not choose a preferred backend name."
+    assert "CLOTH_SIMULATION_BACKEND" not in source, (
+        "The simulation workbench must not inject a backend environment selector."
+    )
+    assert "preferred_backend_name" not in source, (
+        "The simulation workbench must not choose a preferred backend name."
+    )
 
 
 def test_pbd_collision_sdf_key_is_deterministic_and_covers_all_inputs() -> None:
@@ -101,21 +101,21 @@ def test_pbd_collision_sdf_key_is_deterministic_and_covers_all_inputs() -> None:
         thickness=SURFACE_THICKNESS_MM,
     )
     key = _pbd_collision_sdf_cache_key(surface, list(GRID_RESOLUTION))
-    assert (
-        key == _pbd_collision_sdf_cache_key(surface, list(GRID_RESOLUTION))
-    ), "Identical SDF inputs must produce a deterministic cache key."
-    assert (
-        key != _pbd_collision_sdf_cache_key(surface, list(CHANGED_GRID_RESOLUTION))
-    ), "Grid resolution changes must invalidate the SDF cache key."
+    assert key == _pbd_collision_sdf_cache_key(surface, list(GRID_RESOLUTION)), (
+        "Identical SDF inputs must produce a deterministic cache key."
+    )
+    assert key != _pbd_collision_sdf_cache_key(surface, list(CHANGED_GRID_RESOLUTION)), (
+        "Grid resolution changes must invalidate the SDF cache key."
+    )
     thicker_surface = surface.with_thickness(CHANGED_SURFACE_THICKNESS_MM)
-    assert (
-        key != _pbd_collision_sdf_cache_key(thicker_surface, list(GRID_RESOLUTION))
-    ), "Collision thickness changes must invalidate the SDF cache key."
+    assert key != _pbd_collision_sdf_cache_key(thicker_surface, list(GRID_RESOLUTION)), (
+        "Collision thickness changes must invalidate the SDF cache key."
+    )
     moved_surface = surface_from_triangles(
         ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
         ((0, 1, 2),),
         thickness=SURFACE_THICKNESS_MM,
     )
-    assert (
-        key != _pbd_collision_sdf_cache_key(moved_surface, list(GRID_RESOLUTION))
-    ), "Surface geometry changes must invalidate the SDF cache key."
+    assert key != _pbd_collision_sdf_cache_key(moved_surface, list(GRID_RESOLUTION)), (
+        "Surface geometry changes must invalidate the SDF cache key."
+    )

@@ -9,8 +9,6 @@ frozen solver settings; it does not participate in release acceptance.
 
 from __future__ import annotations
 
-
-import contextlib
 import faulthandler
 import os
 import sys

@@ -141,6 +141,7 @@ def assign_avatar_source(source: object | None = None) -> object:
     """
     import FreeCAD as App
     import FreeCADGui as Gui
+
     from freecad_cloth.avatar import FittingCommands as fitting_commands
     from freecad_cloth.simulation import DrapeTarget as drape_target_api
 
@@ -203,6 +204,7 @@ def create_simulation_from_fitting() -> object:
         ValueError: If the document has no fitting scene or the scene has no pieces.
     """
     import FreeCAD as App
+
     from freecad_cloth.simulation import SimulationObjects as simulation_objects
 
     app = cast("_FreeCADApplication", App)
@@ -296,6 +298,7 @@ def open_arrange_fit_from_simulation(simulation: object) -> object:
     """
     import FreeCAD as App
     import FreeCADGui as Gui
+
     from freecad_cloth.avatar import FittingCommands as fitting_commands
 
     app = cast("_FreeCADApplication", App)

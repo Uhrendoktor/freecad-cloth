@@ -64,9 +64,9 @@ def _expect_list(value: object, *, message: str) -> list[object]:
 
 def test_float_value_accepts_integer_and_float_literals() -> None:
     """Preserve numeric diagnostic values when normalizing them to floats."""
-    assert (
-        _float_value(3) == 3.0 and _float_value(2.5) == 2.5
-    ), "Valid integer and float diagnostic values must retain their value."
+    assert _float_value(3) == 3.0 and _float_value(2.5) == 2.5, (
+        "Valid integer and float diagnostic values must retain their value."
+    )
 
 
 @pytest.mark.parametrize("value", [True, "1.5", None])
@@ -201,51 +201,41 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
 
     status = _expect_dict(report["status"], message="Report status must be a dictionary.")
     stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
-    assert (
-        status["result"] == "blocked"
-    ), "Invalid topology must produce a blocked report."
-    assert (
-        status["failed_stage"] == "pattern_topology"
-    ), "Invalid native topology must identify the failed stage."
-    assert (
-        stages["pattern_topology"] == "invalid"
-    ), "Invalid native topology must be recorded in the stage summary."
-    assert (
-        stages["simulation"] == "not_reached"
-    ), "Simulation must not be reported as reached after a topology blocker."
-    assert (
-        stages["drape"] == "not_reached"
-    ), "Drape must not be reported as reached after a topology blocker."
+    assert status["result"] == "blocked", "Invalid topology must produce a blocked report."
+    assert status["failed_stage"] == "pattern_topology", (
+        "Invalid native topology must identify the failed stage."
+    )
+    assert stages["pattern_topology"] == "invalid", (
+        "Invalid native topology must be recorded in the stage summary."
+    )
+    assert stages["simulation"] == "not_reached", (
+        "Simulation must not be reported as reached after a topology blocker."
+    )
+    assert stages["drape"] == "not_reached", (
+        "Drape must not be reported as reached after a topology blocker."
+    )
     issues = _expect_list(report["issues"], message="Report issues must be a list.")
-    assert (
-        len(issues) == 1
-    ), "The invalid outline should produce exactly one issue."
+    assert len(issues) == 1, "The invalid outline should produce exactly one issue."
     issue = _expect_dict(issues[0], message="Each report issue must be a dictionary.")
-    assert (
-        issue["edge_ids"] == ["pattern-piece-1:edge:3", "pattern-piece-1:edge:2"]
-    ), "The report must identify both nearby crossing edges."
-    assert (
-        issue["point_local_mm"] == [627.926235325921, 482.858393143538]
-    ), "The report must retain the measured crossing point."
+    assert issue["edge_ids"] == ["pattern-piece-1:edge:3", "pattern-piece-1:edge:2"], (
+        "The report must identify both nearby crossing edges."
+    )
+    assert issue["point_local_mm"] == [627.926235325921, 482.858393143538], (
+        "The report must retain the measured crossing point."
+    )
 
     written = json.loads((output_root / "scene-understanding.json").read_text(encoding="utf-8"))
-    assert (
-        written["status"]["failed_stage"] == "pattern_topology"
-    ), "Written JSON must preserve the failed stage."
+    assert written["status"]["failed_stage"] == "pattern_topology", (
+        "Written JSON must preserve the failed stage."
+    )
     markdown = (output_root / "scene-understanding.md").read_text(encoding="utf-8")
-    assert (
-        "do not tune collision" in markdown
-    ), "The report must prioritize topology before collision tuning."
+    assert "do not tune collision" in markdown, (
+        "The report must prioritize topology before collision tuning."
+    )
     svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
-    assert (
-        "627.926" in svg
-    ), "The SVG must annotate the measured topology crossing."
-    assert (
-        "INVALID" in svg
-    ), "The SVG must label invalid pattern geometry."
-    assert (
-        'stroke="#cc3333"' in svg
-    ), "The SVG must use the invalid-geometry diagnostic color."
+    assert "627.926" in svg, "The SVG must annotate the measured topology crossing."
+    assert "INVALID" in svg, "The SVG must label invalid pattern geometry."
+    assert 'stroke="#cc3333"' in svg, "The SVG must use the invalid-geometry diagnostic color."
 
 
 def test_missing_progress_log_emits_explicit_incomplete_dossier(tmp_path: Path) -> None:
@@ -259,24 +249,24 @@ def test_missing_progress_log_emits_explicit_incomplete_dossier(tmp_path: Path) 
 
     status = _expect_dict(report["status"], message="Report status must be a dictionary.")
     stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
-    assert (
-        status["result"] == "incomplete"
-    ), "Missing progress evidence must produce an incomplete report."
-    assert (
-        status["failed_stage"] is None
-    ), "Successful and incomplete reports must not invent a failed stage."
-    assert (
-        stages["simulation"] == "not_observed"
-    ), "Scene report predicate failed: stages['simulation'] == 'not_observed'."
-    assert (
-        (output_root / "scene-understanding.json").is_file()
-    ), "The scene report must emit every expected output file."
-    assert (
-        (output_root / "scene-understanding.md").is_file()
-    ), "The scene report must emit every expected output file."
-    assert (
-        (output_root / "scene-understanding.svg").is_file()
-    ), "The scene report must emit every expected output file."
+    assert status["result"] == "incomplete", (
+        "Missing progress evidence must produce an incomplete report."
+    )
+    assert status["failed_stage"] is None, (
+        "Successful and incomplete reports must not invent a failed stage."
+    )
+    assert stages["simulation"] == "not_observed", (
+        "Scene report predicate failed: stages['simulation'] == 'not_observed'."
+    )
+    assert (output_root / "scene-understanding.json").is_file(), (
+        "The scene report must emit every expected output file."
+    )
+    assert (output_root / "scene-understanding.md").is_file(), (
+        "The scene report must emit every expected output file."
+    )
+    assert (output_root / "scene-understanding.svg").is_file(), (
+        "The scene report must emit every expected output file."
+    )
 
 
 def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> None:
@@ -296,22 +286,18 @@ def test_success_status_does_not_invent_a_topology_failure(tmp_path: Path) -> No
     report = write_report(progress, output_root, tmp_path)
 
     status = _expect_dict(report["status"], message="Report status must be a dictionary.")
-    assert (
-        status["result"] == "passed"
-    ), "A successful run must retain its passed result."
-    assert (
-        status["failed_stage"] is None
-    ), "Successful and incomplete reports must not invent a failed stage."
-    assert (
-        report["issues"] == []
-    ), "A successful run must not invent topology issues."
+    assert status["result"] == "passed", "A successful run must retain its passed result."
+    assert status["failed_stage"] is None, (
+        "Successful and incomplete reports must not invent a failed stage."
+    )
+    assert report["issues"] == [], "A successful run must not invent topology issues."
     fit_assessment = _expect_dict(
         report["fit_assessment"],
         message="Fit assessment must be a dictionary.",
     )
-    assert (
-        fit_assessment["state"] == "not_assessed"
-    ), "Fit without final measurements must remain not assessed."
+    assert fit_assessment["state"] == "not_assessed", (
+        "Fit without final measurements must remain not assessed."
+    )
 
 
 def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
@@ -364,15 +350,13 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
         report["fit_assessment"],
         message="Fit assessment must be a dictionary.",
     )
-    assert (
-        status["result"] == "review_required"
-    ), "Poor garment coverage must require fit review."
-    assert (
-        status["failed_stage"] is None
-    ), "Successful and incomplete reports must not invent a failed stage."
-    assert (
-        fit_assessment["state"] == "review_required"
-    ), "Fit assessment must request review for inadequate coverage."
+    assert status["result"] == "review_required", "Poor garment coverage must require fit review."
+    assert status["failed_stage"] is None, (
+        "Successful and incomplete reports must not invent a failed stage."
+    )
+    assert fit_assessment["state"] == "review_required", (
+        "Fit assessment must request review for inadequate coverage."
+    )
     observed = _expect_dict(
         fit_assessment["observed_final_panel_z_mm"],
         message="Observed final panel bounds must be a dictionary.",
@@ -381,20 +365,20 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
         fit_assessment["deviations_mm"],
         message="Fit deviations must be a dictionary.",
     )
-    assert (
-        abs(_float_value(observed["minimum"]) - 663.158) < 0.001
-    ), "The minimum final-panel height must match the regression fixture."
-    assert (
-        abs(_float_value(observed["maximum"]) - 1235.459) < 0.001
-    ), "The maximum final-panel height must match the regression fixture."
+    assert abs(_float_value(observed["minimum"]) - 663.158) < 0.001, (
+        "The minimum final-panel height must match the regression fixture."
+    )
+    assert abs(_float_value(observed["maximum"]) - 1235.459) < 0.001, (
+        "The maximum final-panel height must match the regression fixture."
+    )
     top_deviation = _float_value(deviations["cloth_top_below_shoulder_reference"])
     hem_deviation = _float_value(deviations["cloth_extends_below_expected_hem"])
-    assert (
-        abs(top_deviation - 112.041) < 0.001
-    ), "The report must quantify cloth-top distance from its shoulder reference."
-    assert (
-        abs(hem_deviation - 256.842) < 0.001
-    ), "The report must quantify extension below the hem reference."
+    assert abs(top_deviation - 112.041) < 0.001, (
+        "The report must quantify cloth-top distance from its shoulder reference."
+    )
+    assert abs(hem_deviation - 256.842) < 0.001, (
+        "The report must quantify extension below the hem reference."
+    )
     findings = _expect_list(
         fit_assessment["findings"],
         message="Fit findings must be a list.",
@@ -403,31 +387,26 @@ def test_successful_execution_with_bad_vertical_coverage_requires_fit_review(
     for finding in findings:
         finding_record = _expect_dict(finding, message="Each fit finding must be a dictionary.")
         kind = finding_record.get("kind")
-        assert (
-            isinstance(kind, str)
-        ), "Each fit finding must expose a string kind."
+        assert isinstance(kind, str), "Each fit finding must expose a string kind."
         finding_kinds.add(str(kind))
-    assert (
-        finding_kinds
-        == {
+    assert finding_kinds == {
         "cloth_top_below_shoulder_reference",
         "cloth_extends_below_expected_hem",
-        }
-    ), "The fit review must identify both vertical-coverage findings."
+    }, "The fit review must identify both vertical-coverage findings."
     markdown = (output_root / "scene-understanding.md").read_text(encoding="utf-8")
-    assert (
-        "## Fit and placement assessment" in markdown
-    ), "Scene report predicate failed: '## Fit and placement assessment' in markd."
-    assert (
-        "REVIEW REQUIRED" in markdown
-    ), "The markdown report must show that fit review is required."
-    assert (
-        "not an anatomical landmark" in markdown
-    ), "The fit report must qualify its reference landmark."
+    assert "## Fit and placement assessment" in markdown, (
+        "Scene report predicate failed: '## Fit and placement assessment' in markd."
+    )
+    assert "REVIEW REQUIRED" in markdown, (
+        "The markdown report must show that fit review is required."
+    )
+    assert "not an anatomical landmark" in markdown, (
+        "The fit report must qualify its reference landmark."
+    )
     svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
-    assert (
-        "Scene report result: REVIEW_REQUIRED" in svg
-    ), "The SVG must render the review-required result."
+    assert "Scene report result: REVIEW_REQUIRED" in svg, (
+        "The SVG must render the review-required result."
+    )
 
 
 def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> None:
@@ -463,22 +442,18 @@ def test_scene_report_preserves_sampled_native_curve_points(tmp_path: Path) -> N
 
     pattern = _expect_dict(report["pattern"], message="Pattern report must be a dictionary.")
     pieces = _expect_list(pattern["pieces"], message="Pattern pieces must be a list.")
-    assert (
-        len(pieces) == 1
-    ), "Scene report predicate failed: len(pieces) == 1."
+    assert len(pieces) == 1, "Scene report predicate failed: len(pieces) == 1."
     piece = _expect_dict(pieces[0], message="Each pattern piece must be a dictionary.")
     boundary_order = _expect_list(
         piece["boundary_order"],
         message="Pattern boundary order must be a list.",
     )
     arc = _expect_dict(boundary_order[1], message="The sampled arc must be a dictionary.")
-    assert (
-        arc["samples_local_mm"] == [[0.0, 10.0], [3.0, 12.0], [7.0, 12.0], [10.0, 10.0]]
-    ), "The report must retain sampled native curve points."
+    assert arc["samples_local_mm"] == [[0.0, 10.0], [3.0, 12.0], [7.0, 12.0], [10.0, 10.0]], (
+        "The report must retain sampled native curve points."
+    )
     svg = (output_root / "scene-understanding.svg").read_text(encoding="utf-8")
-    assert (
-        "36.100,591.600" in svg
-    ), "The SVG must render the sampled arc geometry."
+    assert "36.100,591.600" in svg, "The SVG must render the sampled arc geometry."
 
 
 def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> None:
@@ -508,26 +483,24 @@ def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> N
 
     status = _expect_dict(report["status"], message="Report status must be a dictionary.")
     stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
-    assert (
-        status["result"] == "blocked"
-    ), "Invalid topology must produce a blocked report."
-    assert (
-        status["failed_stage"] == "pattern_representation"
-    ), "Invalid derived outline must identify the failed stage."
-    assert (
-        stages["pattern_topology"] == "valid"
-    ), "A valid native pattern must remain valid in the stage summary."
-    assert (
-        stages["derived_pattern_representation"] == "invalid"
-    ), "Invalid derived outline must be recorded in the stage summary."
-    assert (
-        stages["simulation"] == "not_reached"
-    ), "Simulation must not be reported as reached after a topology blocker."
+    assert status["result"] == "blocked", "Invalid topology must produce a blocked report."
+    assert status["failed_stage"] == "pattern_representation", (
+        "Invalid derived outline must identify the failed stage."
+    )
+    assert stages["pattern_topology"] == "valid", (
+        "A valid native pattern must remain valid in the stage summary."
+    )
+    assert stages["derived_pattern_representation"] == "invalid", (
+        "Invalid derived outline must be recorded in the stage summary."
+    )
+    assert stages["simulation"] == "not_reached", (
+        "Simulation must not be reported as reached after a topology blocker."
+    )
     issues = _expect_list(report["issues"], message="Report issues must be a list.")
     issue = _expect_dict(issues[0], message="Each report issue must be a dictionary.")
-    assert (
-        issue["kind"] == "invalid_derived_outline"
-    ), "The issue kind must identify an invalid derived outline."
-    assert (
-        issue["source"] == "derived DraftingBoundary representation"
-    ), "The issue must identify the derived outline as its source."
+    assert issue["kind"] == "invalid_derived_outline", (
+        "The issue kind must identify an invalid derived outline."
+    )
+    assert issue["source"] == "derived DraftingBoundary representation", (
+        "The issue must identify the derived outline as its source."
+    )

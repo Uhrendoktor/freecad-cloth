@@ -58,10 +58,10 @@ def create_quality_simulation_scene(
         avatar = doc.getObject("ClothAvatar")
         if avatar is None:
             avatar = create_avatar(doc=doc, attach_collision=False)
-        setattr(avatar, "Label", "Cloth Human Avatar (MakeHuman)")
+        avatar.Label = "Cloth Human Avatar (MakeHuman)"
         view = getattr(avatar, "ViewObject", None)
         if view is not None:
-            setattr(view, "Visibility", True)
+            view.Visibility = True
     else:
         avatar = avatar_source
 

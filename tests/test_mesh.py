@@ -81,7 +81,7 @@ def _edge_segment_ids_for_test(pattern: ParametricPattern, points: list[Point]) 
         The authored segment ID associated with every point.
     """
     module = importlib.import_module("freecad_cloth.pattern.PatternMesh")
-    return getattr(module, "_edge_segment_ids")(pattern, points)
+    return module._edge_segment_ids(pattern, points)
 
 
 def _point_to_segment_distance_for_test(point: Point, start: Point, end: Point) -> float:
@@ -96,7 +96,7 @@ def _point_to_segment_distance_for_test(point: Point, start: Point, end: Point) 
         Non-negative Euclidean distance from the point to the line segment.
     """
     module = importlib.import_module("freecad_cloth.pattern.PatternMesh")
-    return getattr(module, "_point_to_segment_distance")(point, start, end)
+    return module._point_to_segment_distance(point, start, end)
 
 
 def _indexed_mesh_topology_for_test(
@@ -111,25 +111,25 @@ def _indexed_mesh_topology_for_test(
         The vertex-index mapping and normalized triangle faces.
     """
     module = importlib.import_module("freecad_cloth.simulation.SimulationObjects")
-    return getattr(module, "_indexed_mesh_topology")(triangles)
+    return module._indexed_mesh_topology(triangles)
 
 
 def test_rectangle_mesh_area_and_topology() -> None:
     """Preserve rectangle area, triangulation counts, and authored edge identity."""
     mesh = triangulate(rectangle(100.0, 50.0))
 
-    assert (
-        len(mesh.vertices) == BASE_BOUNDARY_VERTEX_COUNT
-    ), "A rectangular boundary must retain its four authored vertices."
-    assert (
-        len(mesh.triangles) == BASE_RECTANGLE_TRIANGLE_COUNT
-    ), "A rectangular panel must triangulate into two faces."
-    assert (
-        mesh.area == pytest.approx(EXPECTED_RECTANGLE_AREA_MM2, abs=AREA_TOLERANCE_MM2)
-    ), "Triangulation must preserve the rectangle area."
-    assert (
-        mesh.boundary_edge_segment_ids == ("bottom", "right", "top", "left")
-    ), "The mesh boundary must retain authored rectangle segment IDs."
+    assert len(mesh.vertices) == BASE_BOUNDARY_VERTEX_COUNT, (
+        "A rectangular boundary must retain its four authored vertices."
+    )
+    assert len(mesh.triangles) == BASE_RECTANGLE_TRIANGLE_COUNT, (
+        "A rectangular panel must triangulate into two faces."
+    )
+    assert mesh.area == pytest.approx(EXPECTED_RECTANGLE_AREA_MM2, abs=AREA_TOLERANCE_MM2), (
+        "Triangulation must preserve the rectangle area."
+    )
+    assert mesh.boundary_edge_segment_ids == ("bottom", "right", "top", "left"), (
+        "The mesh boundary must retain authored rectangle segment IDs."
+    )
     mesh.validate()
 
 
@@ -146,15 +146,15 @@ def test_concave_polygon_triangulates() -> None:
     )
     mesh = triangulate(pattern)
 
-    assert (
-        len(mesh.triangles) == CONCAVE_POLYGON_TRIANGLE_COUNT
-    ), "The concave polygon must triangulate into three faces."
-    assert (
-        mesh.area == pytest.approx(EXPECTED_CONCAVE_AREA_MM2, abs=AREA_TOLERANCE_MM2)
-    ), "Triangulation must preserve the authored concave polygon area."
-    assert (
-        mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e")
-    ), "Concave boundary edges must retain their authored IDs."
+    assert len(mesh.triangles) == CONCAVE_POLYGON_TRIANGLE_COUNT, (
+        "The concave polygon must triangulate into three faces."
+    )
+    assert mesh.area == pytest.approx(EXPECTED_CONCAVE_AREA_MM2, abs=AREA_TOLERANCE_MM2), (
+        "Triangulation must preserve the authored concave polygon area."
+    )
+    assert mesh.boundary_edge_segment_ids == ("a", "b", "c", "d", "e"), (
+        "Concave boundary edges must retain their authored IDs."
+    )
 
 
 def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints() -> None:
@@ -172,9 +172,14 @@ def test_polyline_curve_keeps_semantic_provenance_at_both_endpoints() -> None:
     )
     mesh = triangulate(pattern)
 
-    assert (
-        mesh.boundary_edge_segment_ids
-        == ("bottom", "right", "scoop", "scoop", "scoop", "scoop", "left")
+    assert mesh.boundary_edge_segment_ids == (
+        "bottom",
+        "right",
+        "scoop",
+        "scoop",
+        "scoop",
+        "scoop",
+        "left",
     ), "Endpoint-near curved spans must retain the curve's semantic provenance."
 
 
@@ -190,9 +195,9 @@ def test_reversed_rectangle_retains_segment_provenance() -> None:
     )
     mesh = triangulate(pattern)
 
-    assert (
-        mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top")
-    ), "Reversed rectangle edges must preserve the original segment IDs."
+    assert mesh.boundary_edge_segment_ids == ("left", "bottom", "right", "top"), (
+        "Reversed rectangle edges must preserve the original segment IDs."
+    )
 
 
 def test_clockwise_outline_keeps_segment_provenance_on_normalization() -> None:
@@ -207,9 +212,9 @@ def test_clockwise_outline_keeps_segment_provenance_on_normalization() -> None:
     )
     mesh = triangulate(pattern)
 
-    assert (
-        mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom")
-    ), "Clockwise normalization must preserve matching segment provenance."
+    assert mesh.boundary_edge_segment_ids == ("right", "top", "left", "bottom"), (
+        "Clockwise normalization must preserve matching segment provenance."
+    )
 
 
 def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spacing() -> None:
@@ -226,20 +231,18 @@ def test_linear_boundary_refinement_preserves_authored_segment_identity_and_spac
     authored_ids = ("side", "back", "top", "left")
     boundary_ids = mesh.boundary_edge_segment_ids
 
-    assert (
-        len(mesh.boundary_vertex_indices) > MINIMUM_REFINED_BOUNDARY_VERTEX_COUNT
-    ), "Linear refinement must add boundary vertices beyond the base rectangle."
-    assert (
-        all(
+    assert len(mesh.boundary_vertex_indices) > MINIMUM_REFINED_BOUNDARY_VERTEX_COUNT, (
+        "Linear refinement must add boundary vertices beyond the base rectangle."
+    )
+    assert all(
         identifier == authored or identifier.startswith(f"{authored}::sub::")
         for authored in authored_ids
         for identifier in boundary_ids
         if identifier.startswith(authored)
-        )
     ), "Refined segments must retain the authored ID as their prefix."
-    assert (
-        any(identifier.startswith("side::sub::") for identifier in boundary_ids)
-    ), "The side edge must expose at least one refined semantic segment ID."
+    assert any(identifier.startswith("side::sub::") for identifier in boundary_ids), (
+        "The side edge must expose at least one refined semantic segment ID."
+    )
     assert (
         max(dist(mesh.vertices[a], mesh.vertices[b]) for a, b in mesh.boundary_edges())
         <= MAX_BOUNDARY_SPACING_MM
@@ -263,9 +266,9 @@ def test_point_to_segment_distance_handles_projection_and_degenerate_segments(
     """
     actual = _point_to_segment_distance_for_test(point, start, end)
 
-    assert (
-        actual == pytest.approx(expected_distance, rel=1e-12, abs=0.0)
-    ), "Point-to-segment distance must match the geometric reference case."
+    assert actual == pytest.approx(expected_distance, rel=1e-12, abs=0.0), (
+        "Point-to-segment distance must match the geometric reference case."
+    )
 
 
 def test_point_to_segment_distance_handles_subnormal_segment_length() -> None:
@@ -275,9 +278,9 @@ def test_point_to_segment_distance_handles_subnormal_segment_length() -> None:
         (0.0, 0.0),
         (0.0, SUBNORMAL_ENDPOINT_MM),
     )
-    assert (
-        distance == pytest.approx(1.0, rel=1e-12, abs=0.0)
-    ), "A subnormal segment must retain the nearest distance to a unit-offset point."
+    assert distance == pytest.approx(1.0, rel=1e-12, abs=0.0), (
+        "A subnormal segment must retain the nearest distance to a unit-offset point."
+    )
 
 
 @given(values=PROPERTY_COORDINATES)
@@ -295,15 +298,13 @@ def test_point_to_segment_distance_obeys_metric_properties(
     reversed_distance = _point_to_segment_distance_for_test(point, end, start)
     endpoint_bound = min(dist(point, start), dist(point, end))
 
-    assert (
-        distance >= DISTANCE_FLOOR_MM
-    ), "Point-to-segment distance must never be negative."
-    assert (
-        distance <= endpoint_bound + ENDPOINT_DISTANCE_TOLERANCE_MM
-    ), "The closest point on a segment cannot be farther than its nearest endpoint."
-    assert (
-        abs(distance - reversed_distance) <= ORIENTATION_DISTANCE_TOLERANCE_MM
-    ), "Reversing a segment's endpoints must not change its distance."
+    assert distance >= DISTANCE_FLOOR_MM, "Point-to-segment distance must never be negative."
+    assert distance <= endpoint_bound + ENDPOINT_DISTANCE_TOLERANCE_MM, (
+        "The closest point on a segment cannot be farther than its nearest endpoint."
+    )
+    assert abs(distance - reversed_distance) <= ORIENTATION_DISTANCE_TOLERANCE_MM, (
+        "Reversing a segment's endpoints must not change its distance."
+    )
 
 
 def test_seam_generates_stitches() -> None:
@@ -319,9 +320,9 @@ def test_seam_generates_stitches() -> None:
         samples=5,
     )
 
-    assert (
-        len(constraints.stitches) >= MINIMUM_SEAM_STITCH_COUNT
-    ), "Matching seam edges must create at least two stitch links."
+    assert len(constraints.stitches) >= MINIMUM_SEAM_STITCH_COUNT, (
+        "Matching seam edges must create at least two stitch links."
+    )
     constraints.validate()
 
 
@@ -369,12 +370,12 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> N
     CountedCurve.calls = 0
     result = _edge_segment_ids_for_test(pattern, outline)
 
-    assert (
-        len(result) == len(outline)
-    ), "Provenance mapping must return one segment ID per boundary edge."
-    assert (
-        CountedCurve.calls == EXPECTED_CURVE_PROVENANCE_SAMPLE_CALLS
-    ), "The authored curve polyline must be sampled once per mapping operation."
+    assert len(result) == len(outline), (
+        "Provenance mapping must return one segment ID per boundary edge."
+    )
+    assert CountedCurve.calls == EXPECTED_CURVE_PROVENANCE_SAMPLE_CALLS, (
+        "The authored curve polyline must be sampled once per mapping operation."
+    )
 
 
 def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None:
@@ -386,12 +387,12 @@ def test_indexed_mesh_topology_reuses_shared_vertices_and_remaps_faces() -> None
     result = _indexed_mesh_topology_for_test(triangles)
     vertex_indices, faces = result
 
-    assert (
-        vertex_indices == expected_vertices
-    ), "Topology compaction must retain sorted unique source vertex indices."
-    assert (
-        faces == expected_faces
-    ), "Topology compaction must consistently remap every triangle index."
-    assert (
-        _indexed_mesh_topology_for_test(triangles) is result
-    ), "Repeated topology input must reuse its cached compact mapping."
+    assert vertex_indices == expected_vertices, (
+        "Topology compaction must retain sorted unique source vertex indices."
+    )
+    assert faces == expected_faces, (
+        "Topology compaction must consistently remap every triangle index."
+    )
+    assert _indexed_mesh_topology_for_test(triangles) is result, (
+        "Repeated topology input must reuse its cached compact mapping."
+    )

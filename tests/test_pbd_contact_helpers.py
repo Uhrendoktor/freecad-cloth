@@ -48,9 +48,9 @@ def test_surface_distance_fallback_uses_spatial_index() -> None:
         garment_points, surface, surface_clearance_fn=unavailable
     )
 
-    assert (
-        actual_distance == pytest.approx(5.0)
-    ), "the spatial-index fallback should find the five-millimetre separation"
+    assert actual_distance == pytest.approx(5.0), (
+        "the spatial-index fallback should find the five-millimetre separation"
+    )
 
 
 def test_events_processes_qt_events_after_one_gui_refresh() -> None:
@@ -65,9 +65,9 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
 
     events(gui=gui, application=application)
 
-    assert (
-        calls == ["gui-update", "qt-events"]
-    ), "GUI refresh must precede Qt event processing exactly once"
+    assert calls == ["gui-update", "qt-events"], (
+        "GUI refresh must precede Qt event processing exactly once"
+    )
 
 
 def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -> None:
@@ -77,19 +77,16 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
         triangles=((0, 1, 2),),
     )
     resolution = pbd_collision_resolution(surface)
-    assert (
-        len(resolution) == PBD_COLLISION_AXIS_COUNT
-        and all(
+    assert len(resolution) == PBD_COLLISION_AXIS_COUNT and all(
         PBD_COLLISION_MIN_CELLS <= cells <= PBD_COLLISION_MAX_CELLS for cells in resolution
-        )
     ), "collision-grid resolution must remain bounded on each axis."
-    assert (
-        resolution[1] >= resolution[0] >= resolution[2]
-    ), "larger coordinate spans must not receive smaller grid resolutions."
+    assert resolution[1] >= resolution[0] >= resolution[2], (
+        "larger coordinate spans must not receive smaller grid resolutions."
+    )
     empty_resolution = pbd_collision_resolution(CollisionSurface(vertices=(), triangles=()))
-    assert (
-        empty_resolution == [PBD_COLLISION_MIN_CELLS] * PBD_COLLISION_AXIS_COUNT
-    ), "empty collision surfaces must retain the minimum grid resolution."
+    assert empty_resolution == [PBD_COLLISION_MIN_CELLS] * PBD_COLLISION_AXIS_COUNT, (
+        "empty collision surfaces must retain the minimum grid resolution."
+    )
 
 
 def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coherent() -> None:
@@ -106,9 +103,9 @@ def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coh
     )
     scene = SimpleNamespace()
     configure_ladder_scene(scene, pieces, {"pin_mode": "hem"})
-    assert (
-        pieces == [left, right] and seams == [(left, right)]
-    ), "the shared ladder helper must add a right panel and seam only as requested"
+    assert pieces == [left, right] and seams == [(left, right)], (
+        "the shared ladder helper must add a right panel and seam only as requested"
+    )
     assert (
         scene.ClothPieces is pieces
         and scene.SeamSelection == []
@@ -122,16 +119,13 @@ def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coh
 def test_position_bounds_uses_vectorized_axis_reductions() -> None:
     """Compute all six particle bounds from one coordinate array."""
     actual = position_bounds(((-2.0, 1.0, 5.0), (4.0, -3.0, 9.0)))
-    assert (
-        actual
-        == {
+    assert actual == {
         "x_min": -2.0,
         "x_max": 4.0,
         "y_min": -3.0,
         "y_max": 1.0,
         "z_min": 5.0,
         "z_max": 9.0,
-        }
-    ), "axis bounds must match the full particle coordinate set"
+    }, "axis bounds must match the full particle coordinate set"
     with pytest.raises(ValueError, match="empty PBD position set"):
         position_bounds(())

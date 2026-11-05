@@ -20,10 +20,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Self, cast
 from urllib.request import Request, urlopen
 
-from pydantic import StrictInt
-
 import numpy as np
 import trimesh
+from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.MakeHumanTargets import (
@@ -31,7 +30,7 @@ from freecad_cloth.avatar.MakeHumanTargets import (
     resolve_target,
     target_directory,
 )
-from freecad_cloth.avatar.SkeletonTypes import BoneData, SkeletonData
+from freecad_cloth.avatar.SkeletonTypes import SkeletonData
 from freecad_cloth.shared.MeshTopology import triangle_indices_are_valid
 
 MAKEHUMAN_COMMIT = "1f508f6083b2f823dab15de924b3bde72e08d77c9"

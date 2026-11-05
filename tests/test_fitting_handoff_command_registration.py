@@ -30,37 +30,36 @@ def test_fitting_handoff_registers_both_simulation_owned_command_ids() -> None:
     gui = SimpleNamespace(addCommand=add_command)
     fitting_handoff.register_fitting_handoff_commands(gui)
 
-    assert (
-        set(FittingCommands.COMMANDS) >= _EXPECTED_HANDOFF_COMMANDS
-    ), "The public fitting inventory must retain both handoff command identifiers."
-    assert (
-        set(registered) == _EXPECTED_HANDOFF_COMMANDS
-    ), "Simulation must register exactly the two fitting handoff commands."
+    assert set(FittingCommands.COMMANDS) >= _EXPECTED_HANDOFF_COMMANDS, (
+        "The public fitting inventory must retain both handoff command identifiers."
+    )
+    assert set(registered) == _EXPECTED_HANDOFF_COMMANDS, (
+        "Simulation must register exactly the two fitting handoff commands."
+    )
     registered_functions = {
         name: command.function
         for name, command in registered.items()
         if isinstance(command, FunctionCommand)
     }
-    assert (
-        registered_functions == fitting_handoff.FITTING_HANDOFF_COMMAND_HANDLERS
-    ), "GUI command adapters must call the simulation-side handoff functions."
+    assert registered_functions == fitting_handoff.FITTING_HANDOFF_COMMAND_HANDLERS, (
+        "GUI command adapters must call the simulation-side handoff functions."
+    )
 
 
 def test_fitting_command_module_has_no_simulation_dependency() -> None:
     """Keep Sewing-to-Simulation dependencies out of avatar fitting commands."""
     source = (_ROOT / "freecad_cloth" / "avatar" / "FittingCommands.py").read_text(encoding="utf-8")
-    assert (
-        "freecad_cloth.simulation." not in source
-    ), "FittingCommands must not import the Simulation package."
+    assert "freecad_cloth.simulation." not in source, (
+        "FittingCommands must not import the Simulation package."
+    )
 
 
 def test_shared_bootstrap_registers_handoff_commands_before_workbench_activation() -> None:
     """Keep the simulation handoff handlers available during normal FreeCAD startup."""
     source = (_ROOT / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
-    assert (
-        "from freecad_cloth.simulation import FittingHandoff as fitting_handoff"
-        in source
-    ), "The shared bootstrap must load the simulation handoff module."
-    assert (
-        "fitting_handoff.register_fitting_handoff_commands(gui)" in source
-    ), "The shared bootstrap must register simulation-owned fitting commands."
+    assert "from freecad_cloth.simulation import FittingHandoff as fitting_handoff" in source, (
+        "The shared bootstrap must load the simulation handoff module."
+    )
+    assert "fitting_handoff.register_fitting_handoff_commands(gui)" in source, (
+        "The shared bootstrap must register simulation-owned fitting commands."
+    )

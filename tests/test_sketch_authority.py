@@ -137,17 +137,14 @@ def test_sketch_authority_outline_preserves_intermediate_curve_samples() -> None
         getattr(SketchAuthority, _SAMPLED_OUTLINE_NAME),
     )
 
-    assert (
-        sampled_outline(piece_ir)
-        == [
+    assert sampled_outline(piece_ir) == [
         (0.0, 0.0),
         (10.0, 0.0),
         (11.0, 2.0),
         (11.5, 4.0),
         (10.0, 6.0),
         (0.0, 6.0),
-        ]
-    ), "Sketch-authoritative outlines must retain intermediate authored curve samples."
+    ], "Sketch-authoritative outlines must retain intermediate authored curve samples."
 
 
 def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order() -> None:
@@ -170,19 +167,19 @@ def test_pattern_ir_accepts_fake_sketcher_lines_in_shuffled_insertion_order() ->
 
     result = PatternIR.from_sketches(graph, {"front": sketch})
     boundaries = result.piece("front").boundaries
-    assert (
-        len(boundaries) == _EXPECTED_LINE_BOUNDARY_COUNT
-    ), "A rectangular sketch must produce four ordered boundaries."
-    assert (
-        boundaries[0].id == "front:edge:0"
-    ), "The first ordered boundary must retain the canonical edge identifier."
-    assert (
-        all(boundary.kind == "line" for boundary in boundaries)
-    ), "All native line segments must remain line boundaries."
+    assert len(boundaries) == _EXPECTED_LINE_BOUNDARY_COUNT, (
+        "A rectangular sketch must produce four ordered boundaries."
+    )
+    assert boundaries[0].id == "front:edge:0", (
+        "The first ordered boundary must retain the canonical edge identifier."
+    )
+    assert all(boundary.kind == "line" for boundary in boundaries), (
+        "All native line segments must remain line boundaries."
+    )
     for current, following in zip(boundaries, boundaries[1:] + boundaries[:1], strict=False):
-        assert (
-            current.samples[-1] == following.samples[0]
-        ), "Adjacent ordered line boundaries must share an endpoint."
+        assert current.samples[-1] == following.samples[0], (
+            "Adjacent ordered line boundaries must share an endpoint."
+        )
 
 
 def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary() -> None:
@@ -218,16 +215,12 @@ def test_pattern_ir_accepts_single_closed_native_curve_as_a_pattern_boundary() -
         curve_samples=_EXPECTED_CURVE_SAMPLE_COUNT,
     )
     boundary = result.piece("circle").boundaries[0]
+    assert boundary.kind == "curve", "A single native circular curve must remain a curve boundary."
+    assert len(boundary.samples) == _EXPECTED_CURVE_SAMPLE_COUNT, (
+        "A closed native curve must preserve the requested sample count."
+    )
     assert (
-        boundary.kind == "curve"
-    ), "A single native circular curve must remain a curve boundary."
-    assert (
-        len(boundary.samples) == _EXPECTED_CURVE_SAMPLE_COUNT
-    ), "A closed native curve must preserve the requested sample count."
-    assert (
-        (
         math.dist(boundary.samples[0], boundary.samples[-1]) <= _CLOSED_CURVE_ENDPOINT_TOLERANCE
-        )
     ), "The first and last samples of a closed curve must coincide within tolerance."
 
 

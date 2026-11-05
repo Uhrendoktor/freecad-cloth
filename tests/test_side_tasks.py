@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from typing import Protocol, cast
 
 import pytest
+from freecad_cloth.shared.collision import CollisionSurface
+
 from fixtures.garment_fixtures import mirrored_pair, multi_piece, two_piece_rectangle
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
@@ -17,7 +19,6 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import rectangle
-from freecad_cloth.shared.collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
@@ -90,18 +91,16 @@ def _transform_vector(value: _VectorLike) -> _Vector:
 def test_svg_units_and_stable_ids() -> None:
     """Preserve physical-unit labels and deterministic edge identifiers in SVG."""
     svg = to_svg(rectangle(SAMPLE_PATTERN_WIDTH_MM, SAMPLE_PATTERN_HEIGHT_MM))
-    assert (
-        'data-units="mm"' in svg
-    ), "SVG export must label the canonical millimetre units."
-    assert (
-        'data-edge-ids="bottom right top left"' in svg
-    ), "SVG export must preserve stable edge identifiers."
-    assert (
-        f'width="{SAMPLE_PATTERN_WIDTH_MM}mm"' in svg
-    ), "SVG width must preserve the pattern's physical width."
-    assert (
-        f'height="{SAMPLE_PATTERN_HEIGHT_MM}mm"' in svg
-    ), "SVG height must preserve the pattern's physical height."
+    assert 'data-units="mm"' in svg, "SVG export must label the canonical millimetre units."
+    assert 'data-edge-ids="bottom right top left"' in svg, (
+        "SVG export must preserve stable edge identifiers."
+    )
+    assert f'width="{SAMPLE_PATTERN_WIDTH_MM}mm"' in svg, (
+        "SVG width must preserve the pattern's physical width."
+    )
+    assert f'height="{SAMPLE_PATTERN_HEIGHT_MM}mm"' in svg, (
+        "SVG height must preserve the pattern's physical height."
+    )
 
 
 def test_collision_surface_contract() -> None:
@@ -112,9 +111,9 @@ def test_collision_surface_contract() -> None:
         thickness=1.0,
     )
     surface.validate()
-    assert (
-        surface.center == EXPECTED_COLLISION_CENTER
-    ), "Collision-surface center must equal the triangle centroid."
+    assert surface.center == EXPECTED_COLLISION_CENTER, (
+        "Collision-surface center must equal the triangle centroid."
+    )
 
 
 def test_golden_fixtures_are_deterministic() -> None:
@@ -125,15 +124,15 @@ def test_golden_fixtures_are_deterministic() -> None:
     second_pieces = cast("Sequence[_SampledPatternPiece]", second_fixture["pieces"])
     first_outline = first_pieces[0].sampled_outline()
     second_outline = second_pieces[0].sampled_outline()
-    assert (
-        first_outline == second_outline
-    ), "Repeated pattern-fixture construction must produce the same outline."
-    assert (
-        mirrored_pair()["mirrored"] is True
-    ), "The mirrored fixture must retain its mirror contract."
-    assert (
-        multi_piece()["seams"] == EXPECTED_SEAM_COUNT
-    ), "The multi-piece fixture must preserve its expected seam count."
+    assert first_outline == second_outline, (
+        "Repeated pattern-fixture construction must produce the same outline."
+    )
+    assert mirrored_pair()["mirrored"] is True, (
+        "The mirrored fixture must retain its mirror contract."
+    )
+    assert multi_piece()["seams"] == EXPECTED_SEAM_COUNT, (
+        "The multi-piece fixture must preserve its expected seam count."
+    )
 
 
 def test_pattern_construction_and_dxf_export() -> None:
@@ -144,36 +143,19 @@ def test_pattern_construction_and_dxf_export() -> None:
         derived, [PatternMark("grain", "Grainline", angle=90, length=40, text="Grain")]
     )
     svg = to_svg(pattern, derived=derived)
-    assert (
-        'id="sewing-boundary"' in svg
-    ), "SVG export must include the sewing boundary."
-    assert (
-        'id="cut-boundary"' in svg
-    ), "SVG export must include the derived cut boundary."
-    assert (
-        'data-notch-ids="waist"' in svg
-    ), "SVG export must retain the semantic notch identifier."
-    assert (
-        'data-kind="Grainline"' in svg
-    ), "SVG export must identify grainline annotations."
+    assert 'id="sewing-boundary"' in svg, "SVG export must include the sewing boundary."
+    assert 'id="cut-boundary"' in svg, "SVG export must include the derived cut boundary."
+    assert 'data-notch-ids="waist"' in svg, "SVG export must retain the semantic notch identifier."
+    assert 'data-kind="Grainline"' in svg, "SVG export must identify grainline annotations."
     dxf = to_dxf(pattern, derived=derived)
-    assert (
-        "LWPOLYLINE" in dxf
-    ), "DXF export must encode pattern boundaries as polylines."
-    assert (
-        "8\nSEWING" in dxf
-    ), "DXF export must retain the sewing layer."
-    assert (
-        "8\nCUT" in dxf
-    ), "DXF export must retain the cut layer."
-    assert (
-        from_dxf_metadata(dxf)
-        == {
+    assert "LWPOLYLINE" in dxf, "DXF export must encode pattern boundaries as polylines."
+    assert "8\nSEWING" in dxf, "DXF export must retain the sewing layer."
+    assert "8\nCUT" in dxf, "DXF export must retain the cut layer."
+    assert from_dxf_metadata(dxf) == {
         "version": 1,
         "units": "mm",
         "edge_ids": ["bottom", "right", "top", "left"],
-        }
-    ), "DXF export must round-trip canonical unit and edge metadata."
+    }, "DXF export must round-trip canonical unit and edge metadata."
 
 
 def test_invalid_pattern_mark_reference_is_rejected() -> None:
@@ -192,9 +174,9 @@ def test_closed_sewing_outline_edge_wraps_to_first_vertex() -> None:
         Height=999.0,
         SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
     )
-    assert (
-        _edge_length(piece, 2) == EXPECTED_EDGE_LENGTH_MM
-    ), "The last outline edge must wrap to the first vertex."
+    assert _edge_length(piece, 2) == EXPECTED_EDGE_LENGTH_MM, (
+        "The last outline edge must wrap to the first vertex."
+    )
 
 
 def test_sewing_edge_points_apply_rotated_piece_placement_once() -> None:
@@ -215,12 +197,12 @@ def test_sewing_edge_points_apply_rotated_piece_placement_once() -> None:
     )
     start = cast("_Vector", raw_start)
     end = cast("_Vector", raw_end)
-    assert (
-        (start.x, start.y, start.z) == EXPECTED_START_POINT
-    ), "The transformed seam start must match the placed local coordinate."
-    assert (
-        (end.x, end.y, end.z) == EXPECTED_END_POINT
-    ), "The transformed seam end must match the placed local coordinate."
+    assert (start.x, start.y, start.z) == EXPECTED_START_POINT, (
+        "The transformed seam start must match the placed local coordinate."
+    )
+    assert (end.x, end.y, end.z) == EXPECTED_END_POINT, (
+        "The transformed seam end must match the placed local coordinate."
+    )
 
 
 def test_drape_visual_diagnostics_accept_clean_result() -> None:

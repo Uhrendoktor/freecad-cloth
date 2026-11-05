@@ -38,18 +38,12 @@ def test_zero_deformation_is_zero_strain_and_full_fit() -> None:
     """Require zero strain and full fit when rest and current meshes match."""
     vertices = _triangle()
     result = analyze_mesh(vertices, vertices, [(0, 1, 2)], stretch_limit=0.02)
-    assert (
-        result.strain == pytest.approx((0.0,))
-    ), "Unchanged vertices must have zero strain."
-    assert (
-        result.stress == pytest.approx((0.0,))
-    ), "Unchanged vertices must have zero stress."
-    assert (
-        result.fit == pytest.approx((1.0,))
-    ), "An unchanged mesh must have full fit."
-    assert (
-        result.pressure == pytest.approx((0.0,))
-    ), "A mesh without pressure input must report zero pressure."
+    assert result.strain == pytest.approx((0.0,)), "Unchanged vertices must have zero strain."
+    assert result.stress == pytest.approx((0.0,)), "Unchanged vertices must have zero stress."
+    assert result.fit == pytest.approx((1.0,)), "An unchanged mesh must have full fit."
+    assert result.pressure == pytest.approx((0.0,)), (
+        "A mesh without pressure input must report zero pressure."
+    )
 
 
 def test_stretch_is_normalized_against_fabric_limit() -> None:
@@ -57,19 +51,19 @@ def test_stretch_is_normalized_against_fabric_limit() -> None:
     rest = _triangle()
     current = _triangle(scale=1.1)
     result = analyze_mesh(rest, current, [(0, 1, 2)], stretch_limit=0.02)
-    assert (
-        result.strain[0] == pytest.approx(0.1, rel=1e-9)
-    ), "Ten-percent stretch must be measured as 0.1 strain."
-    assert (
-        result.stress[0] == pytest.approx(5.0, rel=1e-9)
-    ), "Stress must be normalized against the 0.02 stretch limit."
+    assert result.strain[0] == pytest.approx(0.1, rel=1e-9), (
+        "Ten-percent stretch must be measured as 0.1 strain."
+    )
+    assert result.stress[0] == pytest.approx(5.0, rel=1e-9), (
+        "Stress must be normalized against the 0.02 stretch limit."
+    )
 
     degenerate_rest = ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 1.0, 0.0))
     deformed = ((0.0, 0.0, 0.0), (2.0, 0.0, 0.0), (0.0, 2.0, 0.0))
     degenerate_result = analyze_mesh(degenerate_rest, deformed, ((0, 1, 2),))
-    assert (
-        degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0)
-    ), "Zero-length edges must not hide strain from the other edges."
+    assert degenerate_result.strain[0] == pytest.approx(math.sqrt(8.0) / 3.0), (
+        "Zero-length edges must not hide strain from the other edges."
+    )
 
 
 def test_fit_accepts_per_vertex_clearance() -> None:
@@ -82,25 +76,25 @@ def test_fit_accepts_per_vertex_clearance() -> None:
         clearances=(0.0, 2.0, 4.0),
         fit_tolerance=6.0,
     )
-    assert (
-        result.fit[0] == pytest.approx(2.0 / 3.0)
-    ), "Per-vertex clearances must contribute to the face fit score."
+    assert result.fit[0] == pytest.approx(2.0 / 3.0), (
+        "Per-vertex clearances must contribute to the face fit score."
+    )
 
 
 def test_fit_score_is_bounded_and_symmetric() -> None:
     """Check the fit score's bounds and symmetry about zero clearance."""
-    assert (
-        math.isclose(fit_score(0.0, 5.0), 1.0, rel_tol=0.0, abs_tol=1e-12)
-    ), "Zero clearance must have a fit score of one."
-    assert (
-        fit_score(2.5, 5.0) == pytest.approx(0.5)
-    ), "Half-tolerance positive clearance must score one half."
-    assert (
-        fit_score(-2.5, 5.0) == pytest.approx(0.5)
-    ), "Fit scoring must be symmetric for negative clearance."
-    assert (
-        math.isclose(fit_score(50.0, 5.0), 0.0, rel_tol=0.0, abs_tol=1e-12)
-    ), "Clearance beyond the supported range must have zero fit."
+    assert math.isclose(fit_score(0.0, 5.0), 1.0, rel_tol=0.0, abs_tol=1e-12), (
+        "Zero clearance must have a fit score of one."
+    )
+    assert fit_score(2.5, 5.0) == pytest.approx(0.5), (
+        "Half-tolerance positive clearance must score one half."
+    )
+    assert fit_score(-2.5, 5.0) == pytest.approx(0.5), (
+        "Fit scoring must be symmetric for negative clearance."
+    )
+    assert math.isclose(fit_score(50.0, 5.0), 0.0, rel_tol=0.0, abs_tol=1e-12), (
+        "Clearance beyond the supported range must have zero fit."
+    )
 
 
 def test_pressure_length_must_match_faces() -> None:
@@ -143,17 +137,15 @@ def test_analyze_mesh_preserves_keyword_only_signature() -> None:
         "fit_tolerance": 5.0,
         "pressures": None,
     }
-    assert (
-        tuple(parameters) == expected_names
-    ), "Mesh analysis must retain its explicit public parameters."
-    assert (
-        all(
+    assert tuple(parameters) == expected_names, (
+        "Mesh analysis must retain its explicit public parameters."
+    )
+    assert all(
         parameters[name].kind is inspect.Parameter.KEYWORD_ONLY for name in option_defaults
-        )
     ), "Optional mesh controls must remain keyword-only."
-    assert (
-        {name: parameters[name].default for name in option_defaults} == option_defaults
-    ), "Mesh control defaults must remain stable for introspection."
+    assert {name: parameters[name].default for name in option_defaults} == option_defaults, (
+        "Mesh control defaults must remain stable for introspection."
+    )
 
 
 def test_mesh_vertex_count_is_validated() -> None:
@@ -167,29 +159,22 @@ def test_summary_is_stable_for_export() -> None:
     vertices = _triangle()
     result = analyze_mesh(vertices, _triangle(scale=1.02), [(0, 1, 2)], pressures=(12.0,))
     summary = summarize(result)
-    assert (
-        summary["faces"] == 1
-    ), "The summary must report the single input face."
-    assert (
-        math.isclose(summary["pressure_max"], 12.0, rel_tol=0.0, abs_tol=1e-12)
-    ), "The summary must retain the maximum face pressure."
-    assert (
-        summary["stress_max"] > 0
-    ), "A stretched mesh must report positive maximum stress."
+    assert summary["faces"] == 1, "The summary must report the single input face."
+    assert math.isclose(summary["pressure_max"], 12.0, rel_tol=0.0, abs_tol=1e-12), (
+        "The summary must retain the maximum face pressure."
+    )
+    assert summary["stress_max"] > 0, "A stretched mesh must report positive maximum stress."
 
 
 def test_metric_definition_is_explicit_and_stable() -> None:
     """Keep the stress formula and strain units explicit in the metric metadata."""
-    assert (
-        metric_definition("stress")
-        == {
+    assert metric_definition("stress") == {
         "formula": "|strain| / stretch_limit",
         "units": "normalized utilization",
-        }
-    ), "Stress metadata must state its formula and normalized units."
-    assert (
-        metric_definition("strain")["units"] == "dimensionless"
-    ), "Strain metadata must use dimensionless units."
+    }, "Stress metadata must state its formula and normalized units."
+    assert metric_definition("strain")["units"] == "dimensionless", (
+        "Strain metadata must use dimensionless units."
+    )
 
 
 def test_diagnostic_json_export_is_deterministic(tmp_path: Path) -> None:
@@ -205,15 +190,13 @@ def test_diagnostic_json_export_is_deterministic(tmp_path: Path) -> None:
     second = tmp_path / "analysis-second.json"
     export_json(result, first)
     export_json(result, second)
-    assert (
-        first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8")
-    ), "Repeated exports of the same diagnostics must be byte-for-byte identical."
-    assert (
-        payload["schema"] == 1
-    ), "The exported diagnostics must use schema version one."
-    assert (
-        payload["metrics"]["stress"] == pytest.approx(result.stress)
-    ), "The exported stress values must match the analyzed mesh."
+    assert first.read_text(encoding="utf-8") == second.read_text(encoding="utf-8"), (
+        "Repeated exports of the same diagnostics must be byte-for-byte identical."
+    )
+    assert payload["schema"] == 1, "The exported diagnostics must use schema version one."
+    assert payload["metrics"]["stress"] == pytest.approx(result.stress), (
+        "The exported stress values must match the analyzed mesh."
+    )
 
 
 def test_unknown_metric_definition_fails_closed() -> None:

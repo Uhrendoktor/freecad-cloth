@@ -16,10 +16,9 @@ from support.freecad_bootstrap import prepare_repository_root
 
 ROOT = prepare_repository_root(__file__)
 
-from support.freecad_mesh_geometry import opposite_top_edge_vertices
-
 import FreeCAD as App
 import FreeCADGui as Gui
+from support.freecad_mesh_geometry import opposite_top_edge_vertices
 
 try:
     from PySide import QtWidgets

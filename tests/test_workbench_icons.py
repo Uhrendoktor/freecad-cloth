@@ -6,7 +6,6 @@ from pathlib import Path
 
 from defusedxml import ElementTree
 
-
 ROOT = Path(__file__).resolve().parents[1]
 ICON_DIR = ROOT / "resources" / "icons"
 
@@ -17,24 +16,18 @@ def test_workbench_icons_are_valid_scalable_assets() -> None:
         icon_path = ICON_DIR / name
         root = ElementTree.parse(icon_path).getroot()
         assert root is not None, f"{name} did not parse to an SVG root element."
-        assert (
-            root.tag.endswith("svg")
-        ), f"{name} must have an SVG root element."
-        assert (
-            root.attrib.get("viewBox") == "0 0 64 64"
-        ), f"{name} must expose the expected 64-by-64 viewBox."
-        assert (
-            root.attrib.get("role") == "img"
-        ), f"{name} must expose its image role."
-        assert (
-            bool(root.attrib.get("aria-label"))
-        ), f"{name} must provide an accessible label."
-        assert (
-            bool(root.findall(".//*[@fill='currentColor']"))
-        ), f"{name} should use currentColor for theme-aware shapes."
-        assert (
-            "#333" in icon_path.read_text(encoding="utf-8")
-        ), f"{name} must not embed the legacy #333 color."
+        assert root.tag.endswith("svg"), f"{name} must have an SVG root element."
+        assert root.attrib.get("viewBox") == "0 0 64 64", (
+            f"{name} must expose the expected 64-by-64 viewBox."
+        )
+        assert root.attrib.get("role") == "img", f"{name} must expose its image role."
+        assert bool(root.attrib.get("aria-label")), f"{name} must provide an accessible label."
+        assert bool(root.findall(".//*[@fill='currentColor']")), (
+            f"{name} should use currentColor for theme-aware shapes."
+        )
+        assert "#333" in icon_path.read_text(encoding="utf-8"), (
+            f"{name} must not embed the legacy #333 color."
+        )
 
 
 def test_all_workbench_tool_commands_have_svg_icons() -> None:
@@ -53,21 +46,15 @@ def test_all_workbench_tool_commands_have_svg_icons() -> None:
     )
     modules = tuple(importlib.import_module(name) for name in module_names)
     commands = [command for module in modules for command in module.COMMANDS]
-    assert (
-        len(commands) == len(set(commands))
-    ), "Workbench command identifiers must be unique across command modules."
+    assert len(commands) == len(set(commands)), (
+        "Workbench command identifiers must be unique across command modules."
+    )
     for command in commands:
         icon = Path(icon_for_command(command))
-        assert (
-            icon.is_file()
-        ), f"Command {command!r} must map to an existing icon."
+        assert icon.is_file(), f"Command {command!r} must map to an existing icon."
         text = icon.read_text(encoding="utf-8")
-        assert (
-            "<svg" in text
-        ), f"Icon for {command!r} must contain an SVG root element."
-        assert (
-            "viewBox=" in text
-        ), f"Icon for {command!r} must provide a viewBox."
+        assert "<svg" in text, f"Icon for {command!r} must contain an SVG root element."
+        assert "viewBox=" in text, f"Icon for {command!r} must provide a viewBox."
 
 
 def test_semantically_equivalent_commands_share_canonical_icons() -> None:
@@ -92,12 +79,10 @@ def test_semantically_equivalent_commands_share_canonical_icons() -> None:
     for alias, canonical in aliases:
         alias_path = Path(icon_for_command(alias))
         canonical_path = Path(icon_for_command(canonical))
-        assert (
-            alias_path == canonical_path
-        ), f"Alias {alias!r} should share the icon for {canonical!r}."
-        assert (
-            alias_path.is_file()
-        ), f"Canonical icon for alias {alias!r} must exist."
+        assert alias_path == canonical_path, (
+            f"Alias {alias!r} should share the icon for {canonical!r}."
+        )
+        assert alias_path.is_file(), f"Canonical icon for alias {alias!r} must exist."
 
 
 def test_distinct_svg_assets_do_not_duplicate_the_same_artwork() -> None:
@@ -105,10 +90,8 @@ def test_distinct_svg_assets_do_not_duplicate_the_same_artwork() -> None:
     contents: dict[str, str] = {}
     for icon in sorted(ICON_DIR.glob("*.svg")):
         content = icon.read_text(encoding="utf-8")
-        assert (
-            content not in contents
-        ), (
-                f"{icon.name} duplicates {contents.get(content)}; share canonical icons "
-                "through CommandAdapter.icon_for_command instead."
-            )
+        assert content not in contents, (
+            f"{icon.name} duplicates {contents.get(content)}; share canonical icons "
+            "through CommandAdapter.icon_for_command instead."
+        )
         contents[content] = icon.name

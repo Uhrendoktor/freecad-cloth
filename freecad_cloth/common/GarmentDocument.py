@@ -42,7 +42,7 @@ def _add_property(obj: object, property_type: str, name: str, group: str) -> Non
     """
     add_property = cast(
         "Callable[[str, str, str], object]",
-        getattr(obj, "addProperty"),
+        obj.addProperty,
     )
     add_property(property_type, name, group)
 
@@ -60,7 +60,7 @@ def _new_document_object(doc: object, object_type: str, name: str) -> object:
     """
     add_object = cast(
         "Callable[[str, str], object]",
-        getattr(doc, "addObject"),
+        doc.addObject,
     )
     return add_object(object_type, name)
 
@@ -72,7 +72,7 @@ def _add_child(container: object, child: object) -> None:
         container: FreeCAD group or Part receiving the child.
         child: Document object to add to the container.
     """
-    add_object = cast("Callable[[object], object]", getattr(container, "addObject"))
+    add_object = cast("Callable[[object], object]", container.addObject)
     add_object(child)
 
 
@@ -82,7 +82,7 @@ def _recompute_document(doc: object) -> None:
     Args:
         doc: FreeCAD document containing the updated garment hierarchy.
     """
-    recompute = cast("Callable[[], object]", getattr(doc, "recompute"))
+    recompute = cast("Callable[[], object]", doc.recompute)
     recompute()
 
 
@@ -228,7 +228,7 @@ def ensure_fabric_material(doc: object, root: object | None = None) -> object | 
     )
     if material is None:
         material = _new_document_object(doc, "App::FeaturePython", "FabricMaterial")
-        setattr(material, "Label", "Fabric Material")
+        material.Label = "Fabric Material"
     _ensure_string(material, "GarmentRole", "Garment", "FabricMaterial")
     _ensure_string(material, "MaterialType", "Fabric", "Fabric")
     _ensure_string(material, "MaterialId", "Fabric", "fabric-default")
@@ -249,7 +249,7 @@ def ensure_fabric_material(doc: object, root: object | None = None) -> object | 
             setattr(material, name, float(value))
     if "Color" not in getattr(material, "PropertiesList", ()):
         _add_property(material, "App::PropertyColor", "Color", "Presentation")
-        setattr(material, "Color", (0.72, 0.34, 0.46))
+        material.Color = 0.72, 0.34, 0.46
     if material not in _children(fabric_group):
         _add_child(fabric_group, material)
     return material
@@ -275,7 +275,7 @@ def ensure_garment_hierarchy(doc: object | None, label: str = "Garment") -> obje
     root = garment_root(doc)
     if root is None:
         root = _new_document_object(doc, "App::Part", GARMENT_ROOT_NAME)
-    setattr(root, "Label", str(label or GARMENT_ROOT_NAME))
+    root.Label = str(label or GARMENT_ROOT_NAME)
     _ensure_string(root, "GarmentRole", "Garment", "GarmentRoot")
     _ensure_string(root, "SchemaVersion", "Garment", GARMENT_SCHEMA_VERSION)
 
@@ -392,7 +392,7 @@ def create_garment_document(
     if runtime_module is None:
         msg = "FreeCAD must be loaded or supplied as app_module to create a document"
         raise ImportError(msg)
-    new_document = cast("Callable[[str], object]", getattr(runtime_module, "newDocument"))
+    new_document = cast("Callable[[str], object]", runtime_module.newDocument)
     doc = new_document(str(name))
     ensure_garment_hierarchy(doc, label)
     return doc

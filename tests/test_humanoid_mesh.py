@@ -350,9 +350,9 @@ class HumanoidMeshTests(unittest.TestCase):
 
         circumference = _section_circumference(mesh, 0.5)
 
-        assert (
-            abs(circumference - 8.0) < 1e-9
-        ), "unit cube section must have the expected square perimeter"
+        assert abs(circumference - 8.0) < 1e-9, (
+            "unit cube section must have the expected square perimeter"
+        )
 
     def test_compact_mesh_remaps_triangle_indices_with_numpy(self) -> None:
         """Preserve sorted source-index order when compacting mesh connectivity."""
@@ -367,12 +367,12 @@ class HumanoidMeshTests(unittest.TestCase):
 
         compact_vertices, compact_triangles = compact_mesh(vertices, triangles)
 
-        assert (
-            compact_vertices == (vertices[1], vertices[2], vertices[3])
-        ), "compaction must preserve the sorted source index order"
-        assert (
-            compact_triangles == ((2, 0, 1), (1, 2, 1))
-        ), "compaction must remap every triangle through the inverse index array"
+        assert compact_vertices == (vertices[1], vertices[2], vertices[3]), (
+            "compaction must preserve the sorted source index order"
+        )
+        assert compact_triangles == ((2, 0, 1), (1, 2, 1)), (
+            "compaction must remap every triangle through the inverse index array"
+        )
 
     def test_explicit_local_source_does_not_require_network(self):
         fd, path = tempfile.mkstemp(prefix="cloth-humanoid-", suffix=".obj")

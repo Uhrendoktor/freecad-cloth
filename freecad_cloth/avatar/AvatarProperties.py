@@ -10,7 +10,7 @@ manually maintained mapping table.
 
 from dataclasses import fields
 
-from freecad_cloth.avatar.AvatarModel import AvatarParameters, DEFAULT_MEASUREMENTS, Pose
+from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS, AvatarParameters, Pose
 
 
 def _measurement_property_name(name: str) -> str:

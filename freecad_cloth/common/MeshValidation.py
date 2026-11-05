@@ -22,8 +22,9 @@ from scipy.spatial import KDTree
 from freecad_cloth.common.ValidationModels import MeshArrays, MeshHealthMetrics, validate_points3d
 
 if TYPE_CHECKING:
-    from numbers import Real
     from collections.abc import Callable, Iterable, Sequence
+    from numbers import Real
+
     from numpy.typing import NDArray
 
 Point3 = tuple[float, float, float]

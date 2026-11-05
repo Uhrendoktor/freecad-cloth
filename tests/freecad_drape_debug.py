@@ -34,10 +34,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 _arc_through_midpoint: Callable[[object, object, object, object, object], object] = cast(
     "Callable[[object, object, object, object, object], object]",
-    getattr(
-        importlib.import_module("tests.support.freecad_arc_geometry"),
-        "arc_through_midpoint",
-    ),
+    importlib.import_module("tests.support.freecad_arc_geometry").arc_through_midpoint,
 )
 
 OUT = Path(os.environ.get("CLOTH_DEBUG_DIR", "artifacts/freecad-drape-debug"))

@@ -14,9 +14,9 @@ from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
 from freecad_cloth.pattern.PatternIR import PatternIR, SeamIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
+    NATIVE_SIGNATURE_PREFIX,
     ChangedEdgeReference,
     MissingEdgeReference,
-    NATIVE_SIGNATURE_PREFIX,
     capture_edge_reference,
 )
 from freecad_cloth.sewing.SeamGraph import SeamGraph

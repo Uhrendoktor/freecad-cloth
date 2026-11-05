@@ -12,6 +12,8 @@ from collections.abc import Sequence
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
+)
+from freecad_cloth.avatar.AvatarProperties import (
     SHAPE_PROPERTY_MAP,
 )
 from freecad_cloth.shared.ViewportGizmoStyle import (
@@ -33,7 +35,6 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ROTATION_RING_RADIUS,
     ROTATION_RING_THICKNESS,
 )
-
 
 _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
@@ -1485,8 +1486,8 @@ class AvatarPoseTaskPanel:
         """
         from freecad_cloth.avatar.AvatarCommands import _parameters
         from freecad_cloth.avatar.AvatarModel import (
-            AvatarParameters,
             DEFAULT_POSE_ARM_ANGLES,
+            AvatarParameters,
             Pose,
         )
 

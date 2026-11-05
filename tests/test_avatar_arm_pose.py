@@ -16,24 +16,24 @@ from freecad_cloth.avatar.HumanoidMesh import (
 def test_geometric_fallback_covers_lower_arm_envelope_without_source_weights() -> None:
     """Keep both arm envelopes controllable when source weights are absent."""
     height = 1750.0
-    assert (
-        arm_pose_weight(260.0, height * 0.50, 170.0, height) == pytest.approx(1.0)
-        and arm_pose_weight(-260.0, height * 0.50, -170.0, height) == pytest.approx(1.0)
-    ), "the geometric fallback must cover both arm envelopes."
+    assert arm_pose_weight(260.0, height * 0.50, 170.0, height) == pytest.approx(
+        1.0
+    ) and arm_pose_weight(-260.0, height * 0.50, -170.0, height) == pytest.approx(1.0), (
+        "the geometric fallback must cover both arm envelopes."
+    )
 
 
 def test_source_weight_is_authoritative_for_arm_influence() -> None:
     """Honor authored arm weights rather than inferring extra influence."""
     height = 1750.0
-    assert (
-        arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0) == pytest.approx(0.0)
-    ), "zero source weight must suppress geometric fallback."
-    assert (
-        (
-        arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0) == pytest.approx(1.0)
-        and arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35) == pytest.approx(0.35)
-        )
-    ), "source weights must retain their authoritative influence."
+    assert arm_pose_weight(260.0, height * 0.72, 170.0, height, 0.0) == pytest.approx(0.0), (
+        "zero source weight must suppress geometric fallback."
+    )
+    assert arm_pose_weight(10.0, height * 0.50, 170.0, height, 1.0) == pytest.approx(
+        1.0
+    ) and arm_pose_weight(10.0, height * 0.50, 170.0, height, 0.35) == pytest.approx(0.35), (
+        "source weights must retain their authoritative influence."
+    )
 
 
 def test_makehuman_arm_weights_sum_only_arm_chain_bones() -> None:
@@ -54,9 +54,9 @@ def test_makehuman_arm_weights_sum_only_arm_chain_bones() -> None:
         path.write_text(json.dumps(payload), encoding="utf-8")
         left, right = load_makehuman_arm_weights(4, str(path))
 
-    assert (
-        left[1] == pytest.approx(1.0) and right[2] == pytest.approx(0.60)
-    ), "only left and right arm-chain weights should be accumulated."
-    assert (
-        left[0] == pytest.approx(0.0) and right[1] == pytest.approx(0.0)
-    ), "vertices outside authored arm chains must not gain influence."
+    assert left[1] == pytest.approx(1.0) and right[2] == pytest.approx(0.60), (
+        "only left and right arm-chain weights should be accumulated."
+    )
+    assert left[0] == pytest.approx(0.0) and right[1] == pytest.approx(0.0), (
+        "vertices outside authored arm chains must not gain influence."
+    )

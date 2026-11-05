@@ -12,8 +12,8 @@ import math
 import os
 import time
 from dataclasses import dataclass
-from pathlib import Path
 from numbers import Real
+from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 if TYPE_CHECKING:
@@ -509,8 +509,8 @@ class LadderCheckpointCapture:
             image: Destination path for the checkpoint image.
         """
         self.boot(f"checkpoint-before-recompute case={self.case_id} step={step}")
-        setattr(self.scene, "Steps", int(step))
-        getattr(self.document, "recompute")()
+        self.scene.Steps = int(step)
+        self.document.recompute()
         self.boot(f"checkpoint-after-recompute case={self.case_id} step={step}")
         self.process_events()
         image.parent.mkdir(parents=True, exist_ok=True)
@@ -547,10 +547,10 @@ def configure_diagnostic_cube_target(
         msg = "diagnostic collision scene has no DrapeTarget"
         raise RuntimeError(msg)
     previous_source = getattr(target, "SourceObject", None)
-    cube = getattr(doc, "addObject")("Part::Feature", "DiagnosticCube")
+    cube = doc.addObject("Part::Feature", "DiagnosticCube")
     cube.Label = "Diagnostic Collision Cube"
     cube.Shape = part.makeBox(180.0, 180.0, 60.0, app.Vector(-90.0, -90.0, 0.0))
-    getattr(doc, "recompute")()
+    doc.recompute()
 
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
@@ -559,7 +559,7 @@ def configure_diagnostic_cube_target(
         if hasattr(previous_source, "ViewObject"):
             previous_source.ViewObject.Visibility = False
     cube.ViewObject.Visibility = True
-    getattr(doc, "recompute")()
+    doc.recompute()
     return cube
 
 
@@ -753,7 +753,7 @@ def capture_ladder_checkpoints(
     for step in LADDER_CHECKPOINTS:
         image = output_directory / f"{target_name}-ladder" / case_id / f"step-{step:03d}.png"
         capture.capture(step, image)
-        positions = positions_tuple(getattr(runtime.base, "backend"))
+        positions = positions_tuple(runtime.base.backend)
         relative_image = str(image.relative_to(output_directory))
         checkpoints.append(record_checkpoint(step, relative_image, positions))
         images[step] = relative_image
@@ -804,7 +804,7 @@ def build_ladder_case_record(
         if isinstance(penetration, Real) and not isinstance(penetration, bool):
             penetration_values.append(float(penetration))
     maximum_penetration = max(penetration_values, default=0.0)
-    seam_pairs_by_id = getattr(runtime.base, "seam_stitch_pairs")
+    seam_pairs_by_id = runtime.base.seam_stitch_pairs
     seam_pairs = [
         [int(left), int(right)] for pairs in seam_pairs_by_id.values() for left, right in pairs
     ]
@@ -1054,12 +1054,12 @@ def configure_ladder_scene(
         pieces: Case-specific one- or two-panel cloth pieces.
         spec: Manifest record supplying the pin mode.
     """
-    setattr(scene, "ClothPieces", pieces)
-    setattr(scene, "SeamSelection", [])
-    setattr(scene, "PinMode", str(spec["pin_mode"]))
-    setattr(scene, "PinSelection", [])
-    setattr(scene, "StitchSamples", LADDER_STITCH_SAMPLES)
-    setattr(scene, "Steps", 0)
+    scene.ClothPieces = pieces
+    scene.SeamSelection = []
+    scene.PinMode = str(spec["pin_mode"])
+    scene.PinSelection = []
+    scene.StitchSamples = LADDER_STITCH_SAMPLES
+    scene.Steps = 0
 
 
 def build_proximity_mesh(collision_surface: object) -> object | None:
@@ -1178,9 +1178,7 @@ def surface_signed_clearance(
         for index, point in enumerate(points):
             try:
                 mark(f"before-shape-isInside index={index}")
-                point_inside = bool(
-                    getattr(source_shape, "isInside")(vector_factory(*point), 1e-6, True)
-                )
+                point_inside = bool(source_shape.isInside(vector_factory(*point), 1e-6, True))
                 mark(f"after-shape-isInside index={index} result={point_inside}")
                 if point_inside:
                     inside = True
@@ -1229,8 +1227,8 @@ def prepare_ladder_case(
     )
     base = runtime.base
     seam_pre = seam_geometry(
-        getattr(base, "backend"),
-        getattr(base, "seam_stitch_pairs"),
+        base.backend,
+        base.seam_stitch_pairs,
     )
     proximity_mesh = build_proximity_mesh(runtime.collision_surface)
     signed_before, unsigned_before = clearance_measure(
