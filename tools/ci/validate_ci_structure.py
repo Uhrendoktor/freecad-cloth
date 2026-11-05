@@ -91,7 +91,12 @@ def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
     Returns:
         Python policy commands that are missing from the workflow.
     """
-    command_lines = {line.strip() for line in workflow_text.splitlines()}
+    command_lines: set[str] = set()
+    for line in workflow_text.splitlines():
+        command = line.strip()
+        if command.startswith("run: "):
+            command = command.removeprefix("run: ").strip()
+        command_lines.add(command)
     return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
 
 
@@ -196,22 +201,23 @@ def pyright_coverage_contract_violations(
     except json.JSONDecodeError:
         return ("<invalid pyrightconfig.json>",)
 
+    violations: list[str] = []
     if config.get("include") != list(PYRIGHT_EXPECTED_INCLUDE):
-        return ("<Pyright must include the entire repository root>",)
+        violations.append("<Pyright must include the entire repository root>")
     if config.get("exclude", []) != list(PYRIGHT_EXPECTED_EXCLUDE):
-        return ("<Pyright exclude scope must not hide repository files>",)
+        violations.append("<Pyright exclude scope must not hide repository files>")
     if config.get("typeCheckingMode") != "strict":
-        return ("<Pyright must use global strict type checking>",)
+        violations.append("<Pyright must use global strict type checking>")
     if config.get("strict", []) != []:
-        return ("<Pyright strict path list must not substitute for global strict mode>",)
+        violations.append("<Pyright strict path list must not substitute for global strict mode>")
     if config.get("reportMissingImports", "error") != "error":
-        return ("<Pyright missing-import diagnostics must remain errors>",)
+        violations.append("<Pyright missing-import diagnostics must remain errors>")
     if config.get("reportMissingModuleSource", "error") != "error":
-        return ("<Pyright missing-module-source diagnostics must remain errors>",)
+        violations.append("<Pyright missing-module-source diagnostics must remain errors>")
     if config.get("reportMissingTypeStubs", "error") != "error":
-        return ("<Pyright missing-type-stub diagnostics must remain errors>",)
+        violations.append("<Pyright missing-type-stub diagnostics must remain errors>")
     if config.get("reportImportCycles", "error") != "error":
-        return ("<Pyright import-cycle diagnostics must remain errors>",)
+        violations.append("<Pyright import-cycle diagnostics must remain errors>")
 
     uncovered_modules = tuple(
         path
@@ -219,10 +225,11 @@ def pyright_coverage_contract_violations(
         if not _pyright_path_is_included(path, list(PYRIGHT_EXPECTED_INCLUDE))
         or _pyright_path_is_excluded(path, list(PYRIGHT_EXPECTED_EXCLUDE))
     )
-    return tuple(
+    violations.extend(
         f"<new Python module is outside Pyright repository-wide coverage: {path}>"
         for path in uncovered_modules
     )
+    return tuple(violations)
 
 
 
