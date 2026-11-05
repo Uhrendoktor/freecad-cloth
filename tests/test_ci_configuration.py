@@ -839,8 +839,20 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     formatter_conflicts = {
-        "W191", "E111", "E114", "E117", "D203", "D206", "D300",
-        "Q000", "Q001", "Q002", "Q003", "Q004", "COM812", "COM819",
+        "W191",
+        "E111",
+        "E114",
+        "E117",
+        "D203",
+        "D206",
+        "D300",
+        "Q000",
+        "Q001",
+        "Q002",
+        "Q003",
+        "Q004",
+        "COM812",
+        "COM819",
     }
 
     require(
@@ -848,7 +860,10 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         message="Ruff inventory must contain every tracked Python source and stub.",
     )
     require(
-        condition='xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality,
+        condition=(
+            'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"'
+            in quality
+        ),
         message="Ruff formatting must be a read-only repository-wide gate.",
     )
     require(
@@ -1047,9 +1062,12 @@ def test_new_python_modules_are_covered_automatically_by_repository_root() -> No
         "tools/ci/new_validator.py",
     )
     require(
-        condition=pyright_coverage_contract_violations(
-            PYRIGHT_CONFIG.read_text(encoding="utf-8"), new_modules
-        ) == (),
+        condition=(
+            pyright_coverage_contract_violations(
+                PYRIGHT_CONFIG.read_text(encoding="utf-8"), new_modules
+            )
+            == ()
+        ),
         message="Repository-root Pyright include must automatically cover new Python modules.",
     )
 
