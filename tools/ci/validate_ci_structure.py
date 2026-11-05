@@ -46,6 +46,7 @@ REQUIRED = (
     ROOT / "tools/ci/check_artifact_budget.py",
     ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/check_no_source_rewriting.py",
+    ROOT / "tools/check_documentation_contract.py",
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
@@ -55,7 +56,10 @@ PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 
 TYPECHECK_COMMANDS = ("pyright -p pyrightconfig.json",)
 
-PYTHON_POLICY_COMMANDS = ("python tools/ci/check_no_source_rewriting.py",)
+PYTHON_POLICY_COMMANDS = (
+    "python tools/ci/check_no_source_rewriting.py",
+    "python tools/check_documentation_contract.py",
+)
 RUFF_COMMANDS = (
     'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
     'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"',
