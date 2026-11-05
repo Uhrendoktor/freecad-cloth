@@ -271,7 +271,20 @@ class PatternIR:
         ``SemanticEdgeIds``; the conversion emits deterministic samples plus
         curve kind/parameter metadata, while the native object stays outside
         the solver layer.
-        """
+        
+
+        Args:
+            graph: Validated sewing graph whose piece IDs define the conversion scope.
+            sketches: Native sketch-like objects keyed by their PatternPiece IDs.
+            materials: Optional material name mapping keyed by piece ID.
+            curve_samples: Number of samples used to represent each native curve.
+
+        Returns:
+            Validated PatternIR with native curve kinds and seam edge IDs resolved.
+
+        Raises:
+            ValueError: If curve sampling is too small, a piece sketch is absent, or
+                any sketch has invalid or disconnected boundary geometry."""
         if curve_samples < 2:
             msg = "curve_samples must be at least 2"
             raise ValueError(msg)
