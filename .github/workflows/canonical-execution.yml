@@ -171,17 +171,18 @@ jobs:
           baseline-from-ref: "origin/${{ github.base_ref }}"
           fail-on-new-clones: "true"
           fail-on-empty: "true"
-      - name: Ruff format migration export
+      - name: Ruff safe-fix migration export
         if: ${{ !cancelled() }}
         run: |
           xargs -0 -r python -m ruff format --verbose < "$RUNNER_TEMP/python-files.zlist"
+          xargs -0 -r python -m ruff check --fix < "$RUNNER_TEMP/python-files.zlist"
           xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
-          python -c 'import os,pathlib,shutil,subprocess; o=pathlib.Path(os.environ["RUNNER_TEMP"])/"ruff-formatted"; files=subprocess.check_output(["git","diff","--name-only","--","*.py","*.pyi"],text=True).splitlines(); [(o.joinpath(p).parent.mkdir(parents=True,exist_ok=True),shutil.copy2(p,o/p)) for p in files]'
+          python -c 'import os,pathlib,shutil,subprocess; o=pathlib.Path(os.environ["RUNNER_TEMP"])/"ruff-safe-fixed"; files=subprocess.check_output(["git","diff","--name-only","--","*.py","*.pyi"],text=True).splitlines(); [(o.joinpath(p).parent.mkdir(parents=True,exist_ok=True),shutil.copy2(p,o/p)) for p in files]'
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: ${{ !cancelled() }}
         with:
-          name: ruff-formatted-sources
-          path: ${{ runner.temp }}/ruff-formatted/
+          name: ruff-safe-fixed-sources
+          path: ${{ runner.temp }}/ruff-safe-fixed/
           if-no-files-found: error
       - name: Ruff lint (strict, whole repository)
         if: ${{ !cancelled() }}
