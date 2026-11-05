@@ -11,9 +11,9 @@ import tempfile
 from pathlib import Path
 
 if __package__:
-    from tools.ci.command_runner import CommandResult, run_command
+    from tools.ci.command_runner import CommandOptions, CommandResult, run_command
 else:
-    from command_runner import CommandResult, run_command
+    from command_runner import CommandOptions, CommandResult, run_command
 
 
 def run(
@@ -35,7 +35,7 @@ def run(
         ValueError: If no executable command is provided.
         FileNotFoundError: If the requested executable is unavailable on PATH.
     """
-    return run_command(args, cwd=cwd, check=check)
+    return run_command(args, options=CommandOptions(cwd=cwd, check=check))
 
 
 def main() -> int:
