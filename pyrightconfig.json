@@ -1,27 +1,11 @@
 {
   "include": [
-    "freecad_cloth/shared/Collision.py",
-    "freecad_cloth/shared/Targets.py",
-    "freecad_cloth/shared/ViewportGizmoStyle.py",
-    "freecad_cloth/avatar/AvatarProperties.py",
-    "freecad_cloth/avatar/SkeletonTypes.py",
-    "freecad_cloth/avatar/avatar_commands.py",
-    "freecad_cloth/shared/CommandIds.py",
-    "freecad_cloth/shared/MeshTopology.py",
-    "freecad_cloth/shared/SeamColors.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/MeshBoundary.py",
-    "freecad_cloth/simulation/_cloth_backend_compat.py",
-    "freecad_cloth/simulation/cloth_backend.py"
+    "."
   ],
-  "strict": [
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/cloth_backend.py",
-    "freecad_cloth/simulation/ClothSolver.py"
-  ],
-  "typeCheckingMode": "standard",
-  "reportMissingImports": "none",
-  "reportMissingModuleSource": "none",
+  "typeCheckingMode": "strict",
+  "reportMissingImports": "error",
+  "reportMissingModuleSource": "error",
+  "reportMissingTypeStubs": "error",
+  "reportImportCycles": "error",
   "pythonVersion": "3.12"
 }
