@@ -192,9 +192,9 @@ def pyright_coverage_contract_violations(
     except json.JSONDecodeError:
         return ("<invalid pyrightconfig.json>",)
 
-    if config.get("include") != ["."]:
+    if config.get("include") != list(PYRIGHT_EXPECTED_INCLUDE):
         return ("<Pyright must include the entire repository root>",)
-    if config.get("exclude", []) != []:
+    if config.get("exclude", []) != list(PYRIGHT_EXPECTED_EXCLUDE):
         return ("<Pyright exclude scope must not hide repository files>",)
     if config.get("typeCheckingMode") != "strict":
         return ("<Pyright must use global strict type checking>",)
@@ -204,8 +204,21 @@ def pyright_coverage_contract_violations(
         return ("<Pyright missing-import diagnostics must remain errors>",)
     if config.get("reportMissingModuleSource", "error") != "error":
         return ("<Pyright missing-module-source diagnostics must remain errors>",)
+    if config.get("reportMissingTypeStubs", "error") != "error":
+        return ("<Pyright missing-type-stub diagnostics must remain errors>",)
+    if config.get("reportImportCycles", "error") != "error":
+        return ("<Pyright import-cycle diagnostics must remain errors>",)
 
-    return ()
+    uncovered_modules = tuple(
+        path
+        for path in added_modules
+        if not _pyright_path_is_included(path, list(PYRIGHT_EXPECTED_INCLUDE))
+        or _pyright_path_is_excluded(path, list(PYRIGHT_EXPECTED_EXCLUDE))
+    )
+    return tuple(
+        f"<new Python module is outside Pyright repository-wide coverage: {path}>"
+        for path in uncovered_modules
+    )
 
 
 
