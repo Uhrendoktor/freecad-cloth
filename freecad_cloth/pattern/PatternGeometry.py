@@ -23,13 +23,18 @@ Point = tuple[float, float]
 
 @pydantic_dataclass(frozen=True)
 class LineSegment:
-    """Public data model or service class for LineSegment."""
+    """Straight authored edge with a stable identifier and finite 2D endpoints."""
 
     id: str
     start: Point
     end: Point
 
     def __post_init__(self) -> None:
+        """Validate the segment identifier and normalize its endpoint coordinates.
+
+        Raises:
+            ValueError: If the identifier is empty or either endpoint is invalid.
+        """
         if not isinstance(self.id, str) or not self.id.strip():
             msg = "segment ID must be a non-empty string"
             raise ValueError(msg)
@@ -37,20 +42,31 @@ class LineSegment:
         object.__setattr__(self, "end", validate_point2d(self.end))
 
     def point(self, t: float) -> Point:
-        """Return the point at the requested parameter."""
+        """Evaluate the line segment at a finite parameter value.
+
+        Args:
+            t: Normalized parameter; values outside the unit interval extrapolate.
+
+        Returns:
+            Interpolated 2D point on the segment's supporting line.
+        """
         t = validate_finite_number(t)
         return _require_finite_point(
             (_lerp(self.start[0], self.end[0], t), _lerp(self.start[1], self.end[1], t))
         )
 
     def length(self) -> float:
-        """Return the finite geometric length represented by this object."""
+        """Measure the Euclidean distance between the authored endpoints.
+
+        Returns:
+            Segment length in the pattern's coordinate units.
+        """
         return _distance(self.start, self.end)
 
 
 @pydantic_dataclass(frozen=True)
 class QuadraticBezier:
-    """Public data model or service class for QuadraticBezier."""
+    """Quadratic Bezier edge defined by endpoint and control-point coordinates."""
 
     id: str
     start: Point
@@ -58,6 +74,11 @@ class QuadraticBezier:
     end: Point
 
     def __post_init__(self) -> None:
+        """Validate the identifier and normalize the sampled curve coordinates.
+
+        Raises:
+            ValueError: If the identifier is empty or fewer than two valid points exist.
+        """
         if not isinstance(self.id, str) or not self.id.strip():
             msg = "segment ID must be a non-empty string"
             raise ValueError(msg)
@@ -66,7 +87,14 @@ class QuadraticBezier:
         object.__setattr__(self, "end", validate_point2d(self.end))
 
     def point(self, t: float) -> Point:
-        """Return the point at the requested parameter."""
+        """Evaluate the quadratic Bezier curve at a finite parameter value.
+
+        Args:
+            t: Normalized curve parameter; values outside the unit interval extrapolate.
+
+        Returns:
+            Two-dimensional point on the quadratic Bezier curve.
+        """
         t = validate_finite_number(t)
         first = (
             _lerp(self.start[0], self.control[0], t),
@@ -79,7 +107,14 @@ class QuadraticBezier:
         return _require_finite_point((_lerp(first[0], second[0], t), _lerp(first[1], second[1], t)))
 
     def polyline(self, samples: int = 32) -> list[Point]:
-        """Return sampled polyline points for this geometry."""
+        """Sample this curve into an ordered polyline.
+
+        Args:
+            samples: Number of equally spaced curve samples, including both endpoints.
+
+        Returns:
+            Ordered points approximating the quadratic curve.
+        """
         samples = SampleCount(count=samples).count
         return [self.point(i / (samples - 1)) for i in range(samples)]
 
@@ -103,16 +138,31 @@ class PolylineSegment:
 
     @property
     def start(self) -> Point:
-        """Provide the public start operation."""
+        """Return the first point of the authored polyline.
+
+        Returns:
+            First 2D vertex in the stored polyline sequence.
+        """
         return self.points[0]
 
     @property
     def end(self) -> Point:
-        """End the synchronized editing session."""
+        """Return the last point of the authored polyline.
+
+        Returns:
+            Last 2D vertex in the stored polyline sequence.
+        """
         return self.points[-1]
 
     def point(self, t: float) -> Point:
-        """Return the point at the requested parameter."""
+        """Evaluate the polyline at a normalized arc-length parameter.
+
+        Args:
+            t: Normalized distance along the complete polyline, clamped to [0, 1].
+
+        Returns:
+            Interpolated 2D point at the requested relative arc length.
+        """
         fraction = min(1.0, max(0.0, validate_finite_number(t)))
         lengths = [0.0]
         for a, b in zip(self.points, self.points[1:], strict=False):
@@ -134,11 +184,25 @@ class PolylineSegment:
         return self.points[-1]
 
     def polyline(self, samples: int = 32) -> list[Point]:
-        """Return sampled polyline points for this geometry."""
+        """Return the already-authored polyline samples without resampling.
+
+        Args:
+            samples: Requested sample count; accepted for interface compatibility.
+
+        Returns:
+            Stored ordered 2D vertices.
+        """
         return list(self.points)
 
     def length(self) -> float:
-        """Return the geometric length represented by this object."""
+        """Measure the total length of all consecutive polyline edges.
+
+        Returns:
+            Sum of Euclidean edge lengths in pattern coordinate units.
+
+        Raises:
+            ValueError: If accumulated polyline length becomes non-finite.
+        """
         total = sum(starmap(_distance, zip(self.points, self.points[1:], strict=False)))
         if not isfinite(total):
             msg = "polyline length must be finite"
@@ -157,11 +221,26 @@ class ParametricPattern:
     """
 
     def __init__(self, segments: Iterable[Segment]) -> None:
+        """Create and validate an ordered closed pattern boundary.
+
+        Args:
+            segments: Ordered line, quadratic Bezier, or sampled-polyline segments.
+
+        Raises:
+            TypeError: If an unsupported segment type is supplied.
+            ValueError: If the boundary is too short, has duplicate IDs, or is open.
+        """
         self.segments = list(segments)
         self.validate()
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate segment types, identifiers, coordinates, and loop closure.
+
+        Raises:
+            TypeError: If a boundary element is not a supported segment type.
+            ValueError: If the boundary is too short, IDs repeat, or neighboring
+                endpoints do not form a closed loop.
+        """
         if any(
             not isinstance(segment, (LineSegment, QuadraticBezier, PolylineSegment))
             for segment in self.segments
@@ -190,11 +269,22 @@ class ParametricPattern:
                 raise ValueError(msg)
 
     def by_id(self) -> dict[str, Segment]:
-        """Provide the public by id operation."""
+        """Index the ordered boundary segments by their stable authored identifiers.
+
+        Returns:
+            Mapping from unique segment IDs to their corresponding geometry objects.
+        """
         return {segment.id: segment for segment in self.segments}
 
     def sampled_outline(self, curve_samples: int = 32) -> list[Point]:
-        """Provide the public sampled outline operation."""
+        """Sample a closed polygonal outline while retaining authored edge starts.
+
+        Args:
+            curve_samples: Number of samples used for each curved segment.
+
+        Returns:
+            Ordered polygon points suitable for triangulation and export.
+        """
         curve_samples = SampleCount(count=curve_samples).count
         result: list[Point] = []
         for segment in self.segments:
@@ -205,7 +295,17 @@ class ParametricPattern:
         return result
 
     def lengths(self, curve_samples: int = 128) -> dict[str, float]:
-        """Provide the public lengths operation."""
+        """Calculate one geometric length for each authored boundary segment.
+
+        Args:
+            curve_samples: Sampling resolution used to approximate curved edge lengths.
+
+        Returns:
+            Mapping from segment ID to its finite length in pattern coordinate units.
+
+        Raises:
+            ValueError: If any computed segment length is non-finite.
+        """
         curve_samples = SampleCount(count=curve_samples).count
         values: dict[str, float] = {}
         for segment in self.segments:
@@ -231,6 +331,19 @@ def seam_allowance_outline(
     The sewing boundary remains authoritative. GEOS resolves concave offset
     topology (including narrow notches) rather than joining infinite offset
     lines into a potentially self-intersecting ring.
+
+    Args:
+        pattern: Validated authored boundary whose sewing line remains authoritative.
+        allowance: Signed seam allowance distance in millimetres.
+        curve_samples: Sampling resolution for curved source segments.
+        miter_limit: Maximum ratio between a corner miter and the offset distance.
+
+    Returns:
+        Closed polygon outline for the cut line, preserving the source winding.
+
+    Raises:
+        ValueError: If the miter limit is invalid or the source/offset polygon has
+            unsupported or invalid topology.
     """
     options = SeamAllowanceOptions(allowance=allowance, curve_samples=curve_samples)
     allowance, curve_samples = options.allowance, options.curve_samples
@@ -283,7 +396,17 @@ def seam_allowance_outline(
 
 
 def signed_area(points: Sequence[Point]) -> float:
-    """Return the signed shoelace area of a closed 2D polygon."""
+    """Compute the signed shoelace area of an ordered 2D polygon boundary.
+
+    Args:
+        points: Ordered polygon vertices in the pattern coordinate frame.
+
+    Returns:
+        Signed area; positive values indicate counter-clockwise winding.
+
+    Raises:
+        ValueError: If the calculated area is non-finite.
+    """
     area = 0.5 * sum(
         points[i][0] * points[(i + 1) % len(points)][1]
         - points[(i + 1) % len(points)][0] * points[i][1]
@@ -296,6 +419,20 @@ def signed_area(points: Sequence[Point]) -> float:
 
 
 def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | None:
+    """Intersect two infinite 2D lines represented by their endpoint pairs.
+
+    Args:
+        a1: First endpoint of the first line.
+        a2: Second endpoint of the first line.
+        b1: First endpoint of the second line.
+        b2: Second endpoint of the second line.
+
+    Returns:
+        Intersection point, or None when the lines are parallel or coincident.
+
+    Raises:
+        ValueError: If the intersection denominator or resulting point is non-finite.
+    """
     ax, ay = a2[0] - a1[0], a2[1] - a1[1]
     bx, by = b2[0] - b1[0], b2[1] - b1[1]
     denominator = ax * by - ay * bx
@@ -310,14 +447,33 @@ def _line_intersection(a1: Point, a2: Point, b1: Point, b2: Point) -> Point | No
 
 
 def _lerp(start: float, end: float, fraction: float) -> float:
-    """Interpolate robustly on [0, 1] and preserve extrapolation elsewhere."""
+    """Interpolate between two scalar values while preserving extrapolation.
+
+    Args:
+        start: Value at the beginning of the interval.
+        end: Value at the end of the interval.
+        fraction: Interpolation fraction; values outside [0, 1] extrapolate.
+
+    Returns:
+        Linearly interpolated scalar value.
+    """
     if 0.0 <= fraction <= 1.0:
         return start * (1.0 - fraction) + end * fraction
     return start + (end - start) * fraction
 
 
 def _require_finite_point(point: Point) -> Point:
-    """Reject non-finite values produced by otherwise finite arithmetic."""
+    """Validate that a computed geometry point contains only finite coordinates.
+
+    Args:
+        point: Candidate two-dimensional coordinate.
+
+    Returns:
+        The original point after all components pass finite-value validation.
+
+    Raises:
+        ValueError: If either coordinate is NaN or infinite.
+    """
     if not all(isfinite(value) for value in point):
         msg = "computed geometry point must be finite"
         raise ValueError(msg)
@@ -325,7 +481,15 @@ def _require_finite_point(point: Point) -> Point:
 
 
 def rectangle(width: float, height: float) -> ParametricPattern:
-    """Create a deterministic rectangular pattern from dimensions in mm."""
+    """Create a closed rectangular pattern with deterministic edge identifiers.
+
+    Args:
+        width: Rectangle width in millimetres; must be finite and positive.
+        height: Rectangle height in millimetres; must be finite and positive.
+
+    Returns:
+        Parametric pattern containing bottom, right, top, and left line segments.
+    """
     dimensions = RectangleDimensions(width=width, height=height)
     width, height = dimensions.width, dimensions.height
     return ParametricPattern(
@@ -339,6 +503,18 @@ def rectangle(width: float, height: float) -> ParametricPattern:
 
 
 def _distance(a: Point, b: Point) -> float:
+    """Measure the Euclidean distance between two 2D points.
+
+    Args:
+        a: First endpoint in pattern coordinates.
+        b: Second endpoint in pattern coordinates.
+
+    Returns:
+        Non-negative distance between the points.
+
+    Raises:
+        ValueError: If the computed distance is non-finite.
+    """
     distance = hypot(a[0] - b[0], a[1] - b[1])
     if not isfinite(distance):
         msg = "computed segment length must be finite"
