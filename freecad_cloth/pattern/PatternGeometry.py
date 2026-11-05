@@ -127,6 +127,11 @@ class PolylineSegment:
     points: tuple[Point, ...]
 
     def __post_init__(self) -> None:
+        """Validate the identifier and normalize sampled polyline coordinates.
+
+        Raises:
+            ValueError: If the identifier is empty or fewer than two valid points exist.
+        """
         if not isinstance(self.id, str) or not self.id.strip():
             msg = "segment ID must be a non-empty string"
             raise ValueError(msg)
