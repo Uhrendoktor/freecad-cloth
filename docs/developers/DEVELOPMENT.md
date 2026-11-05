@@ -20,31 +20,28 @@ Workbench ownership is explicit: `pattern`, `sewing`, `avatar`, and `simulation`
 
 ## Automated quality and verification gates
 
-The canonical quality path favors a small set of tools with distinct responsibilities:
+The canonical quality gate applies the same strict policies to the complete tracked Python repository.
 
-- Ruff performs formatting and the explicitly selected high-signal lint checks over every tracked `.py` and `.pyi` file.
-- Pyright provides one standard-mode type profile over the explicitly reviewed production modules in `pyrightconfig.json`: the strict simulation core plus new production modules deliberately added to the scope. Tests, CI tools, and native FreeCAD acceptance scripts retain their focused validation paths.
-- Vulture checks high-confidence unused production code while avoiding dynamic FreeCAD GUI/command surfaces.
-- Hypothesis exercises generated geometry, numeric invariants, and state-machine behavior. CrossHair remains for bounded symbolic exploration of selected pure production math where its coverage is distinct.
-- Import Linter enforces package dependency direction.
-- ast-grep enforces the two project-specific production constraints that Ruff does not express directly: no `inspect.stack()` runtime routing and no `sys.path.insert()` mutation.
-- The source-rewriting check prevents inline CI edits to checked-in source/configuration and runtime transformation of loaded source files.
-- The PR duplication check rejects newly introduced clones across production code, tests, and CI tooling.
-- The artifact-budget and visual-provenance checks protect published evidence and workflow storage.
+- Ruff runs formatting and **all rules plus preview** across every tracked `.py` and `.pyi` file. Only the rules documented as incompatible with Ruff's formatter may be ignored. Per-file ignores, test-only rule exemptions, inline `noqa`, and legacy baselines are prohibited.
+- Pyright includes the repository root and uses global `strict` mode for production code, GUI/command adapters, loaders, tests, fixtures, bootstrap files, and CI tooling. There is one configuration, with no file allowlist or excluded source paths. Missing imports, missing module sources, missing stubs, and import cycles are blocking diagnostics.
+- The Python documentation contract checks every tracked source and stub. Google-style docstrings explain module/class/function behavior, parameter semantics, return/yield values, and explicit failure conditions rather than relying on placeholder prose.
+- Vulture checks high-confidence unused production code; Hypothesis exercises generated geometry, numeric invariants, and state-machine behavior; CrossHair explores selected pure contracts.
+- Import Linter enforces package dependency direction. ast-grep and the source-rewriting policy enforce project-specific architectural and runtime constraints not expressed by Ruff or Pyright.
+- Pull-request CI rejects newly introduced Python clones across production code, tests, and CI tooling. Artifact-budget and visual-provenance gates protect published evidence.
 
-Pydantic remains a production validation library for domain boundaries that need runtime validation. It is not mandated as the implementation for every data carrier; ordinary dataclasses remain appropriate for internal records.
+These tools complement executable acceptance coverage; static analysis does not replace real FreeCAD document, Sketcher, GUI, persistence, or simulation tests.
 
 ## Python quality gates
 
-Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter; Pyright provides the single static type-checking profile; Import Linter enforces dependency direction.
+Install the development toolchain with `python -m pip install -e ".[dev]"` and `pre-commit install`. Ruff is the canonical formatter/linter. The same full rule selection and preview policy applies locally and in CI.
 
-Ruff uses a reviewed, explicit selection of stable correctness, security, import, typing, and targeted API documentation rules. Preview mode is disabled so new preview rules cannot silently expand the policy. Test assertions use pytest's native assertion rewriting; S101 is not selected. The same configuration applies locally and to every tracked Python source in CI. There are no per-file Ruff ignores or global ignore lists.
+Pyright's `include: ["."]` and `typeCheckingMode: "strict"` are intentional. Do not narrow the include list to selected production files, move files out of scope, disable missing-import diagnostics, or replace global strictness with a per-file strict list. At native FreeCAD/Qt boundaries, add accurate type stubs and structural protocols rather than suppressing unresolved imports or weakening the project profile.
 
-Pyright analyzes only the explicitly reviewed production modules listed in `pyrightconfig.json` in standard mode and applies strict mode to `DrapeFailureClassifier.py`, `cloth_backend.py`, and `ClothSolver.py`. Add new production modules to that include list deliberately. Tests, CI utilities, and native FreeCAD acceptance scripts use their focused validation paths. New typing work should use concrete types and structural protocols; dynamic FreeCAD/Qt/JSON boundaries should use `object` with validation and narrowing where possible.
+Ruff's `ALL` selection covers correctness, security, import hygiene, annotations, complexity, documentation, and test code. The formatter-conflict ignore list is documented in `pyproject.toml`; all other findings must be repaired in source. Do not add per-file ignores, `noqa`, blanket casts, or weakened test assertions to make the gate green.
 
-## Documentation
+## Documentation contract
 
-Use Google-style docstrings for public modules, classes, and methods, and describe non-obvious behavior, units, state transitions, and failure conditions. Ruff checks parameter descriptions in documented APIs without requiring boilerplate docstrings on every module, constructor, test, or helper. Private helpers and tests should be documented when their behavior is not self-evident. Reviewers remain responsible for checking that prose matches implementation and observable behavior.
+`tools/check_documentation_contract.py` runs over the entire tracked Python inventory and is also a pre-commit gate. Every module, class, function, method, nested helper, private helper, and test requires a descriptive docstring. Google-style `Args` entries describe all parameters other than conventional `self`/`cls`; `Returns` and `Yields` explain non-None results; and `Raises` documents explicit exception conditions. Documentation must be accurate, substantive, and free of suppression comments.
 
 ## Non-negotiable CI contract
 
