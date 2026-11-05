@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.assertions import require
-from tools.ci.command_runner import CommandExecutionError, run_command
+from tools.ci.command_runner import CommandExecutionError, CommandOptions, run_command
 
 COMMAND_FAILURE_EXIT_CODE = 7
 COMMAND_TIMEOUT_SECONDS = 0.05
@@ -36,8 +36,7 @@ def test_run_command_captures_standard_output_and_error() -> None:
     """Capture decoded output streams from a successful direct child process."""
     result = run_command(
         [_python_executable(), "-c", "print('command-runner-ok')"],
-        capture_output=True,
-        check=True,
+        options=CommandOptions(capture_output=True, check=True),
     )
 
     require(
@@ -58,8 +57,7 @@ def test_run_command_returns_nonzero_status_when_check_is_disabled() -> None:
     """Return a failing exit status without raising when check=False."""
     result = run_command(
         [_python_executable(), "-c", f"raise SystemExit({COMMAND_FAILURE_EXIT_CODE})"],
-        check=False,
-        capture_output=True,
+        options=CommandOptions(check=False, capture_output=True),
     )
 
     require(
@@ -73,7 +71,7 @@ def test_run_command_raises_for_a_failing_checked_process() -> None:
     with pytest.raises(CommandExecutionError, match=f"exit code {COMMAND_FAILURE_EXIT_CODE}"):
         run_command(
             [_python_executable(), "-c", f"raise SystemExit({COMMAND_FAILURE_EXIT_CODE})"],
-            capture_output=True,
+            options=CommandOptions(capture_output=True),
         )
 
 
@@ -95,5 +93,5 @@ def test_run_command_terminates_a_child_that_exceeds_its_timeout() -> None:
     with pytest.raises(TimeoutError, match="exceeded its"):
         run_command(
             [_python_executable(), "-c", "import time; time.sleep(1)"],
-            timeout=COMMAND_TIMEOUT_SECONDS,
+            options=CommandOptions(timeout=COMMAND_TIMEOUT_SECONDS),
         )
