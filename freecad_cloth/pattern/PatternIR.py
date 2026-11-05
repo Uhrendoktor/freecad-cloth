@@ -35,7 +35,12 @@ class BoundaryIR:
     parameter_range: tuple[float, float] = (0.0, 1.0)
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate boundary identity, curve kind, sample count, and parameter range.
+
+        Raises:
+            ValueError: If the boundary ID or kind is invalid, fewer than two samples
+                exist, or its source parameter interval has no positive extent.
+        """
         if not self.id.strip():
             msg = "boundary id must not be empty"
             raise ValueError(msg)
@@ -52,7 +57,11 @@ class BoundaryIR:
 
     @property
     def length(self) -> float:
-        """Return the geometric length represented by this object."""
+        """Measure the boundary polyline in its local 2D coordinate plane.
+
+        Returns:
+            Sum of consecutive sample distances in pattern coordinate units.
+        """
         return sum(
             hypot(b[0] - a[0], b[1] - a[1])
             for a, b in zip(self.samples, self.samples[1:], strict=False)
@@ -70,7 +79,12 @@ class PieceIR:
     seam_allowance: float = 0.0
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate piece identity, boundary membership, and seam-allowance value.
+
+        Raises:
+            ValueError: If the ID is empty, no boundaries exist, boundary IDs repeat,
+                a child boundary is invalid, or seam allowance is negative.
+        """
         if not self.id.strip():
             msg = "piece id must not be empty"
             raise ValueError(msg)
@@ -107,7 +121,16 @@ class SeamIR:
     kind: str = "plain"
 
     def validate(self, pieces: Mapping[str, PieceIR]) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate seam identity, piece/edge references, parameter ranges, and alignment.
+
+        Args:
+            pieces: Piece lookup used to resolve both semantic boundary references.
+
+        Raises:
+            ValueError: If either piece/edge reference is missing or the seam alignment
+                is unsupported.
+            ValidationError: If either normalized seam parameter range is invalid.
+        """
         if not self.id.strip():
             msg = "seam id must not be empty"
             raise ValueError(msg)
@@ -134,7 +157,12 @@ class PatternIR:
     metadata: Mapping[str, str] = field(default_factory=dict)
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate unique piece/seam identities and all referenced child records.
+
+        Raises:
+            ValueError: If piece IDs or seam IDs repeat or any contained piece/seam
+                violates its own validation contract.
+        """
         piece_map = {piece.id: piece for piece in self.pieces}
         if len(piece_map) != len(self.pieces):
             msg = "pattern piece IDs must be unique"
@@ -149,14 +177,35 @@ class PatternIR:
             seam.validate(piece_map)
 
     def piece(self, piece_id: str) -> PieceIR:
-        """Provide the public piece operation."""
+        """Resolve one panel by its stable semantic identifier.
+
+        Args:
+            piece_id: Identifier assigned to the requested pattern piece.
+
+        Returns:
+            Matching solver-neutral panel record.
+
+        Raises:
+            KeyError: If no panel has the requested identifier.
+        """
         for piece in self.pieces:
             if piece.id == piece_id:
                 return piece
         raise KeyError(piece_id)
 
     def boundary(self, piece_id: str, edge_id: str) -> BoundaryIR:
-        """Provide the public boundary operation."""
+        """Resolve one semantic edge within a specific panel.
+
+        Args:
+            piece_id: Identifier of the panel containing the boundary.
+            edge_id: Stable boundary identifier within that panel.
+
+        Returns:
+            Matching solver-neutral boundary record.
+
+        Raises:
+            KeyError: If the piece or its requested boundary does not exist.
+        """
         piece = self.piece(piece_id)
         for edge in piece.boundaries:
             if edge.id == edge_id:
@@ -175,8 +224,17 @@ class PatternIR:
         """Resolve a sewing graph into immutable solver-facing data.
 
         Integer seam references are accepted only at this adapter boundary and
-        are immediately converted to semantic boundary IDs. String refs must
+        are immediately converted to semantic boundary IDs. String references must
         already identify a boundary.
+
+        Args:
+            graph: Validated sewing graph containing panels and seam relationships.
+            geometries: Optional parametric geometry override for each piece ID.
+            materials: Optional material name mapping keyed by piece ID.
+            curve_samples: Sampling count used to preserve curved boundary shapes.
+
+        Returns:
+            Validated PatternIR containing panel boundaries and resolved semantic seams.
         """
         graph.validate()
         geometries = geometries or {}
@@ -246,6 +304,17 @@ def _with_seams(
     pieces: Sequence[PieceIR],
     edge_index_maps: Mapping[str, Mapping[int, str]] | None = None,
 ) -> PatternIR:
+    """Resolve graph seam edges and build the final validated IR snapshot.
+
+    Args:
+        cls: PatternIR class or compatible constructor used for the result.
+        graph: Source sewing graph supplying seam IDs and parameter ranges.
+        pieces: Converted solver-neutral panel records.
+        edge_index_maps: Optional native geometry-index to semantic-edge maps.
+
+    Returns:
+        Validated PatternIR containing converted panels and seams.
+    """
     piece_tuple = tuple(pieces)
     piece_map = {piece.id: piece for piece in piece_tuple}
     edge_index_maps = edge_index_maps or {}
@@ -281,7 +350,14 @@ def _with_seams(
 
 
 def _line_geometry(piece: PatternPiece) -> ParametricPattern:
-    """Build a compatibility geometry when no richer curve adapter is given."""
+    """Build straight-edge compatibility geometry from an outline-only PatternPiece.
+
+    Args:
+        piece: Pattern panel whose polygon outline is used as the fallback geometry.
+
+    Returns:
+        Closed parametric boundary containing one stable line segment per outline edge.
+    """
     segments = []
     for index, start in enumerate(piece.outline):
         end = piece.outline[(index + 1) % len(piece.outline)]
@@ -290,6 +366,15 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
 
 
 def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
+    """Convert one parametric segment to a solver-neutral sampled boundary.
+
+    Args:
+        segment: Line, Bezier, or sampled polyline from the pattern geometry layer.
+        curve_samples: Number of samples used when the segment is curved.
+
+    Returns:
+        Boundary record retaining segment ID, curve kind, and local XYZ samples.
+    """
     if isinstance(segment, LineSegment):
         samples: tuple[Point3, ...] = (
             (segment.start[0], segment.start[1], 0.0),
@@ -301,6 +386,19 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
 
 
 def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
+    """Extract non-construction Sketcher geometry with stable semantic edge IDs.
+
+    Args:
+        sketch: Native Sketcher-like object exposing Geometry and optional edge IDs.
+        piece_id: Stable PatternPiece identifier used to generate fallback edge names.
+        curve_samples: Number of samples generated for each curved native element.
+
+    Returns:
+        Ordered boundary tuple and a native geometry-index to semantic-ID mapping.
+
+    Raises:
+        ValueError: If no boundary geometry exists or a native element is unsupported.
+    """
     geometry = tuple(getattr(sketch, "Geometry", ()) or ())
     if len(geometry) < 1:
         msg = f"Sketcher pattern needs at least one boundary geometry: {piece_id}"
@@ -337,6 +435,17 @@ def _order_sketch_boundary(
     lexicographically smallest semantic ID with a deterministic direction.
     A single closed curve (for example a circle or closed B-spline) is already
     a complete boundary and does not need endpoint graph traversal.
+
+    Args:
+        boundaries: Sampled native edge records collected from one sketch.
+        piece_id: Piece identifier included in boundary topology diagnostics.
+
+    Returns:
+        Boundary records ordered into one deterministic closed cycle.
+
+    Raises:
+        ValueError: If IDs repeat, endpoints are open or ambiguous, or edges are
+            disconnected and cannot form one closed boundary loop.
     """
     if len({boundary.id for boundary in boundaries}) != len(boundaries):
         msg = f"Sketcher boundary has duplicate semantic IDs: {piece_id}"
@@ -448,6 +557,15 @@ def _order_sketch_boundary(
 
 
 def _find_vertex(vertices, point):
+    """Find a previously registered endpoint within the topology merge tolerance.
+
+    Args:
+        vertices: Mutable representative-point and incident-edge entries.
+        point: Candidate endpoint to locate.
+
+    Returns:
+        Existing vertex index when a representative is sufficiently close, or None.
+    """
     for index, (representative, _) in enumerate(vertices):
         if _distance3(representative, point) <= 1e-7:
             return index
@@ -455,6 +573,20 @@ def _find_vertex(vertices, point):
 
 
 def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
+    """Find the neighboring boundary edge incident to a connected endpoint.
+
+    Args:
+        vertex_index: Endpoint vertex at which the next edge must meet.
+        current_edge: Current edge index whose adjacent edges are inspected.
+        adjacency: Edge-to-neighboring-edge connectivity map.
+        edge_vertices: Endpoint vertex indices for each boundary edge.
+
+    Returns:
+        Unique next edge index connected to the requested endpoint.
+
+    Raises:
+        ValueError: If no adjacent edge is incident to the endpoint.
+    """
     candidates = [index for index in adjacency[current_edge] if index != current_edge]
     for index in candidates:
         start, end = edge_vertices[index]
@@ -464,11 +596,32 @@ def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
     raise ValueError(msg)
 
 
-def _point_sort_key(point: Point3):
+def _point_sort_key(point: Point3) -> tuple[float, float, float]:
+    """Round a point into a deterministic coordinate ordering key.
+
+    Args:
+        point: Three-dimensional endpoint coordinate.
+
+    Returns:
+        Coordinate tuple rounded to twelve decimal places for stable sorting.
+    """
     return tuple(round(value, 12) for value in point)
 
 
 def _orient_boundary(boundary, edge_vertices, start_vertex):
+    """Orient a boundary sample sequence so it begins at a selected graph vertex.
+
+    Args:
+        boundary: Sampled boundary record to orient without changing its identity.
+        edge_vertices: Start and end vertex indices associated with that boundary.
+        start_vertex: Graph vertex that should become the first endpoint.
+
+    Returns:
+        Original or reversed boundary record with the requested start orientation.
+
+    Raises:
+        ValueError: If the requested vertex is not an endpoint of the boundary.
+    """
     edge_start, edge_end = edge_vertices
     if edge_start == start_vertex:
         return boundary
@@ -479,6 +632,15 @@ def _orient_boundary(boundary, edge_vertices, start_vertex):
 
 
 def _is_construction(sketch, index: int) -> bool:
+    """Check whether a native sketch geometry element is construction-only.
+
+    Args:
+        sketch: Sketcher-like object exposing getConstruction(index).
+        index: Native geometry index under inspection.
+
+    Returns:
+        Whether the sketch reports this element as construction geometry.
+    """
     getter = getattr(sketch, "getConstruction", None)
     if not callable(getter):
         return False
@@ -489,6 +651,20 @@ def _is_construction(sketch, index: int) -> bool:
 
 
 def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
+    """Sample one native Sketcher geometry object into a typed boundary record.
+
+    Args:
+        native: Native line or parametric curve exposing point/parameter methods.
+        edge_id: Semantic boundary identifier assigned by the source piece/sketch.
+        curve_samples: Number of points used to sample non-linear geometry.
+
+    Returns:
+        Boundary record with line/arc/spline kind and native parameter interval.
+
+    Raises:
+        ValueError: If the native element is unsupported or its parameter interval
+            is invalid.
+    """
     type_name = type(native).__name__.lower()
     if type_name == "linesegment":
         start = _point3(native.StartPoint)
@@ -524,11 +700,33 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
 
 
 def _native_parameter(native, name: str, default: float) -> float:
+    """Read a finite numeric native-curve parameter or use its fallback.
+
+    Args:
+        native: Sketcher geometry object containing the parameter attribute.
+        name: Parameter attribute name, such as FirstParameter or LastParameter.
+        default: Value used when the native object does not expose the attribute.
+
+    Returns:
+        Finite scalar value of the native parameter.
+    """
     value = getattr(native, name, default)
     return validate_finite_number(value() if callable(value) else value)
 
 
 def _native_value(native, parameter: float):
+    """Evaluate one native curve through the host's supported value method.
+
+    Args:
+        native: Sketcher curve object exposing valueAt or value.
+        parameter: Native curve parameter at which the coordinate is sampled.
+
+    Returns:
+        Native vector-like point returned by the curve evaluator.
+
+    Raises:
+        ValueError: If the native curve does not expose either supported evaluator.
+    """
     value_at = getattr(native, "valueAt", None)
     if callable(value_at):
         return value_at(parameter)
@@ -540,16 +738,46 @@ def _native_value(native, parameter: float):
 
 
 def _point3(point) -> Point3:
+    """Convert a native vector-like sketch point into a plain XYZ tuple.
+
+    Args:
+        point: Native point exposing x/y and optional z components.
+
+    Returns:
+        Three floating-point coordinates, using zero for an absent Z component.
+    """
     return (float(point.x), float(point.y), float(getattr(point, "z", 0.0)))
 
 
 def _distance3(a: Point3, b: Point3) -> float:
+    """Measure endpoint separation in the solver-neutral three-coordinate space.
+
+    Args:
+        a: First endpoint coordinate.
+        b: Second endpoint coordinate.
+
+    Returns:
+        Sum of the planar Euclidean distance and absolute Z separation.
+    """
     return hypot(a[0] - b[0], a[1] - b[1]) + abs(a[2] - b[2])
 
 
 def _resolve_edge(
     reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
 ) -> str:
+    """Resolve an integer or semantic seam edge reference to a stable boundary ID.
+
+    Args:
+        reference: Integer boundary index or existing semantic boundary identifier.
+        piece: Solver-neutral piece whose boundaries provide the valid ID set.
+        edge_index_map: Optional mapping for indices from the original Sketcher geometry.
+
+    Returns:
+        Stable semantic boundary ID for the selected edge.
+
+    Raises:
+        ValueError: If the reference is boolean, out of range, or does not resolve.
+    """
     if isinstance(reference, bool):
         msg = "boolean edge references are invalid"
         raise ValueError(msg)
