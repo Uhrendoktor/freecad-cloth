@@ -10,9 +10,9 @@ from collections import Counter
 from pathlib import Path
 
 if __package__:
-    from tools.ci.command_runner import run_command
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 GROUPS = {
     "core": (
@@ -205,7 +205,7 @@ def main() -> int:
     sys.stdout.flush()
     # Anny-backed geometry tests perform several CPU differentiable body fits.
     # Keep the subprocess bounded while allowing the full core inventory to finish.
-    run_command(command, check=True, timeout=600, env=env)
+    run_command(command, options=CommandOptions(timeout=600, env=env))
     sys.stdout.write(f"python-validation={args.group} passed\n")
     sys.stdout.flush()
     return 0
