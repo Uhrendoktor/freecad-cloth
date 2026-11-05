@@ -9,10 +9,30 @@ from freecad_cloth.common.CommandAdapter import icon_for_command
 
 
 def _seams(doc):
+    """Collect every persistent seam feature from a FreeCAD document.
+
+    Args:
+        doc: Document whose object collection is inspected.
+
+    Returns:
+        Seam feature objects carrying a nonempty semantic SeamId.
+    """
     return [o for o in doc.Objects if getattr(o, "SeamId", "")]
 
 
 def _selected_seam(doc, *, gui: ModuleType | None = None):
+    """Resolve the selected seam or fall back to the document's first seam.
+
+    Args:
+        doc: Active FreeCAD document containing seam features.
+        gui: Optional FreeCAD GUI module used to inspect the current selection.
+
+    Returns:
+        Selected or first available persistent seam feature.
+
+    Raises:
+        ValueError: If the document contains no seam feature to operate on.
+    """
     if gui is None:
         import FreeCADGui as gui
 
@@ -93,6 +113,11 @@ def get_active_staged_sewing_task_panel():
 
 
 def start_staged_seam_creation():
+    """Open the staged task panel for creating one two-edge seam.
+
+    Returns:
+        Active staged seam-creation task panel.
+    """
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
@@ -101,6 +126,11 @@ def start_staged_seam_creation():
 
 
 def start_staged_mn_sewing_creation():
+    """Open the staged task panel for creating one multi-edge sewing relationship.
+
+    Returns:
+        Active staged multi-edge sewing task panel.
+    """
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
@@ -109,6 +139,11 @@ def start_staged_mn_sewing_creation():
 
 
 def start_staged_free_sewing_creation():
+    """Open the staged task panel for authoring free sewing relationships.
+
+    Returns:
+        Active staged free-sewing task panel.
+    """
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
@@ -235,6 +270,14 @@ def get_active_sewing_operation_task_panel():
 
 
 def edit_sewing_operation():
+    """Open the selected persistent SewingOperation in its native task panel.
+
+    Returns:
+        Active task panel editing the selected sewing operation.
+
+    Raises:
+        ValueError: If no SewingOperation is selected.
+    """
     global _ACTIVE_SEWING_OPERATION_TASK_PANEL
     import FreeCADGui as Gui
 
@@ -256,6 +299,14 @@ def edit_sewing_operation():
 
 
 def reverse_selected_seam():
+    """Reverse the B-side seam direction and recompute the active document.
+
+    Returns:
+        Persistent seam feature after its ReversedB property has been toggled.
+
+    Raises:
+        ValueError: If no active document or seam is available.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -269,6 +320,14 @@ def reverse_selected_seam():
 
 
 def toggle_selected_alignment():
+    """Toggle the selected seam between endpoint and uniform alignment.
+
+    Returns:
+        Persistent seam feature after the alignment mode has been toggled.
+
+    Raises:
+        ValueError: If no active document or seam is available.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -282,6 +341,12 @@ def toggle_selected_alignment():
 
 
 def validate_seams():
+    """Execute every sewing operation/network and report its current status.
+
+    Returns:
+        Tuples of object name, status, and absolute seam-length difference. An
+        empty list is returned when no active FreeCAD document is open.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument
@@ -468,6 +533,21 @@ def _edit_selected_seam_side(
     gui: ModuleType | None = None,
     focus_fn: Callable[[], object] | None = None,
 ):
+    """Open one semantic seam edge in its authoritative native Sketcher source.
+
+    Args:
+        side: Seam side identifier, restricted to A or B.
+        app: Optional FreeCAD application module for the active document.
+        gui: Optional GUI module used to focus and edit the linked sketch.
+        focus_fn: Optional callback that frames the current seam in the 3D view.
+
+    Returns:
+        Native Sketcher object and zero-based geometry index for the semantic edge.
+
+    Raises:
+        ValueError: If the document/seam/source sketch is missing, the side is invalid,
+            or the seam edge ID is absent from the sketch's semantic edge map.
+    """
     if app is None:
         import FreeCAD as app
     if gui is None:
@@ -514,6 +594,19 @@ def edit_selected_seam_side_a(
     gui: ModuleType | None = None,
     focus_fn: Callable[[], object] | None = None,
 ):
+    """Edit side A of the selected seam in its linked Sketcher sketch.
+
+    Args:
+        app: Optional FreeCAD application module.
+        gui: Optional FreeCAD GUI module.
+        focus_fn: Optional callback used to focus the seam before sketch editing.
+
+    Returns:
+        Native Sketcher object and zero-based source geometry index.
+
+    Raises:
+        ValueError: If the selected seam or its side-A source edge cannot be resolved.
+    """
     return _edit_selected_seam_side("A", app=app, gui=gui, focus_fn=focus_fn)
 
 
@@ -523,6 +616,19 @@ def edit_selected_seam_side_b(
     gui: ModuleType | None = None,
     focus_fn: Callable[[], object] | None = None,
 ):
+    """Edit side B of the selected seam in its linked Sketcher sketch.
+
+    Args:
+        app: Optional FreeCAD application module.
+        gui: Optional FreeCAD GUI module.
+        focus_fn: Optional callback used to focus the seam before sketch editing.
+
+    Returns:
+        Native Sketcher object and zero-based source geometry index.
+
+    Raises:
+        ValueError: If the selected seam or its side-B source edge cannot be resolved.
+    """
     return _edit_selected_seam_side("B", app=app, gui=gui, focus_fn=focus_fn)
 
 
@@ -690,6 +796,11 @@ _TOOLTIPS = {
 
 
 def _has_active_document():
+    """Check whether a FreeCAD application document is currently active.
+
+    Returns:
+        True when FreeCAD exposes an active document; False when headless or closed.
+    """
     try:
         import FreeCAD as App
 
@@ -699,6 +810,11 @@ def _has_active_document():
 
 
 def _has_selected_seam():
+    """Check whether the GUI selection contains a persistent seam feature.
+
+    Returns:
+        True when at least one selected object carries a nonempty SeamId.
+    """
     try:
         import FreeCADGui as Gui
 
@@ -708,6 +824,11 @@ def _has_selected_seam():
 
 
 def _has_selected_operation():
+    """Check whether the GUI selection contains a SewingOperation object.
+
+    Returns:
+        True when at least one selected object is a persistent sewing operation.
+    """
     try:
         import FreeCADGui as Gui
 
@@ -719,18 +840,44 @@ def _has_selected_operation():
 
 
 class _SewingCommand:
+    """Adapter exposing a Python callable through the FreeCAD command protocol."""
+
     def __init__(self, function, active, tooltip, menu_text=None, pixmap=None):
+        """Retain the execution, activation, and presentation callbacks for one command.
+
+        Args:
+            function: Command action invoked when the user activates this command.
+            active: Predicate deciding whether the command is currently enabled.
+            tooltip: User-facing command description.
+            menu_text: Optional visible menu label; defaults to a title-cased function name.
+            pixmap: Optional icon path registered with FreeCAD.
+        """
         self.function, self.active, self.tooltip = function, active, tooltip
         self.menu_text = menu_text or function.__name__.replace("_", " ").title()
         self.pixmap = pixmap
 
     def Activated(self):
+        """Invoke the command's registered action callback.
+
+        Returns:
+            Result returned by the underlying command handler.
+        """
         return self.function()
 
     def IsActive(self):
+        """Evaluate the command's activation predicate.
+
+        Returns:
+            Boolean indicating whether FreeCAD should enable the command.
+        """
         return bool(self.active())
 
     def GetResources(self):
+        """Return the menu, tooltip, and optional icon metadata for FreeCAD.
+
+        Returns:
+            Resource mapping consumed by the FreeCAD command registration API.
+        """
         resources = {"MenuText": self.menu_text, "ToolTip": self.tooltip}
         if self.pixmap:
             resources["Pixmap"] = self.pixmap
