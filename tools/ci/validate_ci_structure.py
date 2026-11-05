@@ -7,9 +7,13 @@ import fnmatch
 import json
 import os
 import re
-import subprocess
 import sys
 from pathlib import Path
+
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -37,6 +41,8 @@ REQUIRED = (
     ROOT / ".github/actions/pbd-image/action.yml",
     ROOT / ".github/actions/publish-visual-evidence/action.yml",
     ROOT / "tools/ci/run_freecad.py",
+    ROOT / "tools/ci/command_runner.py",
+    ROOT / "tools/ci/command_runner.py",
     ROOT / "tools/ci/python_validation.py",
     ROOT / "tools/ci/validate_acceptance.py",
     ROOT / "tools/ci/validate_manifests.py",
@@ -162,7 +168,7 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
     Returns:
         Newly added production Python module paths.
     """
-    result = subprocess.run(
+    result = run_command(
         [
             "git",
             "diff",
@@ -174,12 +180,15 @@ def added_production_python_modules(base: str) -> tuple[str, ...]:
             "freecad_cloth",
         ],
         capture_output=True,
-        text=True,
         check=True,
         timeout=30,
     )
     return tuple(
-        sorted(Path(path).as_posix() for path in result.stdout.splitlines() if path.endswith(".py"))
+        sorted(
+            Path(path).as_posix()
+            for path in (result.stdout or "").splitlines()
+            if path.endswith(".py")
+        )
     )
 
 

@@ -5,10 +5,14 @@ from __future__ import annotations
 
 import argparse
 import os
-import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
+
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 GROUPS = {
     "core": (
@@ -200,7 +204,7 @@ def main() -> int:
     sys.stdout.flush()
     # Anny-backed geometry tests perform several CPU differentiable body fits.
     # Keep the subprocess bounded while allowing the full core inventory to finish.
-    subprocess.run(command, check=True, timeout=600, env=env)
+    run_command(command, check=True, timeout=600, env=env)
     sys.stdout.write(f"python-validation={args.group} passed\n")
     sys.stdout.flush()
     return 0

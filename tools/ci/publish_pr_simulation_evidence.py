@@ -6,17 +6,18 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+from tools.ci.command_runner import CommandResult, run_command
 
 
 def run(
     *args: str,
     cwd: Path | None = None,
     check: bool = True,
-) -> subprocess.CompletedProcess[str]:
+) -> CommandResult:
     """Run one executable using a resolved path and argument-vector invocation.
 
     Args:
@@ -31,19 +32,7 @@ def run(
         ValueError: If no executable command is provided.
         FileNotFoundError: If the requested executable is unavailable on PATH.
     """
-    if not args:
-        msg = "an executable command is required"
-        raise ValueError(msg)
-    executable = shutil.which(args[0])
-    if executable is None:
-        msg = f"Required executable is not on PATH: {args[0]}"
-        raise FileNotFoundError(msg)
-    return subprocess.run(
-        [executable, *args[1:]],
-        cwd=cwd,
-        check=check,
-        text=True,
-    )
+    return run_command(args, cwd=cwd, check=check)
 
 
 def main() -> int:

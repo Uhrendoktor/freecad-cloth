@@ -6,9 +6,10 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import subprocess
 import sys
 import time
+
+from tools.ci.command_runner import run_command
 
 
 def _gh_executable() -> str:
@@ -36,13 +37,12 @@ def gh(*args: str) -> str:
     Returns:
         Standard output emitted by the successful CLI command.
     """
-    return subprocess.run(
+    return run_command(
         [_gh_executable(), *args],
         check=True,
         capture_output=True,
-        text=True,
         timeout=10,
-    ).stdout
+    ).stdout or ""
 
 
 def main() -> int:
@@ -72,7 +72,7 @@ def main() -> int:
         if state == "completed":
             break
         time.sleep(5)
-    subprocess.run(
+    run_command(
         [
             executable,
             "workflow",
@@ -91,7 +91,7 @@ def main() -> int:
         timeout=10,
     )
     time.sleep(2)
-    subprocess.run(
+    run_command(
         [executable, "api", "--method", "POST", f"repos/{repo}/actions/runs/{run_id}/cancel"],
         check=False,
         timeout=10,
