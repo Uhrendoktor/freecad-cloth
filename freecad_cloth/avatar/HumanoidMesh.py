@@ -85,7 +85,7 @@ class HumanoidMeshError(RuntimeError):
 
 @pydantic_dataclass(frozen=True)
 class MeshData:
-    """Public data model or service class for MeshData."""
+    """Immutable validated triangle geometry supplied to the avatar workbench."""
 
     vertices: tuple[tuple[float, float, float], ...]
     triangles: tuple[tuple[StrictInt, StrictInt, StrictInt], ...]
@@ -125,6 +125,14 @@ class MeshData:
 
 
 def _default_cache_path(environ: Mapping[str, str] | None = None) -> Path:
+    """Resolve the cache destination for the pinned MakeHuman body OBJ.
+
+    Args:
+        environ: Optional environment mapping used to select the cache directory.
+
+    Returns:
+        Expanded OBJ cache path, using the user cache directory by default.
+    """
     settings = os.environ if environ is None else environ
     configured = settings.get(CACHE_DIR_ENV, "").strip()
     if configured:
@@ -133,6 +141,11 @@ def _default_cache_path(environ: Mapping[str, str] | None = None) -> Path:
 
 
 def _weights_cache_path() -> Path:
+    """Resolve the per-user cache destination for the pinned skinning weights.
+
+    Returns:
+        Expanded MHW cache path, honoring the configured avatar cache directory.
+    """
     configured = os.environ.get(CACHE_DIR_ENV, "").strip()
     if configured:
         return Path(configured).expanduser() / DEFAULT_WEIGHTS_NAME
@@ -140,6 +153,11 @@ def _weights_cache_path() -> Path:
 
 
 def _skeleton_cache_path() -> Path:
+    """Resolve the per-user cache destination for the pinned authored skeleton.
+
+    Returns:
+        Expanded MHSkel cache path, honoring the configured avatar cache directory.
+    """
     configured = os.environ.get(CACHE_DIR_ENV, "").strip()
     if configured:
         return Path(configured).expanduser() / DEFAULT_SKELETON_NAME
@@ -147,6 +165,14 @@ def _skeleton_cache_path() -> Path:
 
 
 def _verified(path: Path) -> bool:
+    """Check the cached base OBJ against its pinned SHA-256 digest.
+
+    Args:
+        path: Candidate MakeHuman OBJ file.
+
+    Returns:
+        Whether the file is large enough and matches the pinned asset digest.
+    """
     if not path.is_file() or path.stat().st_size <= 1024:
         return False
     try:
@@ -156,6 +182,14 @@ def _verified(path: Path) -> bool:
 
 
 def _verified_weights(path: Path) -> bool:
+    """Validate the pinned weight asset's size and JSON entry structure.
+
+    Args:
+        path: Candidate MakeHuman MHW/JSON weight file.
+
+    Returns:
+        Whether the payload contains nonempty finite, nonnegative indexed weights.
+    """
     if not path.is_file() or path.stat().st_size != MAKEHUMAN_WEIGHTS_SIZE:
         return False
     try:
@@ -190,7 +224,14 @@ def _verified_weights(path: Path) -> bool:
 
 
 def _valid_skeleton_payload(payload: object) -> bool:
-    """Return whether a decoded skeleton has usable bone and joint references."""
+    """Check that every authored bone references joints with valid vertex indices.
+
+    Args:
+        payload: Decoded JSON value expected to contain bone and joint mappings.
+
+    Returns:
+        Whether the payload defines nonempty, internally consistent bone endpoints.
+    """
     if not isinstance(payload, dict):
         return False
     bones = payload.get("bones")
@@ -222,6 +263,14 @@ def _valid_skeleton_payload(payload: object) -> bool:
 
 
 def _verified_skeleton(path: Path) -> bool:
+    """Validate the cached skeleton size and its bone-to-joint relationships.
+
+    Args:
+        path: Candidate MakeHuman MHSkel/JSON skeleton file.
+
+    Returns:
+        Whether the file has the pinned size and a usable skeleton payload.
+    """
     if not path.is_file() or path.stat().st_size != MAKEHUMAN_SKELETON_SIZE:
         return False
     try:
@@ -232,6 +281,16 @@ def _verified_skeleton(path: Path) -> bool:
 
 
 def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> None:
+    """Download an asset through a verified temporary file and atomic replacement.
+
+    Args:
+        url: Pinned asset URL used for the download request.
+        destination: Final cache path that receives the verified file.
+        verifier: Asset-specific check that must accept the completed temporary file.
+
+    Raises:
+        HumanoidMeshError: If the downloaded bytes fail the supplied verification.
+    """
     destination.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(
         prefix=".makehuman-", suffix=destination.suffix, dir=str(destination.parent)
@@ -256,7 +315,14 @@ def _download(url: str, destination: Path, verifier: Callable[[Path], bool]) -> 
 
 
 def _makehuman_base_mesh_candidates(environ: Mapping[str, str] | None = None) -> tuple[Path, ...]:
-    """Return conventional MakeHuman install paths without scanning the whole disk."""
+    """Find conventional MakeHuman install paths without scanning the whole disk.
+
+    Args:
+        environ: Optional environment mapping containing platform installation roots.
+
+    Returns:
+        Deduplicated candidate OBJ paths in deterministic search order.
+    """
     settings = os.environ if environ is None else environ
     roots: list[Path] = []
     candidates: list[Path] = []
@@ -339,7 +405,15 @@ def _find_local_base_mesh(
     environ: Mapping[str, str] | None = None,
     verifier: Callable[[Path], bool] | None = None,
 ) -> Path | None:
-    """Find a local copy only if its bytes match the pinned indexed HM08 mesh."""
+    """Find a local body OBJ only when its content matches the pinned HM08 digest.
+
+    Args:
+        environ: Optional environment mapping used to discover MakeHuman installs.
+        verifier: Optional content verifier replacing the default SHA-256 check.
+
+    Returns:
+        First verified local OBJ path, or None when no candidate matches.
+    """
     check = _verified if verifier is None else verifier
     for candidate in _makehuman_base_mesh_candidates(environ):
         if check(candidate):
@@ -354,7 +428,21 @@ def ensure_makehuman_base(
     verifier: Callable[[Path], bool] | None = None,
     downloader: Callable[[str, Path, Callable[[Path], bool]], None] | None = None,
 ) -> Path:
-    """Resolve a human OBJ from an explicit path, local install, or pinned download."""
+    """Resolve the body OBJ from an override, verified install, cache, or pinned download.
+
+    Args:
+        path: Optional explicit OBJ path supplied by the caller.
+        environ: Optional environment mapping for path overrides and installation roots.
+        verifier: Optional body-asset verifier used for cache and install candidates.
+        downloader: Optional download function used when no verified local asset exists.
+
+    Returns:
+        Existing or newly cached path to the selected MakeHuman body OBJ.
+
+    Raises:
+        HumanoidMeshError: If an explicit override is missing or the pinned asset cannot
+            be obtained and verified.
+    """
     settings = os.environ if environ is None else environ
     check = _verified if verifier is None else verifier
     download = _download if downloader is None else downloader
@@ -391,7 +479,18 @@ def ensure_makehuman_base(
 
 
 def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return the pinned MakeHuman default skinning weights."""
+    """Resolve the pinned MakeHuman skinning weights from an override or verified cache.
+
+    Args:
+        path: Optional explicit local weight-file path.
+
+    Returns:
+        Existing path to the selected MakeHuman skinning weight asset.
+
+    Raises:
+        HumanoidMeshError: If the explicit or configured file is missing or the pinned
+            weight asset cannot be downloaded and validated.
+    """
     override = os.environ.get(WEIGHTS_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
@@ -421,7 +520,18 @@ def ensure_makehuman_weights(path: str | os.PathLike[str] | None = None) -> Path
 
 
 def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Path:
-    """Return the pinned MakeHuman default authored skeleton."""
+    """Resolve the pinned MakeHuman authored skeleton from an override or verified cache.
+
+    Args:
+        path: Optional explicit local skeleton-file path.
+
+    Returns:
+        Existing path to the selected MakeHuman skeleton asset.
+
+    Raises:
+        HumanoidMeshError: If the explicit or configured file is missing or the pinned
+            skeleton asset cannot be downloaded and validated.
+    """
     override = os.environ.get(SKELETON_ENV, "").strip()
     if path is not None:
         destination = Path(path).expanduser()
@@ -451,6 +561,18 @@ def ensure_makehuman_skeleton(path: str | os.PathLike[str] | None = None) -> Pat
 
 
 def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
+    """Read finite source vertices from the resolved MakeHuman OBJ resource.
+
+    Args:
+        path: Optional explicit OBJ path forwarded to the resource resolver.
+
+    Returns:
+        Ordered source-space XYZ coordinates from the OBJ vertex records.
+
+    Raises:
+        HumanoidMeshError: If the OBJ cannot be read or contains malformed or
+            insufficient source vertices.
+    """
     source = ensure_makehuman_base(path)
     try:
         vertices: list[Point] = []
@@ -473,7 +595,18 @@ def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
 
 @lru_cache(maxsize=4)
 def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
-    """Load and return the requested makehuman skeleton resource."""
+    """Load the cached or explicitly selected MakeHuman skeleton and validate its graph.
+
+    Args:
+        path: Optional explicit MHSkel/JSON file path.
+
+    Returns:
+        Parsed skeleton data containing authored bones and joint vertex indices.
+
+    Raises:
+        HumanoidMeshError: If the source file cannot be parsed or its bone and joint
+            references are inconsistent.
+    """
     source = ensure_makehuman_skeleton(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
@@ -525,7 +658,20 @@ def _bone_source_endpoints(
     bone_name: str,
     mapper: Callable[[Point], Point] | None = None,
 ) -> tuple[Point, Point]:
-    """Return authored endpoints, optionally fitted vertex-by-vertex."""
+    """Resolve a bone's head and tail from the authored joint vertex collections.
+
+    Args:
+        source_vertices: Ordered source mesh coordinates referenced by joint indices.
+        skeleton: Authored MakeHuman bone and joint mappings.
+        bone_name: Name of the bone whose endpoints are requested.
+        mapper: Optional transform applied to each contributing vertex before averaging.
+
+    Returns:
+        Head and tail coordinates in source space or the mapped fitted space.
+
+    Raises:
+        HumanoidMeshError: If the bone or either joint's source vertices are unavailable.
+    """
     bone = skeleton["bones"].get(bone_name)
     if not bone:
         msg = f"MakeHuman skeleton has no bone {bone_name}"
@@ -537,11 +683,17 @@ def _bone_source_endpoints(
 
 
 def parse_obj(text: str) -> MeshData:
-    """Parse HM08 and retain only its canonical visible body surface.
+    """Parse OBJ vertices and faces while discarding MakeHuman helper geometry.
 
-    HM08 stores the visible body first (vertices 0..13379), followed by helper
-    geometry used internally by MakeHuman for joints, clothing and weighting.
-    The helpers must not become visible FreeCAD anatomy.
+    HM08 stores the visible body first, followed by internal helper geometry used
+    for joints, clothing and weighting. Only faces referencing the canonical visible
+    body vertices are retained in the FreeCAD avatar.
+
+    Args:
+        text: Complete UTF-8 text of the source Wavefront OBJ file.
+
+    Returns:
+        Validated triangle mesh containing only the visible HM08 body surface.
     """
     vertices = []
     triangles = []
@@ -571,7 +723,17 @@ def parse_obj(text: str) -> MeshData:
 
 @lru_cache(maxsize=4)
 def load_makehuman_mesh(path: str | None = None) -> MeshData:
-    """Load and return the requested makehuman mesh resource."""
+    """Load the selected MakeHuman OBJ and parse its canonical visible body surface.
+
+    Args:
+        path: Optional explicit OBJ path used instead of the cache or pinned download.
+
+    Returns:
+        Validated visible-body vertices and triangular faces.
+
+    Raises:
+        HumanoidMeshError: If the OBJ is unavailable, malformed, or fails mesh validation.
+    """
     source = ensure_makehuman_base(path)
     try:
         return parse_obj(source.read_text(encoding="utf-8", errors="strict"))
@@ -581,10 +743,30 @@ def load_makehuman_mesh(path: str | None = None) -> MeshData:
 
 
 def _lerp(a: float, b: float, t: float) -> float:
+    """Interpolate between two profile values with a clamped normalized parameter.
+
+    Args:
+        a: Value at the beginning of the interval.
+        b: Value at the end of the interval.
+        t: Normalized interpolation parameter, clamped to the unit interval.
+
+    Returns:
+        Linearly interpolated value between the two endpoints.
+    """
     return a + (b - a) * max(0.0, min(1.0, t))
 
 
 def _smoothstep(a: float, b: float, x: float) -> float:
+    """Evaluate cubic smoothstep interpolation over an ordered scalar interval.
+
+    Args:
+        a: Lower interval boundary.
+        b: Upper interval boundary.
+        x: Sample position in the same units as the interval boundaries.
+
+    Returns:
+        Clamped cubic interpolation weight; zero for a degenerate interval.
+    """
     if a == b:
         return 0.0
     t = max(0.0, min(1.0, (x - a) / (b - a)))
@@ -611,11 +793,27 @@ def _map_makehuman_axes(vertices: Sequence[Point]) -> list[Point]:
 
 
 def _reoriented_triangles(triangles: Sequence[Triangle]) -> tuple[Triangle, ...]:
-    """Reverse winding after the handedness-flipping Y/Z axis permutation."""
+    """Reverse each triangle's winding after the handedness-changing axis permutation.
+
+    Args:
+        triangles: Source triangle index triples in their original vertex order.
+
+    Returns:
+        Triangle triples with the second and third indices exchanged.
+    """
     return tuple((int(a), int(c), int(b)) for a, b, c in triangles)
 
 
 def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
+    """Interpolate the scale value at a normalized height within a body profile.
+
+    Args:
+        z: Normalized vertical coordinate at which to sample the profile.
+        profile: Ordered pairs of normalized height and scale factor.
+
+    Returns:
+        Interpolated scale factor, clamped to the profile's terminal value.
+    """
     for i in range(len(profile) - 1):
         z0, s0 = profile[i]
         z1, s1 = profile[i + 1]
@@ -625,7 +823,14 @@ def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
 
 
 def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
-    """Return whether the authoritative dimensions are the canonical defaults."""
+    """Check whether every authored avatar measurement matches its canonical default.
+
+    Args:
+        parameters: Validated avatar parameters containing authoritative measurements.
+
+    Returns:
+        Whether all named body measurements match the default mannequin dimensions.
+    """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     return all(
@@ -635,7 +840,14 @@ def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
 
 
 def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
-    """Return proportional changes relative to the canonical mannequin dimensions."""
+    """Build the clamped vertical scale profile from measured torso circumferences.
+
+    Args:
+        parameters: Validated avatar measurements used to derive body-width ratios.
+
+    Returns:
+        Ordered normalized-height and scale-factor pairs for torso fitting.
+    """
     from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     bands = (
@@ -656,12 +868,18 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
 def _measurement_axis_profiles(
     parameters: AvatarParameters,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-    """Split circumference changes into anatomically asymmetric width/depth scales.
+    """Split circumference changes into anatomically asymmetric width and depth profiles.
 
-    A torso circumference is not a sphere radius. Hips and waists generally
-    need a stronger lateral response, while depth still changes smoothly to
-    preserve a plausible cross-section. Exponents sum to two so the average
+    A torso circumference is not a sphere radius. Hips and waists generally need
+    a stronger lateral response, while depth changes more gently to preserve a
+    plausible cross-section. The profile exponents sum to two so the average
     first-order cross-section scale remains close to the requested ratio.
+
+    Args:
+        parameters: Validated avatar measurements used to derive torso circumference ratios.
+
+    Returns:
+        Separate ordered lateral-width and front-to-back depth scale profiles.
     """
     bands = (
         ("hip", 0.50, 1.25),
@@ -687,7 +905,14 @@ def _measurement_axis_profiles(
 def _gender_axis_profiles(
     parameters: AvatarParameters,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
-    """Return separate lateral and depth shape fields for the body-shape blend."""
+    """Build separate lateral and depth profiles for the continuous gender shape blend.
+
+    Args:
+        parameters: Validated avatar parameters containing the normalized gender value.
+
+    Returns:
+        Ordered lateral-width and front-to-back depth scale profiles.
+    """
     delta = max(-0.5, min(0.5, float(parameters.gender) - 0.5))
     lateral = [
         (0.0, 1.0),
@@ -836,6 +1061,15 @@ def _estimate_rest_arm_angles(
 
 
 def _is_arm_bone(name: str, side: str) -> bool:
+    """Identify whether a MakeHuman bone belongs to an arm chain on one side.
+
+    Args:
+        name: Authored bone identifier from the MakeHuman weight file.
+        side: Side suffix used by the source rig, for example .L or .R.
+
+    Returns:
+        Whether the bone name ends in the requested side and arm-chain prefix.
+    """
     if not name.endswith(side):
         return False
     base = name[:-2]
@@ -846,11 +1080,23 @@ def _is_arm_bone(name: str, side: str) -> bool:
 def load_makehuman_arm_weights(
     vertex_count: int, path: str | None = None
 ) -> tuple[tuple[float, ...], tuple[float, ...]]:
-    """Load the source mesh's arm-chain weights, mapped onto visible vertices.
+    """Load authored left and right arm-chain weights for visible body vertices.
 
-    These are authored by MakeHuman rather than inferred from lateral distance
-    and height. Distal arms and fingers therefore retain full arm influence,
-    while the shoulder transition follows the source skinning field.
+    MakeHuman supplies these weights directly rather than requiring them to be
+    inferred from lateral distance and height. Distal arms and fingers therefore
+    retain their authored influence while the shoulder transition follows the
+    original skinning field.
+
+    Args:
+        vertex_count: Number of visible body vertices in the destination mesh.
+        path: Optional explicit local MHW/JSON weight-file path.
+
+    Returns:
+        Left- and right-arm weight arrays aligned to the visible vertex order.
+
+    Raises:
+        HumanoidMeshError: If the weight asset is missing, malformed, or cannot be
+            decoded into valid per-vertex arm influences.
     """
     source = ensure_makehuman_weights(path)
     try:
@@ -878,7 +1124,19 @@ def load_makehuman_arm_weights(
 def load_makehuman_weights(
     vertex_count: int, path: str | None = None
 ) -> dict[str, tuple[tuple[int, float], ...]]:
-    """Load the complete MakeHuman skinning field for visible body vertices."""
+    """Load all authored MakeHuman bone weights for the visible body vertex range.
+
+    Args:
+        vertex_count: Number of visible body vertices in the destination mesh.
+        path: Optional explicit local MHW/JSON weight-file path.
+
+    Returns:
+        Bone names mapped to retained visible-vertex indices and their nonzero weights.
+
+    Raises:
+        HumanoidMeshError: If the weight asset is missing, malformed, or contains no
+            usable visible-vertex entries.
+    """
     source = ensure_makehuman_weights(path)
     try:
         payload = json.loads(source.read_text(encoding="utf-8", errors="strict"))
