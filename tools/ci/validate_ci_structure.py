@@ -232,7 +232,6 @@ def pyright_coverage_contract_violations(
     return tuple(violations)
 
 
-
 def _validate_workflow_dispatch_contract(text: str) -> None:
     """Validate the shared workflow's size and trigger boundaries.
 

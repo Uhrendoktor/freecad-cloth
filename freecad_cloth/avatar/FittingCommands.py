@@ -134,6 +134,7 @@ class _FittingSceneFeature(_NativePropertyAdder, Protocol):
     AvatarProxy: object | None
     Proxy: object
 
+
 class _FittingVisualView(Protocol):
     """Display properties used by generated fitting marker features."""
 
@@ -166,8 +167,6 @@ class _FittingVisualFeature(_NativePropertyAdder, Protocol):
     VolumeName: str
     Center: object
     Size: object
-
-
 
 
 def _drape_target_source(doc: _FittingDocument | None) -> object | None:

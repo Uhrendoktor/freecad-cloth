@@ -924,8 +924,6 @@ def test_pyright_checks_every_repository_python_file_in_strict_mode() -> None:
     )
 
 
-
-
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
     """Verify the main-only gallery generation keeps a bounded avatar fitting budget."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(

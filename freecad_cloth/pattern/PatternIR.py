@@ -271,7 +271,6 @@ class PatternIR:
         ``SemanticEdgeIds``; the conversion emits deterministic samples plus
         curve kind/parameter metadata, while the native object stays outside
         the solver layer.
-        
 
         Args:
             graph: Validated sewing graph whose piece IDs define the conversion scope.
