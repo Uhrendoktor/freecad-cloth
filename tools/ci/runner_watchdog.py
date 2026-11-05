@@ -10,9 +10,9 @@ import sys
 import time
 
 if __package__:
-    from tools.ci.command_runner import run_command
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 
 def _gh_executable() -> str:
@@ -42,9 +42,7 @@ def gh(*args: str) -> str:
     """
     return run_command(
         [_gh_executable(), *args],
-        check=True,
-        capture_output=True,
-        timeout=10,
+        options=CommandOptions(capture_output=True, timeout=10),
     ).stdout or ""
 
 
@@ -90,14 +88,12 @@ def main() -> int:
             "-f",
             f"fallback_source_run={run_id}",
         ],
-        check=True,
-        timeout=10,
+        options=CommandOptions(timeout=10),
     )
     time.sleep(2)
     run_command(
         [executable, "api", "--method", "POST", f"repos/{repo}/actions/runs/{run_id}/cancel"],
-        check=False,
-        timeout=10,
+        options=CommandOptions(check=False, timeout=10),
     )
     sys.stdout.write(f"runner-watchdog=fallback-dispatched source_run={run_id}\n")
     return 0
