@@ -115,9 +115,6 @@ class _NativePropertyAdder(Protocol):
 class _FittingSceneFeature(_NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
-class _FittingSceneFeature(_NativePropertyAdder, Protocol):
-    """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
-
     Name: str
     Label: str
     Document: "_FittingDocument"
