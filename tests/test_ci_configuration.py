@@ -927,7 +927,7 @@ def test_pyright_checks_every_repository_python_file_in_strict_mode() -> None:
 
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
-    """The main-only gallery generation uses a bounded fit budget."""
+    """Verify the main-only gallery generation keeps a bounded avatar fitting budget."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -938,25 +938,33 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
         "log-file: artifacts/avatar-documentation-progress.log", maxsplit=1
     )[1].split("      - uses:", maxsplit=1)[0]
 
-    assert "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation, (
-        'Expected "CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation.'
+    require(
+        condition="CLOTH_AVATAR_SCREENSHOT_MODE=documentation" in gallery_invocation,
+        message="Documentation gallery invocation must select documentation capture mode.",
     )
-    assert (
-        "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}" in gallery_invocation
-    ), (
-        "Expected `FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env."
-        "CLOTH_DOC_AVATAR_FIT_STEPS }}` in gallery_invocation."
+    require(
+        condition=(
+            "FREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}"
+            in gallery_invocation
+        ),
+        message="Documentation gallery must use the bounded fit-step environment value.",
     )
-    assert "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow, (
-        'Expected "CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow.'
+    require(
+        condition="CLOTH_DOC_AVATAR_FIT_STEPS:" in workflow,
+        message="Workflow must declare the documentation fit-step budget.",
     )
-    assert "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation, (
-        'Expected "FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation.'
+    require(
+        condition="FREECAD_CLOTH_ANNY_FIT_STEPS=18" not in gallery_invocation,
+        message="Documentation gallery must not override the fit-step budget with 18.",
     )
-    assert "freecad_application_timeout_seconds" not in gallery_job, (
-        'Expected "freecad_application_timeout_seconds" not in gallery_job.'
+    require(
+        condition="freecad_application_timeout_seconds" not in gallery_job,
+        message="Gallery generation must not override the shared FreeCAD application timeout.",
     )
-    assert "timeout-minutes: 12" in gallery_job, 'Expected "timeout-minutes: 12" in gallery_job.'
+    require(
+        condition="timeout-minutes: 12" in gallery_job,
+        message="Gallery generation must retain its bounded 12-minute job timeout.",
+    )
 
 
 def test_main_publication_checks_out_source_before_local_publisher_action() -> None:
