@@ -95,7 +95,27 @@ class _FittingAnchorTarget(Protocol):
     Placement: _NativePlacement
 
 
-class _FittingSceneFeature(Protocol):
+class _NativePropertyAdder(Protocol):
+    """Native document-object contract for registering persistent FreeCAD properties."""
+
+    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
+        """Register a typed custom property on a host document object.
+
+        Args:
+            property_type: FreeCAD property type identifier.
+            name: Property name persisted in the document.
+            group: Property editor category used to group related fields.
+
+        Returns:
+            Native feature/property-registration result from the FreeCAD host.
+        """
+        ...
+
+
+class _FittingSceneFeature(_NativePropertyAdder, Protocol):
+    """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
+
+class _FittingSceneFeature(_NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
     Name: str
@@ -117,20 +137,6 @@ class _FittingSceneFeature(Protocol):
     AvatarProxy: object | None
     Proxy: object
 
-    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
-        """Register a custom FreeCAD property on the native feature.
-
-        Args:
-            property_type: FreeCAD property type identifier.
-            name: Property name persisted in the document.
-            group: Property editor category used to group related fields.
-
-        Returns:
-            Native feature/property-registration result from the FreeCAD host.
-        """
-        ...
-
-
 class _FittingVisualView(Protocol):
     """Display properties used by generated fitting marker features."""
 
@@ -140,7 +146,7 @@ class _FittingVisualView(Protocol):
     LineWidth: float
 
 
-class _FittingVisualFeature(Protocol):
+class _FittingVisualFeature(_NativePropertyAdder, Protocol):
     """Native display object contract for generated fitting point/volume markers."""
 
     Name: str
@@ -164,18 +170,7 @@ class _FittingVisualFeature(Protocol):
     Center: object
     Size: object
 
-    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
-        """Register a custom FreeCAD property on the native feature.
 
-        Args:
-            property_type: FreeCAD property type identifier.
-            name: Property name persisted in the document.
-            group: Property editor category used to group related fields.
-
-        Returns:
-            Native feature/property-registration result from the FreeCAD host.
-        """
-        ...
 
 
 def _drape_target_source(doc: _FittingDocument | None) -> object | None:
