@@ -79,8 +79,9 @@ def test_run_command_raises_for_a_failing_checked_process() -> None:
 
 def test_run_command_rejects_empty_argument_vectors() -> None:
     """Reject an empty command before creating an operating-system process."""
+    empty_args: tuple[str, ...] = ()
     with pytest.raises(ValueError, match="executable command is required"):
-        run_command([])
+        run_command(empty_args)
 
 
 def test_run_command_rejects_missing_executable_paths() -> None:

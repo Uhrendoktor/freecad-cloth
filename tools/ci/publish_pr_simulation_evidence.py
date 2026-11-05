@@ -10,7 +10,10 @@ import sys
 import tempfile
 from pathlib import Path
 
-from tools.ci.command_runner import CommandResult, run_command
+if __package__:
+    from tools.ci.command_runner import CommandResult, run_command
+else:
+    from command_runner import CommandResult, run_command
 
 
 def run(
