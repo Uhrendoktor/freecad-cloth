@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
 from types import ModuleType
@@ -44,7 +45,7 @@ def _scene() -> _SimulationScene | None:
         ),
         None,
     )
-    return cast(_SimulationScene, scene) if scene is not None else None
+    return cast("_SimulationScene", scene) if scene is not None else None
 
 
 def _prepare(scene: _SimulationScene) -> None:
@@ -65,9 +66,11 @@ def _prepare(scene: _SimulationScene) -> None:
         else proxy
     )
     if base is None or getattr(base, "backend", None) is None:
-        raise RuntimeError("Realtime Cloth Preview did not build a simulation backend")
+        msg = "Realtime Cloth Preview did not build a simulation backend"
+        raise RuntimeError(msg)
     if getattr(base.backend, "name", "") != "position-based-dynamics":
-        raise RuntimeError("Realtime Cloth Preview requires the PositionBasedDynamics backend")
+        msg = "Realtime Cloth Preview requires the PositionBasedDynamics backend"
+        raise RuntimeError(msg)
 
 
 class _Preview:
@@ -126,9 +129,8 @@ class _Preview:
                 return
             proxy = getattr(self.scene, "Proxy", None)
             if proxy is None or not hasattr(proxy, "advance_preview_frame"):
-                raise RuntimeError(
-                    "Realtime Cloth Preview requires the recompute-free simulation path"
-                )
+                msg = "Realtime Cloth Preview requires the recompute-free simulation path"
+                raise RuntimeError(msg)
             proxy.advance_preview_frame(self.scene)
             self._overlay_refresh_ticks += 1
             if self._overlay_refresh_ticks % 2 == 0:
@@ -161,7 +163,8 @@ def toggle_realtime_preview() -> bool:
     global _PREVIEW
     scene = _scene()
     if scene is None:
-        raise RuntimeError("Create a ClothSimulation scene first")
+        msg = "Create a ClothSimulation scene first"
+        raise RuntimeError(msg)
     if _PREVIEW is not None and _PREVIEW.running:
         _PREVIEW.stop()
         return False

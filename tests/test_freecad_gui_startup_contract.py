@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Static contract for FreeCAD GUI startup ordering in acceptance workflows."""
 
 import re

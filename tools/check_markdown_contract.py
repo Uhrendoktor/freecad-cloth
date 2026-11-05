@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Validate local Markdown links and image references used by repository documentation."""
 
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -13,7 +15,11 @@ HTML_REF = re.compile(r"""(?:src|href)=["']([^"']+)["']""", re.IGNORECASE)
 
 
 def markdown_files() -> tuple[Path, ...]:
-    """Return Markdown files that form the repository documentation surface."""
+    """Return Markdown files that form the repository documentation surface.
+
+    Returns:
+        Existing Markdown files that define the repository's documentation surface.
+    """
     paths = [
         ROOT / "README.md",
         ROOT / "AGENTS.md",
@@ -25,7 +31,15 @@ def markdown_files() -> tuple[Path, ...]:
 
 
 def _local_target(source: Path, target: str) -> Path | None:
-    """Resolve a local Markdown or HTML target."""
+    """Resolve a local Markdown or HTML target.
+
+    Args:
+        source: Markdown file containing the reference.
+        target: Link or HTML attribute value to resolve.
+
+    Returns:
+        Resolved local filesystem path, or None for external and fragment-only targets.
+    """
     target = unquote(target.strip("<>"))
     parsed = urlsplit(target)
     if parsed.scheme or parsed.netloc or target.startswith("#"):
@@ -38,7 +52,14 @@ def _local_target(source: Path, target: str) -> Path | None:
 
 
 def check(source: Path) -> list[str]:
-    """Return broken local documentation references in one Markdown file."""
+    """Return broken local documentation references in one Markdown file.
+
+    Args:
+        source: Markdown file whose links and image references should be checked.
+
+    Returns:
+        Diagnostics describing local references that do not resolve to an existing path.
+    """
     text = source.read_text(encoding="utf-8")
     references = [*MARKDOWN_LINK.findall(text), *HTML_REF.findall(text)]
     errors = []
@@ -50,12 +71,16 @@ def check(source: Path) -> list[str]:
 
 
 def main() -> int:
-    """Validate all repository Markdown documentation."""
+    """Validate all repository Markdown documentation.
+
+    Returns:
+        Process status: zero when all local references resolve, otherwise one.
+    """
     errors = [error for path in markdown_files() for error in check(path)]
     if errors:
-        print("\n".join(errors))
+        sys.stdout.write("\n".join(errors) + "\n")
         return 1
-    print(f"markdown-contract=passed files={len(markdown_files())}")
+    sys.stdout.write(f"markdown-contract=passed files={len(markdown_files())}\n")
     return 0
 
 

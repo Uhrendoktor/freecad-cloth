@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Production tunic visual/simulation audit entry point.
 
 The shared FreeCAD screenshot fixture owns all executable behavior. This module
@@ -16,7 +17,11 @@ SOURCE = ROOT / "tests" / "freecad_screenshot_source.py"
 
 
 def main() -> int:
-    """Run the checked-in screenshot fixture with production tunic acceptance."""
+    """Run the checked-in screenshot fixture with production tunic acceptance.
+
+    Returns:
+        Zero after the fixture passes or after a requested syntax-only check succeeds.
+    """
     os.environ["CLOTH_PBD_COLLISION_MODE"] = "mesh"
     os.environ["CLOTH_TUNIC_AUDIT_PROFILE"] = "production"
     os.environ["CLOTH_TUNIC_AUDIT_SKIP_CANONICAL_ACCEPTANCE"] = "1"

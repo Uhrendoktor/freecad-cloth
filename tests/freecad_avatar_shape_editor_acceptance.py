@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI acceptance and animated evidence for avatar shape editing."""
 
 from __future__ import annotations
@@ -88,7 +89,8 @@ def _head_envelope(points, cutoff):
     """Return indexed head vertices so a rebuild can be checked by correspondence."""
     selected = tuple((index, point) for index, point in enumerate(points) if point[2] >= cutoff)
     if len(selected) < 10:
-        raise RuntimeError("too few mannequin vertices in the head envelope for a locality check")
+        msg = "too few mannequin vertices in the head envelope for a locality check"
+        raise RuntimeError(msg)
     return selected
 
 
@@ -105,23 +107,24 @@ def _camera_signature(view):
             signature[name] = tuple(float(value) for value in match.group(1).split())
     required = {"position", "orientation", "focalDistance"}
     if not required.issubset(signature) or not ({"height", "heightAngle"} & signature.keys()):
-        raise RuntimeError("could not inspect the viewport camera framing")
+        msg = "could not inspect the viewport camera framing"
+        raise RuntimeError(msg)
     return signature
 
 
 def _assert_camera_stable(before, after):
     """Fail if an in-place mesh rebuild changes the active camera framing."""
     if set(before) != set(after):
-        raise RuntimeError("camera framing fields changed during avatar rebuild")
+        msg = "camera framing fields changed during avatar rebuild"
+        raise RuntimeError(msg)
     for name, old_values in before.items():
         new_values = after[name]
         if len(old_values) != len(new_values) or any(
             not math.isclose(old, new, rel_tol=0.0, abs_tol=1e-4)
             for old, new in zip(old_values, new_values, strict=True)
         ):
-            raise RuntimeError(
-                f"avatar rebuild changed camera framing: {name} {old_values} -> {new_values}"
-            )
+            msg = f"avatar rebuild changed camera framing: {name} {old_values} -> {new_values}"
+            raise RuntimeError(msg)
 
 
 def _shape_change_summary(
@@ -142,7 +145,8 @@ def _shape_change_summary(
     )
     bust_baseline = before if breast_reference is None else breast_reference
     if len(bust_baseline) != len(after):
-        raise RuntimeError("bust projection comparison requires matched generated mesh topology")
+        msg = "bust projection comparison requires matched generated mesh topology"
+        raise RuntimeError(msg)
 
     # clad-body uses Z-up and +Y-anterior. Use baseline vertex indices as the
     # lobe correspondence, then measure each corresponding vertex's forward
@@ -170,7 +174,8 @@ def _shape_change_summary(
         and 20.0 <= abs(point[0]) <= 130.0
     )
     if not torso_reference_indices:
-        raise RuntimeError("no lower-torso vertices available to normalize bust projection")
+        msg = "no lower-torso vertices available to normalize bust projection"
+        raise RuntimeError(msg)
     torso_y_shift = sorted(
         after[index][1] - bust_baseline[index][1] for index in torso_reference_indices
     )[len(torso_reference_indices) // 2]
@@ -183,7 +188,8 @@ def _shape_change_summary(
     for side, name in ((-1.0, "left"), (1.0, "right")):
         lobe_indices = front_lobe_indices(bust_baseline, side)
         if not lobe_indices:
-            raise RuntimeError(f"no front-facing {name} breast vertices available for shape review")
+            msg = f"no front-facing {name} breast vertices available for shape review"
+            raise RuntimeError(msg)
         deltas = tuple(
             tuple(after[index][axis] - bust_baseline[index][axis] for axis in range(3))
             for index in lobe_indices
@@ -231,7 +237,8 @@ def _capture_screen(path):
     screen = None if app is None else app.primaryScreen()
     window = Gui.getMainWindow()
     if app is None or screen is None or window is None:
-        raise RuntimeError("FreeCAD main window/screen is unavailable for shape-editor capture")
+        msg = "FreeCAD main window/screen is unavailable for shape-editor capture"
+        raise RuntimeError(msg)
     geometry = screen.availableGeometry()
     if geometry.width() < 1280 or geometry.height() < 720:
         raise RuntimeError(
@@ -247,7 +254,8 @@ def _capture_screen(path):
     _events()
     pixmap = screen.grabWindow(int(window.winId()))
     if pixmap.isNull():
-        raise RuntimeError("FreeCAD main-window screenshot is null")
+        msg = "FreeCAD main-window screenshot is null"
+        raise RuntimeError(msg)
     if (int(pixmap.width()), int(pixmap.height())) != (1280, 720):
         raise RuntimeError(
             "Avatar shape screenshot dimensions are %dx%d, expected 1280x720"
@@ -255,7 +263,8 @@ def _capture_screen(path):
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     if not pixmap.save(str(path)):
-        raise RuntimeError("could not save avatar shape-editor screenshot")
+        msg = "could not save avatar shape-editor screenshot"
+        raise RuntimeError(msg)
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
     return validate_png_capture(
@@ -307,7 +316,8 @@ def _drag_dimension_handle(controller, coin, key, pixels=6.0):
     controller._mouse_event(up)
     _events()
     if controller._drag_key is not None:
-        raise RuntimeError("viewport dimension drag did not terminate cleanly")
+        msg = "viewport dimension drag did not terminate cleanly"
+        raise RuntimeError(msg)
     if abs(staged_value - initial_value) < 1.0:
         raise RuntimeError(
             "viewport dimension drag did not stage a measurable change: "
@@ -342,7 +352,8 @@ def run():
         panel.advanced_toggle.setChecked(True)
         _events()
         if not panel._advanced_controls_built:
-            raise RuntimeError("advanced Anny parameters did not load on demand")
+            msg = "advanced Anny parameters did not load on demand"
+            raise RuntimeError(msg)
         age_control = next(
             (
                 item
@@ -360,36 +371,43 @@ def run():
             None,
         )
         if age_control is None or waist_morph is None:
-            raise RuntimeError("advanced Anny phenotype/body-morph parameters are incomplete")
+            msg = "advanced Anny phenotype/body-morph parameters are incomplete"
+            raise RuntimeError(msg)
         age_control["box"].setValue(min(1.0, age_control["default"] + 0.05))
         waist_morph["box"].setValue(0.1)
         advanced_staged = panel._staged_parameters()
         if not advanced_staged.phenotype_overrides or not advanced_staged.local_change_overrides:
-            raise RuntimeError("advanced Anny parameter edits were not staged")
+            msg = "advanced Anny parameter edits were not staged"
+            raise RuntimeError(msg)
         panel.advanced_search.setText("measure-waist-circ")
         _events()
         if not waist_morph["row"].isVisible() or panel.advanced_tabs.currentIndex() != 1:
-            raise RuntimeError("advanced parameter search did not reveal the matching body morph")
+            msg = "advanced parameter search did not reveal the matching body morph"
+            raise RuntimeError(msg)
         panel.advanced_search.clear()
         panel.reset_advanced_button.click()
         if panel._advanced_phenotype_overrides or panel._advanced_local_change_overrides:
-            raise RuntimeError("Reset advanced did not clear all advanced overrides")
+            msg = "Reset advanced did not clear all advanced overrides"
+            raise RuntimeError(msg)
         panel.advanced_toggle.setChecked(False)
 
         # Mass is an optional native-unit clad-body target, separate from mm fields.
         panel.mass_target_enabled.setChecked(True)
         panel.mass_target.setValue(68.5)
         if panel._staged_parameters().mass_target_kg != 68.5:
-            raise RuntimeError("body-mass target did not stage in kilograms")
+            msg = "body-mass target did not stage in kilograms"
+            raise RuntimeError(msg)
         panel.mass_target_enabled.setChecked(False)
         if panel._staged_parameters().mass_target_kg is not None:
-            raise RuntimeError("disabling the body-mass target did not remove the constraint")
+            msg = "disabling the body-mass target did not remove the constraint"
+            raise RuntimeError(msg)
         _events()
 
         focus_main_window(Gui, size=(1280, 720))
         active = Gui.activeDocument()
         if active is None:
-            raise RuntimeError("there is no active FreeCAD document for shape editor acceptance")
+            msg = "there is no active FreeCAD document for shape editor acceptance"
+            raise RuntimeError(msg)
         view = active.activeView()
         view.viewIsometric()
         view.fitAll()
@@ -401,18 +419,19 @@ def run():
         panel._toggle_dimension_gizmo(True)
         controller = panel._dimension_controller
         if controller is None or controller.view is None or controller.overlay is None:
-            raise RuntimeError(
-                "3D Dimensions did not activate; viewport shape editing must remain visible"
-            )
+            msg = "3D Dimensions did not activate; viewport shape editing must remain visible"
+            raise RuntimeError(msg)
         if {str(obj.Name) for obj in doc.Objects} != original_names:
-            raise RuntimeError("viewport dimension overlay created persistent document objects")
+            msg = "viewport dimension overlay created persistent document objects"
+            raise RuntimeError(msg)
 
         # Dimension rings are useful for the separate measurement-drag clip,
         # but obscure the torso in a body-shape demonstration.
         panel.dimension_gizmo_toggle.setChecked(False)
         _events()
         if controller.overlay is not None:
-            raise RuntimeError("dimension overlay remained visible for shape-edit recording")
+            msg = "dimension overlay remained visible for shape-edit recording"
+            raise RuntimeError(msg)
 
         shape_recorder = UiGifRecorder(
             "artifacts/ui-gifs/avatar-shape-edit.gif",
@@ -432,7 +451,8 @@ def run():
             shape_recorder.hold(650)
             staged = panel._staged_parameters()
             if abs(staged.gender - 0.20) > 1e-6 or abs(staged.breast_size - 0.65) > 1e-6:
-                raise RuntimeError("body shape sliders did not stage their expected values")
+                msg = "body shape sliders did not stage their expected values"
+                raise RuntimeError(msg)
             camera_before_rebuild = _camera_signature(view)
             if not panel._apply():
                 raise RuntimeError(
@@ -441,16 +461,17 @@ def run():
             _events()
             _assert_camera_stable(camera_before_rebuild, _camera_signature(view))
             shape_recorder.hold(750)
-            if abs(float(avatar.GenderBlend) - 0.20) > 1e-6:
-                raise RuntimeError("gender blend did not persist to the FreeCAD avatar object")
+            if abs(float(avatar.Gender) - 0.20) > 1e-6:
+                msg = "gender blend did not persist to the FreeCAD avatar object"
+                raise RuntimeError(msg)
             if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
-                raise RuntimeError("breast fullness did not persist to the FreeCAD avatar object")
+                msg = "breast fullness did not persist to the FreeCAD avatar object"
+                raise RuntimeError(msg)
             updated_native_mesh = _mesh_points(avatar)
             updated_facets = len(avatar.Mesh.Facets)
             if updated_facets != original_facets:
-                raise RuntimeError(
-                    f"avatar shape rebuild changed facet count: {original_facets} -> {updated_facets}"
-                )
+                msg = f"avatar shape rebuild changed facet count: {original_facets} -> {updated_facets}"
+                raise RuntimeError(msg)
             from dataclasses import replace as replace_parameters
 
             committed_parameters = panel._staged_parameters()
@@ -465,9 +486,8 @@ def run():
                 or updated_triangles != zero_fullness_triangles
                 or updated_triangles != original_triangles
             ):
-                raise RuntimeError(
-                    "cupsize acceptance requires stable generated mesh vertex/triangle correspondence"
-                )
+                msg = "cupsize acceptance requires stable generated mesh vertex/triangle correspondence"
+                raise RuntimeError(msg)
             native_before_keys = {
                 tuple(round(value, 1) for value in point) for point in original_native_mesh
             }
@@ -476,7 +496,8 @@ def run():
                 for point in updated_native_mesh
             )
             if native_changed_vertices == 0:
-                raise RuntimeError("body-shape rebuild did not change native FreeCAD mesh vertices")
+                msg = "body-shape rebuild did not change native FreeCAD mesh vertices"
+                raise RuntimeError(msg)
             shape_delta = _shape_change_summary(
                 original_mesh,
                 updated_mesh,
@@ -484,9 +505,11 @@ def run():
                 breast_reference=zero_fullness_vertices,
             )
             if shape_delta["changed_vertices"] == 0:
-                raise RuntimeError("body-shape Apply & Rebuild did not change mannequin geometry")
+                msg = "body-shape Apply & Rebuild did not change mannequin geometry"
+                raise RuntimeError(msg)
             if shape_delta["torso_changed_vertices"] == 0:
-                raise RuntimeError("body-shape rebuild did not change the torso region")
+                msg = "body-shape rebuild did not change the torso region"
+                raise RuntimeError(msg)
             if shape_delta["min_side_bust_projection_delta_mm"] < 1.0:
                 raise RuntimeError(
                     "breast fullness did not visibly move the front torso surface: "
@@ -501,7 +524,8 @@ def run():
         _events()
         controller = panel._dimension_controller
         if controller is None or controller.view is None or controller.overlay is None:
-            raise RuntimeError("3D dimensions did not reactivate for hip-drag recording")
+            msg = "3D dimensions did not reactivate for hip-drag recording"
+            raise RuntimeError(msg)
 
         # Record a distinct viewport-first circumference edit: drag the hip
         # handle, watch the ring/readout update, then commit via Apply & Rebuild.
@@ -531,18 +555,22 @@ def run():
             )
             dimension_recorder.hold(700)
             if abs(float(panel._boxes["hip"].value()) - hip_staged) > 1e-6:
-                raise RuntimeError("viewport hip handle and numeric value diverged")
+                msg = "viewport hip handle and numeric value diverged"
+                raise RuntimeError(msg)
             camera_before_hip_rebuild = _camera_signature(view)
             if not panel._apply():
-                raise RuntimeError("Apply & Rebuild rejected the staged hip measurement")
+                msg = "Apply & Rebuild rejected the staged hip measurement"
+                raise RuntimeError(msg)
             _events()
             _assert_camera_stable(camera_before_hip_rebuild, _camera_signature(view))
             dimension_recorder.hold(700)
             hip_after = float(avatar.Hip)
             if abs(hip_after - hip_staged) > 1e-6:
-                raise RuntimeError("viewport hip drag was not persisted on rebuild")
+                msg = "viewport hip drag was not persisted on rebuild"
+                raise RuntimeError(msg)
             if abs(hip_after - hip_before) < 1.0:
-                raise RuntimeError("viewport hip drag produced no persistent dimensional change")
+                msg = "viewport hip drag produced no persistent dimensional change"
+                raise RuntimeError(msg)
             after_hip_mesh = _mesh_points_unrounded(avatar)
             head_after_hip = _head_envelope(after_hip_mesh, head_cutoff)
             before_by_index = dict(head_before_hip)
@@ -629,12 +657,15 @@ def run():
 
         _events()
         metrics = _capture_screen(Path("artifacts/avatar-shape-editor.png"))
-        if abs(float(avatar.GenderBlend) - 0.20) > 1e-6:
-            raise RuntimeError("gender blend changed unexpectedly during dimension editing")
+        if abs(float(avatar.Gender) - 0.20) > 1e-6:
+            msg = "gender blend changed unexpectedly during dimension editing"
+            raise RuntimeError(msg)
         if abs(float(avatar.BreastSize) - 0.65) > 1e-6:
-            raise RuntimeError("breast fullness changed unexpectedly during dimension editing")
+            msg = "breast fullness changed unexpectedly during dimension editing"
+            raise RuntimeError(msg)
         if _mesh_points(avatar) == original_mesh:
-            raise RuntimeError("committed avatar geometry reverted to its original shape")
+            msg = "committed avatar geometry reverted to its original shape"
+            raise RuntimeError(msg)
 
         Path("artifacts/avatar-shape-editor.log").write_text(
             "avatar-shape-editor=passed "

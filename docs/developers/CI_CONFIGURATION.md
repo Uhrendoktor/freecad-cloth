@@ -28,10 +28,10 @@ It is distinct from infrastructure budgets such as container setup, image pulls/
 
 ## Changing the budget
 
-Change the single default value in `pyproject.toml`, then run:
+Change the single default value in `pyproject.toml`, then run the focused regression tests:
 
 ```bash
-python tools/ci/timeout_contract.py
+python -m pytest tests/test_ci_configuration.py -k 'freecad_timeout or application_timeout'
 ```
 
 Use an explicit action input only for a documented diagnostic requiring more time. Do not introduce

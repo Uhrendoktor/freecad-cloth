@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD task panel for simulation quality and fabric controls."""
 
 

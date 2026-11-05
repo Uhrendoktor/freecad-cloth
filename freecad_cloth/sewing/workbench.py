@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Sewing workbench registration facade."""
 
 from collections.abc import Callable
@@ -54,7 +55,8 @@ def _validate_sewing_command_groups(groups, expected):
     for _group_name, commands in groups:
         grouped.extend(ClothWorkbenchBase.normalize_commands(commands))
     if len(grouped) != len(set(grouped)):
-        raise ValueError("Sewing workbench command groups contain duplicates")
+        msg = "Sewing workbench command groups contain duplicates"
+        raise ValueError(msg)
     if set(grouped) != set(expected):
         missing = sorted(set(expected) - set(grouped))
         extra = sorted(set(grouped) - set(expected))
@@ -97,23 +99,16 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        import freecad_cloth.avatar.AvatarCommands as AvatarCommands
-        import freecad_cloth.avatar.FittingCommands as FittingCommands
-        import freecad_cloth.sewing.SewingCommands as SewingCommands
-        import freecad_cloth.sewing.SewingNetworkCommands as SewingNetworkCommands
+        from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
+        from freecad_cloth.sewing import SewingCommands, SewingNetworkCommands
 
         groups = list(COMMAND_GROUPS[:3])
-        groups.append(
-            (
-                "Fitting & Avatar",
-                tuple(frozenset(FittingCommands.COMMANDS) | frozenset(AvatarCommands.COMMANDS)),
-            )
-        )
+        groups.append(("Fitting & Avatar", (*FITTING_COMMANDS, *AVATAR_COMMANDS)))
         expected = (
             SewingCommands.COMMANDS
             + SewingNetworkCommands.COMMANDS
-            + FittingCommands.COMMANDS
-            + AvatarCommands.COMMANDS
+            + list(FITTING_COMMANDS)
+            + list(AVATAR_COMMANDS)
         )
         _validate_sewing_command_groups(groups, expected)
         self.register(groups, toolbar_name=self.MenuText, toolbar_commands=TOOLBAR_COMMANDS)

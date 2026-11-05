@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json
@@ -21,7 +22,6 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
     notch_point,
 )
 from freecad_cloth.pattern.PatternGeometry import (
-    LineSegment,
     ParametricPattern,
     Point,
     PolylineSegment,
@@ -29,19 +29,46 @@ from freecad_cloth.pattern.PatternGeometry import (
 )
 
 
-def _fmt(value):
+def _fmt(value: float) -> str:
+    """Format a coordinate using the exporter's deterministic decimal precision.
+
+    Args:
+        value: Numeric coordinate or measurement.
+
+    Returns:
+        Decimal representation rounded to six fractional places.
+    """
     return f"{float(value):.6f}"
 
 
-def _dim(value):
+def _dim(value: float) -> str:
+    """Format a physical dimension without unnecessary trailing zeroes.
+
+    Args:
+        value: Dimension expressed in the validated export unit.
+
+    Returns:
+        Compact decimal representation suitable for SVG dimension attributes.
+    """
     return f"{float(value):g}"
 
 
 def _validate_units(units: str) -> str:
-    """Require millimetres, the canonical unit of Cloth pattern geometry."""
+    """Require millimetres, the canonical unit of Cloth pattern geometry.
+
+    Args:
+        units: Requested unit label supplied by the export caller.
+
+    Returns:
+        Canonical lower-case millimetre unit identifier.
+
+    Raises:
+        ValueError: If the requested units are not millimetres.
+    """
     normalized = str(units).strip().lower()
     if normalized != "mm":
-        raise ValueError("units must be 'mm'; pattern coordinates are defined in millimetres")
+        msg = "units must be 'mm'; pattern coordinates are defined in millimetres"
+        raise ValueError(msg)
     return "mm"
 
 
@@ -59,9 +86,21 @@ class _ResolvedNotchCut:
 
 
 def _project_point_onto_polyline(point: Point, points: list[Point]) -> tuple[Point, float, float]:
-    """Project a point to a polyline and return (projection, arclength, distance)."""
+    """Project a point to a polyline and report its along-edge measure and distance.
+
+    Args:
+        point: 2D point to project onto the polyline.
+        points: Ordered polyline vertices defining the target path.
+
+    Returns:
+        Projection point, cumulative distance from the start, and offset distance.
+
+    Raises:
+        ValueError: If fewer than two vertices exist or every segment is degenerate.
+    """
     if len(points) < 2:
-        raise ValueError("cannot project onto a polyline with fewer than two points")
+        msg = "cannot project onto a polyline with fewer than two points"
+        raise ValueError(msg)
     travelled = 0.0
     best_distance = float("inf")
     best_point: Point | None = None
@@ -86,14 +125,27 @@ def _project_point_onto_polyline(point: Point, points: list[Point]) -> tuple[Poi
             best_measure = travelled + fraction * length
         travelled += length
     if best_point is None:
-        raise ValueError("cannot project onto a degenerate polyline")
+        msg = "cannot project onto a degenerate polyline"
+        raise ValueError(msg)
     return best_point, best_measure, best_distance
 
 
 def _polyline_point_at(points: list[Point], distance: float) -> Point:
-    """Interpolate a point at an arclength on a polyline."""
+    """Interpolate a point at a clamped arclength along a polyline.
+
+    Args:
+        points: Ordered vertices defining the path.
+        distance: Requested distance from the first vertex in pattern units.
+
+    Returns:
+        Interpolated point at the requested distance, clamped to the polyline ends.
+
+    Raises:
+        ValueError: If fewer than two vertices are supplied.
+    """
     if len(points) < 2:
-        raise ValueError("cannot interpolate a polyline with fewer than two points")
+        msg = "cannot interpolate a polyline with fewer than two points"
+        raise ValueError(msg)
     total = sum(hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(points, points[1:], strict=False))
     target = min(total, max(0.0, distance))
     travelled = 0.0
@@ -110,7 +162,19 @@ def _polyline_point_at(points: list[Point], distance: float) -> Point:
 
 
 def _interior_normal(pattern: ParametricPattern, notch: Notch) -> Point:
-    """Find the sewing-side normal, including zero-allowance and curved edges."""
+    """Find the inward normal for a notch on a straight or curved sewing edge.
+
+    Args:
+        pattern: Authored boundary containing the semantic edge referenced by notch.
+        notch: Notch location whose source-edge orientation determines the normal.
+
+    Returns:
+        Unit 2D normal directed toward the polygon interior.
+
+    Raises:
+        ValueError: If the notch edge cannot provide a stable local tangent.
+        KeyError: If the notch references an unknown semantic segment.
+    """
     segment = pattern.by_id()[notch.segment_id]
     before_t = max(0.0, notch.t - 1e-4)
     after_t = min(1.0, notch.t + 1e-4)
@@ -118,7 +182,8 @@ def _interior_normal(pattern: ParametricPattern, notch: Notch) -> Point:
     dx, dy = after[0] - before[0], after[1] - before[1]
     length = hypot(dx, dy)
     if length <= 1e-12:
-        raise ValueError(f"cannot determine notch orientation on edge {notch.segment_id}")
+        msg = f"cannot determine notch orientation on edge {notch.segment_id}"
+        raise ValueError(msg)
     orientation = signed_area(pattern.sampled_outline(32))
     return (-dy / length, dx / length) if orientation > 0 else (dy / length, -dx / length)
 
@@ -132,6 +197,17 @@ def _cut_contour_with_notches(
     edge and then to the joined outer perimeter. The perimeter is split around
     the notch and replaced with two cut legs meeting at the requested inward
     depth. This avoids emitting a misleading line or circle on the sewing line.
+
+    Args:
+        pattern: Authoritative sewing boundary used to resolve notch anchors/normals.
+        derived: Cut boundary and notch model derived from the same pattern.
+
+    Returns:
+        Ordered cut-perimeter points with each notch represented by inward V legs.
+
+    Raises:
+        ValueError: If the source contour is invalid, a notch is unresolvable,
+            notch spans overlap, or the resulting cut polygon is invalid.
     """
     contour = tuple(
         derived.cut_contour
@@ -140,7 +216,8 @@ def _cut_contour_with_notches(
     if not derived.notches:
         return contour
     if len(contour) < 3:
-        raise ValueError("cannot place notches on an invalid cut contour")
+        msg = "cannot place notches on an invalid cut contour"
+        raise ValueError(msg)
 
     ring = [*contour, contour[0]]
     measures = [0.0]
@@ -149,7 +226,8 @@ def _cut_contour_with_notches(
     perimeter = measures[-1]
     base_polygon = Polygon(contour)
     if perimeter <= 1e-9 or not base_polygon.is_valid or base_polygon.area <= 0:
-        raise ValueError("cannot place notches on an invalid cut contour")
+        msg = "cannot place notches on an invalid cut contour"
+        raise ValueError(msg)
 
     edge_by_id = {edge.id: edge for edge in derived.cut_boundary}
     resolved: list[_ResolvedNotchCut] = []
@@ -157,7 +235,8 @@ def _cut_contour_with_notches(
         sewing_point = notch_point(pattern, notch)
         edge = edge_by_id.get(notch.segment_id)
         if edge is None:
-            raise ValueError(f"notch references missing cut edge: {notch.segment_id}")
+            msg = f"notch references missing cut edge: {notch.segment_id}"
+            raise ValueError(msg)
         edge_anchor, _, _ = _project_point_onto_polyline(sewing_point, list(edge.points))
         cut_point, cut_measure, _ = _project_point_onto_polyline(edge_anchor, ring)
         inward_x = sewing_point[0] - cut_point[0]
@@ -173,7 +252,8 @@ def _cut_contour_with_notches(
             cut_point[1] + inward_y * notch.depth,
         )
         if not base_polygon.contains(ShapelyPoint(*apex)):
-            raise ValueError(f"notch {notch.id} extends outside the cut piece")
+            msg = f"notch {notch.id} extends outside the cut piece"
+            raise ValueError(msg)
         half_width = min(2.0, max(0.5, notch.depth / 2.0))
         left_measure = (cut_measure - half_width) % perimeter
         right_measure = (cut_measure + half_width) % perimeter
@@ -194,7 +274,8 @@ def _cut_contour_with_notches(
             distance = abs(first.center - second.center)
             distance = min(distance, perimeter - distance)
             if distance <= first.half_width + second.half_width + 1e-6:
-                raise ValueError("notch cut spans overlap on the cut contour")
+                msg = "notch cut spans overlap on the cut contour"
+                raise ValueError(msg)
 
     origin = resolved[0].left_measure
     intervals: list[tuple[float, float]] = []
@@ -203,7 +284,8 @@ def _cut_contour_with_notches(
         left_q = (notch.left_measure - origin) % perimeter
         right_q = (notch.right_measure - origin) % perimeter
         if left_q >= right_q:
-            raise ValueError("notch cut spans cannot be ordered on the cut contour")
+            msg = "notch cut spans cannot be ordered on the cut contour"
+            raise ValueError(msg)
         intervals.append((left_q, right_q))
         events.append((left_q, "left", notch.left_point, notch.apex))
         events.append((right_q, "right", notch.right_point, None))
@@ -236,31 +318,94 @@ def _cut_contour_with_notches(
         or not notched_polygon.exterior.is_simple
         or notched_polygon.area > base_polygon.area
     ):
-        raise ValueError("notches produce an invalid cut contour")
+        msg = "notches produce an invalid cut contour"
+        raise ValueError(msg)
     return tuple(result)
 
 
 def _sampled_sewing(pattern, curve_samples):
+    """Sample the authoritative sewing outline and reject an empty boundary.
+
+    Args:
+        pattern: Parametric sewing boundary to export.
+        curve_samples: Sampling resolution forwarded to curved outline segments.
+
+    Returns:
+        Ordered 2D sewing-line points for the selected export format.
+
+    Raises:
+        ValueError: If the pattern contains no outline points.
+    """
     points = pattern.sampled_outline(curve_samples)
     if not points:
-        raise ValueError("pattern has no outline")
+        msg = "pattern has no outline"
+        raise ValueError(msg)
     return points
 
 
-def _metadata(pattern, units, piece_id="", seam_ids=(), derived=None, seam_allowance=0.0):
-    data = {"version": 1, "units": units, "edge_ids": [s.id for s in pattern.segments]}
-    if piece_id:
-        data["piece_id"] = str(piece_id)
-    seam_ids = tuple(str(value) for value in seam_ids if str(value))
-    if seam_ids:
-        data["seam_ids"] = list(dict.fromkeys(seam_ids))
-    # Keep the v1 legacy payload byte-for-byte compatible unless the caller
-    # opts into the semantic export contract with a piece or seam identity.
-    if derived is not None and (piece_id or seam_ids):
-        data["scale"] = 1.0
-        data["seam_allowance_mm"] = float(seam_allowance)
-        data["notch_ids"] = [str(value.id) for value in derived.notches]
-        data["mark_ids"] = [str(value.id) for value in derived.marks]
+def _metadata(
+    pattern,
+    units: str,
+    piece_id: str = "",
+    seam_ids=(),
+    derived: DerivedPattern | None = None,
+    seam_allowance: float = 0.0,
+) -> dict[str, object]:
+    """Build complete current-schema metadata for the authoritative pattern.
+
+    Args:
+        pattern: Authoritative parametric sewing boundary to serialize.
+        units: Validated physical unit label for the export.
+        piece_id: Persistent document identity of the source piece, if available.
+        seam_ids: Stable identities of sewing relationships associated with the piece.
+        derived: Optional cut boundary and construction-mark model.
+        seam_allowance: Persisted seam allowance in millimetres.
+
+    Returns:
+        Version-2 metadata including empty identity and mark collections.
+    """
+    normalized_seams = tuple(dict.fromkeys(str(value) for value in seam_ids if str(value)))
+    return {
+        "version": 2,
+        "units": units,
+        "edge_ids": [str(segment.id) for segment in pattern.segments],
+        "piece_id": str(piece_id or ""),
+        "seam_ids": list(normalized_seams),
+        "scale": 1.0,
+        "seam_allowance_mm": float(seam_allowance),
+        "notch_ids": [str(value.id) for value in derived.notches] if derived is not None else [],
+        "mark_ids": [str(value.id) for value in derived.marks] if derived is not None else [],
+    }
+
+
+def _validate_metadata(data: object) -> dict[str, object]:
+    """Validate the current semantic metadata schema for every export format.
+
+    Args:
+        data: Decoded metadata payload embedded in SVG, DXF, or PDF.
+
+    Returns:
+        Validated version-2 metadata.
+
+    Raises:
+        ValueError: If a required field is absent or has an unsupported value.
+    """
+    list_fields = ("edge_ids", "seam_ids", "notch_ids", "mark_ids")
+    if (
+        not isinstance(data, dict)
+        or data.get("version") != 2
+        or data.get("units") != "mm"
+        or data.get("scale") != 1.0
+        or not isinstance(data.get("piece_id"), str)
+        or not isinstance(data.get("seam_allowance_mm"), (int, float))
+        or isinstance(data.get("seam_allowance_mm"), bool)
+        or any(not isinstance(data.get(name), list) for name in list_fields)
+        or not data.get("edge_ids")
+        or any(not isinstance(value, str) for name in list_fields for value in data[name])
+        or not all(data["edge_ids"])
+    ):
+        msg = "unsupported or incomplete cloth-pattern metadata"
+        raise ValueError(msg)
     return data
 
 
@@ -273,11 +418,29 @@ def to_svg(
     seam_ids=(),
     seam_allowance: float = 0.0,
 ) -> str:
-    """Provide the public to svg operation."""
+    """Generate deterministic SVG for sewing, cut, notch, and construction geometry.
+
+    Args:
+        pattern: Authoritative parametric sewing boundary.
+        curve_samples: Sampling resolution used for curved boundary segments.
+        units: Physical export unit; only millimetres are supported.
+        derived: Optional cut boundary, notch, and construction-mark model.
+        piece_id: Persistent source PatternPiece identity.
+        seam_ids: Stable sewing relationship IDs associated with the piece.
+        seam_allowance: Authored seam allowance in millimetres.
+
+    Returns:
+        Complete UTF-8 SVG document containing paths and semantic metadata.
+
+    Raises:
+        ValueError: If units are unsupported, derived geometry belongs to another
+            boundary, the pattern has zero extent, or notches cannot be represented.
+    """
     units = _validate_units(units)
     sewing = _sampled_sewing(pattern, curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern:
-        raise ValueError("derived pattern belongs to a different sewing boundary")
+        msg = "derived pattern belongs to a different sewing boundary"
+        raise ValueError(msg)
     cut_edges = derived.cut_boundary if derived is not None else ()
     cut_contour = _cut_contour_with_notches(pattern, derived) if derived is not None else ()
     xs = [p[0] for p in sewing]
@@ -302,12 +465,30 @@ def to_svg(
     min_x, max_x, min_y, max_y = min(xs), max(xs), min(ys), max(ys)
     width, height = max_x - min_x, max_y - min_y
     if width <= 0 or height <= 0:
-        raise ValueError("pattern must have non-zero extent")
+        msg = "pattern must have non-zero extent"
+        raise ValueError(msg)
 
     def xy(point):
+        """Translate a pattern coordinate into the SVG viewBox coordinate frame.
+
+        Args:
+            point: Pattern-space coordinate with an origin at the lower left.
+
+        Returns:
+            SVG coordinate translated to the viewBox origin with Y inverted.
+        """
         return (point[0] - min_x, height - (point[1] - min_y))
 
     def path(points, closed=True):
+        """Serialize an ordered point sequence as one SVG path command string.
+
+        Args:
+            points: Ordered polygon or open-line points in pattern coordinates.
+            closed: Whether the generated path should include a close-path command.
+
+        Returns:
+            SVG path data with deterministic coordinate formatting.
+        """
         coords = [xy(p) for p in points]
         return (
             "M " + " L ".join(f"{_fmt(x)},{_fmt(y)}" for x, y in coords) + (" Z" if closed else "")
@@ -361,14 +542,39 @@ def to_dxf(
     seam_ids=(),
     seam_allowance: float = 0.0,
 ) -> str:
-    """Provide the public to dxf operation."""
+    """Generate deterministic DXF entities for the sewing and cut boundaries.
+
+    Args:
+        pattern: Authoritative parametric sewing boundary.
+        curve_samples: Sampling resolution used for curved boundary segments.
+        units: Physical export unit; only millimetres are supported.
+        derived: Optional cut boundary, notch, and construction-mark model.
+        piece_id: Persistent source PatternPiece identity.
+        seam_ids: Stable sewing relationship IDs associated with the piece.
+        seam_allowance: Authored seam allowance in millimetres.
+
+    Returns:
+        Complete ASCII DXF document with semantic metadata in the header.
+
+    Raises:
+        ValueError: If units are unsupported, derived geometry belongs to another
+            boundary, or the pattern/derived geometry cannot be represented.
+    """
     units = _validate_units(units)
     sewing = _sampled_sewing(pattern, curve_samples)
     if derived is not None and derived.sewing_boundary is not pattern:
-        raise ValueError("derived pattern belongs to a different sewing boundary")
+        msg = "derived pattern belongs to a different sewing boundary"
+        raise ValueError(msg)
     entities = []
 
     def polyline(points, layer, closed=True):
+        """Append one lightweight-polyline entity to the requested DXF layer.
+
+        Args:
+            points: Ordered 2D vertices for the entity.
+            layer: DXF layer name identifying sewing, cut, or mark geometry.
+            closed: Whether the polyline should be closed in the DXF entity flags.
+        """
         pts = list(points)
         if closed and pts[-1] != pts[0]:
             pts.append(pts[0])
@@ -418,103 +624,58 @@ def to_dxf(
     return "\n".join(lines)
 
 
-def to_pdf(
-    pattern: ParametricPattern,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
-) -> bytes:
-    """Generate a true-scale tiled PDF with calibration and registration marks."""
-    from freecad_cloth.pattern.PatternPdfExport import to_pdf as render_pdf
+def from_dxf_metadata(dxf: str) -> dict[str, object]:
+    """Read and validate canonical semantic metadata embedded in a DXF.
 
-    return render_pdf(
-        pattern,
-        curve_samples,
-        units,
-        derived,
-        piece_id,
-        tuple(seam_ids),
-        seam_allowance,
-        paper_size=paper_size,
-        margin_mm=margin_mm,
-        overlap_mm=overlap_mm,
-    )
+    Args:
+        dxf: Complete DXF document emitted by the Cloth exporter.
 
+    Returns:
+        Validated version-2 pattern, seam, scale, and mark metadata.
 
-def from_pdf_metadata(pdf: bytes) -> dict:
-    """Read deterministic cloth-pattern metadata from a tiled PDF."""
-    from freecad_cloth.pattern.PatternPdfExport import from_pdf_metadata as read_metadata
-
-    return read_metadata(pdf)
-
-
-def validate_pdf_export(
-    pattern: ParametricPattern,
-    exported: bytes,
-    curve_samples: int = 32,
-    units: str = "mm",
-    derived: DerivedPattern | None = None,
-    piece_id: str = "",
-    seam_ids: tuple[str, ...] = (),
-    seam_allowance: float = 0.0,
-    *,
-    paper_size: str = "A4",
-    margin_mm: float = 10.0,
-    overlap_mm: float = 10.0,
-) -> dict:
-    """Validate a PDF by deterministic regeneration from the authoritative model."""
-    from freecad_cloth.pattern.PatternPdfExport import validate_pdf_export as validate_pdf
-
-    return validate_pdf(
-        pattern,
-        exported,
-        curve_samples,
-        units,
-        derived,
-        piece_id,
-        tuple(seam_ids),
-        seam_allowance,
-        paper_size=paper_size,
-        margin_mm=margin_mm,
-        overlap_mm=overlap_mm,
-    )
-
-
-def from_dxf_metadata(dxf: str) -> dict:
-    """Provide the public from dxf metadata operation."""
+    Raises:
+        ValueError: If the DXF lacks a valid canonical metadata payload.
+    """
     marker = "$COMMENT\n1\n"
     if marker not in dxf:
-        raise ValueError("DXF does not contain cloth-pattern metadata")
+        msg = "DXF does not contain cloth-pattern metadata"
+        raise ValueError(msg)
     payload = dxf.split(marker, 1)[1].split("\n0\nENDSEC", 1)[0].strip()
-    data = json.loads(payload)
-    if data.get("version") != 1 or not data.get("edge_ids"):
-        raise ValueError("unsupported or incomplete cloth-pattern metadata")
-    return data
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        msg = "DXF contains invalid cloth-pattern metadata"
+        raise ValueError(msg) from exc
+    return _validate_metadata(data)
 
 
-def from_svg_metadata(svg: str) -> dict:
-    """Read the semantic metadata embedded by :func:`to_svg`."""
+def from_svg_metadata(svg: str) -> dict[str, object]:
+    """Read and validate canonical semantic metadata embedded in an SVG.
+
+    Args:
+        svg: Complete SVG XML document emitted by the Cloth exporter.
+
+    Returns:
+        Validated version-2 pattern, seam, scale, and mark metadata.
+
+    Raises:
+        ValueError: If the SVG lacks well-formed canonical metadata.
+    """
     try:
         root = ElementTree.fromstring(svg)
     except ElementTree.ParseError as exc:
-        raise ValueError("SVG is not well-formed XML") from exc
+        msg = "SVG is not well-formed XML"
+        raise ValueError(msg) from exc
     metadata = next((child for child in root if child.tag.rsplit("}", 1)[-1] == "metadata"), None)
     if metadata is None or not (metadata.text or "").strip():
-        raise ValueError("SVG does not contain cloth-pattern metadata")
+        msg = "SVG does not contain cloth-pattern metadata"
+        raise ValueError(msg)
     try:
         data = json.loads(metadata.text)
     except json.JSONDecodeError as exc:
-        raise ValueError("SVG contains invalid cloth-pattern metadata") from exc
-    if data.get("version") != 1 or not data.get("edge_ids"):
-        raise ValueError("unsupported or incomplete cloth-pattern metadata")
-    return data
+        msg = "SVG contains invalid cloth-pattern metadata"
+        raise ValueError(msg) from exc
+    return _validate_metadata(data)
 
 
 def validate_export(
@@ -533,17 +694,37 @@ def validate_export(
     The exporter is deterministic, so byte equality with a freshly generated
     artifact is an intentional release-gate check: geometry, units, edge IDs,
     piece/seam identity and construction-mark metadata cannot drift silently.
+
+    Args:
+        pattern: Authoritative source boundary used to generate the expected output.
+        exported: Candidate SVG or DXF document bytes decoded as text.
+        export_format: Format selector; accepted values are svg and dxf.
+        curve_samples: Sampling resolution used for curved edges.
+        units: Export unit label, restricted to millimetres.
+        derived: Optional cut/mark model that must belong to pattern.
+        piece_id: Persistent PatternPiece identity embedded in metadata.
+        seam_ids: Semantic seam identities embedded in metadata.
+        seam_allowance: Authored seam allowance value in millimetres.
+
+    Returns:
+        Validation summary containing format, success state, and parsed metadata.
+
+    Raises:
+        ValueError: If the format is unsupported, export bytes differ from the
+            deterministic output, or embedded metadata is invalid.
     """
     normalized_format = str(export_format).strip().lower()
     if normalized_format not in {"svg", "dxf"}:
-        raise ValueError("format must be 'svg' or 'dxf'")
+        msg = "format must be 'svg' or 'dxf'"
+        raise ValueError(msg)
     expected = (
         to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance)
         if normalized_format == "svg"
         else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, seam_allowance)
     )
     if exported != expected:
-        raise ValueError("export does not match the deterministic authoritative pattern output")
+        msg = "export does not match the deterministic authoritative pattern output"
+        raise ValueError(msg)
     metadata = (
         from_svg_metadata(exported) if normalized_format == "svg" else from_dxf_metadata(exported)
     )
@@ -563,7 +744,27 @@ def validate_svg_export(
     dpi: int = 96,
     output_path: str | Path | None = None,
 ) -> dict[str, object]:
-    """Validate generated SVG structure and render it with an independent QtSvg backend."""
+    """Validate SVG structure and render it with an independent QtSvg backend.
+
+    Args:
+        pattern: Authoritative source boundary used to regenerate expected SVG.
+        exported: Candidate SVG document.
+        curve_samples: Sampling resolution used for curved edges.
+        units: Export unit label, restricted to millimetres.
+        derived: Optional cut/mark model that must belong to pattern.
+        piece_id: Persistent PatternPiece identity embedded in metadata.
+        seam_ids: Semantic seam identities embedded in metadata.
+        seam_allowance: Authored seam allowance value in millimetres.
+        dpi: Raster-validation resolution used by the QtSvg backend.
+        output_path: Optional path for storing the rendered preview image.
+
+    Returns:
+        Validation summary with parsed metadata and independent render metrics.
+
+    Raises:
+        ValueError: If the SVG structure, metadata, deterministic content, or render
+            validation fails.
+    """
     result = validate_export(
         pattern,
         exported,
@@ -586,9 +787,21 @@ def validate_svg_export(
 
 
 def _piece_seams(piece):
+    """Collect all valid semantic seam identities attached to one PatternPiece.
+
+    Args:
+        piece: Native FreeCAD PatternPiece document object.
+
+    Returns:
+        Sorted unique seam IDs linked to the panel.
+
+    Raises:
+        ValueError: If the piece is detached or any linked seam is not valid.
+    """
     doc = getattr(piece, "Document", None)
     if doc is None:
-        raise ValueError("pattern piece is not attached to a FreeCAD document")
+        msg = "pattern piece is not attached to a FreeCAD document"
+        raise ValueError(msg)
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     seams = []
     for obj in getattr(doc, "Objects", ()):
@@ -609,10 +822,22 @@ def _piece_seams(piece):
 
 
 def _piece_construction_marks(piece, pattern):
-    """Materialize persisted native construction marks into the export model."""
+    """Materialize persisted native construction marks into the export model.
+
+    Args:
+        piece: Native PatternPiece whose document objects carry mark properties.
+        pattern: Authoritative parametric boundary used to resolve semantic edge IDs.
+
+    Returns:
+        Sorted notch and construction-mark tuples suitable for derived export.
+
+    Raises:
+        ValueError: If the piece is detached or a mark lacks identity/edge provenance.
+    """
     doc = getattr(piece, "Document", None)
     if doc is None:
-        raise ValueError("pattern piece is not attached to a FreeCAD document")
+        msg = "pattern piece is not attached to a FreeCAD document"
+        raise ValueError(msg)
     piece_id = str(getattr(piece, "PieceId", "")).strip()
     notches = []
     marks = []
@@ -623,13 +848,16 @@ def _piece_construction_marks(piece, pattern):
 
         mark_id = str(getattr(obj, "PatternMarkId", "")).strip()
         if not mark_id:
-            raise ValueError("construction mark has no persistent identity")
+            msg = "construction mark has no persistent identity"
+            raise ValueError(msg)
 
         segment_id = str(getattr(obj, "SegmentId", "")).strip()
         if not segment_id:
-            raise ValueError(f"construction mark {mark_id} has no semantic edge reference")
+            msg = f"construction mark {mark_id} has no semantic edge reference"
+            raise ValueError(msg)
         if segment_id not in pattern.by_id():
-            raise ValueError(f"construction mark {mark_id} references missing edge {segment_id}")
+            msg = f"construction mark {mark_id} references missing edge {segment_id}"
+            raise ValueError(msg)
 
         position = float(getattr(obj, "Position", 0.5))
         depth = float(getattr(obj, "Depth", 3.0))
@@ -657,57 +885,62 @@ def _piece_construction_marks(piece, pattern):
 
 
 def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
-    """Build a deterministic derived export pattern from the authoritative piece."""
+    """Build a deterministic export model only from native Sketcher geometry.
+
+    Args:
+        piece: FreeCAD PatternPiece object with a linked authoritative Sketch.
+        curve_samples: Number of samples used to discretize native curves.
+
+    Returns:
+        Semantic polyline segments generated from the current PatternIR boundary.
+
+    Raises:
+        ValueError: If the piece lacks Sketcher authority or its native boundary is invalid.
+    """
     if getattr(piece, "PatternType", "") != "PatternPiece":
-        raise ValueError("selected object is not a Cloth PatternPiece")
+        msg = "selected object is not a Cloth PatternPiece"
+        raise ValueError(msg)
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
+    if str(getattr(piece, "GeometryAuthority", "")).strip() != "Sketcher":
+        msg = "pattern piece must declare native Sketcher as its geometry authority"
+        raise ValueError(msg)
     sketch = getattr(piece, "Sketch", None)
-    if str(getattr(piece, "GeometryAuthority", "")) == "Sketcher":
-        if sketch is None:
-            raise ValueError("Sketch-authoritative pattern piece has no native Sketcher source")
-        from freecad_cloth.pattern.PatternIR import PatternIR
-        from freecad_cloth.pattern.PatternModel import PatternPiece
-        from freecad_cloth.sewing.SeamGraph import SeamGraph
+    if sketch is None:
+        msg = "Sketcher-authoritative pattern piece has no linked native sketch"
+        raise ValueError(msg)
 
-        model = PatternPiece(
-            str(getattr(piece, "Label", piece.Name)),
-            [
-                (0.0, 0.0),
-                (float(piece.Width), 0.0),
-                (float(piece.Width), float(piece.Height)),
-                (0.0, float(piece.Height)),
-            ],
-            seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
-            grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-            id=str(getattr(piece, "PieceId", "")),
-        )
-        graph = SeamGraph()
-        graph.add_piece(model)
-        ir = PatternIR.from_sketches(graph, {model.id: sketch}, curve_samples=curve_samples)
-        return ParametricPattern(
-            [
-                PolylineSegment(edge.id, tuple((float(x), float(y)) for x, y, _z in edge.samples))
-                for edge in ir.piece(model.id).boundaries
-            ]
-        )
-    try:
-        import ast
+    from freecad_cloth.pattern.PatternIR import PatternIR
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.sewing.SeamGraph import SeamGraph
 
-        raw = getattr(piece, "SewingOutline", "") or getattr(piece, "DraftingBoundary", "")
-        points = [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(raw))]
-    except (ValueError, SyntaxError, TypeError, IndexError, AttributeError) as exc:
-        raise ValueError("pattern piece has no valid authoritative 2D boundary") from exc
-    if len(points) < 3:
-        raise ValueError("pattern piece boundary needs at least three points")
+    model = PatternPiece(
+        str(getattr(piece, "Label", getattr(piece, "Name", "PatternPiece"))),
+        [
+            (0.0, 0.0),
+            (float(piece.Width), 0.0),
+            (float(piece.Width), float(piece.Height)),
+            (0.0, float(piece.Height)),
+        ],
+        seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
+        grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
+        id=str(getattr(piece, "PieceId", "")),
+    )
+    graph = SeamGraph()
+    graph.add_piece(model)
+    piece_ir = PatternIR.from_sketches(
+        graph,
+        {model.id: sketch},
+        curve_samples=curve_samples,
+    ).piece(model.id)
     return ParametricPattern(
         [
-            LineSegment(
-                "%s:edge:%d" % (getattr(piece, "PieceId", "piece"), index),
-                point,
-                points[(index + 1) % len(points)],
+            PolylineSegment(
+                edge.id,
+                tuple((float(x), float(y)) for x, y, _z in edge.samples),
             )
-            for index, point in enumerate(points)
+            for edge in piece_ir.boundaries
         ]
     )
 
@@ -723,10 +956,29 @@ def export_pattern_piece(
     margin_mm: float = 10.0,
     overlap_mm: float = 10.0,
 ) -> dict:
-    """Write and validate an SVG/DXF/PDF export derived from an authoritative piece."""
+    """Write and validate an export derived from authoritative piece geometry.
+
+    Args:
+        piece: FreeCAD PatternPiece with native Sketch authority.
+        path: Destination path for the generated artifact.
+        export_format: Export format: SVG, DXF, or PDF.
+        units: Canonical pattern units; only millimetres are supported.
+        curve_samples: Number of samples used to resolve native curves.
+        paper_size: PDF paper format, used only for PDF exports.
+        margin_mm: Printable-page margin, used only for PDF exports.
+        overlap_mm: Tile overlap, used only for PDF exports.
+
+    Returns:
+        Format-specific deterministic validation results.
+
+    Raises:
+        ValueError: If the format, geometry authority, or export content is invalid.
+        OSError: If the destination artifact cannot be written.
+    """
     normalized_format = str(export_format).strip().lower()
     if normalized_format not in {"svg", "dxf", "pdf"}:
-        raise ValueError("format must be 'svg', 'dxf' or 'pdf'")
+        msg = "format must be 'svg', 'dxf' or 'pdf'"
+        raise ValueError(msg)
     units = _validate_units(units)
     pattern = pattern_from_pattern_piece(piece, curve_samples=curve_samples)
     seam_ids = _piece_seams(piece)
@@ -749,23 +1001,13 @@ def export_pattern_piece(
         derived = add_marks(derived, (mark,))
     piece_id = str(getattr(piece, "PieceId", ""))
     if normalized_format == "pdf":
-        content = to_pdf(
-            pattern,
-            curve_samples,
-            units,
-            derived,
-            piece_id,
-            seam_ids,
-            allowance,
-            paper_size=paper_size,
-            margin_mm=margin_mm,
-            overlap_mm=overlap_mm,
-        )
-        with open(str(path), "wb") as handle:
-            handle.write(content)
-        return validate_pdf_export(
-            pattern,
-            content,
+        from freecad_cloth.pattern.PatternPdfExport import (
+            PdfExportOptions,
+            to_pdf,
+            validate_pdf_export,
+        )  # ruff: ignore[PLC0415]
+
+        options = PdfExportOptions(
             curve_samples=curve_samples,
             units=units,
             derived=derived,
@@ -776,14 +1018,16 @@ def export_pattern_piece(
             margin_mm=margin_mm,
             overlap_mm=overlap_mm,
         )
+        content = to_pdf(pattern, options)
+        Path(str(path)).write_bytes(content)
+        return validate_pdf_export(pattern, content, options)
 
     content = (
         to_svg(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)
         if normalized_format == "svg"
         else to_dxf(pattern, curve_samples, units, derived, piece_id, seam_ids, allowance)
     )
-    with open(str(path), "w", encoding="utf-8", newline="") as handle:
-        handle.write(content)
+    Path(str(path)).write_text(content, encoding="utf-8", newline="")
     return validate_export(
         pattern,
         content,

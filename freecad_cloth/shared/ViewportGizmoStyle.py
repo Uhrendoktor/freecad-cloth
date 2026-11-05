@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared visual tokens for transient Cloth viewport gizmos.
 
 The palette is semantic rather than a full application theme. Axis colors retain

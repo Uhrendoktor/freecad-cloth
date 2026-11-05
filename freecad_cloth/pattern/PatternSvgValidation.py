@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Independent QtSvg rendering and physical-dimension checks for pattern SVGs."""
 
 from __future__ import annotations
@@ -19,10 +20,12 @@ def _parse_mm_length(value: str, name: str) -> float:
     """Parse a physical SVG length expressed in millimetres."""
     match = _MM_LENGTH.fullmatch(value)
     if match is None:
-        raise ValueError(f"SVG {name} must be expressed in millimetres")
+        msg = f"SVG {name} must be expressed in millimetres"
+        raise ValueError(msg)
     length = float(match.group(1))
     if not math.isfinite(length) or length <= 0.0:
-        raise ValueError(f"SVG {name} must be finite and positive")
+        msg = f"SVG {name} must be finite and positive"
+        raise ValueError(msg)
     return length
 
 
@@ -34,9 +37,8 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
         try:
             from PySide2 import QtCore, QtGui, QtSvg
         except ImportError as exc:
-            raise RuntimeError(
-                "independent SVG validation requires FreeCAD's QtSvg modules"
-            ) from exc
+            msg = "independent SVG validation requires FreeCAD's QtSvg modules"
+            raise RuntimeError(msg) from exc
     return QtCore, QtGui, QtSvg
 
 
@@ -53,46 +55,58 @@ def render_svg_for_validation(
     QtSvg, rather than by the application's own path-generation code.
     """
     if not isinstance(svg, str) or not svg.strip():
-        raise ValueError("SVG content must not be empty")
+        msg = "SVG content must not be empty"
+        raise ValueError(msg)
     if isinstance(dpi, bool) or not isinstance(dpi, int) or not 36 <= dpi <= 600:
-        raise ValueError("SVG validation DPI must be an integer between 36 and 600")
+        msg = "SVG validation DPI must be an integer between 36 and 600"
+        raise ValueError(msg)
 
     try:
         root = ElementTree.fromstring(svg)
     except ElementTree.ParseError as exc:
-        raise ValueError("SVG is not well-formed XML") from exc
+        msg = "SVG is not well-formed XML"
+        raise ValueError(msg) from exc
     if root.tag.rsplit("}", 1)[-1] != "svg":
-        raise ValueError("document root is not SVG")
+        msg = "document root is not SVG"
+        raise ValueError(msg)
 
     width_mm = _parse_mm_length(root.attrib.get("width", ""), "width")
     height_mm = _parse_mm_length(root.attrib.get("height", ""), "height")
     if root.attrib.get("data-units") != "mm":
-        raise ValueError("SVG data-units must declare millimetres")
+        msg = "SVG data-units must declare millimetres"
+        raise ValueError(msg)
 
     viewbox_values = root.attrib.get("viewBox", "").replace(",", " ").split()
     if len(viewbox_values) != 4:
-        raise ValueError("SVG viewBox must contain four finite numbers")
+        msg = "SVG viewBox must contain four finite numbers"
+        raise ValueError(msg)
     try:
         viewbox = tuple(float(value) for value in viewbox_values)
     except ValueError as exc:
-        raise ValueError("SVG viewBox must contain four finite numbers") from exc
+        msg = "SVG viewBox must contain four finite numbers"
+        raise ValueError(msg) from exc
     if not all(math.isfinite(value) for value in viewbox):
-        raise ValueError("SVG viewBox must contain four finite numbers")
+        msg = "SVG viewBox must contain four finite numbers"
+        raise ValueError(msg)
     view_x, view_y, view_width, view_height = viewbox
     if abs(view_x) > 1e-8 or abs(view_y) > 1e-8:
-        raise ValueError("SVG viewBox origin must be (0, 0) for physical-scale export")
+        msg = "SVG viewBox origin must be (0, 0) for physical-scale export"
+        raise ValueError(msg)
     width_tolerance = max(1e-6, width_mm * 1e-6)
     height_tolerance = max(1e-6, height_mm * 1e-6)
     if abs(view_width - width_mm) > width_tolerance:
-        raise ValueError("SVG physical width does not match its viewBox width")
+        msg = "SVG physical width does not match its viewBox width"
+        raise ValueError(msg)
     if abs(view_height - height_mm) > height_tolerance:
-        raise ValueError("SVG physical height does not match its viewBox height")
+        msg = "SVG physical height does not match its viewBox height"
+        raise ValueError(msg)
 
     QtCore, QtGui, QtSvg = _qt_modules()
     encoded = QtCore.QByteArray(svg.encode("utf-8"))
     renderer = QtSvg.QSvgRenderer(encoded)
     if not renderer.isValid():
-        raise ValueError("QtSvg could not independently render the SVG document")
+        msg = "QtSvg could not independently render the SVG document"
+        raise ValueError(msg)
 
     # Round upward so the raster never represents less than the declared physical extent.
     pixel_width = max(1, math.ceil(width_mm * dpi / 25.4))
@@ -100,11 +114,13 @@ def render_svg_for_validation(
     image_format = QtGui.QImage.Format_ARGB32
     image = QtGui.QImage(pixel_width, pixel_height, image_format)
     if image.isNull():
-        raise RuntimeError("QtSvg validation could not allocate its raster image")
+        msg = "QtSvg validation could not allocate its raster image"
+        raise RuntimeError(msg)
     image.fill(QtGui.QColor(255, 255, 255, 255))
     painter = QtGui.QPainter(image)
     if not painter.isActive():
-        raise RuntimeError("QtSvg validation could not begin raster painting")
+        msg = "QtSvg validation could not begin raster painting"
+        raise RuntimeError(msg)
     try:
         painter.setRenderHint(QtGui.QPainter.Antialiasing, True)
         renderer.render(painter, QtCore.QRectF(0.0, 0.0, float(pixel_width), float(pixel_height)))
@@ -114,7 +130,8 @@ def render_svg_for_validation(
     try:
         import numpy as np
     except ImportError as exc:
-        raise RuntimeError("SVG render validation requires NumPy for raster inspection") from exc
+        msg = "SVG render validation requires NumPy for raster inspection"
+        raise RuntimeError(msg) from exc
 
     bits = image.bits()
     byte_count = image.sizeInBytes() if hasattr(image, "sizeInBytes") else image.byteCount()
@@ -123,14 +140,16 @@ def render_svg_for_validation(
     raw = bytes(bits)
     row_stride = image.bytesPerLine()
     if len(raw) < row_stride * pixel_height:
-        raise RuntimeError("QtSvg returned an incomplete raster buffer")
+        msg = "QtSvg returned an incomplete raster buffer"
+        raise RuntimeError(msg)
     pixels = np.frombuffer(raw, dtype=np.uint8).reshape(pixel_height, row_stride)
     pixels = pixels[:, : pixel_width * 4].reshape(pixel_height, pixel_width, 4)
     ink = np.any(pixels[:, :, :3] < 245, axis=2)
     ink_y, ink_x = np.nonzero(ink)
     ink_pixel_count = int(ink_x.size)
     if ink_pixel_count == 0:
-        raise ValueError("QtSvg rendered no visible pattern linework")
+        msg = "QtSvg rendered no visible pattern linework"
+        raise ValueError(msg)
 
     bounds = [
         int(ink_x.min()),
@@ -153,7 +172,8 @@ def render_svg_for_validation(
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         if not image.save(str(target), "PNG"):
-            raise OSError(f"could not write SVG validation preview: {target}")
+            msg = f"could not write SVG validation preview: {target}"
+            raise OSError(msg)
         saved_path = str(target)
 
     raster_width_mm = pixel_width * 25.4 / dpi

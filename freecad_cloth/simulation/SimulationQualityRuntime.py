@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD boundary integration for simulation quality and fabric controls.
 
 This module owns the quality-aware runtime wrapper around the canonical simulation
@@ -82,7 +83,8 @@ def apply_quality_preset(scene, name=None):
 def quality_discretization(point_count, perimeter, particle_distance):
     """Return the sample count required by the requested particle spacing."""
     if int(point_count) < 3:
-        raise ValueError("point_count must be at least three")
+        msg = "point_count must be at least three"
+        raise ValueError(msg)
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
@@ -175,7 +177,7 @@ class QualitySimulationProxy:
         if callable(snapshot):
             snapshot_result = snapshot()
             positions, finite_state = cast(
-                tuple[tuple[tuple[float, float, float], ...], bool],
+                "tuple[tuple[tuple[float, float, float], ...], bool]",
                 snapshot_result,
             )
         else:

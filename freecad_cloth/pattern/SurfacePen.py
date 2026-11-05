@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """3D surface authoring bridge for Cloth Pattern.
 
 The surface pen is intentionally an authoring frontend, not a second pattern
@@ -13,14 +14,20 @@ changing the viewport or PatternPiece authority boundaries.
 
 from __future__ import annotations
 
-import collections.abc
 import contextlib
 import json
 import math
+from itertools import starmap
+from typing import TYPE_CHECKING
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+from shapely.geometry import LinearRing
 
 from freecad_cloth.shared.SourceSignature import source_signature
+
+if TYPE_CHECKING:
+    import collections.abc
 
 Point3 = tuple[float, float, float]
 Vector3 = Point3
@@ -29,6 +36,14 @@ DEFAULT_CLOSE_DISTANCE_MM = 6.0
 
 
 def _as_point3(value) -> Point3:
+    """Normalize a FreeCAD vector-like value into a finite three-component tuple.
+
+    Args:
+        value: Iterable coordinate or object exposing X/Y/Z-style lowercase fields.
+
+    Returns:
+        Three floating-point coordinates in the source coordinate frame.
+    """
     try:
         values = tuple(value)
         if len(values) >= 3:
@@ -39,10 +54,28 @@ def _as_point3(value) -> Point3:
 
 
 def _dot(a: Vector3, b: Vector3) -> float:
+    """Calculate the scalar product of two three-dimensional vectors.
+
+    Args:
+        a: First vector.
+        b: Second vector.
+
+    Returns:
+        Scalar dot product of the corresponding components.
+    """
     return sum(float(x) * float(y) for x, y in zip(a, b, strict=False))
 
 
 def _cross(a: Vector3, b: Vector3) -> Vector3:
+    """Calculate the right-handed cross product of two three-dimensional vectors.
+
+    Args:
+        a: First vector.
+        b: Second vector.
+
+    Returns:
+        Vector perpendicular to both inputs following right-hand orientation.
+    """
     return (
         float(a[1]) * float(b[2]) - float(a[2]) * float(b[1]),
         float(a[2]) * float(b[0]) - float(a[0]) * float(b[2]),
@@ -51,108 +84,142 @@ def _cross(a: Vector3, b: Vector3) -> Vector3:
 
 
 def _sub(a: Point3, b: Point3) -> Vector3:
+    """Subtract one 3D point from another to obtain a displacement vector.
+
+    Args:
+        a: Point at the destination of the displacement.
+        b: Point at the origin of the displacement.
+
+    Returns:
+        Vector from point b to point a.
+    """
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
 
 def _add(a: Point3, b: Vector3) -> Point3:
+    """Translate a 3D point by a displacement vector.
+
+    Args:
+        a: Original point.
+        b: Translation vector.
+
+    Returns:
+        Translated point in the same coordinate frame.
+    """
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
 def _scale(a: Vector3, value: float) -> Vector3:
+    """Multiply every component of a vector by a scalar.
+
+    Args:
+        a: Vector to scale.
+        value: Scalar multiplier applied to all components.
+
+    Returns:
+        Scaled vector.
+    """
     return (a[0] * value, a[1] * value, a[2] * value)
 
 
 def _length(a: Vector3) -> float:
+    """Calculate the Euclidean length of a three-dimensional vector.
+
+    Args:
+        a: Vector whose magnitude is measured.
+
+    Returns:
+        Non-negative Euclidean vector length.
+    """
     return math.sqrt(_dot(a, a))
 
 
 def _normalize(a: Vector3) -> Vector3:
+    """Return a unit vector in the same direction as the input.
+
+    Args:
+        a: Nonzero vector to normalize.
+
+    Returns:
+        Unit-length vector with the input direction.
+
+    Raises:
+        ValueError: If the vector is too small to define a stable direction.
+    """
     length = _length(a)
     if length <= 1e-12:
-        raise ValueError("surface points do not define a usable direction")
+        msg = "surface points do not define a usable direction"
+        raise ValueError(msg)
     return _scale(a, 1.0 / length)
 
 
 def _centroid(points: collections.abc.Sequence[Point3]) -> Point3:
+    """Compute a 3D centroid with NumPy's vectorized mean.
+
+    Args:
+        points: Non-empty finite 3D coordinates.
+
+    Returns:
+        The component-wise arithmetic mean of the supplied coordinates.
+
+    Raises:
+        ValueError: If no points are supplied.
+    """
     if not points:
-        raise ValueError("at least one point is required")
-    count = float(len(points))
-    return (
-        sum(point[0] for point in points) / count,
-        sum(point[1] for point in points) / count,
-        sum(point[2] for point in points) / count,
-    )
+        msg = "at least one point is required"
+        raise ValueError(msg)
+    mean = np.mean(np.asarray(points, dtype=np.float64), axis=0)
+    return (float(mean[0]), float(mean[1]), float(mean[2]))
 
 
 def polygon_area_2d(points: collections.abc.Sequence[Point2]) -> float:
-    """Return the signed polygon area in square millimetres."""
+    """Compute the signed area enclosed by an ordered 2D polygon boundary.
+
+    Args:
+        points: Ordered polygon vertices in millimetres, without a required closing point.
+
+    Returns:
+        Signed area in square millimetres; positive values indicate counter-clockwise
+        winding and fewer than three points produce zero.
+    """
     if len(points) < 3:
         return 0.0
-    return 0.5 * sum(
-        float(a[0]) * float(b[1]) - float(b[0]) * float(a[1])
-        for a, b in zip(points, (*points[1:], points[0]), strict=False)
-    )
-
-
-def _orientation(a: Point2, b: Point2, c: Point2) -> float:
-    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
-
-
-def _on_segment(a: Point2, b: Point2, p: Point2, tolerance: float = 1e-9) -> bool:
-    return (
-        min(a[0], b[0]) - tolerance <= p[0] <= max(a[0], b[0]) + tolerance
-        and min(a[1], b[1]) - tolerance <= p[1] <= max(a[1], b[1]) + tolerance
-    )
-
-
-def _segments_intersect(a: Point2, b: Point2, c: Point2, d: Point2) -> bool:
-    values = (
-        _orientation(a, b, c),
-        _orientation(a, b, d),
-        _orientation(c, d, a),
-        _orientation(c, d, b),
-    )
-    eps = 1e-9
-    if ((values[0] > eps and values[1] < -eps) or (values[0] < -eps and values[1] > eps)) and (
-        (values[2] > eps and values[3] < -eps) or (values[2] < -eps and values[3] > eps)
-    ):
-        return True
-    return any(
-        abs(value) <= eps and _on_segment(pair[0], pair[1], pair[2])
-        for value, pair in (
-            (values[0], (a, b, c)),
-            (values[1], (a, b, d)),
-            (values[2], (c, d, a)),
-            (values[3], (c, d, b)),
-        )
-    )
+    coordinates = np.asarray(points, dtype=np.float64)
+    following = np.roll(coordinates, -1, axis=0)
+    cross_terms = coordinates[:, 0] * following[:, 1] - following[:, 0] * coordinates[:, 1]
+    return 0.5 * float(np.sum(cross_terms, dtype=np.float64))
 
 
 def polygon_self_intersects(points: collections.abc.Sequence[Point2]) -> bool:
-    """Return True when a non-adjacent polygon edge pair intersects."""
-    count = len(points)
-    if count < 4:
+    """Return whether the closed polygon ring intersects itself.
+
+    Shapely delegates the exact segment-intersection predicate to GEOS, avoiding
+    a quadratic Python loop and keeping adjacent-edge endpoint handling in one
+    geometry-library implementation.
+
+    Args:
+        points: Ordered polygon boundary points, without a required closing duplicate.
+
+    Returns:
+        Whether the corresponding closed ring is not simple.
+    """
+    if len(points) < 4:
         return False
-    for first in range(count):
-        first_end = (first + 1) % count
-        for second in range(first + 1, count):
-            second_end = (second + 1) % count
-            if first == second or first_end == second or second_end == first:
-                continue
-            if _segments_intersect(
-                points[first],
-                points[first_end],
-                points[second],
-                points[second_end],
-            ):
-                return True
-    return False
+    return not bool(LinearRing(points).is_simple)
 
 
 def simplify_polyline(
     points: collections.abc.Sequence[Point3], tolerance_mm: float = 1.0
 ) -> tuple[Point3, ...]:
-    """Simplify a spatial polyline with a deterministic RDP pass."""
+    """Simplify a spatial polyline with the recursive Ramer-Douglas-Peucker algorithm.
+
+    Args:
+        points: Ordered 3D samples along the authored surface stroke.
+        tolerance_mm: Maximum perpendicular deviation retained in millimetres.
+
+    Returns:
+        Simplified ordered points while preserving the first and last samples.
+    """
     values = tuple(_as_point3(point) for point in points)
     if len(values) <= 2:
         return values
@@ -161,6 +228,16 @@ def simplify_polyline(
         return values
 
     def perpendicular_distance(point: Point3, start: Point3, end: Point3) -> float:
+        """Measure the shortest distance from a point to a finite segment axis.
+
+        Args:
+            point: Query coordinate.
+            start: First segment endpoint.
+            end: Second segment endpoint.
+
+        Returns:
+            Distance from the query point to the segment, including degenerate cases.
+        """
         axis = _sub(end, start)
         span = _length(axis)
         if span <= 1e-12:
@@ -169,6 +246,14 @@ def simplify_polyline(
         return _length(_sub(point, projection))
 
     def rdp(items: collections.abc.Sequence[Point3]) -> tuple[Point3, ...]:
+        """Retain endpoints and any sample exceeding the current deviation tolerance.
+
+        Args:
+            items: Ordered sub-sequence of source polyline coordinates.
+
+        Returns:
+            Simplified sub-sequence preserving its first and last coordinates.
+        """
         if len(items) <= 2:
             return tuple(items)
         start, end = items[0], items[-1]
@@ -197,18 +282,32 @@ def surface_segments_from_anchor_kinds(
     A curve point between two corners makes their connecting boundary segment a
     B-spline interpolating both corners and the curve points. Consecutive corners
     remain straight lines, so authored sharp corners are preserved.
+
+    Args:
+        points: Ordered projected points around the surface boundary.
+        kinds: Matching point-kind values, each either corner or curve.
+
+    Returns:
+        Ordered segment-kind and point-sequence pairs for native sketch geometry.
+
+    Raises:
+        ValueError: If there are too few points/corners or point kinds are invalid.
     """
     values = tuple((float(point[0]), float(point[1])) for point in points)
     point_kinds = tuple(str(kind).lower() for kind in kinds)
     if len(values) < 3:
-        raise ValueError("surface boundary needs at least three points")
+        msg = "surface boundary needs at least three points"
+        raise ValueError(msg)
     if len(point_kinds) != len(values):
-        raise ValueError("surface boundary point types do not match the point count")
+        msg = "surface boundary point types do not match the point count"
+        raise ValueError(msg)
     if any(kind not in {"corner", "curve"} for kind in point_kinds):
-        raise ValueError("surface boundary point type must be corner or curve")
+        msg = "surface boundary point type must be corner or curve"
+        raise ValueError(msg)
     corners = [index for index, kind in enumerate(point_kinds) if kind == "corner"]
     if len(corners) < 3:
-        raise ValueError("surface boundary needs at least three corner points")
+        msg = "surface boundary needs at least three corner points"
+        raise ValueError(msg)
 
     segments = []
     count = len(values)
@@ -251,7 +350,11 @@ class SurfaceAnchor:
     kind: str = "corner"
 
     def to_json(self) -> dict:
-        """Serialize this surface anchor for persistent document storage."""
+        """Serialize this surface anchor for persistent document storage.
+
+        Returns:
+            JSON-compatible mapping containing rounded point, normal, and authoring kind.
+        """
         return {
             "point": [round(float(value), 6) for value in self.point],
             "normal": [round(float(value), 6) for value in self.normal],
@@ -260,10 +363,24 @@ class SurfaceAnchor:
 
     @classmethod
     def from_json(cls, value: dict) -> SurfaceAnchor:
-        """Restore a surface anchor from its serialized mapping."""
-        kind = str(value.get("kind", "corner")).lower()
+        """Restore a surface anchor from its serialized mapping.
+
+        Args:
+            value: Serialized mapping containing point, normal, and explicit kind fields.
+
+        Returns:
+            Validated surface anchor in world coordinates.
+
+        Raises:
+            ValueError: If the kind field is missing or names an unsupported point type.
+        """
+        if "kind" not in value:
+            msg = "surface anchor JSON requires an explicit point type"
+            raise ValueError(msg)
+        kind = str(value["kind"]).lower()
         if kind not in {"corner", "curve"}:
-            raise ValueError(f"unsupported surface anchor point type: {kind}")
+            msg = f"unsupported surface anchor point type: {kind}"
+            raise ValueError(msg)
         return cls(_as_point3(value["point"]), _as_point3(value["normal"]), kind)
 
 
@@ -277,19 +394,34 @@ class FlattenedSurfacePatch:
     max_deviation_mm: float
 
     def validate(self, tolerance_mm: float) -> FlattenedSurfacePatch:
-        """Validate topology, area, and allowed planar deviation."""
+        """Validate topology, area, and the maximum allowed out-of-plane deviation.
+
+        Args:
+            tolerance_mm: Maximum accepted deviation from the fitted projection plane.
+
+        Returns:
+            This validated flattened patch for convenient validation chaining.
+
+        Raises:
+            ValueError: If the boundary is too small, self-intersects, has negligible
+                area, or exceeds the permitted planar deviation.
+        """
         if len(self.points) < 3:
-            raise ValueError("surface patch needs at least three distinct points")
+            msg = "surface patch needs at least three distinct points"
+            raise ValueError(msg)
         if polygon_self_intersects(self.points):
-            raise ValueError("surface patch self-intersects after flattening")
+            msg = "surface patch self-intersects after flattening"
+            raise ValueError(msg)
         if abs(polygon_area_2d(self.points)) <= 1e-6:
-            raise ValueError("surface patch has negligible 2D area")
+            msg = "surface patch has negligible 2D area"
+            raise ValueError(msg)
         limit = max(0.0, float(tolerance_mm))
         if self.max_deviation_mm > limit + 1e-9:
-            raise ValueError(
+            msg = (
                 "surface patch is too curved for the bounded planar MVP: "
                 f"{self.max_deviation_mm:.2f} mm deviation exceeds {limit:.2f} mm tolerance"
             )
+            raise ValueError(msg)
         return self
 
 
@@ -302,10 +434,23 @@ def flatten_surface_patch(
     The plane is oriented from a deterministic local boundary normal. This is not a
     general mesh parameterization; the explicit deviation test prevents silently
     turning a strongly curved region into a misleading flat pattern.
+
+    Args:
+        points: Ordered world-space samples around the proposed surface boundary.
+        tolerance_mm: Maximum accepted planar deviation in millimetres.
+
+    Returns:
+        Validated planar points together with the source centroid, normal, and deviation.
+
+    Raises:
+        ValueError: If fewer than three samples exist or no stable projection plane
+            can be formed, or when the flattened boundary fails validation.
     """
     values = tuple(_as_point3(point) for point in points)
     if len(values) < 3:
-        raise ValueError("surface patch needs at least three points")
+        msg = "surface patch needs at least three points"
+        raise ValueError(msg)
+    coordinate_array = np.asarray(values, dtype=np.float64)
     center = _centroid(values)
 
     # Use the strongest non-collinear local triangle instead of a polygon Newell
@@ -313,48 +458,75 @@ def flatten_surface_patch(
     # its individual segments still define a usable projection plane; validation
     # should then report the actual self-intersection rather than a misleading
     # "no direction" error.
-    origin = values[0]
-    best_normal = (0.0, 0.0, 0.0)
-    best_length = 0.0
-    for index in range(1, len(values) - 1):
-        candidate = _cross(
-            _sub(values[index], origin),
-            _sub(values[index + 1], origin),
-        )
-        candidate_length = _length(candidate)
-        if candidate_length > best_length:
-            best_normal = candidate
-            best_length = candidate_length
-    normal = _normalize(best_normal)
+    origin = coordinate_array[0]
+    relative_to_origin = coordinate_array - origin
+    candidate_normals = np.cross(relative_to_origin[1:-1], relative_to_origin[2:])
+    candidate_lengths = np.linalg.norm(candidate_normals, axis=1)
+    best_normal = candidate_normals[int(np.argmax(candidate_lengths))]
+    normal = _normalize(tuple(float(value) for value in best_normal))
 
     # Prefer the longest centered edge as the local U axis to make the result
     # deterministic while preserving the user's dominant drawing direction.
-    candidates = []
-    for first, second in zip(values, (*values[1:], values[0]), strict=False):
-        edge = _sub(second, first)
-        projected = _sub(edge, _scale(normal, _dot(edge, normal)))
-        candidates.append(projected)
-    u = _normalize(max(candidates, key=_length))
+    edges = np.roll(coordinate_array, -1, axis=0) - coordinate_array
+    normal_array = np.asarray(normal, dtype=np.float64)
+    projected_edges = edges - np.outer(edges @ normal_array, normal_array)
+    projected_lengths = np.linalg.norm(projected_edges, axis=1)
+    u = _normalize(
+        tuple(float(value) for value in projected_edges[int(np.argmax(projected_lengths))])
+    )
     v = _normalize(_cross(normal, u))
 
-    points_2d = []
-    max_deviation = 0.0
-    for point in values:
-        relative = _sub(point, center)
-        coordinates = (_dot(relative, u), _dot(relative, v))
-        points_2d.append((round(coordinates[0], 6), round(coordinates[1], 6)))
-        max_deviation = max(max_deviation, abs(_dot(relative, normal)))
+    relative = coordinate_array - np.asarray(center, dtype=np.float64)
+    u_coordinates = relative @ np.asarray(u, dtype=np.float64)
+    v_coordinates = relative @ np.asarray(v, dtype=np.float64)
+    projected = np.column_stack((u_coordinates, v_coordinates))
+    points_2d = tuple((round(float(point[0]), 6), round(float(point[1]), 6)) for point in projected)
+    max_deviation = float(np.max(np.abs(relative @ normal_array)))
 
-    patch = FlattenedSurfacePatch(tuple(points_2d), center, normal, float(max_deviation))
+    patch = FlattenedSurfacePatch(points_2d, center, normal, max_deviation)
     return patch.validate(tolerance_mm)
 
 
+def _translate_points_to_positive_coordinates(
+    points: collections.abc.Sequence[Point2],
+) -> list[Point2]:
+    """Translate a 2D point cloud to non-negative coordinates with NumPy.
+
+    Args:
+        points: Coordinates to translate without changing relative geometry.
+
+    Returns:
+        Points shifted so each coordinate's minimum is zero, rounded to 1e-6.
+    """
+    coordinates = np.asarray(points, dtype=np.float64)
+    minimums = np.min(coordinates, axis=0)
+    shifted = np.round(coordinates - minimums, decimals=6)
+    return [(float(point[0]), float(point[1])) for point in shifted]
+
+
 def _target_source(target):
+    """Return the underlying geometry object linked by a surface target wrapper.
+
+    Args:
+        target: Native drape/target object, possibly wrapping a source feature.
+
+    Returns:
+        Linked source feature when present; otherwise the original target.
+    """
     source = getattr(target, "SourceObject", None)
     return source if source is not None else target
 
 
 def _target_signature(target) -> str:
+    """Build a stable geometry signature used to detect stale surface drafts.
+
+    Args:
+        target: Surface target or wrapper whose source geometry is recorded.
+
+    Returns:
+        String representation of the source geometry signature, falling back to
+        the target's stable object name when geometry cannot be inspected.
+    """
     source = _target_source(target)
     try:
         return repr(
@@ -369,6 +541,15 @@ def _target_signature(target) -> str:
 
 
 def _surface_target_from_document(doc, Gui):
+    """Resolve the selected or first available mannequin/drape target in a document.
+
+    Args:
+        doc: Active FreeCAD document containing candidate target objects.
+        Gui: FreeCAD GUI module used to inspect the current selection.
+
+    Returns:
+        Pair of target wrapper and source geometry, or (None, None) when absent.
+    """
     selection = tuple(Gui.Selection.getSelection()) if Gui is not None else ()
     for obj in selection:
         if str(getattr(obj, "TargetType", "")) in {"Mannequin", "FreeCAD Geometry"}:
@@ -389,7 +570,17 @@ def _surface_target_from_document(doc, Gui):
 
 
 def _hit_matches_target(view, x: int, y: int, target_source) -> bool:
-    """Guard surface picking against unrelated visible geometry."""
+    """Guard surface picking against unrelated visible geometry.
+
+    Args:
+        view: Active FreeCAD view used for object-info lookup.
+        x: Horizontal viewport pixel coordinate.
+        y: Vertical viewport pixel coordinate.
+        target_source: Source object expected to receive the surface pick.
+
+    Returns:
+        Whether the pixel belongs to the intended target; unknown hits are allowed.
+    """
     try:
         info = view.getObjectInfo(int(x), int(y))
     except (AttributeError, TypeError, ValueError, RuntimeError):
@@ -405,7 +596,17 @@ def _hit_matches_target(view, x: int, y: int, target_source) -> bool:
 
 
 def pick_surface_point(view, x: int, y: int, target_source) -> SurfaceAnchor | None:
-    """Pick a world-space point and normal from the selected surface target."""
+    """Pick a world-space point and normal from the selected surface target.
+
+    Args:
+        view: Active FreeCAD 3D view exposing Coin picking methods.
+        x: Horizontal viewport pixel coordinate.
+        y: Vertical viewport pixel coordinate.
+        target_source: Source geometry that must own the pick.
+
+    Returns:
+        Surface anchor at the picked point, or None when the hit cannot be resolved.
+    """
     if not _hit_matches_target(view, x, y, target_source):
         return None
     viewer_factory = getattr(view, "getViewer", None)
@@ -446,6 +647,16 @@ def _append_anchor(
     anchor: SurfaceAnchor,
     minimum_spacing_mm: float,
 ) -> bool:
+    """Append an anchor unless it duplicates the most recent stroke sample.
+
+    Args:
+        anchors: Mutable ordered anchor list receiving the new sample.
+        anchor: Surface point and normal to append.
+        minimum_spacing_mm: Minimum spatial separation required between consecutive points.
+
+    Returns:
+        Whether the anchor was appended.
+    """
     if anchors and _length(_sub(anchor.point, anchors[-1].point)) < float(minimum_spacing_mm):
         return False
     anchors.append(anchor)
@@ -456,7 +667,16 @@ def surface_stroke_can_finish(
     anchors: collections.abc.Sequence[SurfaceAnchor],
     tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
 ) -> bool:
-    """Return whether a stroke has three distinct vertices and a nearby closing sample."""
+    """Check that a stroke contains a valid three-point boundary and a closing sample.
+
+    Args:
+        anchors: Ordered world-space anchors including the final closure sample.
+        tolerance_mm: Maximum distance between the last and first sample in millimetres.
+
+    Returns:
+        Whether at least three unique boundary points exist and the final sample
+        lies within the closure tolerance.
+    """
     values = tuple(anchors)
     if len(values) < 4:
         return False
@@ -472,30 +692,53 @@ def close_surface_stroke(
     anchors: collections.abc.Sequence[SurfaceAnchor],
     tolerance_mm: float = DEFAULT_CLOSE_DISTANCE_MM,
 ) -> tuple[SurfaceAnchor, ...]:
-    """Validate and normalize a closed surface boundary."""
+    """Validate and normalize a closed surface boundary.
+
+    Args:
+        anchors: Ordered boundary anchors followed by a sample near the first point.
+        tolerance_mm: Maximum allowed endpoint gap in millimetres.
+
+    Returns:
+        Boundary anchors without the redundant closing sample.
+
+    Raises:
+        ValueError: If closure is too distant or fewer than three distinct boundary
+            points remain after removing the closing sample.
+    """
     values = tuple(anchors)
     if len(values) < 4:
-        raise ValueError(
-            "surface boundary needs at least three distinct points and a closing sample"
-        )
+        msg = "surface boundary needs at least three distinct points and a closing sample"
+        raise ValueError(msg)
     limit = max(0.0, float(tolerance_mm))
     distance = _length(_sub(values[-1].point, values[0].point))
     if distance > limit + 1e-9:
-        raise ValueError(
+        msg = (
             "surface boundary is open; return to the first surface point "
             f"within {limit:.1f} mm before finishing (current gap: {distance:.1f} mm)"
         )
+        raise ValueError(msg)
     boundary = values[:-1]
     unique = {tuple(round(float(value), 6) for value in anchor.point) for anchor in boundary}
     if len(unique) < 3:
-        raise ValueError("surface boundary needs at least three distinct points")
+        msg = "surface boundary needs at least three distinct points"
+        raise ValueError(msg)
     return boundary
 
 
 def create_surface_pen_object(
     doc, target, anchors: collections.abc.Sequence[SurfaceAnchor], label="3D Surface Draft"
 ):
-    """Persist a finished surface draft as a rebuildable authoring object."""
+    """Persist a finished surface draft as a rebuildable authoring object.
+
+    Args:
+        doc: FreeCAD document that owns the new draft feature.
+        target: Drape/target object whose source geometry is being traced.
+        anchors: Ordered surface anchors describing a closed boundary.
+        label: User-visible label assigned to the persistent draft object.
+
+    Returns:
+        Native Part feature storing the serialized anchors and target provenance.
+    """
     import FreeCAD as App
     import Part
 
@@ -531,6 +774,12 @@ def create_surface_pen_object(
 
 
 def _add_surface_provenance(piece, surface_draft):
+    """Link an extracted PatternPiece back to its persistent surface draft.
+
+    Args:
+        piece: Native PatternPiece document object receiving provenance properties.
+        surface_draft: Source draft feature retained for audit and re-extraction.
+    """
     if "SurfaceDraft" not in piece.PropertiesList:
         piece.addProperty("App::PropertyLinkGlobal", "SurfaceDraft", "3D Authoring")
     piece.SurfaceDraft = surface_draft
@@ -540,23 +789,36 @@ def _add_surface_provenance(piece, surface_draft):
 
 
 def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None):
-    """Create a native Sketcher-backed PatternPiece from a persisted surface draft."""
+    """Create a native Sketcher-backed PatternPiece from a persisted surface draft.
+
+    Args:
+        surface_draft: Persistent Surface Pen feature containing target and anchor data.
+        tolerance_mm: Maximum permitted planar deviation for extraction, in millimetres.
+        name: Optional name assigned to the generated PatternPiece.
+
+    Raises:
+        ValueError: If target provenance is stale, anchor data is malformed, no active
+            document exists, or the stroke cannot be flattened within tolerance.
+    """
     import FreeCAD as App
 
     target = getattr(surface_draft, "Target", None)
     if target is None:
-        raise ValueError("surface draft has no target")
+        msg = "surface draft has no target"
+        raise ValueError(msg)
     expected = str(getattr(surface_draft, "TargetSignature", ""))
     if expected and expected != _target_signature(target):
         surface_draft.Status = "Stale surface target"
-        raise ValueError("surface draft target changed; redraw the surface before extraction")
+        msg = "surface draft target changed; redraw the surface before extraction"
+        raise ValueError(msg)
     try:
         anchors = tuple(
             SurfaceAnchor.from_json(value)
             for value in json.loads(str(getattr(surface_draft, "AnchorsJSON", "[]")))
         )
     except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise ValueError("surface draft contains invalid anchor data") from exc
+        msg = "surface draft contains invalid anchor data"
+        raise ValueError(msg) from exc
     closure_tolerance = float(getattr(surface_draft, "ClosureTolerance", DEFAULT_CLOSE_DISTANCE_MM))
     anchors = close_surface_stroke(anchors, closure_tolerance)
     patch = flatten_surface_patch([anchor.point for anchor in anchors], tolerance_mm)
@@ -568,19 +830,16 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
 
     doc = App.ActiveDocument
     if doc is None:
-        raise ValueError("open a FreeCAD document before extracting a pattern")
+        msg = "open a FreeCAD document before extracting a pattern"
+        raise ValueError(msg)
     existing_count = len(
         [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
     )
     piece_name = str(name or f"Surface Piece {existing_count + 1}")
     piece_id = f"pattern-piece-surface-{existing_count + 1}"
-    points = list(patch.points)
     # Translate the flattened polygon to positive document coordinates without
     # changing its geometry. This keeps the default Sketcher view convenient.
-    min_x = min(point[0] for point in points)
-    min_y = min(point[1] for point in points)
-    offset = (min_x, min_y)
-    shifted = [(round(x - offset[0], 6), round(y - offset[1], 6)) for x, y in points]
+    shifted = _translate_points_to_positive_coordinates(patch.points)
     segments = surface_segments_from_anchor_kinds(shifted, [anchor.kind for anchor in anchors])
     pattern = PatternPiece(piece_name, shifted, id=piece_id)
     obj = add_pattern_piece(doc, pattern)
@@ -595,6 +854,16 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
 
 
 def _surface_stroke_object(doc, target, anchors):
+    """Create the persistent Part feature used to store a transient stroke.
+
+    Args:
+        doc: FreeCAD document that owns the draft.
+        target: Surface target whose geometry was sampled.
+        anchors: Ordered surface anchors captured during the stroke.
+
+    Returns:
+        Native Surface Pen draft object with serialized anchor and target metadata.
+    """
     return create_surface_pen_object(doc, target, anchors)
 
 
@@ -607,6 +876,13 @@ class SurfacePenController:
     OVERLAY_OFFSET_MM = 0.25
 
     def __init__(self, target, target_source, status_callback=None):
+        """Initialize a viewport controller for one surface target.
+
+        Args:
+            target: Persistent target wrapper used for draft provenance.
+            target_source: Native source geometry accepted by the picker.
+            status_callback: Optional callback receiving user-facing status messages.
+        """
         self.App, self.Gui = self._modules()
         self.target = target
         self.target_source = target_source
@@ -623,17 +899,32 @@ class SurfacePenController:
 
     @staticmethod
     def _modules():
+        """Import the FreeCAD application and GUI modules at controller startup.
+
+        Returns:
+            Application and GUI module objects required by the viewport controller.
+        """
         import FreeCAD as App
         import FreeCADGui as Gui
 
         return App, Gui
 
     def _status(self, message):
+        """Forward a status message to the task panel when a callback is installed.
+
+        Args:
+            message: User-facing description of the current stroke state.
+        """
         self.status_callback(str(message))
 
     @property
     def can_finish(self) -> bool:
-        """Return whether this mode has enough input to finish safely."""
+        """Return whether this mode has enough input to finish safely.
+
+        Returns:
+            Whether the current reference points or closed boundary satisfy the
+            minimum input requirements for the selected authoring mode.
+        """
         if self.input_mode == "references":
             return len(self.anchors) >= 3
         if not surface_stroke_can_finish(self.anchors, self.CLOSE_DISTANCE_MM):
@@ -662,7 +953,11 @@ class SurfacePenController:
         self._status(self._stroke_status())
 
     def _stroke_status(self) -> str:
-        """Describe the boundary closure, point count, and current authoring mode."""
+        """Describe the boundary closure, point count, and current authoring mode.
+
+        Returns:
+            User-facing status text describing the current stroke and next action.
+        """
         if not self.anchors:
             if self.input_mode == "point":
                 return (
@@ -705,9 +1000,18 @@ class SurfacePenController:
         )
 
     def _pick(self, position):
+        """Pick a surface anchor at a screen-space viewport location.
+
+        Args:
+            position: Horizontal and vertical viewport pixel coordinates.
+
+        Returns:
+            Picked target-space anchor, or None when no valid hit is available.
+        """
         return pick_surface_point(self.view, int(position[0]), int(position[1]), self.target_source)
 
     def _update_overlay(self):
+        """Refresh the transient Coin polyline that previews the current stroke."""
         if self.view is None:
             return
         try:
@@ -731,7 +1035,7 @@ class SurfacePenController:
             coords.point.setValues(
                 0,
                 len(points),
-                [coin.SbVec3f(*point) for point in points],
+                list(starmap(coin.SbVec3f, points)),
             )
             line = coin.SoLineSet()
             line.numVertices.setValue(len(points))
@@ -748,6 +1052,14 @@ class SurfacePenController:
             self._overlay = None
 
     def _event_position(self, info):
+        """Extract a usable screen position from a FreeCAD viewport event mapping.
+
+        Args:
+            info: Event information mapping containing a Position pair.
+
+        Returns:
+            Floating-point screen coordinates, or None when the value is malformed.
+        """
         value = info.get("Position", (0, 0))
         try:
             return float(value[0]), float(value[1])
@@ -755,15 +1067,21 @@ class SurfacePenController:
             return None
 
     def activate(self):
-        """Install viewport callbacks and begin interactive surface drawing."""
+        """Install viewport callbacks and begin interactive surface drawing.
+
+        Raises:
+            RuntimeError: If no active FreeCAD document or 3D view is available.
+        """
         if self.view is not None:
             return
         active = self.Gui.activeDocument()
         if active is None:
-            raise RuntimeError("an active FreeCAD document is required")
+            msg = "an active FreeCAD document is required"
+            raise RuntimeError(msg)
         self.view = active.activeView()
         if self.view is None:
-            raise RuntimeError("an active FreeCAD 3D view is required")
+            msg = "an active FreeCAD 3D view is required"
+            raise RuntimeError(msg)
         self._mouse_callback = self.view.addEventCallback("SoMouseButtonEvent", self._mouse_event)
         self._location_callback = self.view.addEventCallback(
             "SoLocation2Event", self._location_event
@@ -799,7 +1117,14 @@ class SurfacePenController:
         self._status("Surface stroke cleared. " + self._stroke_status())
 
     def _place_point(self, anchor: SurfaceAnchor) -> bool:
-        """Append one deliberate boundary point and accept a near-start click as closure."""
+        """Append one deliberate boundary point and accept a near-start click as closure.
+
+        Args:
+            anchor: World-space anchor picked from the active target.
+
+        Returns:
+            Whether a new point was appended or the closure click was accepted.
+        """
         placed = SurfaceAnchor(anchor.point, anchor.normal, self.point_kind)
         if (
             len(self.anchors) >= 3
@@ -810,11 +1135,23 @@ class SurfacePenController:
         return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
 
     def _place_reference_point(self, anchor: SurfaceAnchor) -> bool:
-        """Append one reference point without treating proximity to the start as closure."""
+        """Append one reference point without treating proximity to the start as closure.
+
+        Args:
+            anchor: World-space anchor selected for the construction-point sketch.
+
+        Returns:
+            Whether the anchor was appended after minimum-spacing validation.
+        """
         placed = SurfaceAnchor(anchor.point, anchor.normal, "corner")
         return _append_anchor(self.anchors, placed, self.SAMPLE_DISTANCE_MM)
 
     def _mouse_event(self, info):
+        """Handle press/release events for point, reference, and freehand modes.
+
+        Args:
+            info: FreeCAD Coin mouse event mapping with button, state, and position.
+        """
         position = self._event_position(info)
         if position is None:
             return
@@ -846,6 +1183,11 @@ class SurfacePenController:
             self._status(self._stroke_status())
 
     def _location_event(self, info):
+        """Sample additional target points while a freehand stroke is active.
+
+        Args:
+            info: FreeCAD Coin location event mapping containing screen position.
+        """
         if not self._drawing:
             return
         position = self._event_position(info)
@@ -865,16 +1207,26 @@ class SurfacePenController:
             self._status(self._stroke_status())
 
     def _finish_reference_points(self, document: object, tolerance_mm: float) -> object:
-        """Create a native Sketcher sketch containing flattened construction points."""
+        """Create a native Sketcher sketch containing flattened construction points.
+
+        Args:
+            document: Active FreeCAD document receiving the result sketch.
+            tolerance_mm: Maximum permitted planar deviation of the reference points.
+
+        Returns:
+            Native Sketcher document object containing construction-point geometry.
+
+        Raises:
+            ValueError: If fewer than three points exist or the patch cannot be
+                represented within the requested planar tolerance.
+        """
         import Part
 
         if len(self.anchors) < 3:
-            raise ValueError("reference-point mode needs at least three points")
+            msg = "reference-point mode needs at least three points"
+            raise ValueError(msg)
         patch = flatten_surface_patch([anchor.point for anchor in self.anchors], tolerance_mm)
-        points = list(patch.points)
-        min_x = min(point[0] for point in points)
-        min_y = min(point[1] for point in points)
-        shifted = [(round(x - min_x, 6), round(y - min_y, 6)) for x, y in points]
+        shifted = _translate_points_to_positive_coordinates(patch.points)
         sketch = document.addObject(
             "Sketcher::SketchObject",
             document.getUniqueObjectName("SurfaceReferencePoints"),
@@ -907,13 +1259,24 @@ class SurfacePenController:
         return sketch
 
     def finish(self, tolerance_mm=8.0, name=None):
-        """Finish the active Surface Pen mode and create its native Sketcher result."""
+        """Finish the active Surface Pen mode and create its native Sketcher result.
+
+        Args:
+            tolerance_mm: Maximum accepted planar deviation in millimetres.
+            name: Optional name assigned to the extracted PatternPiece.
+
+        Raises:
+            RuntimeError: If there is no active FreeCAD document.
+            ValueError: If the stroke is open, too small, stale, or too curved for
+                the requested planar representation.
+        """
         if self._drawing:
             self._drawing = False
             self._last_screen = None
         document = self.App.ActiveDocument
         if document is None:
-            raise RuntimeError("an active document is required")
+            msg = "an active document is required"
+            raise RuntimeError(msg)
         if self.input_mode == "references":
             return self._finish_reference_points(document, tolerance_mm)
         closed = close_surface_stroke(self.anchors, self.CLOSE_DISTANCE_MM)
@@ -922,7 +1285,8 @@ class SurfacePenController:
         else:
             simplified = simplify_polyline([anchor.point for anchor in closed], 1.0)
             if len(simplified) < 3:
-                raise ValueError("surface stroke simplified to fewer than three points")
+                msg = "surface stroke simplified to fewer than three points"
+                raise ValueError(msg)
             by_point = {
                 tuple(round(value, 6) for value in anchor.point): anchor for anchor in closed
             }
@@ -953,6 +1317,11 @@ class SurfacePenTaskPanel:
     """Small native FreeCAD task panel controlling the viewport pen."""
 
     def __init__(self, controller):
+        """Build the Qt task panel controlling an active Surface Pen controller.
+
+        Args:
+            controller: Viewport controller whose current stroke is edited by the panel.
+        """
         _App, _Gui, QtWidgets = self._modules()
         self.controller = controller
         self.form = QtWidgets.QWidget()
@@ -1011,7 +1380,11 @@ class SurfacePenTaskPanel:
         self.update_status(self.controller._stroke_status())
 
     def _input_mode_changed(self, value: str) -> None:
-        """Switch between boundary authoring, freehand tracing, and reference points."""
+        """Switch between boundary authoring, freehand tracing, and reference points.
+
+        Args:
+            value: Visible combo-box label identifying the desired input mode.
+        """
         self.controller.set_input_mode(value)
         self.point_kind_combo.setEnabled(self.controller.input_mode == "point")
         if self.controller.input_mode == "references":
@@ -1020,16 +1393,29 @@ class SurfacePenTaskPanel:
             self.finish_button.setText("Finish Stroke → Pattern")
 
     def _point_kind_changed(self, value: str) -> None:
-        """Set the kind assigned to the next point placed on the target."""
+        """Set the kind assigned to the next point placed on the target.
+
+        Args:
+            value: Visible combo-box label selecting corner or curve point semantics.
+        """
         self.controller.set_point_kind(value)
 
     def update_status(self, message: str) -> None:
-        """Show drawing guidance and enable extraction only for a closable boundary."""
+        """Show drawing guidance and enable extraction only for a closable boundary.
+
+        Args:
+            message: Current user-facing stroke status emitted by the controller.
+        """
         self.status.setText(str(message))
         self.finish_button.setEnabled(self.controller.can_finish)
 
     @staticmethod
     def _modules():
+        """Load the installed Qt widget module for the host FreeCAD version.
+
+        Returns:
+            FreeCAD application module, GUI module, and Qt widget module.
+        """
         try:
             from PySide import QtWidgets
         except ImportError:
@@ -1070,7 +1456,12 @@ class SurfacePenTaskPanel:
         return True
 
     def getStandardButtons(self):
-        """Use no standard dialog buttons; actions are explicit in the panel."""
+        """Use no standard dialog buttons; actions are explicit in the panel.
+
+        Returns:
+            Qt's no-button flag because the panel provides explicit Finish, Clear,
+            and Cancel controls.
+        """
         try:
             from PySide import QtWidgets
         except ImportError:
@@ -1079,18 +1470,26 @@ class SurfacePenTaskPanel:
 
 
 def start_surface_pen():
-    """Start the public Cloth Pattern 3D Surface Pen command."""
+    """Start the public Cloth Pattern 3D Surface Pen command.
+
+    Returns:
+        Task panel controlling the newly activated surface pen session.
+
+    Raises:
+        RuntimeError: If there is no active document or the selected target is unavailable.
+        ValueError: If the document has no selected or discoverable surface target.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
     doc = App.ActiveDocument
     if doc is None:
-        raise RuntimeError("open a garment document before starting the 3D Pattern Pen")
+        msg = "open a garment document before starting the 3D Pattern Pen"
+        raise RuntimeError(msg)
     target, source = _surface_target_from_document(doc, Gui)
     if target is None or source is None:
-        raise ValueError(
-            "select a mannequin/drape target or create one before starting the 3D Pattern Pen"
-        )
+        msg = "select a mannequin/drape target or create one before starting the 3D Pattern Pen"
+        raise ValueError(msg)
     controller = SurfacePenController(target, source)
     panel = SurfacePenTaskPanel(controller)
     panel.controller.status_callback = panel.update_status

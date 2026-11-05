@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 import unittest
 from pathlib import Path
@@ -15,7 +16,7 @@ from freecad_cloth.sewing.SewingNetwork import (
 
 
 def lengths(mapping):
-    return lambda piece, edge: mapping[(piece, edge)]
+    return lambda piece, edge: mapping[piece, edge]
 
 
 class _SeamStatus:

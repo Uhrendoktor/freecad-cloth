@@ -1,14 +1,20 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Solver-neutral visual sanity metrics for generated garment drapes."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
 from math import dist, isfinite
 from statistics import median
+from typing import TYPE_CHECKING
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
+from freecad_cloth.simulation.DrapeFailureClassifier import DrapeMetrics
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Sequence
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
@@ -18,29 +24,30 @@ def maximum_box_penetration(
     points: Sequence[Point3],
     bounds: tuple[float, float, float, float, float, float],
 ) -> float:
-    """Return the deepest point inside an axis-aligned target box."""
+    """Return the greatest strictly interior depth using vectorized plane distances.
+
+    Args:
+        points: Candidate points in the target's coordinate system.
+        bounds: Axis-aligned extents ordered as xmin, xmax, ymin, ymax, zmin, zmax.
+
+    Returns:
+        Greatest distance to the nearest box face for interior points, or zero.
+    """
+    if len(points) == 0:
+        return 0.0
+    coordinates = np.asarray(points, dtype=np.float64)
     xmin, xmax, ymin, ymax, zmin, zmax = (float(value) for value in bounds)
-    return max(
-        (
-            min(
-                float(point[0]) - xmin,
-                xmax - float(point[0]),
-                float(point[1]) - ymin,
-                ymax - float(point[1]),
-                float(point[2]) - zmin,
-                zmax - float(point[2]),
-            )
-            for point in points
-            if xmin < float(point[0]) < xmax
-            and ymin < float(point[1]) < ymax
-            and zmin < float(point[2]) < zmax
-        ),
-        default=0.0,
-    )
+    lower = np.asarray((xmin, ymin, zmin), dtype=np.float64)
+    upper = np.asarray((xmax, ymax, zmax), dtype=np.float64)
+    inside = np.all((coordinates > lower) & (coordinates < upper), axis=1)
+    if not bool(inside.any()):
+        return 0.0
+    face_distances = np.minimum(coordinates - lower, upper - coordinates)
+    return float(np.maximum(face_distances[inside].min(axis=1), 0.0).max())
 
 
 @pydantic_dataclass(frozen=True)
-class DrapeVisualMetrics:
+class DrapeVisualMetrics(DrapeMetrics):
     """Public data model or service class for DrapeVisualMetrics."""
 
     vertices: int
@@ -55,33 +62,56 @@ class DrapeVisualMetrics:
 
 
 def _bounds(vertices: Sequence[Point3]) -> tuple[float, float, float, float, float, float]:
-    if not vertices:
+    """Compute axis-aligned extents with NumPy reductions.
+
+    Args:
+        vertices: Finite 3D mesh vertices.
+
+    Returns:
+        Bounds ordered as xmin, xmax, ymin, ymax, zmin, zmax; zeros for empty input.
+    """
+    if len(vertices) == 0:
         return (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-    xs = [float(v[0]) for v in vertices]
-    ys = [float(v[1]) for v in vertices]
-    zs = [float(v[2]) for v in vertices]
-    return (min(xs), max(xs), min(ys), max(ys), min(zs), max(zs))
-
-
-def _centroid(vertices: Sequence[Point3]) -> Point3:
-    count = float(len(vertices))
+    coordinates = np.asarray(vertices, dtype=np.float64)
+    minimum = coordinates.min(axis=0)
+    maximum = coordinates.max(axis=0)
     return (
-        sum(float(v[0]) for v in vertices) / count,
-        sum(float(v[1]) for v in vertices) / count,
-        sum(float(v[2]) for v in vertices) / count,
+        float(minimum[0]),
+        float(maximum[0]),
+        float(minimum[1]),
+        float(maximum[1]),
+        float(minimum[2]),
+        float(maximum[2]),
     )
 
 
-def minimum_vertex_distance(
-    source: Sequence[Point3], target: Sequence[Point3], *, chunk_size: int = 64
-) -> float | None:
-    """Return exact nearest vertex distance using the canonical SciPy KD-tree query."""
-    if not source or not target:
-        return None
+def _centroid(vertices: Sequence[Point3]) -> Point3:
+    """Compute the component-wise vertex centroid with NumPy.
 
-    # Keep the legacy keyword accepted; the exact KD-tree query no longer allocates
-    # source-by-target pairwise distance matrices, so chunk_size is not needed.
-    del chunk_size
+    Args:
+        vertices: Finite 3D mesh vertices.
+
+    Returns:
+        Arithmetic mean coordinates; the origin for empty input.
+    """
+    if len(vertices) == 0:
+        return (0.0, 0.0, 0.0)
+    center = np.asarray(vertices, dtype=np.float64).mean(axis=0)
+    return (float(center[0]), float(center[1]), float(center[2]))
+
+
+def minimum_vertex_distance(source: Sequence[Point3], target: Sequence[Point3]) -> float | None:
+    """Return exact nearest vertex distance through the shared SciPy KD-tree query.
+
+    Args:
+        source: Candidate garment vertices.
+        target: Surface vertices of the target mesh.
+
+    Returns:
+        Exact nearest target-vertex distance, or None for an empty point set.
+    """
+    if len(source) == 0 or len(target) == 0:
+        return None
     from freecad_cloth.common.MeshValidation import nearest_target_clearance
 
     return nearest_target_clearance(source, target)
@@ -90,7 +120,16 @@ def minimum_vertex_distance(
 def point_inside_closed_mesh(
     point: Point3, vertices: Sequence[Point3], triangles: Sequence[Triangle3]
 ) -> bool:
-    """Return whether one validated point is inside a closed triangle mesh."""
+    """Classify whether one point is inside a closed triangle mesh.
+
+    Args:
+        point: Three-dimensional point to classify.
+        vertices: Vertices of the target triangle mesh.
+        triangles: Triangle indices into the supplied vertex sequence.
+
+    Returns:
+        True when the point is classified inside the closed mesh.
+    """
     return points_inside_closed_mesh((point,), vertices, triangles)[0]
 
 
@@ -109,6 +148,17 @@ def points_inside_closed_mesh(
     the boundary. The native-host caller may bypass Trimesh acceleration when its
     optional spatial-query backend is unsafe; NumPy ray parity retains the containment
     check without changing its acceptance criterion.
+
+    Args:
+        points: Points to classify in world coordinates.
+        vertices: Target mesh vertices in the same coordinate system.
+        triangles: Indexed target mesh faces.
+        chunk_size: Maximum number of points handled by each fallback chunk.
+        prefer_trimesh: Whether to attempt the optional Trimesh spatial query first.
+        contains_fn: Optional injected Trimesh contains operation for deterministic tests.
+
+    Returns:
+        Boolean inside/outside results in the same order as the input points.
     """
     validated_mesh = MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
     validated_points = validate_points3d(points)
@@ -116,8 +166,6 @@ def points_inside_closed_mesh(
         return ()
     if not validated_mesh.triangles:
         return tuple(False for _ in validated_points)
-
-    import numpy as np
 
     vertex_data = np.asarray(validated_mesh.vertices, dtype=np.float64)
     faces = np.asarray(validated_mesh.triangles, dtype=np.int64).reshape((-1, 3))
@@ -222,13 +270,35 @@ def seam_correspondence_gap(
     end_b: float = 1.0,
     samples: int = 5,
 ) -> float:
-    """Return deterministic max positional gap along one authored seam correspondence."""
+    """Return the maximum positional gap along an authored seam correspondence.
+
+    Args:
+        boundary_a: Ordered boundary vertices for the first pattern piece.
+        boundary_b: Ordered boundary vertices for the second pattern piece.
+        edge_a: Edge index on the first boundary.
+        edge_b: Edge index on the second boundary.
+        reversed_b: Whether the second edge is traversed in reverse.
+        start_a: Start fraction on the first edge.
+        end_a: End fraction on the first edge.
+        start_b: Start fraction on the second edge.
+        end_b: End fraction on the second edge.
+        samples: Number of paired edge positions to compare.
+
+    Returns:
+        Maximum Euclidean gap between corresponding seam samples.
+
+    Raises:
+        ValueError: If a boundary is empty, sample count is too small, or an edge index is invalid.
+    """
     if not boundary_a or not boundary_b:
-        raise ValueError("seam boundaries are required")
+        msg = "seam boundaries are required"
+        raise ValueError(msg)
     if samples < 2:
-        raise ValueError("at least two seam samples are required")
+        msg = "at least two seam samples are required"
+        raise ValueError(msg)
     if not 0 <= int(edge_a) < len(boundary_a) or not 0 <= int(edge_b) < len(boundary_b):
-        raise ValueError("seam edge index is out of range")
+        msg = "seam edge index is out of range"
+        raise ValueError(msg)
     a0 = boundary_a[int(edge_a)]
     a1 = boundary_a[(int(edge_a) + 1) % len(boundary_a)]
     b0 = boundary_b[int(edge_b)]
@@ -238,6 +308,16 @@ def seam_correspondence_gap(
         start_b, end_b = 1.0 - float(end_b), 1.0 - float(start_b)
 
     def interpolate(left: Point3, right: Point3, fraction: float) -> Point3:
+        """Interpolate one boundary position at a fractional edge distance.
+
+        Args:
+            left: Start coordinate of the edge.
+            right: End coordinate of the edge.
+            fraction: Interpolation fraction between the endpoints.
+
+        Returns:
+            Interpolated x, y, z coordinate.
+        """
         return (
             float(left[0]) + (float(right[0]) - float(left[0])) * fraction,
             float(left[1]) + (float(right[1]) - float(left[1])) * fraction,
@@ -271,6 +351,15 @@ def inspect_drape(
     ratios therefore intentionally use Z for vertical coverage and the larger
     of X/Y for lateral coverage; using the largest or second-smallest axis can
     make a wide, flattened or side-on garment look healthy by mistake.
+
+    Args:
+        garment_vertices: Current three-dimensional garment vertex positions.
+        target_vertices: Target surface vertices used for nearest-point clearance.
+        target_height: Optional target height for vertical-span normalization.
+        target_width: Optional target width for lateral-span normalization.
+
+    Returns:
+        Structural metrics, geometry bounds, coverage ratios, and a diagnostic state.
     """
     if not garment_vertices:
         return DrapeVisualMetrics(
@@ -328,8 +417,15 @@ def inspect_drape(
     )
 
 
-def summarize(metrics: DrapeVisualMetrics) -> dict:
-    """Provide the public summarize operation."""
+def summarize(metrics: DrapeVisualMetrics) -> dict[str, object]:
+    """Convert drape visual metrics into a stable summary mapping.
+
+    Args:
+        metrics: Computed structural metrics to expose to the report.
+
+    Returns:
+        Dictionary of state, counts, bounds, spans, coverage ratios, and clearance.
+    """
     return {
         "state": metrics.state,
         "vertices": metrics.vertices,
@@ -354,9 +450,17 @@ _FATAL_VISUAL_DIAGNOSTICS = frozenset(
 
 
 def assert_drape_diagnostics(
-    records: Sequence[dict], *, allowed_diagnostics: Sequence[str] = ()
+    records: Sequence[dict], *, allowed_diagnostics: Iterable[str] = ()
 ) -> None:
-    """Fail closed while allowing explicitly documented diagnostic exceptions."""
+    """Reject fatal drape diagnostics unless a specific diagnostic is allowed.
+
+    Args:
+        records: Per-panel diagnostic records from the independent visual audit.
+        allowed_diagnostics: Fatal diagnostic identifiers explicitly accepted for this audit.
+
+    Raises:
+        RuntimeError: If a record contains fatal or unallowed diagnostic evidence.
+    """
     failures = []
     allowed = {str(item) for item in allowed_diagnostics}
     fatal_diagnostics = _FATAL_VISUAL_DIAGNOSTICS - allowed
@@ -385,6 +489,13 @@ def mesh_shape_sanity(
     cloth result is physically correct. They catch the two failure modes that
     are easy to miss in a camera-only regression: isolated long-edge spikes
     and an unexpectedly extreme lateral footprint.
+
+    Args:
+        vertices: Ordered vertex coordinates of the generated cloth mesh.
+        triangles: Indexed triangular faces of the generated mesh.
+
+    Returns:
+        Finite-state, edge-length, spike, face-count, and footprint metrics.
     """
     if not vertices:
         return {

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI controls for the Cloth Simulation workbench."""
 
 from typing import ClassVar

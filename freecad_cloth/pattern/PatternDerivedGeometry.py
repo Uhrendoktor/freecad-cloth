@@ -1,11 +1,12 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent derived geometry and construction marks for patterns."""
 
 from collections.abc import Iterable
-from math import atan2, cos, hypot, isfinite
+from math import hypot, isfinite
 
 from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
-from shapely.geometry import Polygon
+from shapely.geometry import LineString, Polygon
 
 from freecad_cloth.pattern.PatternGeometry import (
     LineSegment,
@@ -29,13 +30,21 @@ class Notch:
     depth: float = 3.0
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate notch identity, position and positive depth.
+
+        Raises:
+            ValueError: If the identity is empty, the normalized position is outside
+                the unit interval, or the depth is not positive.
+        """
         if not self.id:
-            raise ValueError("notch ID must not be empty")
+            msg = "notch ID must not be empty"
+            raise ValueError(msg)
         if not 0.0 <= self.t <= 1.0:
-            raise ValueError("notch position must be between 0 and 1")
+            msg = "notch position must be between 0 and 1"
+            raise ValueError(msg)
         if self.depth <= 0:
-            raise ValueError("notch depth must be positive")
+            msg = "notch depth must be positive"
+            raise ValueError(msg)
 
 
 @pydantic_dataclass(frozen=True)
@@ -51,18 +60,26 @@ class PatternMark:
     text: str = ""
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate mark identity, kind, position and positive length.
+
+        Raises:
+            ValueError: If the identity or kind is empty, the normalized position
+                is outside the unit interval, or the mark length is not positive.
+        """
         if not self.id.strip() or not self.kind.strip():
-            raise ValueError("pattern mark ID and kind must not be empty")
+            msg = "pattern mark ID and kind must not be empty"
+            raise ValueError(msg)
         if not 0.0 <= self.t <= 1.0:
-            raise ValueError("pattern mark position must be between 0 and 1")
+            msg = "pattern mark position must be between 0 and 1"
+            raise ValueError(msg)
         if self.length <= 0:
-            raise ValueError("pattern mark length must be positive")
+            msg = "pattern mark length must be positive"
+            raise ValueError(msg)
 
 
 @pydantic_dataclass(frozen=True)
 class OffsetEdge:
-    """Public data model or service class for OffsetEdge."""
+    """One derived cut-boundary edge with its stable identity and sampled points."""
 
     id: str
     points: tuple[Point, ...]
@@ -70,7 +87,7 @@ class OffsetEdge:
 
 @pydantic_dataclass(frozen=True, config=ConfigDict(arbitrary_types_allowed=True))
 class DerivedPattern:
-    """Public data model or service class for DerivedPattern."""
+    """Immutable sewing boundary, per-edge cut offsets, marks and closed contour."""
 
     sewing_boundary: ParametricPattern
     cut_boundary: tuple[OffsetEdge, ...]
@@ -86,24 +103,47 @@ def derive_cut_boundary(
     curve_samples: int = 32,
     miter_limit: float = 4.0,
 ) -> DerivedPattern:
-    """Provide the public derive cut boundary operation."""
+    """Derive seam-allowance offsets and validate the resulting cut contour.
+
+    Args:
+        pattern: Authored parametric sewing boundary whose segments define the piece.
+        width: Default outward allowance in millimetres for edges without overrides.
+        edge_widths: Optional mapping of segment IDs to per-edge allowance widths.
+        curve_samples: Number of samples used when approximating curved segments.
+        miter_limit: Maximum corner-miter extension as a multiple of allowance width.
+
+    Returns:
+        Derived geometry containing the source boundary, offset edge polylines and
+        a joined outer cut contour.
+
+    Raises:
+        ValueError: If an allowance or sampling option is invalid, an edge ID is
+            unknown, or the derived contour is invalid or self-intersecting.
+        TypeError: If the source boundary contains an unsupported segment type.
+    """
     if not isfinite(width) or width < 0:
-        raise ValueError("seam allowance width must be finite and non-negative")
+        msg = "seam allowance width must be finite and non-negative"
+        raise ValueError(msg)
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
     if not isfinite(miter_limit) or miter_limit < 1:
-        raise ValueError("miter_limit must be finite and at least 1")
+        msg = "miter_limit must be finite and at least 1"
+        raise ValueError(msg)
     edge_widths = edge_widths or {}
     unknown = set(edge_widths) - set(pattern.by_id())
     if unknown:
-        raise ValueError(f"unknown edge width IDs: {sorted(unknown)}")
+        msg = f"unknown edge width IDs: {sorted(unknown)}"
+        raise ValueError(msg)
     if any(not isfinite(value) or value < 0 for value in edge_widths.values()):
-        raise ValueError("seam allowance widths must be finite and non-negative")
+        msg = "seam allowance widths must be finite and non-negative"
+        raise ValueError(msg)
     sampled = _sample_segments(pattern.segments, curve_samples)
     outline = [point for points in sampled for point in points[:-1]]
     orientation = signed_area(outline)
     if abs(orientation) < 1e-12 and width:
-        raise ValueError("pattern outline must enclose a non-zero area")
+        msg = "pattern outline must enclose a non-zero area"
+        raise ValueError(msg)
     outward_sign = -1.0 if orientation > 0 else 1.0
     cut_edges = []
     effective_widths = []
@@ -141,21 +181,36 @@ def derive_cut_boundary(
             or contour_polygon.area <= 0.0
             or contour_polygon.interiors
         ):
-            raise ValueError("per-edge seam allowance produced an invalid cut contour")
+            msg = "per-edge seam allowance produced an invalid cut contour"
+            raise ValueError(msg)
     return DerivedPattern(pattern, tuple(cut_edges), (), (), cut_contour)
 
 
 def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPattern:
-    """Add the requested notches data."""
+    """Return a derived pattern with the requested notches appended.
+
+    Args:
+        derived: Existing immutable result containing the authoritative sewing boundary.
+        notches: Notch records to validate and attach to their referenced segments.
+
+    Returns:
+        A new derived pattern that retains existing geometry and includes the notches.
+
+    Raises:
+        ValueError: If a notch is invalid, references an unknown segment, or reuses
+            an existing notch or construction-mark ID.
+    """
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.notches)
     ids = {n.id for n in result} | {m.id for m in derived.marks}
     for notch in notches:
         notch.validate()
         if notch.segment_id not in by_id:
-            raise ValueError(f"notch references unknown segment: {notch.segment_id}")
+            msg = f"notch references unknown segment: {notch.segment_id}"
+            raise ValueError(msg)
         if notch.id in ids:
-            raise ValueError(f"duplicate construction mark ID: {notch.id}")
+            msg = f"duplicate construction mark ID: {notch.id}"
+            raise ValueError(msg)
         ids.add(notch.id)
         result.append(notch)
     return DerivedPattern(
@@ -168,16 +223,30 @@ def add_notches(derived: DerivedPattern, notches: Iterable[Notch]) -> DerivedPat
 
 
 def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedPattern:
-    """Add the requested marks data."""
+    """Return a derived pattern with the requested construction marks appended.
+
+    Args:
+        derived: Existing immutable result containing the authoritative sewing boundary.
+        marks: Construction marks to validate and attach to their referenced segments.
+
+    Returns:
+        A new derived pattern that retains existing geometry and includes the marks.
+
+    Raises:
+        ValueError: If a mark is invalid, references an unknown segment, or reuses
+            an existing notch or construction-mark ID.
+    """
     by_id = derived.sewing_boundary.by_id()
     result = list(derived.marks)
     ids = {n.id for n in derived.notches} | {m.id for m in result}
     for mark in marks:
         mark.validate()
         if mark.segment_id and mark.segment_id not in by_id:
-            raise ValueError(f"pattern mark references unknown segment: {mark.segment_id}")
+            msg = f"pattern mark references unknown segment: {mark.segment_id}"
+            raise ValueError(msg)
         if mark.id in ids:
-            raise ValueError(f"duplicate construction mark ID: {mark.id}")
+            msg = f"duplicate construction mark ID: {mark.id}"
+            raise ValueError(msg)
         ids.add(mark.id)
         result.append(mark)
     return DerivedPattern(
@@ -190,26 +259,63 @@ def add_marks(derived: DerivedPattern, marks: Iterable[PatternMark]) -> DerivedP
 
 
 def notch_point(pattern: ParametricPattern, notch: Notch) -> Point:
-    """Provide the public notch point operation."""
+    """Resolve the boundary coordinate at a validated notch position.
+
+    Args:
+        pattern: Authored parametric boundary containing the referenced segment.
+        notch: Notch identity, segment reference, normalized position and depth.
+
+    Returns:
+        The 2D point where the notch intersects its sewing segment.
+
+    Raises:
+        ValueError: If the notch is invalid or references a missing segment.
+    """
     notch.validate()
     segment = pattern.by_id().get(notch.segment_id)
     if segment is None:
-        raise ValueError(f"notch references unknown segment: {notch.segment_id}")
+        msg = f"notch references unknown segment: {notch.segment_id}"
+        raise ValueError(msg)
     return segment.point(notch.t)
 
 
 def mark_point(pattern: ParametricPattern, mark: PatternMark) -> Point:
-    """Provide the public mark point operation."""
+    """Resolve the boundary coordinate associated with a construction mark.
+
+    Args:
+        pattern: Authored parametric boundary containing the referenced segment.
+        mark: Construction mark to locate; an empty segment ID denotes the first
+            point of the sampled outline.
+
+    Returns:
+        The 2D point associated with the mark.
+
+    Raises:
+        ValueError: If the mark is invalid or references a missing segment.
+    """
     mark.validate()
     if not mark.segment_id:
         return pattern.sampled_outline(2)[0]
     segment = pattern.by_id().get(mark.segment_id)
     if segment is None:
-        raise ValueError(f"pattern mark references unknown segment: {mark.segment_id}")
+        msg = f"pattern mark references unknown segment: {mark.segment_id}"
+        raise ValueError(msg)
     return segment.point(mark.t)
 
 
 def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[list[Point]]:
+    """Sample each segment into an ordered point list for offset construction.
+
+    Args:
+        segments: Ordered line, Bezier or polyline segments of the source boundary.
+        curve_samples: Sampling density passed to curved-segment approximations.
+
+    Returns:
+        One ordered point list per source segment, with endpoints retained.
+
+    Raises:
+        TypeError: If a segment implementation is not supported by the offsetter.
+    """
     result = []
     for segment in segments:
         if isinstance(segment, LineSegment):
@@ -217,7 +323,8 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[li
         elif isinstance(segment, (QuadraticBezier, PolylineSegment)):
             result.append(segment.polyline(curve_samples))
         else:
-            raise TypeError(f"unsupported segment type: {type(segment).__name__}")
+            msg = f"unsupported segment type: {type(segment).__name__}"
+            raise TypeError(msg)
     return result
 
 
@@ -227,7 +334,20 @@ def _join_variable_offset_edges(
     allowances: list[float],
     miter_limit: float,
 ) -> tuple[Point, ...]:
-    """Join varying per-edge offsets with mitres or bevel connectors."""
+    """Join neighboring offset edges using bounded mitres or bevel connectors.
+
+    Args:
+        sampled: Source polyline samples used to locate each original corner.
+        cut_edges: Per-edge offset polylines in source-boundary order.
+        allowances: Effective allowance width for each corresponding source edge.
+        miter_limit: Maximum miter extension relative to the larger adjacent width.
+
+    Returns:
+        A closed contour assembled from offset edges and their corner connectors.
+
+    Raises:
+        ValueError: If fewer than three distinct cut-contour points remain.
+    """
     count = len(cut_edges)
     joints: list[tuple[Point, Point]] = []
     for index in range(count):
@@ -282,12 +402,23 @@ def _join_variable_offset_edges(
     ):
         contour.pop()
     if len(contour) < 3:
-        raise ValueError("per-edge seam allowance produced fewer than three cut points")
+        msg = "per-edge seam allowance produced fewer than three cut points"
+        raise ValueError(msg)
     return tuple(contour)
 
 
 def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
-    """Intersect two infinite 2D lines, returning None for parallel lines."""
+    """Intersect two infinite 2D lines unless their direction vectors are parallel.
+
+    Args:
+        a: Start point of the first line.
+        b: End point of the first line.
+        c: Start point of the second line.
+        d: End point of the second line.
+
+    Returns:
+        Intersection point, or None when the lines are parallel.
+    """
     ax, ay = b[0] - a[0], b[1] - a[1]
     bx, by = d[0] - c[0], d[1] - c[1]
     denominator = ax * by - ay * bx
@@ -300,39 +431,37 @@ def _line_intersection(a: Point, b: Point, c: Point, d: Point) -> Point | None:
 def _offset_polyline(
     points: list[Point], width: float, outward_sign: float, miter_limit: float
 ) -> list[Point]:
+    """Offset a sampled edge using GEOS rather than Python-level vertex loops.
+
+    Args:
+        points: Ordered 2D coordinates of the source edge.
+        width: Offset distance in pattern millimetres.
+        outward_sign: 1 for left-side offsets and -1 for right-side offsets.
+        miter_limit: Maximum miter extension relative to the requested distance.
+
+    Returns:
+        Offset coordinates ordered in the same endpoint direction as the source.
+
+    Raises:
+        ValueError: If the edge is too short or GEOS cannot return one offset line.
+    """
     if width == 0:
         return list(points)
     if len(points) < 2:
-        raise ValueError("an edge needs at least two points")
-    normals = []
-    for a, b in zip(points, points[1:], strict=False):
-        dx, dy = b[0] - a[0], b[1] - a[1]
-        length = hypot(dx, dy)
-        normals.append(
-            (0.0, 0.0)
-            if length == 0
-            else (outward_sign * (-dy / length), outward_sign * (dx / length))
-        )
-    result = []
-    for index, point in enumerate(points):
-        if index == 0:
-            normal = normals[0]
-        elif index == len(points) - 1:
-            normal = normals[-1]
-        else:
-            n1, n2 = normals[index - 1], normals[index]
-            summed = (n1[0] + n2[0], n1[1] + n2[1])
-            norm = hypot(*summed)
-            normal = n2 if norm == 0 else (summed[0] / norm, summed[1] / norm)
-        scale = width
-        if index not in (0, len(points) - 1):
-            tangent_change = abs(
-                atan2(normals[index][1], normals[index][0])
-                - atan2(normals[index - 1][1], normals[index - 1][0])
-            )
-            while tangent_change > 3.141592653589793:
-                tangent_change -= 2 * 3.141592653589793
-            cosine_half = max(0.25, abs(cos(tangent_change / 2)))
-            scale = min(width / cosine_half, width * miter_limit)
-        result.append((point[0] + normal[0] * scale, point[1] + normal[1] * scale))
+        msg = "an edge needs at least two points"
+        raise ValueError(msg)
+    offset = LineString(points).offset_curve(
+        width * outward_sign,
+        join_style="mitre",
+        mitre_limit=miter_limit,
+    )
+    if offset.is_empty or offset.geom_type != "LineString" or len(offset.coords) < 2:
+        msg = "GEOS could not produce one continuous offset polyline"
+        raise ValueError(msg)
+    result = [(float(x), float(y)) for x, y in offset.coords]
+    start = points[0]
+    first_distance = hypot(result[0][0] - start[0], result[0][1] - start[1])
+    last_distance = hypot(result[-1][0] - start[0], result[-1][1] - start[1])
+    if last_distance < first_distance:
+        result.reverse()
     return result

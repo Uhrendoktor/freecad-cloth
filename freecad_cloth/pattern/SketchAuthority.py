@@ -1,9 +1,10 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-native Sketcher authority adapter for Cloth PatternPiece objects.
 
 The PatternPiece remains the semantic/document object, but linked Sketcher
 geometry is the editable geometric source. PatternIR preserves native curve
-kind and connectivity; the legacy PatternPiece outline is only a derived
-sampling used by older mesh/GUI paths until those consumers are migrated.
+kind and connectivity. Sampled outlines are derived from Sketcher only for
+FreeCAD display and shape construction; they are never a simulation fallback.
 """
 
 from freecad_cloth.pattern.PatternIR import PieceIR
@@ -11,20 +12,22 @@ from freecad_cloth.pattern.PatternModel import PatternPiece
 
 
 def _piece_model(obj: object) -> PatternPiece:
+    """Build PatternIR metadata from a valid boundary seeded during creation."""
     import ast
 
     try:
         outline = [
-            (float(p[0]), float(p[1]))
-            for p in ast.literal_eval(str(getattr(obj, "DraftingBoundary", "")))
+            (float(point[0]), float(point[1]))
+            for point in ast.literal_eval(str(getattr(obj, "DraftingBoundary", "")))
         ]
-    except (ValueError, SyntaxError, TypeError, IndexError):
-        outline = [
-            (0.0, 0.0),
-            (float(obj.Width), 0.0),
-            (float(obj.Width), float(obj.Height)),
-            (0.0, float(obj.Height)),
-        ]
+    except (ValueError, SyntaxError, TypeError, IndexError) as exc:
+        msg = f"Sketcher PatternPiece {getattr(obj, 'PieceId', '')} has no valid seeded boundary"
+        raise ValueError(msg) from exc
+    if len(outline) < 3:
+        msg = (
+            f"Sketcher PatternPiece {getattr(obj, 'PieceId', '')} needs at least three seed points"
+        )
+        raise ValueError(msg)
     return PatternPiece(
         str(obj.Label),
         outline,
@@ -67,14 +70,14 @@ class SketchAuthorityProxy:
         """Recompute the FreeCAD object from its current source properties."""
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
-            from freecad_cloth.pattern.PatternObjects import PatternPieceProxy
-
-            return PatternPieceProxy().execute(obj)
+            msg = "SketchAuthorityProxy requires a linked Sketcher-authoritative Sketch"
+            raise ValueError(msg)
 
         piece_ir = _resolve_sketch_ir(obj)
         points = _sampled_outline(piece_ir)
         if len(points) < 3:
-            raise ValueError("authoritative Sketcher boundary needs at least three edges")
+            msg = "authoritative Sketcher boundary needs at least three edges"
+            raise ValueError(msg)
 
         obj.DraftingBoundary = repr(points)
         obj.SewingOutline = repr(points)

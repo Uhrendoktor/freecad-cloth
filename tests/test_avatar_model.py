@@ -1,22 +1,39 @@
-import sys
-from pathlib import Path
+# Copyright (C) 2026 FreeCAD Cloth contributors
+"""Regression tests for avatar parameter validation and mesh generation."""
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import json
+import math
+
+import pytest
+
 from freecad_cloth.avatar.AvatarModel import (
+    AVATAR_SCHEMA_VERSION,
     DEFAULT_MEASUREMENTS,
+    DEFAULT_POSE_ARM_ANGLES,
     AvatarParameters,
     Pose,
     generate_mesh,
 )
 
+_MIN_MESH_ELEMENT_COUNT = 100
+_MEASUREMENT_CHANGE_MM = 100.0
+_HIP_CHANGE_MM = 120.0
+_SKIN_OFFSET_TEST_MM = 8.0
+_POSE_ENVELOPE_MARGIN_MM = 100.0
 
-def test_default_avatar_is_valid_and_deterministic():
+
+def test_default_avatar_is_valid_and_deterministic() -> None:
+    """Generate a stable, populated avatar mesh from default parameters."""
     params = AvatarParameters()
     first = generate_mesh(params)
     second = generate_mesh(params)
-    assert first == second
-    assert len(first[0]) > 100
-    assert len(first[1]) > 100
+    assert first == second, "Repeated default mesh generation must be deterministic."
+    assert len(first[0]) > _MIN_MESH_ELEMENT_COUNT, (
+        "The generated avatar needs a nontrivial vertex set."
+    )
+    assert len(first[1]) > _MIN_MESH_ELEMENT_COUNT, (
+        "The generated avatar needs a nontrivial face set."
+    )
     assert {landmark.name for landmark in first[2]} >= {
         "neck",
         "chest",
@@ -24,128 +41,321 @@ def test_default_avatar_is_valid_and_deterministic():
         "hip",
         "shoulder_left",
         "shoulder_right",
-    }
+    }, "The generated avatar must expose its standard body landmarks."
 
 
-def test_measurement_change_changes_geometry_without_mutating_source():
+def test_measurement_change_changes_geometry_without_mutating_source() -> None:
+    """Keep source parameters stable while a chest-measurement edit changes geometry."""
     params = AvatarParameters()
-    wider = params.with_measurements(chest=params.measurement("chest") + 100)
-    assert params.measurement("chest") == DEFAULT_MEASUREMENTS["chest"]
-    assert wider.measurement("chest") == DEFAULT_MEASUREMENTS["chest"] + 100
-    assert generate_mesh(params)[0] != generate_mesh(wider)[0]
+    wider = params.with_measurements(chest=params.measurement("chest") + _MEASUREMENT_CHANGE_MM)
+    assert math.isclose(
+        params.measurement("chest"),
+        DEFAULT_MEASUREMENTS["chest"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ), "Editing a copy must not mutate the source chest measurement."
+    assert math.isclose(
+        wider.measurement("chest"),
+        DEFAULT_MEASUREMENTS["chest"] + _MEASUREMENT_CHANGE_MM,
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ), "The updated chest measurement must be retained."
+    assert generate_mesh(params)[0] != generate_mesh(wider)[0], (
+        "A wider chest measurement must alter generated geometry."
+    )
 
 
-def test_hip_circumference_does_not_change_leg_stance_landmarks():
+def test_hip_circumference_does_not_change_leg_stance_landmarks() -> None:
+    """Preserve the leg stance when only hip circumference changes."""
     params = AvatarParameters()
-    wider_hip = params.with_measurements(hip=params.measurement("hip") + 120.0)
+    wider_hip = params.with_measurements(hip=params.measurement("hip") + _HIP_CHANGE_MM)
     baseline_landmarks = {item.name: item.position for item in generate_mesh(params)[2]}
     wider_landmarks = {item.name: item.position for item in generate_mesh(wider_hip)[2]}
-
     for name in ("knee_left", "knee_right", "ankle_left", "ankle_right"):
-        assert wider_landmarks[name] == baseline_landmarks[name]
+        assert wider_landmarks[name] == baseline_landmarks[name], (
+            f"Hip circumference must not move the {name} landmark."
+        )
 
 
-def test_gender_and_breast_controls_persist_and_change_geometry():
+def test_gender_and_breast_controls_persist_and_change_geometry() -> None:
+    """Persist morphology controls and verify that they change the mesh."""
     neutral = AvatarParameters()
     feminine = AvatarParameters(gender=0.0)
     masculine = AvatarParameters(gender=1.0)
     fuller = AvatarParameters(breast_size=1.0)
+    assert AvatarParameters.from_json(feminine.to_json()) == feminine, (
+        "The feminine morphology controls must survive JSON round-trips."
+    )
+    assert AvatarParameters.from_json(fuller.to_json()) == fuller, (
+        "The breast-size control must survive JSON round-trips."
+    )
+    edited = neutral.with_measurements(waist=780.0)
+    assert math.isclose(edited.gender, neutral.gender, rel_tol=0.0, abs_tol=0.0), (
+        "A measurement edit must preserve the gender blend."
+    )
+    assert math.isclose(
+        edited.breast_size,
+        neutral.breast_size,
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ), "A measurement edit must preserve the breast-size control."
+    assert generate_mesh(feminine)[0] != generate_mesh(masculine)[0], (
+        "Different gender blends must change generated geometry."
+    )
+    assert generate_mesh(neutral)[0] != generate_mesh(fuller)[0], (
+        "The breast-size control must change generated geometry."
+    )
 
-    assert AvatarParameters.from_json(feminine.to_json()) == feminine
-    assert AvatarParameters.from_json(fuller.to_json()) == fuller
-    assert neutral.with_measurements(waist=780).gender == neutral.gender
-    assert neutral.with_measurements(waist=780).breast_size == neutral.breast_size
-    assert generate_mesh(feminine)[0] != generate_mesh(masculine)[0]
-    assert generate_mesh(neutral)[0] != generate_mesh(fuller)[0]
 
+@pytest.mark.parametrize(
+    ("gender", "breast_size", "match"),
+    [
+        (-0.01, 0.0, "gender blend must be"),
+        (1.01, 0.0, "gender blend must be"),
+        (0.5, -0.01, "breast size must be"),
+        (0.5, 1.01, "breast size must be"),
+    ],
+)
+def test_invalid_shape_values_are_rejected(gender: float, breast_size: float, match: str) -> None:
+    """Reject body-shape controls outside their normalized ranges.
 
-def test_invalid_shape_values_are_rejected():
-    for changes in (
-        {"gender": -0.01},
-        {"gender": 1.01},
-        {"breast_size": -0.01},
-        {"breast_size": 1.01},
-    ):
-        try:
-            AvatarParameters(**changes)
-        except ValueError:
-            pass
-        else:
-            raise AssertionError(f"invalid shape value was accepted: {changes}")
+    Args:
+        gender: Gender blend value to validate.
+        breast_size: Breast-size value to validate.
+        match: Expected validation-message fragment.
+    """
+    with pytest.raises(ValueError, match=match):
+        AvatarParameters(gender=gender, breast_size=breast_size)
 
 
 def test_advanced_anny_overrides_round_trip_and_survive_measurement_edits() -> None:
+    """Persist advanced Anny overrides when avatar measurements are edited."""
     parameters = AvatarParameters(
         phenotype_overrides={"age": 0.41, "weight": 0.67},
         local_change_overrides={"measure-waist-circ-incr": 0.2},
         mass_target_kg=68.5,
     )
-
     restored = AvatarParameters.from_json(parameters.to_json())
     edited = parameters.with_measurements(waist=780.0)
-
-    assert parameters.schema_version == 4
-    assert restored == parameters
-    assert edited.phenotype_overrides == parameters.phenotype_overrides
-    assert edited.local_change_overrides == parameters.local_change_overrides
-    assert restored.mass_target_kg == 68.5
-    assert edited.mass_target_kg == 68.5
-
-
-def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls() -> None:
-    import pytest
-
-    for field_values in (
-        {"phenotype_overrides": {"age": -0.01}},
-        {"phenotype_overrides": {"age": 1.01}},
-        {"local_change_overrides": {"waist-shape": -1.01}},
-        {"local_change_overrides": {"waist-shape": 1.01}},
-        {"phenotype_overrides": {"gender": 0.1}},
-        {"local_change_overrides": {"breast-volume-vert-up": 0.5}},
-        {"mass_target_kg": 24.9},
-        {"mass_target_kg": 250.1},
-    ):
-        with pytest.raises(ValueError):
-            AvatarParameters(**field_values)
+    assert parameters.schema_version == AVATAR_SCHEMA_VERSION, (
+        "The parameter record must use the current schema version."
+    )
+    assert restored == parameters, "JSON round-trip must be stable."
+    assert edited.phenotype_overrides == parameters.phenotype_overrides, (
+        "Measurement edits must preserve phenotype overrides."
+    )
+    assert edited.local_change_overrides == parameters.local_change_overrides, (
+        "Measurement edits must preserve local morph overrides."
+    )
+    assert math.isclose(restored.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0), (
+        "JSON round-trip must preserve the mass target."
+    )
+    assert math.isclose(edited.mass_target_kg or 0.0, 68.5, rel_tol=0.0, abs_tol=0.0), (
+        "Measurement edits must preserve the mass target."
+    )
 
 
-def test_skin_offset_changes_collision_geometry():
-    base = AvatarParameters(skin_offset=0)
-    padded = AvatarParameters(skin_offset=8)
-    assert generate_mesh(base)[0] != generate_mesh(padded)[0]
+@pytest.mark.parametrize(
+    ("phenotype_overrides", "local_change_overrides", "mass_target_kg", "match"),
+    [
+        ({"age": -0.01}, {}, None, "Anny phenotype override"),
+        ({"age": 1.01}, {}, None, "Anny phenotype override"),
+        ({}, {"waist-shape": -1.01}, None, "Anny local morph override"),
+        ({}, {"waist-shape": 1.01}, None, "Anny local morph override"),
+        ({"gender": 0.1}, {}, None, "gender and cupsize"),
+        ({}, {"breast-volume-vert-up": 0.5}, None, "breast fullness"),
+        ({}, {}, 24.9, "target body mass"),
+        ({}, {}, 250.1, "target body mass"),
+    ],
+)
+def test_advanced_anny_overrides_are_range_checked_and_do_not_shadow_primary_controls(
+    phenotype_overrides: dict[str, float],
+    local_change_overrides: dict[str, float],
+    mass_target_kg: float | None,
+    match: str,
+) -> None:
+    """Reject out-of-range advanced overrides and conflicts with primary controls.
+
+    Args:
+        phenotype_overrides: Phenotype values to validate.
+        local_change_overrides: Local morphology values to validate.
+        mass_target_kg: Optional mass target to validate.
+        match: Expected validation-message fragment.
+    """
+    with pytest.raises(ValueError, match=match):
+        AvatarParameters(
+            phenotype_overrides=phenotype_overrides,
+            local_change_overrides=local_change_overrides,
+            mass_target_kg=mass_target_kg,
+        )
 
 
-def test_pose_round_trip_is_persistent_and_validated():
+def test_skin_offset_changes_collision_geometry() -> None:
+    """Ensure skin offset influences the generated collision geometry."""
+    base = AvatarParameters(skin_offset=0.0)
+    padded = AvatarParameters(skin_offset=_SKIN_OFFSET_TEST_MM)
+    assert generate_mesh(base)[0] != generate_mesh(padded)[0], (
+        "A larger skin offset must change the generated geometry."
+    )
+
+
+def test_pose_round_trip_is_persistent_and_validated() -> None:
+    """Preserve a pose through JSON and reject unsupported presets."""
     params = AvatarParameters(pose=Pose("sewing"))
     restored = AvatarParameters.from_json(params.to_json())
-    assert restored == params
-    try:
+    assert restored == params, "Pose settings must survive JSON round-trips."
+    with pytest.raises(ValueError, match="unsupported avatar pose"):
         Pose("invalid").validate()
-    except ValueError as exc:
-        assert "unsupported avatar pose" in str(exc)
-    else:
-        raise AssertionError("invalid pose was accepted")
 
 
-def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope():
+def _mesh_x_bounds(params: AvatarParameters) -> tuple[float, float]:
+    """Return the horizontal vertex bounds for an avatar pose.
+
+    Args:
+        params: Avatar parameters to generate.
+
+    Returns:
+        Minimum and maximum horizontal coordinates in millimetres.
+    """
+    xs = [float(point[0]) for point in generate_mesh(params)[0]]
+    return min(xs), max(xs)
+
+
+def test_t_pose_preset_round_trips_and_has_a_horizontal_arm_envelope() -> None:
+    """Keep the T-pose arm angles and its broader horizontal mesh envelope."""
     t_pose = AvatarParameters(pose=Pose("t_pose"))
     standing = AvatarParameters(pose=Pose("standing"))
-    assert (t_pose.pose.left_arm_angle, t_pose.pose.right_arm_angle) == (12.0, 12.0)
-    assert AvatarParameters.from_json(t_pose.to_json()) == t_pose
+    assert math.isclose(
+        t_pose.pose.left_arm_angle or 0.0,
+        DEFAULT_POSE_ARM_ANGLES["t_pose"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ) and math.isclose(
+        t_pose.pose.right_arm_angle or 0.0,
+        DEFAULT_POSE_ARM_ANGLES["t_pose"],
+        rel_tol=0.0,
+        abs_tol=0.0,
+    ), "The T-pose must use the configured horizontal arm defaults."
+    assert AvatarParameters.from_json(t_pose.to_json()) == t_pose, (
+        "The T-pose settings must survive JSON round-trips."
+    )
+    horizontal = _mesh_x_bounds(t_pose)
+    relaxed = _mesh_x_bounds(standing)
+    assert horizontal[0] < relaxed[0] - _POSE_ENVELOPE_MARGIN_MM, (
+        "The T-pose must extend farther on the left."
+    )
+    assert horizontal[1] > relaxed[1] + _POSE_ENVELOPE_MARGIN_MM, (
+        "The T-pose must extend farther on the right."
+    )
 
-    def x_bounds(params):
-        xs = [float(point[0]) for point in generate_mesh(params)[0]]
-        return min(xs), max(xs)
 
-    horizontal, relaxed = x_bounds(t_pose), x_bounds(standing)
-    assert horizontal[0] < relaxed[0] - 100.0
-    assert horizontal[1] > relaxed[1] + 100.0
+def test_invalid_measurements_are_rejected() -> None:
+    """Reject anthropometric combinations that violate body geometry constraints."""
+    with pytest.raises(ValueError, match="underbust"):
+        AvatarParameters().with_measurements(underbust=1200.0, chest=1000.0)
 
 
-def test_invalid_measurements_are_rejected():
-    try:
-        AvatarParameters().with_measurements(underbust=1200, chest=1000)
-    except ValueError as exc:
-        assert "underbust" in str(exc)
-    else:
-        raise AssertionError("invalid circumference relationship was accepted")
+def test_avatar_parameter_loading_rejects_pre_release_schema_versions() -> None:
+    """Reject pre-release parameter schemas rather than retaining migration branches."""
+    for schema_version in (1, 2, 3, 5):
+        payload = json.dumps({"schema_version": schema_version, "units": "mm"})
+        with pytest.raises(ValueError, match="unsupported avatar schema version"):
+            AvatarParameters.from_json(payload)
+
+
+_POSE_PRESETS = tuple(DEFAULT_POSE_ARM_ANGLES)
+_EXPLICIT_ARM_ANGLE_CASES = (
+    ("t_pose", -24.0, 32.0),
+    ("standing", -31.0, 27.0),
+    ("sewing", -41.0, 16.0),
+    ("sitting", -12.0, 36.0),
+)
+_WRIST_LANDMARK_NAMES = frozenset({"wrist_left", "wrist_right"})
+
+
+def _parameters_with_omitted_arm_angles(preset: str) -> AvatarParameters:
+    """Load avatar JSON with omitted arm angles for a given pose preset.
+
+    Args:
+        preset: Supported pose preset to encode in the parameter document.
+
+    Returns:
+        Validated avatar parameters with the preset's default arm angles.
+    """
+    payload = {
+        "schema_version": AVATAR_SCHEMA_VERSION,
+        "units": "mm",
+        "measurements": {},
+        "pose": {"preset": preset},
+    }
+    return AvatarParameters.from_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize("preset", _POSE_PRESETS)
+def test_omitted_arm_angles_use_preset_defaults(preset: str) -> None:
+    """Resolve omitted JSON arm angles to the configured preset defaults.
+
+    Args:
+        preset: Supported avatar pose preset under test.
+    """
+    default_pose = Pose(preset)
+    recovered = _parameters_with_omitted_arm_angles(preset)
+    expected_angle = DEFAULT_POSE_ARM_ANGLES[preset]
+    assert (
+        default_pose.left_arm_angle == expected_angle
+        and default_pose.right_arm_angle == expected_angle
+        and recovered.pose.left_arm_angle == expected_angle
+        and recovered.pose.right_arm_angle == expected_angle
+    ), f"Omitted arm angles must resolve to the {preset} default."
+
+
+@pytest.mark.parametrize(
+    ("preset", "left_angle", "right_angle"),
+    _EXPLICIT_ARM_ANGLE_CASES,
+)
+def test_explicit_arm_angles_survive_json_round_trip(
+    preset: str,
+    left_angle: float,
+    right_angle: float,
+) -> None:
+    """Preserve explicit left and right arm angles through serialization.
+
+    Args:
+        preset: Supported avatar pose preset under test.
+        left_angle: Explicit left arm angle in degrees.
+        right_angle: Explicit right arm angle in degrees.
+    """
+    parameters = AvatarParameters(pose=Pose(preset, left_angle, right_angle))
+    restored = AvatarParameters.from_json(parameters.to_json())
+    assert (
+        restored == parameters
+        and restored.pose.left_arm_angle == left_angle
+        and restored.pose.right_arm_angle == right_angle
+    ), f"Explicit arm angles must survive the {preset} JSON round-trip."
+
+
+def _generated_wrist_positions(
+    parameters: AvatarParameters,
+) -> tuple[tuple[str, tuple[float, float, float]], ...]:
+    """Return generated wrist landmark coordinates for an avatar pose.
+
+    Args:
+        parameters: Validated parameters controlling the generated avatar.
+
+    Returns:
+        Named wrist landmark coordinates from the generated body mesh.
+    """
+    return tuple(
+        (landmark.name, landmark.position)
+        for landmark in generate_mesh(parameters)[2]
+        if landmark.name in _WRIST_LANDMARK_NAMES
+    )
+
+
+def test_explicit_arm_angles_change_generated_wrist_landmarks() -> None:
+    """Ensure explicit arm angles change generated wrist coordinates."""
+    baseline = AvatarParameters(pose=Pose("sewing"))
+    posed = AvatarParameters(pose=Pose("sewing", -41.0, 16.0))
+    assert _generated_wrist_positions(baseline) != _generated_wrist_positions(posed), (
+        "Explicit sewing angles must alter generated wrist landmarks."
+    )

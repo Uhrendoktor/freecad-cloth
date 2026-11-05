@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Behavioral checks for the FreeCAD GUI registration boundary.
 
 GUI rendering itself belongs to FreeCAD end-to-end coverage. This suite tests the
@@ -111,7 +112,8 @@ def test_sewing_command_group_validator_rejects_invalid_groups():
         except ValueError as exc:
             assert marker in str(exc)
         else:
-            raise AssertionError(f"invalid command groups were accepted: {marker}")
+            msg = f"invalid command groups were accepted: {marker}"
+            raise AssertionError(msg)
 
 
 def test_workbench_registration_is_idempotent():
@@ -162,7 +164,8 @@ def test_public_command_surfaces_preserve_authoring_boundaries():
 def test_simulation_workbench_exposes_avatar_entrypoints():
     from types import SimpleNamespace
 
-    from freecad_cloth.simulation.workbench import AVATAR_ENTRY_COMMANDS, ClothSimulationWorkbench
+    from freecad_cloth.shared.CommandIds import AVATAR_ENTRY_COMMANDS
+    from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
     drape_commands = SimpleNamespace(
         register_gui_commands=lambda: True, COMMANDS=["ClothSimulation_DrapeFake"]

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Direct-manipulation fitting UI for the Cloth Sewing workbench.
 
 The fitting scene remains authoritative; viewport movement is an interactive
@@ -8,8 +9,9 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
+from itertools import starmap
 
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
     SNAP_CROSSHAIR_HALF_LENGTH,
     SNAP_LINE_WIDTH,
@@ -21,6 +23,11 @@ from freecad_cloth.shared.viewport_gizmo_style import (
 
 
 def _modules():
+    """Load host application, GUI, and Qt modules for interactive fitting.
+
+    Returns:
+        FreeCAD application module, GUI module, QtCore, and QtWidgets.
+    """
     import FreeCAD as App
     import FreeCADGui as Gui
 
@@ -32,16 +39,30 @@ def _modules():
 
 
 def coin_position_to_screen(position, viewport_height):
-    """Convert Coin's bottom-left-origin event point to top-left screen coordinates."""
+    """Convert Coin's bottom-left-origin event point to top-left screen coordinates.
+
+    Args:
+        position: Coin viewport event position as an X/Y pair.
+        viewport_height: Current view height in pixels.
+
+    Returns:
+        Screen position in the top-left-origin coordinate convention.
+    """
     return float(position[0]), float(viewport_height) - float(position[1])
 
 
 def nearest_arrangement_point(position, points, max_distance):
-    """Return the nearest 2D arrangement point within the supplied distance.
+    """Find the closest 2D arrangement point within a maximum screen distance.
 
-    position is an (x, y) pair and every point is an object exposing
-    X and Y attributes. The helper is GUI-neutral so snap behavior can
-    be tested without importing FreeCAD.
+    The helper is GUI-neutral so snap behavior can be tested without importing FreeCAD.
+
+    Args:
+        position: Cursor position in screen-space pixels.
+        points: Candidate objects exposing X and Y coordinates.
+        max_distance: Maximum accepted Euclidean distance in pixels.
+
+    Returns:
+        Nearest candidate object, or None if every point lies outside the limit.
     """
     px, py = float(position[0]), float(position[1])
     best = None
@@ -60,14 +81,27 @@ class SimpleScreenPoint:
     """GUI-neutral screen-space adapter for a persistent arrangement point."""
 
     def __init__(self, x, y, source):
+        """Wrap screen-space coordinates while retaining their source anchor.
+
+        Args:
+            x: Horizontal screen coordinate in pixels.
+            y: Vertical screen coordinate in pixels.
+            source: Persistent arrangement-point object represented by the wrapper.
+        """
         self.X = float(x)
         self.Y = float(y)
         self.source = source
 
 
 def arrangement_rotation(point):
-    """Return the Z rotation implied by an arrangement point wrap direction."""
+    """Return the Z rotation implied by an arrangement point wrap direction.
 
+    Args:
+        point: Persistent arrangement point containing rotation and wrap properties.
+
+    Returns:
+        Effective Z rotation in degrees for a pattern piece snapped to the point.
+    """
     base = float(getattr(point, "RotationZ", 0.0))
     return {
         "front": base,
@@ -78,7 +112,15 @@ def arrangement_rotation(point):
 
 
 def _xray_overlay(coin, name):
-    """Create a Coin overlay that is not occluded by model geometry."""
+    """Create a Coin overlay that is not occluded by model geometry.
+
+    Args:
+        coin: Pivy Coin module used to construct the scenegraph nodes.
+        name: Stable scenegraph name assigned to the overlay root.
+
+    Returns:
+        Coin separator configured for depth-independent rendering.
+    """
     overlay = coin.SoSeparator()
     overlay.setName(name)
     depth = coin.SoDepthBuffer()
@@ -95,6 +137,14 @@ def _xray_marker(coin, position, color_rgb):
     shape from any camera direction. Avoid dynamic Coin billboard nodes here:
     FreeCAD's selection traversal can enter those nodes without a usable view
     volume on some Coin builds.
+
+    Args:
+        coin: Pivy Coin module used to construct geometry and style nodes.
+        position: World-space XYZ position of the marker center.
+        color_rgb: Normalized RGB color used for the crosshair and ring glyph.
+
+    Returns:
+        Coin separator containing three orthogonal rings and a center marker.
     """
     marker = coin.SoSeparator()
     transform = coin.SoTransform()
@@ -112,6 +162,11 @@ def _xray_marker(coin, position, color_rgb):
     glyph.addChild(color)
 
     def add_polyline(points):
+        """Append one local-space polyline to the marker glyph.
+
+        Args:
+            points: Ordered Coin vector points forming a line strip.
+        """
         coordinates = coin.SoCoordinate3()
         coordinates.point.setValues(0, len(points), points)
         line = coin.SoLineSet()
@@ -149,6 +204,13 @@ class DirectArrangeController:
     DRAG_PIXEL_THRESHOLD = 4.0
 
     def __init__(self, scene, status_callback=None, snap_enabled=True):
+        """Initialize direct arrangement interaction for a persistent fitting scene.
+
+        Args:
+            scene: Authoritative fitting-scene feature holding pattern and anchor links.
+            status_callback: Optional callback receiving user-facing status text.
+            snap_enabled: Whether pointer movement previews arrangement-point snapping.
+        """
         self.App, self.Gui, self.QtCore, self.QtWidgets = _modules()
         self.scene = scene
         self.view = None
@@ -175,9 +237,20 @@ class DirectArrangeController:
         self._anchor_overlay_positions_refreshed = False
 
     def _status(self, message):
+        """Forward a status message to the fitting task panel.
+
+        Args:
+            message: User-facing information about dragging, snapping, or placement.
+        """
         self.status_callback(str(message))
 
     def _points(self):
+        """Refresh and collect usable arrangement anchors belonging to the scene.
+
+        Returns:
+            Persistent arrangement-point objects whose target signatures are valid.
+            Missing, stale, and incorrectly configured anchors are excluded.
+        """
         if self.scene is None:
             return ()
         result = []
@@ -212,6 +285,14 @@ class DirectArrangeController:
         return tuple(result)
 
     def _event_position(self, info):
+        """Extract a valid screen coordinate from a Coin event mapping.
+
+        Args:
+            info: FreeCAD Coin event mapping expected to contain Position.
+
+        Returns:
+            Floating-point X/Y screen position, or None when the field is malformed.
+        """
         value = info.get("Position", (0, 0))
         try:
             return float(value[0]), float(value[1])
@@ -219,6 +300,14 @@ class DirectArrangeController:
             return None
 
     def _piece_from_info(self, info):
+        """Resolve the PatternPiece under the pointer or one unambiguous selection.
+
+        Args:
+            info: Viewport object-info mapping returned for the pointer position.
+
+        Returns:
+            Matching PatternPiece document object, or None if no unique piece is found.
+        """
         document = getattr(self.scene, "Document", None)
         if document is None:
             return None
@@ -239,6 +328,14 @@ class DirectArrangeController:
         return selected[0] if len(selected) == 1 else None
 
     def _screen_position(self, point):
+        """Project an arrangement anchor to the view's top-left screen coordinates.
+
+        Args:
+            point: Persistent arrangement-point object with X/Y/Offset coordinates.
+
+        Returns:
+            Projected screen X/Y position in pixels.
+        """
         projected = self.view.getPointOnScreen(
             self.App.Vector(float(point.X), float(point.Y), float(point.Offset))
         )
@@ -246,6 +343,15 @@ class DirectArrangeController:
         return float(projected[0]), float(size[1] - projected[1])
 
     def _nearest_snap_point(self, screen_position):
+        """Find the nearest valid anchor within the configured snap radius.
+
+        Args:
+            screen_position: Cursor position in top-left-origin viewport pixels.
+
+        Returns:
+            Persistent arrangement point nearest to the cursor, or None if no
+            candidate lies within the snap radius.
+        """
         candidates = []
         for point in self._points():
             try:
@@ -257,12 +363,13 @@ class DirectArrangeController:
             return None
         point = nearest_arrangement_point(
             screen_position,
-            tuple(SimpleScreenPoint(sx, sy, point) for sx, sy, point in candidates),
+            tuple(starmap(SimpleScreenPoint, candidates)),
             self.SNAP_PIXEL_RADIUS,
         )
         return getattr(point, "source", None)
 
     def _clear_snap_indicator(self):
+        """Remove the transient snap marker from the active view scenegraph."""
         if self._snap_indicator is None or self.view is None:
             return
         with contextlib.suppress(AttributeError, RuntimeError):
@@ -270,6 +377,11 @@ class DirectArrangeController:
         self._snap_indicator = None
 
     def _show_snap_indicator(self, point):
+        """Display the selected snap point with a depth-independent Coin marker.
+
+        Args:
+            point: Arrangement-point object to display, or None to clear the marker.
+        """
         if self.view is None or point is None:
             self._clear_snap_indicator()
             return
@@ -301,7 +413,11 @@ class DirectArrangeController:
             self.view.getSceneGraph().removeChild(overlay)
 
     def _hide_anchor_feature_objects(self, objects):
-        """Hide model-space marker features while their viewport overlays are active."""
+        """Hide model-space marker features while their viewport overlays are active.
+
+        Args:
+            objects: Persistent arrangement-point features represented by the overlay.
+        """
         for obj in objects:
             name = str(getattr(obj, "Name", "") or "")
             view_object = getattr(obj, "ViewObject", None)
@@ -333,7 +449,12 @@ class DirectArrangeController:
         self._anchor_visibility.clear()
 
     def _queue_anchor_overlay_refresh(self, positions_refreshed=False):
-        """Defer anchor scene-graph updates until Coin finishes event traversal."""
+        """Defer anchor scene-graph updates until Coin finishes event traversal.
+
+        Args:
+            positions_refreshed: Whether authoritative anchor world positions were
+                already refreshed by the caller.
+        """
         if self.view is None:
             return
         if self._anchor_overlay_update_pending:
@@ -346,6 +467,7 @@ class DirectArrangeController:
         generation = self._anchor_overlay_refresh_generation
 
         def apply_pending():
+            """Apply the latest queued overlay update if its generation is current."""
             if generation != self._anchor_overlay_refresh_generation:
                 return
             self._anchor_overlay_update_pending = False
@@ -358,7 +480,12 @@ class DirectArrangeController:
         self.QtCore.QTimer.singleShot(0, apply_pending)
 
     def _refresh_anchor_overlay(self, positions_refreshed=False):
-        """Render every arrangement anchor as a visible, camera-facing viewport glyph."""
+        """Render every arrangement anchor as a visible, camera-facing viewport glyph.
+
+        Args:
+            positions_refreshed: Whether anchor coordinates have already been
+                updated from the target's current geometry.
+        """
         if self.view is None:
             return
         document = getattr(self.scene, "Document", None)
@@ -434,6 +561,7 @@ class DirectArrangeController:
         generation = self._snap_indicator_generation
 
         def apply_pending():
+            """Apply the latest queued snap-marker update if its generation is current."""
             if generation != self._snap_indicator_generation:
                 return
             self._snap_indicator_update_pending = False
@@ -446,34 +574,50 @@ class DirectArrangeController:
         self.QtCore.QTimer.singleShot(0, apply_pending)
 
     def _set_piece_placement(self, piece, base, rotation_z):
+        """Apply a world-space base position and Z rotation to one pattern piece.
+
+        Args:
+            piece: Native PatternPiece document object receiving the placement.
+            base: XYZ translation tuple in document coordinates.
+            rotation_z: Rotation about the global Z axis, expressed in degrees.
+        """
         piece.Placement = self.App.Placement(
             self.App.Vector(float(base[0]), float(base[1]), float(base[2])),
             self.App.Rotation(self.App.Vector(0, 0, 1), float(rotation_z)),
         )
 
     def _begin_transaction(self):
+        """Open one undoable FreeCAD transaction for the current drag gesture."""
         if self.scene is None or self._transaction_open:
             return
         self.scene.Document.openTransaction("Interactive Cloth Arrange")
         self._transaction_open = True
 
     def _commit_transaction(self):
+        """Commit the active placement transaction after the drag is accepted."""
         if self._transaction_open:
             self.scene.Document.commitTransaction()
             self._transaction_open = False
 
     def _abort_transaction(self):
+        """Roll back the active FreeCAD transaction when placement is rejected."""
         if self._transaction_open:
             self.scene.Document.abortTransaction()
             self._transaction_open = False
 
     def activate(self):
-        """Install viewport callbacks and enable direct garment dragging."""
+        """Install viewport callbacks and enable direct garment dragging.
+
+        Raises:
+            RuntimeError: If the fitting scene or active 3D view is unavailable.
+        """
         if self.scene is None:
-            raise RuntimeError("a fitting scene is required for Interactive Arrange")
+            msg = "a fitting scene is required for Interactive Arrange"
+            raise RuntimeError(msg)
         self.view = self.Gui.activeDocument().activeView() if self.Gui.activeDocument() else None
         if self.view is None:
-            raise RuntimeError("an active FreeCAD 3D view is required for Interactive Arrange")
+            msg = "an active FreeCAD 3D view is required for Interactive Arrange"
+            raise RuntimeError(msg)
         if self._mouse_callback is not None:
             return
         self._refresh_anchor_overlay()
@@ -486,7 +630,10 @@ class DirectArrangeController:
         )
 
     def deactivate(self):
-        """Remove viewport callbacks and cancel any uncommitted drag."""
+        """Remove viewport callbacks and cancel any uncommitted drag.
+
+        The original placement is restored before the open undo transaction is aborted.
+        """
         if self.drag_piece is not None and self.drag_start_base is not None:
             with contextlib.suppress(AttributeError, RuntimeError, TypeError, ValueError):
                 self._set_piece_placement(
@@ -516,6 +663,11 @@ class DirectArrangeController:
         self.view = None
 
     def _mouse_event(self, info):
+        """Handle left-button press/release events for a direct-placement gesture.
+
+        Args:
+            info: Coin mouse event mapping containing Position, Button, and State.
+        """
         position = self._event_position(info)
         if position is None:
             return
@@ -586,6 +738,11 @@ class DirectArrangeController:
             self._queue_snap_indicator(None)
 
     def _location_event(self, info):
+        """Update a dragged piece and its snap preview from pointer movement.
+
+        Args:
+            info: Coin location event mapping containing the current screen Position.
+        """
         if self.drag_piece is None or self.drag_start_screen is None:
             return
         position = self._event_position(info)
@@ -624,7 +781,11 @@ class DirectArrangeController:
             self.snap_point = None
 
     def set_snap_enabled(self, enabled):
-        """Enable or disable live snapping while the controller is active."""
+        """Enable or disable live snapping while the controller is active.
+
+        Args:
+            enabled: Whether nearby arrangement anchors should affect pointer movement.
+        """
         self.snap_enabled = bool(enabled)
         self._status(
             "Snap enabled." if self.snap_enabled else "Snap disabled; drag uses the view plane."
@@ -635,6 +796,11 @@ class ViewportAnchorPicker:
     """Turn the next viewport face selection into a persistent snap anchor."""
 
     def __init__(self, panel):
+        """Register a selection observer for creating one persistent surface anchor.
+
+        Args:
+            panel: Fitting task panel supplying the current scene and anchor controls.
+        """
         _App, self.Gui, _QtCore, _QtWidgets = _modules()
         self.panel = panel
         self.armed = False
@@ -658,6 +824,7 @@ class ViewportAnchorPicker:
         self.panel.status.setText("Surface pick cancelled; the document was not changed.")
 
     def _finish(self):
+        """Leave selection-pick mode and restore the task-panel controls."""
         self.armed = False
         self.panel.pick_surface_button.setEnabled(True)
         self.panel.cancel_pick_button.setVisible(False)
@@ -666,10 +833,8 @@ class ViewportAnchorPicker:
         """Return the target currently authoritative for this fitting scene."""
         scene = self.panel.scene
         doc = getattr(scene, "Document", None)
-        candidate = getattr(scene, "AvatarProxy", None)
-        if candidate is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            candidate = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        candidate = getattr(drape_target, "SourceObject", None)
         if candidate is None or not getattr(candidate, "Name", ""):
             return {}
         return {str(candidate.Name): candidate}
@@ -782,6 +947,12 @@ class FittingTaskPanel:
     """Task panel for direct garment placement around a persistent avatar target."""
 
     def __init__(self, scene=None):
+        """Build the fitting task panel and activate its direct-manipulation controller.
+
+        Args:
+            scene: Optional existing fitting scene; a new authoritative scene is
+                created when no scene is supplied.
+        """
         App, Gui, QtCore, QtWidgets = _modules()
         self.App, self.Gui, self.QtCore, self.scene = App, Gui, QtCore, scene
         if self.scene is None:
@@ -915,6 +1086,7 @@ class FittingTaskPanel:
         self.anchor_picker.arm()
 
     def _refresh_context(self):
+        """Refresh the panel summary from current pieces, anchors, and target state."""
         from freecad_cloth.avatar.FittingCommands import arrangement_anchor_status
 
         pieces = tuple(getattr(self.scene, "PatternPieces", ()) or ())
@@ -925,10 +1097,8 @@ class FittingTaskPanel:
             if doc is not None
             else ()
         )
-        target = getattr(self.scene, "AvatarProxy", None)
-        if target is None and doc is not None:
-            drape_target = doc.getObject("DrapeTarget")
-            target = getattr(drape_target, "SourceObject", None)
+        drape_target = doc.getObject("DrapeTarget") if doc is not None else None
+        target = getattr(drape_target, "SourceObject", None)
         target_name = getattr(target, "Label", "No target")
         stale = sum(
             arrangement_anchor_status(point)
@@ -971,6 +1141,11 @@ class FittingTaskPanel:
         return True
 
     def getStandardButtons(self):
+        """Return the standard task-panel buttons supported by the fitting workflow.
+
+        Returns:
+            Qt dialog-button flags for accepting or cancelling the panel.
+        """
         _, _, _, QtWidgets = _modules()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 

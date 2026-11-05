@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for pattern and sewing invalidation signatures."""
 
 from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
@@ -46,7 +47,6 @@ class _Seam:
 
 class _Scene:
     StitchSamples = 8
-    AvatarProxy = None
 
     def __init__(self, objects):
         self.Document = type("_Doc", (), {"Objects": objects})()

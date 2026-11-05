@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient viewport overlays for semantic sewing relationships.
 
 Unlike view-property color assignment, this module draws an explicit, disposable
@@ -8,23 +9,26 @@ correspondence. No overlay node is persisted in the FreeCAD document.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from contextlib import suppress
 from hashlib import sha1
-from types import ModuleType
+from typing import TYPE_CHECKING
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
-from freecad_cloth.shared.seam_colors import (
+from freecad_cloth.shared.SeamColors import (
     register_seam_refresh_callback,
     seam_color_map,
     set_seam_color_highlighting_enabled,
 )
-from freecad_cloth.shared.viewport_gizmo_style import (
+from freecad_cloth.shared.ViewportGizmoStyle import (
     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from types import ModuleType
 
 _ACTIVE_CONTROLLER = None
 _REFRESH_PENDING = False
@@ -33,6 +37,15 @@ _OVERLAY_ENABLED = False
 
 
 def _read_preference(name: str, default: bool) -> bool:
+    """Read a Boolean Cloth GUI preference, falling back when the host is unavailable.
+
+    Args:
+        name: User-parameter key under the Cloth preference group.
+        default: Fallback value used when FreeCAD preferences cannot be read.
+
+    Returns:
+        Persisted preference value, or the supplied default outside FreeCAD.
+    """
     try:
         import FreeCAD as App
 
@@ -43,6 +56,12 @@ def _read_preference(name: str, default: bool) -> bool:
 
 
 def _write_preference(name: str, value: bool) -> None:
+    """Persist a Boolean preference without making headless imports fail.
+
+    Args:
+        name: User-parameter key under the Cloth preference group.
+        value: Boolean value to store for the current user.
+    """
     try:
         import FreeCAD as App
 
@@ -58,10 +77,21 @@ set_seam_color_highlighting_enabled(_HIGHLIGHTS_ENABLED)
 
 
 def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
-    """Return stable, short, unique viewport labels for semantic seam IDs."""
+    """Generate deterministic, compact labels for arbitrary semantic seam identifiers.
+
+    Args:
+        seam_ids: Seam identity values collected from document or simulation features.
+
+    Returns:
+        Mapping from each normalized identity to a unique short display label.
+
+    Raises:
+        ValueError: If any normalized identity is empty.
+    """
     identities = sorted({str(value).strip() for value in seam_ids})
     if any(not identity for identity in identities):
-        raise ValueError("seam identity must not be empty")
+        msg = "seam identity must not be empty"
+        raise ValueError(msg)
 
     labels = {
         identity: "S" + identity[5:]
@@ -100,13 +130,26 @@ def seam_display_labels(seam_ids: Iterable[object]) -> dict[str, str]:
 
 
 def should_show_seam_label(seam_id: object, hovered_seam_id: object) -> bool:
-    """Show labels only for the one semantic seam currently under the pointer."""
+    """Check whether one seam is the currently hovered semantic relationship.
+
+    Args:
+        seam_id: Identity belonging to the candidate rendered seam.
+        hovered_seam_id: Identity resolved from the current viewport pointer position.
+
+    Returns:
+        Whether the hovered identity is nonempty and matches the candidate seam.
+    """
     identity = str(seam_id).strip()
     hovered = str(hovered_seam_id).strip()
     return bool(hovered) and identity == hovered
 
 
 def _coin_modules() -> ModuleType | None:
+    """Load Pivy's Coin module only when viewport rendering is requested.
+
+    Returns:
+        Coin module when Pivy is available, or None in headless environments.
+    """
     try:
         from pivy import coin
     except ImportError:
@@ -115,11 +158,23 @@ def _coin_modules() -> ModuleType | None:
 
 
 def _xyz(point: object) -> tuple[float, float, float]:
+    """Normalize a FreeCAD vector-like value to three floating-point coordinates.
+
+    Args:
+        point: Native vector object or iterable containing exactly three coordinates.
+
+    Returns:
+        X, Y, and Z values represented as a plain immutable tuple.
+
+    Raises:
+        ValueError: If an iterable point does not contain exactly three coordinates.
+    """
     if hasattr(point, "x"):
         return float(point.x), float(point.y), float(point.z)
     value = tuple(point)  # type: ignore[arg-type]
     if len(value) != 3:
-        raise ValueError("seam overlay points must contain three coordinates")
+        msg = "seam overlay points must contain three coordinates"
+        raise ValueError(msg)
     return float(value[0]), float(value[1]), float(value[2])
 
 
@@ -130,10 +185,25 @@ def _label_anchor(
     lane: int = 0,
     lane_spacing: float = 36.0,
 ) -> tuple[float, float, float]:
-    """Offset a label from its edge and into a deterministic seam-specific lane."""
+    """Offset a label from its edge and into a deterministic seam-specific lane.
+
+    Args:
+        points: Ordered world-space samples along one seam side.
+        index: Sample index used as the label's central anchor.
+        offset: Distance in model coordinates from the seam edge.
+        lane: Stable lane number used to separate labels for different seams.
+        lane_spacing: Per-lane offset applied along the global Y direction.
+
+    Returns:
+        Three-dimensional world coordinate for the seam label.
+
+    Raises:
+        ValueError: If no edge samples are supplied.
+    """
     coordinates = [_xyz(point) for point in points]
     if not coordinates:
-        raise ValueError("label anchor requires at least one point")
+        msg = "label anchor requires at least one point"
+        raise ValueError(msg)
     center_index = max(0, min(int(index), len(coordinates) - 1))
     point = coordinates[center_index]
     before = coordinates[max(0, center_index - 1)]
@@ -154,20 +224,55 @@ def _label_anchor(
 def _subtract(
     a: tuple[float, float, float], b: tuple[float, float, float]
 ) -> tuple[float, float, float]:
+    """Subtract two 3D points to obtain their displacement vector.
+
+    Args:
+        a: Destination point.
+        b: Origin point.
+
+    Returns:
+        Vector from b to a.
+    """
     return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
 
 
 def _add(
     a: tuple[float, float, float], b: tuple[float, float, float]
 ) -> tuple[float, float, float]:
+    """Translate a 3D point by a displacement vector.
+
+    Args:
+        a: Original point.
+        b: Translation vector.
+
+    Returns:
+        Translated point.
+    """
     return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
 
 def _scale(vector: tuple[float, float, float], factor: float) -> tuple[float, float, float]:
+    """Multiply each vector component by the same scalar.
+
+    Args:
+        vector: Three-dimensional vector to scale.
+        factor: Scalar multiplier applied to all components.
+
+    Returns:
+        Scaled three-dimensional vector.
+    """
     return (vector[0] * factor, vector[1] * factor, vector[2] * factor)
 
 
 def _unit(vector: tuple[float, float, float]) -> tuple[float, float, float] | None:
+    """Normalize a 3D vector when it has a usable nonzero magnitude.
+
+    Args:
+        vector: Candidate vector to normalize.
+
+    Returns:
+        Unit vector in the same direction, or None for a degenerate vector.
+    """
     length = sum(float(value) * float(value) for value in vector) ** 0.5
     if length <= 1e-9:
         return None
@@ -177,6 +282,15 @@ def _unit(vector: tuple[float, float, float]) -> tuple[float, float, float] | No
 def _cross(
     a: tuple[float, float, float], b: tuple[float, float, float]
 ) -> tuple[float, float, float]:
+    """Compute the right-handed cross product of two 3D vectors.
+
+    Args:
+        a: First input vector.
+        b: Second input vector.
+
+    Returns:
+        Vector perpendicular to both inputs.
+    """
     return (
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -187,7 +301,14 @@ def _cross(
 def _side_segments(
     points: Iterable[object],
 ) -> list[list[tuple[float, float, float]]]:
-    """Produce an edge polyline plus directional arrow and notch strokes."""
+    """Produce an edge polyline plus directional arrow and notch strokes.
+
+    Args:
+        points: Ordered world-space seam samples for one side of the relationship.
+
+    Returns:
+        Line groups containing the seam edge and any stable notch/direction marks.
+    """
     coords = [_xyz(point) for point in points]
     if len(coords) < 2:
         return []
@@ -241,6 +362,15 @@ def _add_line_groups(
     rgb: tuple[float, float, float],
     width: float,
 ) -> None:
+    """Append Coin line geometry for every drawable polyline group.
+
+    Args:
+        parent: Coin separator that receives the generated child node.
+        coin: Loaded Pivy Coin module used to construct scenegraph nodes.
+        groups: Candidate polylines; groups shorter than two points are ignored.
+        rgb: Normalized RGB color shared by all generated lines.
+        width: Viewport line width in pixels.
+    """
     line_groups = [group for group in groups if len(group) >= 2]
     if not line_groups:
         return
@@ -266,7 +396,15 @@ def _add_line_groups(
 
 
 def _depth_buffer(coin: ModuleType, respect_depth: bool) -> object:
-    """Configure depth testing without losing coplanar seam lines to z-fighting."""
+    """Configure depth testing without losing coplanar seam lines to z-fighting.
+
+    Args:
+        coin: Loaded Pivy Coin module used to create the depth-buffer node.
+        respect_depth: Whether scene geometry in front of the seam hides its overlay.
+
+    Returns:
+        Configured Coin depth-buffer node with depth writes disabled.
+    """
     depth = coin.SoDepthBuffer()
     depth.test = bool(respect_depth)
     depth.write = False
@@ -287,7 +425,16 @@ def _add_label(
     rgb: tuple[float, float, float],
     respect_depth: bool = True,
 ) -> None:
-    """Add a label that either obeys scene occlusion or is explicitly foregrounded."""
+    """Add a label that either obeys scene occlusion or is explicitly foregrounded.
+
+    Args:
+        parent: Coin separator receiving the annotation node.
+        coin: Loaded Pivy Coin module used to create annotation fields.
+        point: World-space coordinate where the label is anchored.
+        label: Short semantic seam label shown in the viewport.
+        rgb: Normalized RGB label color.
+        respect_depth: Whether the label follows normal scene depth testing.
+    """
     annotation_type = (
         coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
     )
@@ -311,6 +458,15 @@ def _add_label(
 
 
 def _canonical_seams(document: object) -> list[object]:
+    """Select visible, valid seam features with two linked pattern pieces.
+
+    Args:
+        document: FreeCAD document whose objects are inspected.
+
+    Returns:
+        Seam document objects that have a nonempty identity, two sides, valid status,
+        and are not explicitly hidden in the tree.
+    """
     seams = []
     for obj in getattr(document, "Objects", ()):
         identity = str(getattr(obj, "SeamId", "")).strip()
@@ -337,7 +493,15 @@ def _simulation_seam_geometry(
         list[list[tuple[float, float, float]]],
     ],
 ]:
-    """Resolve current draped seam sides from exact solver particle provenance."""
+    """Resolve draped seam sides from the solver's semantic stitch-pair indices.
+
+    Args:
+        document: FreeCAD document containing a visible drape scene and simulation proxy.
+
+    Returns:
+        Mapping from seam ID to side-A points, side-B points, and connector polylines.
+        An empty mapping is returned when no compatible live simulation is available.
+    """
     for scene in getattr(document, "Objects", ()):
         proxy = getattr(scene, "Proxy", None)
         panels = tuple(getattr(scene, "DrapePanels", ()) or ())
@@ -394,7 +558,16 @@ def _simulation_seam_geometry(
 
 
 def _seam_id_at_position(document: object, view: object, position: object) -> str:
-    """Map a viewport hover to the seam using the underlying pattern edge hit."""
+    """Map a viewport edge hit back to the semantic seam that owns that pattern edge.
+
+    Args:
+        document: Active document used to resolve the hit object's PatternPiece.
+        view: FreeCAD view exposing object-info lookup methods.
+        position: Screen-space pointer coordinate as an X/Y pair.
+
+    Returns:
+        Matching seam identity, or an empty string when the hit is not a seam edge.
+    """
     try:
         x, y = int(position[0]), int(position[1])  # type: ignore[index]
     except (IndexError, TypeError, ValueError):
@@ -454,6 +627,12 @@ class SeamOverlayController:
     """Own one transient overlay tree for the active FreeCAD 3D view."""
 
     def __init__(self, view: object, document: object) -> None:
+        """Create the transient overlay controller for one view and document.
+
+        Args:
+            view: Active FreeCAD 3D view receiving the Coin scenegraph node.
+            document: Document whose seam and simulation data are rendered.
+        """
         self.view = view
         self.document = document
         self.scene_graph = None
@@ -466,6 +645,7 @@ class SeamOverlayController:
         self._attach()
 
     def _attach(self) -> None:
+        """Attach the private Coin root and install its hover callback when possible."""
         coin = _coin_modules()
         if coin is None:
             self.last_error = "Pivy Coin is unavailable"
@@ -487,7 +667,11 @@ class SeamOverlayController:
             self.last_error = str(exc)
 
     def _location_event(self, event_info: object) -> None:
-        """Refresh the transient label when the hovered semantic seam changes."""
+        """Refresh the transient label when the hovered semantic seam changes.
+
+        Args:
+            event_info: Coin location-event mapping containing the screen Position.
+        """
         if not _OVERLAY_ENABLED or not _HIGHLIGHTS_ENABLED:
             return
         position = event_info.get("Position") if isinstance(event_info, dict) else None
@@ -519,7 +703,14 @@ class SeamOverlayController:
         prefer_simulation: bool = False,
         hovered_seam_id: str = "",
     ) -> None:
-        """Rebuild overlay geometry and show a label only for the hovered seam."""
+        """Rebuild overlay geometry and show a label only for the hovered seam.
+
+        Args:
+            document: Optional document replacing the controller's current source.
+            active_seam_id: Seam identity whose lines receive focused visual emphasis.
+            prefer_simulation: Whether live solver stitch-pair geometry takes precedence.
+            hovered_seam_id: Seam identity allowed to display the A/B text labels.
+        """
         if document is not None:
             self.document = document
         self.hovered_seam_id = str(hovered_seam_id or "").strip()
@@ -657,6 +848,15 @@ class SeamOverlayController:
 
 
 def _selected_seam_id(gui: object, document: object) -> str:
+    """Resolve the selected seam feature that belongs to the active document.
+
+    Args:
+        gui: FreeCAD GUI module used to read the current selection.
+        document: Active FreeCAD document used to reject foreign selections.
+
+    Returns:
+        Selected nonempty seam identity, or an empty string when none is selected.
+    """
     try:
         for selected in gui.Selection.getSelection():
             identity = str(getattr(selected, "SeamId", "")).strip()
@@ -676,12 +876,23 @@ def _release_controller() -> None:
 
 
 def seam_highlights_enabled() -> bool:
-    """Return whether transient seam color highlights are enabled."""
+    """Return whether transient seam color highlights are enabled.
+
+    Returns:
+        Current user preference controlling seam color highlighting.
+    """
     return bool(_HIGHLIGHTS_ENABLED)
 
 
 def set_seam_highlights_enabled(enabled: bool) -> bool:
-    """Persist the highlight visibility setting and apply it to the active view."""
+    """Persist the highlight visibility setting and apply it to the active view.
+
+    Args:
+        enabled: Whether semantic seam color highlights should be shown.
+
+    Returns:
+        Effective highlight preference after updating the current view.
+    """
     global _HIGHLIGHTS_ENABLED
     _HIGHLIGHTS_ENABLED = bool(enabled)
     _write_preference("ShowSeamColorHighlights", _HIGHLIGHTS_ENABLED)
@@ -703,12 +914,23 @@ def set_seam_highlights_enabled(enabled: bool) -> bool:
 
 
 def seam_overlay_respects_depth() -> bool:
-    """Return whether seam lines and labels are hidden by foreground geometry."""
+    """Return whether seam lines and labels are hidden by foreground geometry.
+
+    Returns:
+        True when overlay depth testing respects foreground geometry.
+    """
     return bool(_RESPECT_DEPTH_OCCLUSION)
 
 
 def set_seam_overlay_respect_depth(enabled: bool) -> bool:
-    """Persist the overlay's depth/occlusion mode and refresh visible geometry."""
+    """Persist the overlay's depth/occlusion mode and refresh visible geometry.
+
+    Args:
+        enabled: Whether foreground geometry should occlude seam lines and labels.
+
+    Returns:
+        Effective depth-occlusion preference after updating the overlay.
+    """
     global _RESPECT_DEPTH_OCCLUSION
     _RESPECT_DEPTH_OCCLUSION = bool(enabled)
     _write_preference("SeamOverlayRespectDepth", _RESPECT_DEPTH_OCCLUSION)
@@ -718,7 +940,14 @@ def set_seam_overlay_respect_depth(enabled: bool) -> bool:
 
 
 def refresh_seam_overlay(document: object | None = None) -> SeamOverlayController | None:
-    """Attach or refresh the current view's overlay; safe outside a GUI process."""
+    """Attach or refresh the current view's overlay; safe outside a GUI process.
+
+    Args:
+        document: Optional document to render instead of the currently active document.
+
+    Returns:
+        Active overlay controller, or None when GUI/view/scenegraph support is absent.
+    """
     global _ACTIVE_CONTROLLER
     if not _OVERLAY_ENABLED:
         return None
@@ -773,7 +1002,14 @@ def refresh_seam_overlay(document: object | None = None) -> SeamOverlayControlle
 
 
 def activate_seam_overlay(document: object | None = None) -> SeamOverlayController | None:
-    """Enable view overlays and register shared presentation refresh dispatch."""
+    """Enable view overlays and register shared presentation refresh dispatch.
+
+    Args:
+        document: Optional document to render after activation.
+
+    Returns:
+        Active view's overlay controller, or None when no usable GUI view exists.
+    """
     global _OVERLAY_ENABLED
     _OVERLAY_ENABLED = True
     register_seam_refresh_callback(schedule_seam_overlay_refresh)
@@ -782,7 +1018,11 @@ def activate_seam_overlay(document: object | None = None) -> SeamOverlayControll
 
 
 def get_active_seam_overlay() -> SeamOverlayController | None:
-    """Return the active controller for focused GUI acceptance tests."""
+    """Return the current view's transient semantic seam overlay controller.
+
+    Returns:
+        Active controller, or None when the overlay is not attached.
+    """
     return _ACTIVE_CONTROLLER
 
 
@@ -798,6 +1038,11 @@ def deactivate_seam_overlay() -> None:
 
 
 def _run_scheduled_refresh() -> None:
+    """Flush the coalesced refresh request using the latest pending document.
+
+    The pending flag is cleared before dispatch so refreshes raised during rendering
+    can schedule a subsequent pass without being lost.
+    """
     global _REFRESH_PENDING, _PENDING_DOCUMENT
     document = _PENDING_DOCUMENT
     _PENDING_DOCUMENT = None
@@ -806,7 +1051,11 @@ def _run_scheduled_refresh() -> None:
 
 
 def schedule_seam_overlay_refresh(document: object | None = None) -> None:
-    """Coalesce recompute/restore refreshes until FreeCAD has completed the event."""
+    """Coalesce recompute/restore refreshes until FreeCAD has completed the event.
+
+    Args:
+        document: Optional document whose overlay should be refreshed after the event.
+    """
     global _REFRESH_PENDING, _PENDING_DOCUMENT
     if not _OVERLAY_ENABLED:
         return
