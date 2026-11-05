@@ -7,5 +7,7 @@
   "reportMissingModuleSource": "error",
   "reportMissingTypeStubs": "error",
   "reportImportCycles": "error",
-  "pythonVersion": "3.12"
+  "pythonVersion": "3.12",
+  "stubPath": "typings",
+  "extraPaths": ["tests", "tests/support"]
 }
