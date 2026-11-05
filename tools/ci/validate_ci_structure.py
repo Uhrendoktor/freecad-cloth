@@ -49,30 +49,9 @@ REQUIRED = (
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
-# Pyright starts with the reviewed production modules: the strict simulation core
-# plus every production module newly introduced by this PR. Expand this list deliberately.
-PYRIGHT_EXPECTED_INCLUDE = (
-    "freecad_cloth/shared/Collision.py",
-    "freecad_cloth/shared/Targets.py",
-    "freecad_cloth/shared/ViewportGizmoStyle.py",
-    "freecad_cloth/avatar/AvatarProperties.py",
-    "freecad_cloth/avatar/SkeletonTypes.py",
-    "freecad_cloth/avatar/avatar_commands.py",
-    "freecad_cloth/shared/CommandIds.py",
-    "freecad_cloth/shared/MeshTopology.py",
-    "freecad_cloth/shared/SeamColors.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/MeshBoundary.py",
-    "freecad_cloth/simulation/_cloth_backend_compat.py",
-    "freecad_cloth/simulation/cloth_backend.py",
-)
+# The whole repository is checked in global strict mode. No file is grandfathered.
+PYRIGHT_EXPECTED_INCLUDE = (".",)
 PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
-PYRIGHT_EXPECTED_STRICT = (
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/cloth_backend.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-)
 
 TYPECHECK_COMMANDS = ("pyright -p pyrightconfig.json",)
 
@@ -199,15 +178,11 @@ def pyright_coverage_contract_violations(
     config_text: str,
     added_modules: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Require Pyright to analyze the reviewed production modules without exclusions.
-
-    The explicit include starts with the strict simulation core and the production
-    modules introduced by this PR. New production modules must be added deliberately.
-    Tests, CI tools, and host acceptance scripts use their dedicated validation paths.
+    """Require Pyright strict mode to cover the repository without exclusions.
 
     Args:
         config_text: Contents of the Pyright configuration file.
-        added_modules: Newly added production modules to verify against the scope.
+        added_modules: Newly added Python modules to verify against repository-wide scope.
 
     Returns:
         Pyright coverage-contract violations found in the configuration.
@@ -217,27 +192,21 @@ def pyright_coverage_contract_violations(
     except json.JSONDecodeError:
         return ("<invalid pyrightconfig.json>",)
 
-    include = config.get("include")
-    exclude = config.get("exclude", [])
-    if include != list(PYRIGHT_EXPECTED_INCLUDE):
-        return ("<Pyright include scope must match the reviewed production-module set>",)
-    if exclude != list(PYRIGHT_EXPECTED_EXCLUDE):
-        return ("<Pyright exclude scope must not hide reviewed production modules>",)
+    if config.get("include") != ["."]:
+        return ("<Pyright must include the entire repository root>",)
+    if config.get("exclude", []) != []:
+        return ("<Pyright exclude scope must not hide repository files>",)
+    if config.get("typeCheckingMode") != "strict":
+        return ("<Pyright must use global strict type checking>",)
+    if config.get("strict", []) != []:
+        return ("<Pyright strict path list must not substitute for global strict mode>",)
+    if config.get("reportMissingImports", "error") != "error":
+        return ("<Pyright missing-import diagnostics must remain errors>",)
+    if config.get("reportMissingModuleSource", "error") != "error":
+        return ("<Pyright missing-module-source diagnostics must remain errors>",)
 
-    missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
-    if missing_paths:
-        return tuple(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
+    return ()
 
-    uncovered_modules = tuple(
-        path
-        for path in added_modules
-        if not _pyright_path_is_included(path, include)
-        and not _pyright_path_is_excluded(path, exclude)
-    )
-    return tuple(
-        f"<new Python module is outside Pyright include/exclude scope: {path}>"
-        for path in uncovered_modules
-    )
 
 
 def _validate_workflow_dispatch_contract(text: str) -> None:
@@ -380,11 +349,11 @@ def _validate_python_quality_contracts(text: str) -> None:
     except json.JSONDecodeError as error:
         msg = "pyrightconfig.json must be valid JSON"
         raise SystemExit(msg) from error
-    if pyright_config.get("typeCheckingMode") != "standard":
-        msg = "pyrightconfig.json must use a standard baseline with a focused strict path list"
+    if pyright_config.get("typeCheckingMode") != "strict":
+        msg = "pyrightconfig.json must apply strict type checking repository-wide"
         raise SystemExit(msg)
-    if pyright_config.get("strict") != list(PYRIGHT_EXPECTED_STRICT):
-        msg = "pyrightconfig.json strict paths must match the reviewed core inventory"
+    if pyright_config.get("strict", []):
+        msg = "pyrightconfig.json must not replace global strict mode with a path allowlist"
         raise SystemExit(msg)
     missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
