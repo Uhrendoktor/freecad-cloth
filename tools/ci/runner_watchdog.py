@@ -9,7 +9,10 @@ import shutil
 import sys
 import time
 
-from tools.ci.command_runner import run_command
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
 
 
 def _gh_executable() -> str:
