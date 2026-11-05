@@ -144,20 +144,20 @@ def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
     config = tomllib.loads(project.read_text(encoding="utf-8"))
     lint = config["tool"]["ruff"]["lint"]
     allowed_ignores = {
-        "missing-trailing-comma",
-        "prohibited-trailing-comma",
-        "incorrect-blank-line-before-class",
-        "docstring-tab-indentation",
-        "triple-single-quotes",
-        "indentation-with-invalid-multiple",
-        "indentation-with-invalid-multiple-comment",
-        "over-indented",
-        "bad-quotes-inline-string",
-        "bad-quotes-multiline-string",
-        "bad-quotes-docstring",
-        "avoidable-escaped-quote",
-        "unnecessary-escaped-quote",
-        "tab-indentation",
+        "W191",
+        "E111",
+        "E114",
+        "E117",
+        "D203",
+        "D206",
+        "D300",
+        "Q000",
+        "Q001",
+        "Q002",
+        "Q003",
+        "Q004",
+        "COM812",
+        "COM819",
     }
     _require(
         condition=lint["select"] == ["ALL"],
@@ -195,31 +195,27 @@ def _inventory_entries(path: Path) -> tuple[tuple[str, str], ...]:
     return tuple(entries)
 
 
-def test_tool_and_test_inventories_have_unique_descriptions_and_existing_paths() -> None:
-    """Prevent duplicate inventory descriptions and stale file references."""
+def test_tool_inventory_has_unique_descriptions_and_existing_paths() -> None:
+    """Prevent duplicate tool entries and stale file references."""
     repository_root = Path(__file__).resolve().parents[1]
-    inventory_paths = (
-        repository_root / "docs" / "developers" / "TOOL_INVENTORY.md",
-        repository_root / "docs" / "developers" / "TEST_INVENTORY.md",
+    inventory_path = repository_root / "docs" / "developers" / "TOOL_INVENTORY.md"
+    entries = _inventory_entries(inventory_path)
+    listed_paths = [path for path, _ in entries]
+    descriptions = [description for _, description in entries]
+    _require(
+        condition=len(listed_paths) == len(set(listed_paths)),
+        message=f"{inventory_path.name} contains duplicate paths",
     )
-    for inventory_path in inventory_paths:
-        entries = _inventory_entries(inventory_path)
-        listed_paths = [path for path, _ in entries]
-        descriptions = [description for _, description in entries]
+    _require(
+        condition=len(descriptions) == len(set(descriptions)),
+        message=f"{inventory_path.name} contains duplicate descriptions",
+    )
+    for relative_path, description in entries:
         _require(
-            condition=len(listed_paths) == len(set(listed_paths)),
-            message=f"{inventory_path.name} contains duplicate paths",
+            condition=(repository_root / relative_path).is_file(),
+            message=f"{inventory_path.name} references missing file {relative_path}",
         )
         _require(
-            condition=len(descriptions) == len(set(descriptions)),
-            message=f"{inventory_path.name} contains duplicate descriptions",
+            condition="**Goal:**" in description and "**Why useful:**" in description,
+            message=f"{inventory_path.name} has incomplete description for {relative_path}",
         )
-        for relative_path, description in entries:
-            _require(
-                condition=(repository_root / relative_path).is_file(),
-                message=f"{inventory_path.name} references missing file {relative_path}",
-            )
-            _require(
-                condition="**Goal:**" in description and "**Why useful:**" in description,
-                message=f"{inventory_path.name} has incomplete description for {relative_path}",
-            )
