@@ -7,6 +7,7 @@ This section is for people changing, testing, reviewing, or maintaining the soft
 | Goal | Guide |
 | --- | --- |
 | Set up the development and validation environment | [Development guide](DEVELOPMENT.md) |
+| Review and update Python and CI dependencies | [Dependency management](DEPENDENCY_MANAGEMENT.md) |
 | Understand authority, dependencies, and package boundaries | [Architecture](ARCHITECTURE.md) |
 | Find module ownership and the repository layout | [Project structure](PROJECT_STRUCTURE.md) |
 | Review durable engineering decisions | [Architecture decisions](DECISIONS.md) |
