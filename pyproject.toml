@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = {text = "LGPL-2.1-or-later"}
 dependencies = [
   "pydantic>=2.11,<3",
-  "pillow>=11,<13",
+  "pillow>=11,<14",
   "networkx>=3,<4",
   "rtree>=1,<2",
   "trimesh>=4,<6",
@@ -39,17 +39,17 @@ simulation = [
 ]
 dev = [
   "import-linter==2.15",
-  "pre-commit==4.6.2",
+  "pre-commit==4.7.0",
   "pyright==1.1.414",
   "pytest>=9,<10",
-  "ruff==0.16.10",
+  "ruff==0.17.2",
   "freecad-stubs==1.0.21",
   "scipy-stubs==1.18.1.1",
   "PySide2-stubs==5.15.2.1.2",
   "PySide6-stubs==6.7.3.0",
   "hypothesis==6.168.3",
   "vulture==2.16",
-  "crosshair-tool==0.0.111",
+  "crosshair-tool==0.0.112",
   "defusedxml>=0.7.1,<1",
   "ast-grep-cli==0.45.3",
 ]
