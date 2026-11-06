@@ -39,7 +39,7 @@ simulation = [
 ]
 dev = [
   "import-linter==2.15",
-  "pre-commit==4.6.2",
+  "pre-commit==4.7.0",
   "pyright==1.1.414",
   "pytest>=9,<10",
   "ruff==0.17.2",
