@@ -118,9 +118,29 @@ jobs:
           done
           echo "::error::Dispatched validation but could not find its run for ${REBASED_HEAD}"
           exit 1
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
+    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')) }}"
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 4
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - name: Verify cleanup script syntax
+        run: python3 -m compileall -q tools/ci/maintenance_cleanup.py
+      - name: Retention cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   agent-quality:
     name: Static, architecture, workflow, and security gates
-    if: ${{ inputs.execution_mode != 'publication' }}
+    if: ${{ inputs.execution_mode != 'publication' && inputs.execution_mode != 'cleanup' }}
     runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 10
     permissions:
@@ -186,7 +206,7 @@ jobs:
           fail-on-empty: "true"
   local_runner_readiness:
     name: Selected runner readiness
-    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
+    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' && inputs.execution_mode != 'cleanup' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
@@ -210,7 +230,7 @@ jobs:
         run: timeout --signal=TERM --kill-after=5s 60s python3 tools/ci/runner_watchdog.py
   pbd_validation_image:
     name: Build/publish pinned PBD image
-    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
+    if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' && inputs.execution_mode != 'cleanup' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     runs-on: ${{ inputs.runner_mode == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 25
     permissions:
@@ -638,27 +658,9 @@ jobs:
           run-number: ${{ github.run_number }}
           artifact-run-id: ${{ needs.find-validation-artifacts.outputs.run_id }}
 
-  maintenance-cleanup:
-    name: Repository retention cleanup
-    # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
-    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')) }}"
-    runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 4
-    permissions:
-      actions: write
-      contents: write
-      packages: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
-      - name: Retention cleanup
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   artifact-budget:
     name: Accumulated artifact budget
-    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
+    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && inputs.execution_mode != 'cleanup' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
     needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 2
@@ -706,7 +708,7 @@ jobs:
   required-validation-gate:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
-    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget, maintenance-cleanup]
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 2
     permissions:
@@ -715,6 +717,7 @@ jobs:
       - name: Enforce checks selected by the execution mode
         env:
           EXECUTION_MODE: ${{ inputs.execution_mode }}
+          CLEANUP_RESULT: ${{ needs.maintenance-cleanup.result }}
           AGENT_QUALITY_RESULT: ${{ needs.agent-quality.result }}
           RUNNER_READINESS_RESULT: ${{ needs.local_runner_readiness.result }}
           PBD_IMAGE_RESULT: ${{ needs.pbd_validation_image.result }}
@@ -736,6 +739,11 @@ jobs:
               exit 1
             fi
           }
+          if [ "$EXECUTION_MODE" = "cleanup" ]; then
+            require_success "Repository retention cleanup" "$CLEANUP_RESULT"
+            echo "required-validation=passed mode=cleanup"
+            exit 0
+          fi
           require_success "Static/code validation" "$AGENT_QUALITY_RESULT"
           if [ "$EXECUTION_MODE" = "full" ]; then
             require_success "Runner readiness" "$RUNNER_READINESS_RESULT"
