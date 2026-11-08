@@ -16,6 +16,8 @@ BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
 MAX_RUN_DELETIONS_PER_RUN = 100
+MAX_RUN_RESULTS_PER_API_QUERY = 1000
+MAX_RUN_QUERY_SPLITS = 16
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
@@ -469,6 +471,45 @@ def completed_workflow_runs(
     return recent_runs, stale_runs
 
 
+
+def stale_completed_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    depth: int = 0,
+) -> list[dict[str, object]]:
+    """Collect all stale completed runs, splitting below GitHub's 1,000-result cap.
+
+    The workflow-runs endpoint reports a larger total_count but only exposes the
+    newest 1,000 matching records through pagination. Recursively query runs
+    older than the oldest returned record so no older run is hidden by that cap.
+    """
+    if depth > MAX_RUN_QUERY_SPLITS:
+        raise RuntimeError("stale workflow-run inventory exceeded the safe date-split depth")
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    endpoint = f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}"
+    inventory = list(load_api_items(endpoint, collection_key="workflow_runs"))
+    stale = stale_completed_runs(inventory, cutoff_epoch)
+    if len(inventory) < MAX_RUN_RESULTS_PER_API_QUERY:
+        return stale
+    if not stale:
+        raise RuntimeError("GitHub returned a capped run page without verifiable creation dates")
+
+    oldest_created_at = stale[0].get("created_at")
+    if not isinstance(oldest_created_at, str):
+        raise RuntimeError("oldest completed workflow run has no verifiable creation date")
+    older = stale_completed_workflow_runs(
+        repo,
+        epoch(oldest_created_at),
+        api_items_loader=load_api_items,
+        depth=depth + 1,
+    )
+    combined = older + stale
+    combined.sort(key=lambda run: epoch(str(run["created_at"])))
+    return combined
+
 def cleanup_stale_workflow_runs(
     repo: str,
     cutoff_epoch: float,
@@ -479,14 +520,9 @@ def cleanup_stale_workflow_runs(
     """Delete a bounded batch of completed workflow runs older than the cutoff."""
     load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
     delete_api_resource = gh_delete if delete_resource is None else delete_resource
-    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    inventory = list(
-        load_api_items(
-            f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}",
-            collection_key="workflow_runs",
-        )
+    stale = stale_completed_workflow_runs(
+        repo, cutoff_epoch, api_items_loader=load_api_items
     )
-    stale = stale_completed_runs(inventory, cutoff_epoch)
     selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
     deleted = 0
     for run in selected:
