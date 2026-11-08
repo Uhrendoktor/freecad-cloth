@@ -425,6 +425,60 @@ def test_completed_workflow_runs_query_stale_runs_beyond_repository_result_cap()
     assert len(requested) == 4
 
 
+
+def test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    cutoff_text = "2026-10-09T16:00:00Z"
+    requested: list[tuple[str, str | None]] = []
+    deleted: list[tuple[str, ...]] = []
+    stale_runs = [
+        {
+            "id": run_id,
+            "created_at": f"2026-09-{(run_id % 28) + 1:02d}T00:00:00Z",
+        }
+        for run_id in range(1, maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN + 4)
+    ]
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append((endpoint, collection_key))
+        expected = (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}"
+        )
+        assert endpoint == expected
+        assert collection_key == "workflow_runs"
+        return iter(stale_runs)
+
+    def fake_delete(*args: str) -> None:
+        deleted.append(args)
+
+    result = maintenance_cleanup.cleanup_stale_workflow_runs(
+        repo_name,
+        cutoff,
+        api_items_loader=fake_load_items,
+        delete_resource=fake_delete,
+    )
+
+    assert requested == [
+        (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}",
+            "workflow_runs",
+        )
+    ]
+    assert result == {
+        "deleted": maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN,
+        "pending": 3,
+    }
+    assert len(deleted) == maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN
+    assert deleted[0][:3] == ("api", "--method", "DELETE")
+    assert deleted[-1][-1].startswith(f"repos/{repo_name}/actions/runs/")
+
 def test_completed_workflow_runs_fail_closed_without_workflow_inventory():
     from collections.abc import Iterator
 
