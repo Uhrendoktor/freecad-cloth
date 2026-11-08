@@ -45,7 +45,7 @@ def test_pull_requests_use_the_requested_runner_mode():
     assert same_repo_local in fast
     assert "execution_mode: fast" in fast
     assert same_repo_local in full
-    assert "execution_mode: full" in full
+    assert "startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') && 'cleanup' || 'full'" in full
     assert "[full-validation]" in entry
 
     runner_selector = "inputs.runner_mode == 'hosted' && 'ubuntu-latest'"
@@ -73,6 +73,20 @@ def test_pull_requests_use_the_requested_runner_mode():
 
     cleanup = _job_block(source, "maintenance-cleanup")
     assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
+    assert "Verify cleanup script syntax" in cleanup
+    assert "needs:" not in cleanup
+
+    quality = _job_block(source, "agent-quality")
+    readiness = _job_block(source, "local_runner_readiness")
+    image = _job_block(source, "pbd_validation_image")
+    budget = _job_block(source, "artifact-budget")
+    gate = _job_block(source, "required-validation-gate")
+    assert "inputs.execution_mode != 'cleanup'" in quality
+    assert "inputs.execution_mode != 'cleanup'" in readiness
+    assert "inputs.execution_mode != 'cleanup'" in image
+    assert "inputs.execution_mode != 'cleanup'" in budget
+    assert "needs.maintenance-cleanup.result" in gate
+    assert 'EXECUTION_MODE" = "cleanup"' in gate
     assert "github.event_name == 'pull_request'" in cleanup
     assert "github.event.pull_request.head.repo.full_name == github.repository" in cleanup
     assert "startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')" in cleanup
