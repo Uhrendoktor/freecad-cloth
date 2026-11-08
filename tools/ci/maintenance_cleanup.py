@@ -22,7 +22,7 @@ PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 def gh_json(*args: str) -> object:
     """Run a GitHub CLI command and parse its JSON output."""
-    result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=10)
+    result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=30)
     return json.loads(result.stdout)
 
 
