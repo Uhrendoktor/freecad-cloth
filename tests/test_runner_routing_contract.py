@@ -74,6 +74,7 @@ def test_pull_requests_use_the_requested_runner_mode():
     cleanup = _job_block(source, "maintenance-cleanup")
     assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
     assert "Verify cleanup script syntax" in cleanup
+    assert "maintenance_cleanup.py --runs-only" in cleanup
     assert "needs:" not in cleanup
 
     quality = _job_block(source, "agent-quality")
