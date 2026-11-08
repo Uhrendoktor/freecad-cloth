@@ -39,10 +39,11 @@ per-test script timers or duplicated workflow defaults.
 
 ## Repository retention policy
 
-The canonical workflow's retention job runs daily at 03:00 UTC. A one-shot run can
-also be activated by a commit pushed to `main` whose title starts with
-`RUN MAINTENANCE CLEANUP`. The cleanup step passes the workflow token to the GitHub
-CLI; repository write permissions alone do not authenticate `gh`.
+The canonical workflow's retention job runs daily at 03:00 UTC on the repository's
+`self-hosted/linux/x64/docker` runner. A one-shot run can also be activated by a
+commit pushed to `main` whose title starts with `RUN MAINTENANCE CLEANUP`. The cleanup
+step passes the workflow token to the GitHub CLI; repository write permissions alone
+do not authenticate `gh`. It never consumes Microsoft-hosted runner minutes.
 
 The cleanup script uses conservative age and reference checks:
 
