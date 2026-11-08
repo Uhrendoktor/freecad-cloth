@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -467,12 +468,58 @@ def completed_workflow_runs(
     )
     return recent_runs, stale_runs
 
+
+def cleanup_stale_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
+) -> dict[str, int]:
+    """Delete a bounded batch of completed workflow runs older than the cutoff."""
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    inventory = list(
+        load_api_items(
+            f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}",
+            collection_key="workflow_runs",
+        )
+    )
+    stale = stale_completed_runs(inventory, cutoff_epoch)
+    selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
+    deleted = 0
+    for run in selected:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            raise RuntimeError("GitHub returned a stale workflow run without an integer ID")
+        delete_api_resource(
+            "api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}"
+        )
+        deleted += 1
+    return {"deleted": deleted, "pending": len(stale) - deleted}
+
 def main() -> int:
     """Remove stale unprotected branches, runs, and unreferenced PBD image versions."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--runs-only",
+        action="store_true",
+        help="prune old completed Actions runs without branch or package cleanup",
+    )
+    args = parser.parse_args()
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
     run_cutoff = (now - timedelta(days=30)).timestamp()
+
+    if args.runs_only:
+        result = cleanup_stale_workflow_runs(repo, run_cutoff)
+        print(
+            "maintenance-cleanup=passed mode=runs-only "
+            f"removed_runs={result['deleted']} stale_runs_pending={result['pending']}"
+        )
+        return 0
 
     pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
     open_heads: set[str] = set()
