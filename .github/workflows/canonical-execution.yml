@@ -137,7 +137,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-        run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py --runs-only
+          else
+            timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
+          fi
   agent-quality:
     name: Static, architecture, workflow, and security gates
     if: ${{ inputs.execution_mode != 'publication' && inputs.execution_mode != 'cleanup' }}
