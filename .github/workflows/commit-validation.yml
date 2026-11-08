@@ -61,7 +61,7 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
-      runner_mode: hosted
+      runner_mode: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'local' || 'hosted' }}
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
@@ -77,7 +77,7 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: full
-      runner_mode: hosted
+      runner_mode: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'local' || 'hosted' }}
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ${{ github.event.pull_request.number }}
@@ -109,7 +109,7 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: scheduled
-      runner_mode: hosted
+      runner_mode: local
       fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
