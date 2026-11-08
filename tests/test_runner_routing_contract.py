@@ -73,6 +73,9 @@ def test_pull_requests_use_the_requested_runner_mode():
 
     cleanup = _job_block(source, "maintenance-cleanup")
     assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
+    assert "github.event_name == 'pull_request'" in cleanup
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in cleanup
+    assert "startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')" in cleanup
 
 
 def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
