@@ -45,7 +45,9 @@ commit pushed to `main` whose title starts with `RUN MAINTENANCE CLEANUP`. A sam
 phrase can also activate the job before merge; fork PRs cannot. These PRs use a
 cleanup-only execution mode: the cleanup job runs first on the local runner, and its
 successful completion is the required validation result for that maintenance PR.
-The full GUI/simulation matrix is not dispatched for this operation. The cleanup
+The full GUI/simulation matrix is not dispatched for this operation. PR-triggered
+cleanup uses `--runs-only`, paging just completed runs older than 30 days and leaving
+branch and container-package retention to the scheduled maintenance path. The cleanup
 step passes the workflow token to the GitHub CLI; repository write permissions alone
 do not authenticate `gh`. It never consumes Microsoft-hosted runner minutes.
 
