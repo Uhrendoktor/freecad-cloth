@@ -638,7 +638,7 @@ jobs:
   maintenance-cleanup:
     name: Repository retention cleanup
     # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
-    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}"
+    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')) }}"
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 4
     permissions:
