@@ -42,9 +42,12 @@ per-test script timers or duplicated workflow defaults.
 The canonical workflow's retention job runs daily at 03:00 UTC on the repository's
 `self-hosted/linux/x64/docker` runner. A one-shot run can also be activated by a
 commit pushed to `main` whose title starts with `RUN MAINTENANCE CLEANUP`. A same-repository PR whose title starts with the same
-phrase can also activate the job before merge; fork PRs cannot. The cleanup step
-passes the workflow token to the GitHub CLI; repository write permissions alone do
-not authenticate `gh`. It never consumes Microsoft-hosted runner minutes.
+phrase can also activate the job before merge; fork PRs cannot. These PRs use a
+cleanup-only execution mode: the cleanup job runs first on the local runner, and its
+successful completion is the required validation result for that maintenance PR.
+The full GUI/simulation matrix is not dispatched for this operation. The cleanup
+step passes the workflow token to the GitHub CLI; repository write permissions alone
+do not authenticate `gh`. It never consumes Microsoft-hosted runner minutes.
 
 The cleanup script uses conservative age and reference checks:
 
