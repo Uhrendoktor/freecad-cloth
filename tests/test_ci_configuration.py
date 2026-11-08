@@ -479,6 +479,47 @@ def test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit():
     assert deleted[0][:3] == ("api", "--method", "DELETE")
     assert deleted[-1][-1].startswith(f"repos/{repo_name}/actions/runs/")
 
+
+def test_stale_workflow_run_inventory_recurses_past_github_result_cap():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    newest_bucket = [
+        {
+            "id": 10_000 + index,
+            "created_at": f"2026-10-05T00:{index // 60:02d}:{index % 60:02d}Z",
+        }
+        for index in reversed(range(maintenance_cleanup.MAX_RUN_RESULTS_PER_API_QUERY))
+    ]
+    oldest_bucket = [
+        {"id": 1, "created_at": "2026-10-01T00:00:00Z"},
+        {"id": 2, "created_at": "2026-10-04T00:00:00Z"},
+    ]
+    requested: list[str] = []
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append(endpoint)
+        assert collection_key == "workflow_runs"
+        if endpoint.endswith("created=%3C2026-10-09T16:00:00Z"):
+            return iter(newest_bucket)
+        if endpoint.endswith("created=%3C2026-10-05T00:00:00Z"):
+            return iter(oldest_bucket)
+        raise AssertionError(f"unexpected stale-run query: {endpoint}")
+
+    runs = maintenance_cleanup.stale_completed_workflow_runs(
+        repo_name, cutoff, api_items_loader=fake_load_items
+    )
+
+    assert len(runs) == maintenance_cleanup.MAX_RUN_RESULTS_PER_API_QUERY + 2
+    assert [run["id"] for run in runs[:2]] == [1, 2]
+    assert runs[2]["id"] == 10_000
+    assert len(requested) == 2
+
 def test_completed_workflow_runs_fail_closed_without_workflow_inventory():
     from collections.abc import Iterator
 
