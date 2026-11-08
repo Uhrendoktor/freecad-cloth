@@ -419,6 +419,54 @@ def cleanup_pbd_package_versions(
         return result
 
 
+
+def completed_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """List recent completed runs per workflow and stale runs by a global cutoff.
+
+    GitHub caps the repository-wide workflow-run listing at the newest 2,500
+    results. Querying stale runs by creation date avoids that cap, while
+    listing recent runs per workflow preserves all commit SHAs needed to
+    protect package versions from active and retained CI work.
+    """
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    workflows = list(
+        load_api_items(f"repos/{repo}/actions/workflows", collection_key="workflows")
+    )
+    if not workflows:
+        raise RuntimeError("GitHub returned no workflows; refusing incomplete run inventory")
+
+    recent_runs: list[dict[str, object]] = []
+    seen_workflow_ids: set[int] = set()
+    for workflow in workflows:
+        workflow_id = workflow.get("id")
+        if not isinstance(workflow_id, int):
+            raise RuntimeError("GitHub returned a workflow without an integer ID")
+        if workflow_id in seen_workflow_ids:
+            continue
+        seen_workflow_ids.add(workflow_id)
+        recent_runs.extend(
+            load_api_items(
+                f"repos/{repo}/actions/workflows/{workflow_id}/runs"
+                f"?status=completed&created=%3E%3D{cutoff}",
+                collection_key="workflow_runs",
+            )
+        )
+
+    stale_runs = list(
+        load_api_items(
+            f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}",
+            collection_key="workflow_runs",
+        )
+    )
+    return recent_runs, stale_runs
+
 def main() -> int:
     """Remove stale unprotected branches, runs, and unreferenced PBD image versions."""
     repo = os.environ["REPO"]
@@ -480,12 +528,8 @@ def main() -> int:
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
         removed_branches += 1
 
-    runs = list(
-        paginated_api_items(
-            f"repos/{repo}/actions/runs?status=completed", collection_key="workflow_runs"
-        )
-    )
-    stale = stale_completed_runs(runs, run_cutoff)
+    recent_runs, stale_run_inventory = completed_workflow_runs(repo, run_cutoff)
+    stale = stale_completed_runs(stale_run_inventory, run_cutoff)
     selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
     for run in selected:
         run_id = run.get("id")
@@ -500,9 +544,9 @@ def main() -> int:
         main_sha = main_object.get("sha") if isinstance(main_object, dict) else None
         if isinstance(main_sha, str):
             protected_shas.add(main_sha)
-    for run in runs:
-        created_at, sha = run.get("created_at"), run.get("head_sha")
-        if isinstance(created_at, str) and epoch(created_at) >= run_cutoff and isinstance(sha, str):
+    for run in recent_runs:
+        sha = run.get("head_sha")
+        if isinstance(sha, str):
             protected_shas.add(sha)
     for status in ("queued", "in_progress", "requested", "waiting"):
         active_runs = paginated_api_items(
