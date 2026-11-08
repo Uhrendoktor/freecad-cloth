@@ -82,6 +82,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     assert "configured_timeout_seconds()" in runner
     assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
     assert '"torch==2.8.0+cpu"' in workflow
+    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "Install project and CI toolchain" in quality
+    assert '180s python -m pip install --disable-pip-version-check -e ".[dev]"' in quality
+    assert "Install pinned CPU Torch" in quality
 
 
 def test_timeout_contract_is_documented():
