@@ -366,6 +366,84 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
     assert requested_pages == [1, 2]
 
 
+
+def test_completed_workflow_runs_query_stale_runs_beyond_repository_result_cap():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    cutoff_text = "2026-10-09T16:00:00Z"
+    workflow_ids = (11, 22)
+    recent_pages = {
+        11: [{"id": 101, "head_sha": "a" * 40}],
+        22: [{"id": 202, "head_sha": "b" * 40}],
+    }
+    stale_page = [
+        {"id": 1, "created_at": "2026-08-01T00:00:00Z"},
+        {"id": 2, "created_at": "2026-09-01T00:00:00Z"},
+    ]
+    requested: list[tuple[str, str | None]] = []
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append((endpoint, collection_key))
+        if endpoint == f"repos/{repo_name}/actions/workflows":
+            assert collection_key == "workflows"
+            return iter([{"id": workflow_id} for workflow_id in workflow_ids])
+        if endpoint == (
+            f"repos/{repo_name}/actions/workflows/11/runs"
+            f"?status=completed&created=%3E%3D{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(recent_pages[11])
+        if endpoint == (
+            f"repos/{repo_name}/actions/workflows/22/runs"
+            f"?status=completed&created=%3E%3D{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(recent_pages[22])
+        if endpoint == (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(stale_page)
+        raise AssertionError(f"unexpected workflow-run endpoint: {endpoint}")
+
+    recent, stale = maintenance_cleanup.completed_workflow_runs(
+        repo_name, cutoff, api_items_loader=fake_load_items
+    )
+
+    assert [run["id"] for run in recent] == [101, 202]
+    assert [run["id"] for run in stale] == [1, 2]
+    assert len(requested) == 4
+
+
+def test_completed_workflow_runs_fail_closed_without_workflow_inventory():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        assert endpoint == "repos/example/repo/actions/workflows"
+        assert collection_key == "workflows"
+        return iter([])
+
+    try:
+        maintenance_cleanup.completed_workflow_runs(
+            "example/repo",
+            maintenance_cleanup.epoch("2026-10-09T16:00:00Z"),
+            api_items_loader=fake_load_items,
+        )
+    except RuntimeError as exc:
+        assert "no workflows" in str(exc)
+    else:
+        raise AssertionError("an incomplete workflow inventory must fail closed")
+
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity():
     from tools.ci import maintenance_cleanup
 
