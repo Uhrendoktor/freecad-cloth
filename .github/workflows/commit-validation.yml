@@ -76,7 +76,7 @@ jobs:
       pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
-      execution_mode: full
+      execution_mode: ${{ startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') && 'cleanup' || 'full' }}
       runner_mode: ${{ github.event.pull_request.head.repo.full_name == github.repository && 'local' || 'hosted' }}
       fallback_source_run: ""
       diagnostic_controls: false
