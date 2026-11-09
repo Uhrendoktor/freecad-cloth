@@ -18,7 +18,6 @@ on:
         required: false
         type: string
         default: ""
-
 env:
   QT_X11_NO_MITSHM: 1
   QT_QPA_PLATFORM: xcb
@@ -131,17 +130,17 @@ jobs:
         run: |
           set -euo pipefail
           py="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-          key="$( { sha256sum pyproject.toml; printf '%s\n' 'quality-v2'; } | sha256sum | cut -c1-20)"
+          key="$( { sha256sum pyproject.toml; printf '%s\n' 'torch==2.8.0+cpu' 'quality-v3'; } | sha256sum | cut -c1-20)"
           ws="$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-12)"
           env_dir="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/quality-${py}-${key}-${ws}"
           mkdir -p "$(dirname "$env_dir")" "$PIP_CACHE_DIR"
           if [[ ! -x "$env_dir/bin/python" ]]; then
             python -m venv "$env_dir"
           fi
-          if [[ ! -x "$env_dir/bin/pyright" || ! -x "$env_dir/bin/pre-commit" ]]; then
+          if [[ ! -f "$env_dir/.ready" ]]; then
             # Do not remove an incomplete environment: keep installed wheels/packages
             # and resume the same dependency install on the next run.
-            timeout --signal=TERM --kill-after=5s 180s "$env_dir/bin/python" -m pip install --disable-pip-version-check -e ".[dev]"
+            timeout --signal=TERM --kill-after=5s 180s "$env_dir/bin/python" -m pip install --disable-pip-version-check --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" -e ".[dev]"
           fi
           "$env_dir/bin/python" -m pip check
           "$env_dir/bin/python" -c "import pre_commit, ruff, pyright; print('strict-quality-tools=ready')"
@@ -215,7 +214,6 @@ jobs:
           pulls="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls?per_page=100")"
           jq -e 'length > 0 and all(.[]; .head.repo.full_name == env.REPOSITORY and .user.login != "dependabot[bot]")' <<< "$pulls" >/dev/null || { echo "::error::Untrusted merge-group PR; local execution refused."; exit 1; }
       - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
-
   pbd_validation_image:
     name: Build/publish pinned PBD image
     if: ${{ github.event_name != 'schedule' && inputs.execution_mode != 'fast' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
@@ -320,7 +318,6 @@ jobs:
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2
-
   python:
     name: Python validation (${{ matrix.group }})
     if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
@@ -568,7 +565,6 @@ jobs:
           echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
           echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
           echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
-
   gui-documentation-assets:
     name: Main-only documentation stills and animation frames
     if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
@@ -616,7 +612,6 @@ jobs:
             docs/images/generated/cloth-simulation-draped-turntable-frames/**
             docs/images/generated/simulation-turntable-progress.log
             artifacts/simulation-turntable-documentation.log
-
   publish-readme-turntables:
     name: Publish README/wiki visual evidence
     concurrency:
@@ -706,7 +701,6 @@ jobs:
             CLOTH_BENCHMARK_REPEATS=7
       - run: test -s artifacts/benchmark.json
       - run: python3 tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json "${{ matrix.workbench }}"
-
   required-validation-gate:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
