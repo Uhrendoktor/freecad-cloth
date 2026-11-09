@@ -919,9 +919,17 @@ def test_pyright_checks_every_repository_python_file_in_strict_mode() -> None:
         and config.get("reportMissingModuleSource") == "error",
         message="Pyright import resolution diagnostics must remain errors.",
     )
+    quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     require(
-        condition=quality.count("pyright -p pyrightconfig.json") == 1,
-        message="The canonical workflow must run exactly one blocking Pyright profile.",
+        condition=quality.count('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"') == 1,
+        message="The canonical workflow must invoke the pinned strict-quality runner once.",
+    )
+    require(
+        condition=quality_runner.count(
+            'QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json"))'
+        )
+        == 1,
+        message="The strict-quality runner must execute exactly one blocking Pyright profile.",
     )
 
 

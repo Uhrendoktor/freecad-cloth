@@ -60,7 +60,7 @@ REQUIRED = (
 PYRIGHT_EXPECTED_INCLUDE = (".",)
 PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 
-TYPECHECK_COMMANDS = ("pyright -p pyrightconfig.json",)
+QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"',)
 
 PYTHON_POLICY_COMMANDS = (
     "python tools/ci/check_no_source_rewriting.py",
@@ -73,19 +73,22 @@ RUFF_COMMANDS = (
 
 
 def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required blocking type gates not present as standalone shell commands.
+    """Return the blocking quality-runner command when it is not standalone.
 
-    Exact-line matching is intentional: a failing command inside an AND chain
-    can be exempt from Bash errexit handling, allowing CI to continue.
+    The canonical workflow delegates its pinned-runtime command inventory to the
+    strict runner. The runner's tested inventory contains the standalone Pyright
+    invocation, so this boundary must itself be a standalone shell command.
 
     Args:
         workflow_text: Full canonical workflow text to inspect.
 
     Returns:
-        Required blocking type-check commands absent as standalone lines.
+        Blocking strict-quality runner commands absent as standalone lines.
     """
     command_lines = {line.strip() for line in workflow_text.splitlines()}
-    return tuple(command for command in TYPECHECK_COMMANDS if command not in command_lines)
+    return tuple(
+        command for command in QUALITY_RUNNER_COMMANDS if command not in command_lines
+    )
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
@@ -362,7 +365,7 @@ def _validate_python_quality_contracts(text: str) -> None:
     missing_typecheck = missing_typecheck_commands(text)
     if missing_typecheck:
         raise SystemExit(
-            "canonical workflow is missing standalone blocking type-check commands: "
+            "canonical workflow is missing its standalone blocking strict-quality runner: "
             + ", ".join(missing_typecheck)
         )
     missing_python_policies = missing_python_policy_commands(text)
