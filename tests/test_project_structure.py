@@ -324,11 +324,13 @@ def test_turntable_frame_counts_validate_after_restore() -> None:
 
 
 def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
-    """Keep the complete canonical workflow on the existing self-hosted Docker runner."""
+    """Keep every canonical job local and run strict analysis inside the FreeCAD image."""
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
+    wrapper = (root / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
+    runner = (root / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     require(
         condition=("runs-on: [self-hosted, linux, x64, docker]" in workflow),
         message="test_canonical_workflow_uses_only_the...: required condition failed",
@@ -338,18 +340,21 @@ def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
         message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("RUNNER_TOOL_CACHE" in workflow and "python -m venv" in workflow),
+        condition=("bash tools/ci/run_strict_quality.sh" in workflow),
         message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("needs: [local_runner_readiness]" in workflow),
+        condition=("RUNNER_TOOL_CACHE" in wrapper and "--system-site-packages" in runner),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
+    )
+    require(
+        condition=("needs: [local_runner_readiness, pbd_validation_image]" in workflow),
         message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
         condition=("fallback_source_run" not in workflow and "inputs.runner_mode" not in workflow),
         message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
-
 
 def test_seam_graph_has_one_canonical_implementation() -> None:
     """Require the canonical seam graph to live in the sewing package."""
@@ -416,7 +421,7 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
-        condition=("runs-on: ubuntu-latest" in publish),
+        condition=("runs-on: [self-hosted, linux, x64, docker]" in publish),
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(

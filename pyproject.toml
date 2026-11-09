@@ -53,6 +53,7 @@ dev = [
   "defusedxml>=0.7.1,<1",
   "ast-grep-cli==0.45.3",
   "ty==0.0.91",
+  "matplotlib>=3.9,<4",
 ]
 
 [tool.freecad_cloth.ci]

@@ -121,33 +121,24 @@ def test_manual_validation_and_publication_have_no_hosted_fallback() -> None:
 
 
 def test_reusable_dependency_environments_and_docker_images_are_persistent() -> None:
-    """Reuse dependency-keyed virtual environments and locally cached Docker images."""
+    """Reuse the FreeCAD image, dependency-keyed venv, pip cache, and local Docker images."""
     quality = _job_block(WORKFLOW.read_text(encoding="utf-8"), "agent-quality")
-    freecad_action = (
-        ROOT / ".github" / "actions" / "freecad-test" / "action.yml"
-    ).read_text(encoding="utf-8")
+    wrapper = (ROOT / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
+    runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     image_action = (
         ROOT / ".github" / "actions" / "pbd-image" / "action.yml"
     ).read_text(encoding="utf-8")
-    assert "RUNNER_TOOL_CACHE" in quality
-    assert "quality-${py}-${key}-${ws}" in quality
-    assert "quality-v3" in quality
-    assert "torch==2.8.0+cpu" in quality
-    assert 'if [[ ! -f "$env_dir/.ready" ]]' in quality
-    assert 'touch "$env_dir/.ready"' in quality
-    assert "Do not remove an incomplete environment" in quality
-    assert "180s" in quality
-    assert "id: quality-env" in quality
-    bootstrap_guard = "!cancelled() && steps.quality-env.outcome == 'success'"
-    assert quality.count(bootstrap_guard) == 5
-    assert 'if: ${{ !cancelled() && steps.quality-env.outcome == \'success\' && github.event_name == \'pull_request\' }}' in quality
-    assert "failed=0" in quality
-    assert 'check "Strict Pyright" pyright -p pyrightconfig.json' in quality
-    assert 'check "CrossHair contracts" crosshair check' in quality
-    assert 'exit "$failed"' in quality
-    assert "if: ${{ success() }}" not in quality
-    assert "RUNNER_TOOL_CACHE" in freecad_action
-    assert "evidence-${py}-${key}-${ws}" in freecad_action
+    assert "needs: [local_runner_readiness, pbd_validation_image]" in quality
+    assert "needs.pbd_validation_image.outputs.image" in quality
+    assert "bash tools/ci/run_strict_quality.sh" in quality
+    assert "RUNNER_TOOL_CACHE" in wrapper
+    assert "PIP_CACHE_DIR" in wrapper
+    assert "PRE_COMMIT_HOME" in wrapper
+    assert "docker image inspect" in wrapper
+    assert "docker run" in wrapper
+    assert "--system-site-packages" in runner
+    assert "torch==2.8.0+cpu" in runner
+    assert "ready_marker_is_current" in runner
     assert "docker image inspect" in image_action
     assert "docker pull" in image_action
 
