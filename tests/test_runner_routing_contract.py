@@ -137,7 +137,15 @@ def test_reusable_dependency_environments_and_docker_images_are_persistent() -> 
     assert 'touch "$env_dir/.ready"' in quality
     assert "Do not remove an incomplete environment" in quality
     assert "180s" in quality
-    assert "if: ${{ success() }}" in quality
+    assert "id: quality-env" in quality
+    bootstrap_guard = "!cancelled() && steps.quality-env.outcome == 'success'"
+    assert quality.count(bootstrap_guard) == 5
+    assert 'if: ${{ !cancelled() && steps.quality-env.outcome == \'success\' && github.event_name == \'pull_request\' }}' in quality
+    assert "failed=0" in quality
+    assert 'check "Strict Pyright" pyright -p pyrightconfig.json' in quality
+    assert 'check "CrossHair contracts" crosshair check' in quality
+    assert 'exit "$failed"' in quality
+    assert "if: ${{ success() }}" not in quality
     assert "RUNNER_TOOL_CACHE" in freecad_action
     assert "evidence-${py}-${key}-${ws}" in freecad_action
     assert "docker image inspect" in image_action

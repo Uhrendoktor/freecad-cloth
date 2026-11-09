@@ -124,6 +124,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Reuse persistent strict-quality environment
+        id: quality-env
         shell: bash
         env:
           PIP_CACHE_DIR: ${{ runner.tool_cache }}/freecad-cloth/pip-cache
@@ -148,34 +149,31 @@ jobs:
           echo "python-quality-cache=ready key=$key"
           echo "$env_dir/bin" >> "$GITHUB_PATH"
       - name: Python and architecture checks
-        if: ${{ success() }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' }}
         run: |
-          set -euo pipefail
-          # The pytest matrix below is the single execution inventory for test_*.py modules.
-          python -m compileall -q tests tools/ci
-          git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist"
-          python tools/check_markdown_contract.py
-          python tools/ci/validate_ci_structure.py
-          lint-imports
-          python tools/ci/check_no_source_rewriting.py
-          pyright -p pyrightconfig.json
-          ast-grep test --skip-snapshot-tests --color never
-          ast-grep scan --min-severity error --color never freecad_cloth
-          # Scan the complete statically analyzable core surface on every run.
-          python tools/check_dead_code.py
-          crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
+          set -uo pipefail
+          failed=0
+          check() { name="$1"; shift; "$@"; result=$?; if (( result != 0 )); then echo "::error::${name} failed (exit ${result})"; failed=1; fi; return 0; }
+          check "Python compilation" python -m compileall -q tests tools/ci
+          git ls-files -z -- '*.py' '*.pyi' > "$RUNNER_TEMP/python-files.zlist" || failed=1
+          check "Markdown contract" python tools/check_markdown_contract.py; check "CI structure" python tools/ci/validate_ci_structure.py
+          check "Import architecture" lint-imports; check "Source-rewriting policy" python tools/ci/check_no_source_rewriting.py
+          check "Strict Pyright" pyright -p pyrightconfig.json; check "AST-grep rule tests" ast-grep test --skip-snapshot-tests --color never
+          check "AST-grep repository contracts" ast-grep scan --min-severity error --color never freecad_cloth
+          check "Dead-code contract" python tools/check_dead_code.py; check "CrossHair contracts" crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
+          exit "$failed"
       - name: Workflow linters
-        if: ${{ success() }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' }}
         run: |
           set -euo pipefail
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files actionlint
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files zizmor
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files yamllint
       - name: Add persistent user binary directory to PATH
-        if: ${{ success() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' && github.event_name == 'pull_request' }}
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: PR duplication gate
-        if: ${{ success() && github.event_name == 'pull_request' }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' && github.event_name == 'pull_request' }}
         uses: kucherenko/jscpd@db415b5d7cc34d72a324fe5eae2147646dc3558b # v5.4.2
         with:
           path: "freecad_cloth tests tools/ci"
@@ -186,14 +184,14 @@ jobs:
           fail-on-new-clones: "true"
           fail-on-empty: "true"
       - name: Python documentation contract (strict, whole repository)
-        if: ${{ success() }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' }}
         run: |
           python tools/check_documentation_contract.py
       - name: Ruff formatting (strict, whole repository)
-        if: ${{ success() }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' }}
         run: xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
       - name: Ruff lint (strict, whole repository)
-        if: ${{ success() }}
+        if: ${{ !cancelled() && steps.quality-env.outcome == 'success' }}
         run: xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"
   local_runner_readiness:
     name: Selected runner readiness
