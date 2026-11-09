@@ -20,10 +20,8 @@ echo "strict-quality-workspace=$workspace"
 # Keep the dependency environment in a named volume so it survives job containers.
 cache_volume="freecad-cloth-quality-cache"
 docker volume create "$cache_volume" >/dev/null
-# A new named volume is root-owned. Give its root directory to the runner UID
-# without recursively changing cached environments that another job may use.
-docker run --rm --user 0:0 --volume "$cache_volume:/runner-cache:rw" "$image" \
-  chown "$(id -u):$(id -g)" /runner-cache
+# The quality container has no host filesystem mounts: both the checkout and
+# its cache live in Docker-managed storage, so use the image's default user.
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then
   if [[ -z "${GH_TOKEN:-}" ]]; then
@@ -46,7 +44,6 @@ cleanup() {
 trap cleanup EXIT
 
 container_id="$(docker create --name "$container_name" --init --security-opt seccomp=unconfined --shm-size=1g \
-  --user "$(id -u):$(id -g)" \
   --volume "$cache_volume:/runner-cache:rw" \
   --workdir /workspace \
   --env RUNNER_TOOL_CACHE=/runner-cache \
