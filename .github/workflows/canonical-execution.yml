@@ -133,6 +133,21 @@ jobs:
         with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
       - name: Verify cleanup script syntax
         run: python3 -m compileall -q tools/ci/maintenance_cleanup.py
+      - name: Exercise bounded run-retention logic
+        run: |
+          python3 - <<'PY'
+          import runpy
+
+          tests = runpy.run_path("tests/test_ci_configuration.py")
+          for name in (
+              "test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit",
+              "test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_2500",
+              "test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap",
+              "test_stale_workflow_run_inventory_recurses_past_github_result_cap",
+          ):
+              tests[name]()
+          print("maintenance-cleanup-contracts=passed")
+          PY
       - name: Retention cleanup
         env:
           GH_TOKEN: ${{ github.token }}
