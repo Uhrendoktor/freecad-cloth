@@ -72,7 +72,7 @@ runs:
   steps:
     - name: Checkout requested revision
       if: inputs.checkout == 'true'
-      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
       with:
         ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         persist-credentials: false
@@ -113,7 +113,7 @@ runs:
 
     - name: Set up Python for evidence validators
       if: inputs.validate-command != ''
-      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
       with:
         python-version: '3.12'
 
@@ -135,12 +135,12 @@ runs:
           echo "evidence-validator-cache=hit key=$key"
         fi
         "$env_dir/bin/python" -m pip check
-        echo "$env_dir/bin" >> "$GITHUB_PATH"
+        echo "FREECAD_EVIDENCE_BIN=$env_dir/bin" >> "$GITHUB_ENV"
 
     - name: Verify evidence validator dependencies
       if: inputs.validate-command != ''
       shell: bash
-      run: python -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
+      run: "$FREECAD_EVIDENCE_BIN/python" -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
 
     - name: Validate test evidence
       if: inputs.validate-command != ''
@@ -148,7 +148,7 @@ runs:
       env:
         VALIDATE_COMMAND: ${{ inputs.validate-command }}
       # Keep the caller's command as one argument so nested shell quoting survives.
-      run: bash -lc "$VALIDATE_COMMAND"
+      run: PATH="$FREECAD_EVIDENCE_BIN:$PATH" bash -c "$VALIDATE_COMMAND"
 
     - name: Create optional agent observation manifest
       id: agent-observation
@@ -166,7 +166,7 @@ runs:
 
     - name: Upload test evidence
       if: always() && inputs.artifact-name != ''
-      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
       with:
         name: ${{ inputs.artifact-name }}
         path: |

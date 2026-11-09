@@ -79,7 +79,14 @@ def _defer_workbench_transition(callback: Callable[[], None]) -> None:
     callback()
 
 
-class ClothWorkbenchBase(Gui.Workbench if Gui is not None else object):
+_WORKBENCH_BASE: type[object] = (
+    cast("type[object]", getattr(Gui, "Workbench", object))
+    if Gui is not None
+    else object
+)
+
+
+class ClothWorkbenchBase(_WORKBENCH_BASE):
     """Small common registration shell for all Cloth workbenches."""
 
     def __init__(
