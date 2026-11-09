@@ -123,25 +123,26 @@ runs:
       run: |
         set -euo pipefail
         py="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-        key="$( { sha256sum pyproject.toml; printf '%s\n' 'numpy>=1.26,<3' 'pydantic>=2.11,<3' 'Pillow>=11,<14' 'evidence-v1'; } | sha256sum | cut -c1-20)"
-        ws="$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-12)"
-        env_dir="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/evidence-${py}-${key}-${ws}"
-        if [[ ! -x "$env_dir/bin/python" || ! -f "$env_dir/.ready" ]]; then
+        key="$( { printf '%s\n' "$py" "$GITHUB_WORKSPACE"; sha256sum pyproject.toml; printf '%s\n' 'numpy>=1.26,<3' 'pydantic>=2.11,<3' 'Pillow>=11,<14' 'evidence-v1'; } | sha256sum | cut -c1-20)"
+        env_dir="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/evidence-validator"
+        if [[ ! -x "$env_dir/bin/python" || ! -f "$env_dir/.ready" || "$(cat "$env_dir/.ready")" != "$key" ]]; then
           mkdir -p "$(dirname "$env_dir")"; rm -rf "$env_dir"; python -m venv "$env_dir"
           timeout --signal=TERM --kill-after=5s 120s "$env_dir/bin/python" -m pip install --disable-pip-version-check --no-deps -e .
           timeout --signal=TERM --kill-after=5s 120s "$env_dir/bin/python" -m pip install --disable-pip-version-check "numpy>=1.26,<3" "pydantic>=2.11,<3" "Pillow>=11,<14"
-          touch "$env_dir/.ready"; echo "evidence-validator-cache=created key=$key"
+          printf '%s\n' "$key" > "$env_dir/.ready"
+          echo "evidence-validator-cache=created key=$key"
         else
           echo "evidence-validator-cache=hit key=$key"
         fi
         "$env_dir/bin/python" -m pip check
-        echo "FREECAD_EVIDENCE_BIN=$env_dir/bin" >> "$GITHUB_ENV"
+        echo "evidence-validator-cache=ready path=$env_dir"
 
     - name: Verify evidence validator dependencies
       if: inputs.validate-command != ''
       shell: bash
       run: |
-        "$FREECAD_EVIDENCE_BIN/python" -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
+        validator_python="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/evidence-validator/bin/python"
+        "$validator_python" -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
 
     - name: Validate test evidence
       if: inputs.validate-command != ''
@@ -149,7 +150,9 @@ runs:
       env:
         VALIDATE_COMMAND: ${{ inputs.validate-command }}
       # Keep the caller's command as one argument so nested shell quoting survives.
-      run: PATH="$FREECAD_EVIDENCE_BIN:$PATH" bash -c "$VALIDATE_COMMAND"
+      run: |
+        validator_bin="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/evidence-validator/bin"
+        PATH="$validator_bin:$PATH" bash -c "$VALIDATE_COMMAND"
 
     - name: Create optional agent observation manifest
       id: agent-observation

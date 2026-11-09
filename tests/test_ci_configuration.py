@@ -12,6 +12,7 @@ from tests.support.assertions import require
 
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
+from tools.ci.strict_quality import quality_commands
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
     PYTHON_POLICY_COMMANDS,
@@ -1103,5 +1104,15 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
         "A chained Pyright command must be treated as missing."
     )
     assert missing_python_policy_commands("") == PYTHON_POLICY_COMMANDS, (
-        "Removing the source-rewriting policy gate must be detected."
+        "Removing the pinned quality runner must be detected for both Python policies."
+    )
+    commands = {
+        command.label: command.arguments
+        for command in quality_commands(Path("python"), ())
+    }
+    assert commands["Source-rewriting policy"][-1] == (
+        "tools/ci/check_no_source_rewriting.py"
+    )
+    assert commands["Python documentation contract"][-1] == (
+        "tools/check_documentation_contract.py"
     )

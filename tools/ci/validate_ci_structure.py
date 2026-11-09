@@ -63,10 +63,7 @@ PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"',)
 TYPECHECK_COMMANDS = QUALITY_RUNNER_COMMANDS
 
-PYTHON_POLICY_COMMANDS = (
-    "python tools/ci/check_no_source_rewriting.py",
-    "python tools/check_documentation_contract.py",
-)
+PYTHON_POLICY_COMMANDS = QUALITY_RUNNER_COMMANDS
 RUFF_COMMANDS = (
     'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
     'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"',
@@ -102,13 +99,18 @@ def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
     Returns:
         Python policy commands that are missing from the workflow.
     """
-    command_lines: set[str] = set()
-    for line in workflow_text.splitlines():
-        command = line.strip()
-        if command.startswith("run: "):
-            command = command.removeprefix("run: ").strip()
-        command_lines.add(command)
-    return tuple(command for command in PYTHON_POLICY_COMMANDS if command not in command_lines)
+    """Return the pinned runner when it is missing from the workflow.
+
+    The strict runner's tested command inventory owns both Python policies, so
+    the workflow boundary must require the same standalone blocking invocation.
+
+    Args:
+        workflow_text: Full canonical workflow text to inspect.
+
+    Returns:
+        The strict-quality runner command when it is absent as a standalone line.
+    """
+    return missing_typecheck_commands(workflow_text)
 
 
 def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
