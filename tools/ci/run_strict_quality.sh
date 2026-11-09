@@ -32,6 +32,21 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
   docker pull "$image"
 fi
 image_id="$(docker image inspect --format '{{.Id}}' "$image")"
+# AppRun configures the native FreeCAD module and shared-library paths. Capture
+# its exact runtime setup before preparing the standalone quality environment.
+docker run --rm "$image" bash -lc '
+  echo "=== freecad-runtime-probe ==="
+  echo "AppRun path: $(readlink -f /opt/freecad/AppRun)"
+  file /opt/freecad/AppRun
+  sed -n "1,180p" /opt/freecad/AppRun
+  echo "=== selected environment ==="
+  env | grep -E "^(PATH|PYTHONPATH|LD_LIBRARY_PATH|QT_PLUGIN_PATH|QT_QPA_PLATFORM|CONDA_PREFIX)=" | sort
+  echo "=== native module candidates ==="
+  find /opt/conda/envs/freecad -maxdepth 5 -type f \\
+    \\( -name "FreeCAD.so" -o -name "FreeCADGui.so" -o -name "Part.so" -o -name "Mesh.so" \\) -print | sort
+  echo "=== direct Python import probe ==="
+  /opt/conda/envs/freecad/bin/python -c "import sys; print(sys.executable); print(*sys.path, sep=\\\"\\\\n\\\")"
+'
 workspace_key="$(printf '%s' "$workspace" | sha256sum | cut -c1-12)"
 container_name="freecad-cloth-quality-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}"
 container_id=""
