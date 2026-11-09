@@ -8,8 +8,14 @@ if [[ $# -ne 1 || -z "$1" ]]; then
 fi
 
 image="$1"
+# Preserve GitHub's logical workspace path for Docker bind mounts. The self-hosted
+# Docker daemon may not share the physical path obtained by resolving this symlink.
 workspace="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
-workspace="$(cd "$workspace" && pwd -P)"
+if [[ ! -f "$workspace/tools/ci/strict_quality.py" ]]; then
+  echo "::error::Strict-quality source is missing from the runner workspace: $workspace/tools/ci/strict_quality.py" >&2
+  exit 1
+fi
+echo "strict-quality-workspace=$workspace"
 tool_cache="${RUNNER_TOOL_CACHE:-$HOME/.cache}"
 cache_root="${tool_cache}/freecad-cloth"
 mkdir -p "$cache_root/home" "$cache_root/pip-cache" "$cache_root/pre-commit" "$cache_root/xdg"
