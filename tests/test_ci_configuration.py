@@ -82,6 +82,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout():
     assert "configured_timeout_seconds()" in runner
     assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow
     assert '"torch==2.8.0+cpu"' in workflow
+    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    assert "Install project and CI toolchain" in quality
+    assert '180s python -m pip install --disable-pip-version-check -e ".[dev]"' in quality
+    assert "Install pinned CPU Torch" in quality
 
 
 def test_timeout_contract_is_documented():
@@ -365,6 +369,266 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
     assert items == [{"id": 1}, {"id": 2}, {"id": 3}]
     assert requested_pages == [1, 2]
 
+
+
+def test_completed_workflow_runs_query_stale_runs_beyond_repository_result_cap():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    cutoff_text = "2026-10-09T16:00:00Z"
+    workflow_ids = (11, 22)
+    recent_pages = {
+        11: [{"id": 101, "head_sha": "a" * 40}],
+        22: [{"id": 202, "head_sha": "b" * 40}],
+    }
+    stale_page = [
+        {"id": 1, "created_at": "2026-08-01T00:00:00Z"},
+        {"id": 2, "created_at": "2026-09-01T00:00:00Z"},
+    ]
+    requested: list[tuple[str, str | None]] = []
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append((endpoint, collection_key))
+        if endpoint == f"repos/{repo_name}/actions/workflows":
+            assert collection_key == "workflows"
+            return iter([{"id": workflow_id} for workflow_id in workflow_ids])
+        if endpoint == (
+            f"repos/{repo_name}/actions/workflows/11/runs"
+            f"?status=completed&created=%3E%3D{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(recent_pages[11])
+        if endpoint == (
+            f"repos/{repo_name}/actions/workflows/22/runs"
+            f"?status=completed&created=%3E%3D{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(recent_pages[22])
+        if endpoint == (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}"
+        ):
+            assert collection_key == "workflow_runs"
+            return iter(stale_page)
+        raise AssertionError(f"unexpected workflow-run endpoint: {endpoint}")
+
+    recent, stale = maintenance_cleanup.completed_workflow_runs(
+        repo_name, cutoff, api_items_loader=fake_load_items
+    )
+
+    assert [run["id"] for run in recent] == [101, 202]
+    assert [run["id"] for run in stale] == [1, 2]
+    assert len(requested) == 4
+
+
+
+def test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    cutoff_text = "2026-10-09T16:00:00Z"
+    requested: list[tuple[str, str | None]] = []
+    deleted: list[tuple[str, ...]] = []
+    stale_runs = [
+        {
+            "id": run_id,
+            "created_at": f"2026-09-{(run_id % 28) + 1:02d}T00:00:00Z",
+        }
+        for run_id in range(1, maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN + 4)
+    ]
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append((endpoint, collection_key))
+        expected = (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}"
+        )
+        assert endpoint == expected
+        assert collection_key == "workflow_runs"
+        return iter(stale_runs)
+
+    def fake_delete(*args: str) -> None:
+        deleted.append(args)
+
+    result = maintenance_cleanup.cleanup_stale_workflow_runs(
+        repo_name,
+        cutoff,
+        api_items_loader=fake_load_items,
+        delete_resource=fake_delete,
+    )
+
+    assert requested == [
+        (
+            f"repos/{repo_name}/actions/runs?status=completed&created=%3C{cutoff_text}",
+            "workflow_runs",
+        )
+    ]
+    assert result == {
+        "deleted": maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN,
+        "pending": 3,
+    }
+    assert len(deleted) == maintenance_cleanup.MAX_RUN_DELETIONS_PER_RUN
+    assert deleted[0][:3] == ("api", "--method", "DELETE")
+    assert deleted[-1][-1].startswith(f"repos/{repo_name}/actions/runs/")
+
+
+
+def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_10():
+    from datetime import UTC, datetime, timedelta
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    now = datetime(2026, 11, 9, 12, 24, tzinfo=UTC)
+    target_deletions = 3_835 - maintenance_cleanup.MAX_RETAINED_WORKFLOW_RUNS
+    candidates = [
+        {
+            "id": run_id,
+            "created_at": (
+                now - timedelta(days=29) + timedelta(seconds=run_id)
+            ).isoformat().replace("+00:00", "Z"),
+        }
+        for run_id in range(1, target_deletions + 66)
+    ]
+    deleted: list[tuple[str, ...]] = []
+    count_requests: list[tuple[str, ...]] = []
+    candidate_requests: list[tuple[str, float]] = []
+
+    def fake_total_count(*args: str) -> dict[str, int]:
+        count_requests.append(args)
+        return {"total_count": 3_835}
+
+    def fake_candidates(name: str, cutoff: float) -> list[dict[str, object]]:
+        candidate_requests.append((name, cutoff))
+        return list(reversed(candidates))
+
+    def fake_delete(*args: str) -> None:
+        deleted.append(args)
+
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        repo_name,
+        now=now,
+        total_count_loader=fake_total_count,
+        completed_runs_loader=fake_candidates,
+        delete_resource=fake_delete,
+    )
+
+    deleted_ids = {
+        int(arguments[-1].rsplit("/", maxsplit=1)[1]) for arguments in deleted
+    }
+    assert count_requests == [
+        ("api", f"repos/{repo_name}/actions/runs?per_page=1")
+    ]
+    assert candidate_requests[0][0] == repo_name
+    assert result == {
+        "total_before": 3_835,
+        "keep": 10,
+        "deleted": target_deletions,
+        "remaining_estimate": 10,
+        "pending": 0,
+    }
+    assert len(deleted_ids) == target_deletions
+    assert deleted_ids == set(range(1, target_deletions + 1))
+
+
+def test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap():
+    from datetime import UTC, datetime
+
+    from tools.ci import maintenance_cleanup
+
+    deleted: list[tuple[str, ...]] = []
+
+    def fake_total_count(*_args: str) -> dict[str, int]:
+        return {"total_count": 9}
+
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "example/repo",
+        now=datetime(2026, 11, 9, tzinfo=UTC),
+        total_count_loader=fake_total_count,
+        completed_runs_loader=lambda _repo, _cutoff: [],
+        delete_resource=lambda *args: deleted.append(args),
+    )
+
+    assert result == {
+        "total_before": 9,
+        "keep": 10,
+        "deleted": 0,
+        "remaining_estimate": 9,
+        "pending": 0,
+    }
+    assert deleted == []
+
+def test_stale_workflow_run_inventory_recurses_past_github_result_cap():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    cutoff = maintenance_cleanup.epoch("2026-10-09T16:00:00Z")
+    newest_bucket = [
+        {
+            "id": 10_000 + index,
+            "created_at": f"2026-10-05T00:{index // 60:02d}:{index % 60:02d}Z",
+        }
+        for index in reversed(range(maintenance_cleanup.MAX_RUN_RESULTS_PER_API_QUERY))
+    ]
+    oldest_bucket = [
+        {"id": 1, "created_at": "2026-10-01T00:00:00Z"},
+        {"id": 2, "created_at": "2026-10-04T00:00:00Z"},
+    ]
+    requested: list[str] = []
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        requested.append(endpoint)
+        assert collection_key == "workflow_runs"
+        if endpoint.endswith("created=%3C2026-10-09T16:00:00Z"):
+            return iter(newest_bucket)
+        if endpoint.endswith("created=%3C2026-10-05T00:00:01Z"):
+            return iter([*oldest_bucket, newest_bucket[-1]])
+        raise AssertionError(f"unexpected stale-run query: {endpoint}")
+
+    runs = maintenance_cleanup.stale_completed_workflow_runs(
+        repo_name, cutoff, api_items_loader=fake_load_items
+    )
+
+    assert len(runs) == maintenance_cleanup.MAX_RUN_RESULTS_PER_API_QUERY + 2
+    assert [run["id"] for run in runs[:2]] == [1, 2]
+    assert runs[2]["id"] == 10_000
+    assert len({run["id"] for run in runs}) == len(runs)
+    assert len(requested) == 2
+
+def test_completed_workflow_runs_fail_closed_without_workflow_inventory():
+    from collections.abc import Iterator
+
+    from tools.ci import maintenance_cleanup
+
+    def fake_load_items(
+        endpoint: str, *, collection_key: str | None = None
+    ) -> Iterator[dict[str, object]]:
+        assert endpoint == "repos/example/repo/actions/workflows"
+        assert collection_key == "workflows"
+        return iter([])
+
+    try:
+        maintenance_cleanup.completed_workflow_runs(
+            "example/repo",
+            maintenance_cleanup.epoch("2026-10-09T16:00:00Z"),
+            api_items_loader=fake_load_items,
+        )
+    except RuntimeError as exc:
+        assert "no workflows" in str(exc)
+    else:
+        raise AssertionError("an incomplete workflow inventory must fail closed")
 
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity():
     from tools.ci import maintenance_cleanup

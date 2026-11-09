@@ -33,7 +33,7 @@ def test_one_canonical_workflow():
     assert "workflow_run:" not in shared
 
 
-def test_pull_requests_are_hosted_only():
+def test_pull_requests_use_the_requested_runner_mode():
     workflow_dir = ROOT / ".github" / "workflows"
     entry = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
     source = WORKFLOW.read_text(encoding="utf-8")
@@ -41,17 +41,18 @@ def test_pull_requests_are_hosted_only():
     assert "pull_request_target:" not in entry
     fast = _job_block(entry, "fast-feedback")
     full = _job_block(entry, "explicit-full-validation")
-    assert "runner_mode: hosted" in fast
+    same_repo_local = "github.event.pull_request.head.repo.full_name == github.repository && 'local' || 'hosted'"
+    assert same_repo_local in fast
     assert "execution_mode: fast" in fast
-    assert "runner_mode: hosted" in full
-    assert "execution_mode: full" in full
+    assert same_repo_local in full
+    assert "startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') && 'cleanup' || 'full'" in full
     assert "[full-validation]" in entry
 
-    readiness = _job_block(source, "local_runner_readiness")
-    assert "'ubuntu-latest'" in readiness
-    assert "self-hosted" in readiness
-    runner_selector = "github.event_name == 'pull_request' || inputs.runner_mode == 'hosted'"
+    runner_selector = "inputs.runner_mode == 'hosted' && 'ubuntu-latest'"
     for job in (
+        "agent-quality",
+        "local_runner_readiness",
+        "pbd_validation_image",
         "diagnostic-pbd-contact",
         "simulation-ladder",
         "python",
@@ -59,12 +60,39 @@ def test_pull_requests_are_hosted_only():
         "gui-tunic-visual",
         "gui-turntables",
         "gui-visual-examples",
+        "publish-pr-simulation-evidence",
+        "find-validation-artifacts",
+        "gui-documentation-assets",
+        "publish-readme-turntables",
         "benchmark",
     ):
         block = _job_block(source, job)
         assert runner_selector in block
-        assert "'ubuntu-latest'" in block
         assert "self-hosted" in block
+        assert "github.event_name == 'pull_request' ||" not in block
+
+    cleanup = _job_block(source, "maintenance-cleanup")
+    assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
+    assert "Verify cleanup script syntax" in cleanup
+    assert "maintenance_cleanup.py --runs-only" in cleanup
+    assert "timeout-minutes: 10" in cleanup
+    assert "540s python3 tools/ci/maintenance_cleanup.py --runs-only" in cleanup
+    assert "needs:" not in cleanup
+
+    quality = _job_block(source, "agent-quality")
+    readiness = _job_block(source, "local_runner_readiness")
+    image = _job_block(source, "pbd_validation_image")
+    budget = _job_block(source, "artifact-budget")
+    gate = _job_block(source, "required-validation-gate")
+    assert "inputs.execution_mode != 'cleanup'" in quality
+    assert "inputs.execution_mode != 'cleanup'" in readiness
+    assert "inputs.execution_mode != 'cleanup'" in image
+    assert "inputs.execution_mode != 'cleanup'" in budget
+    assert "needs.maintenance-cleanup.result" in gate
+    assert 'EXECUTION_MODE" = "cleanup"' in gate
+    assert "github.event_name == 'pull_request'" in cleanup
+    assert "github.event.pull_request.head.repo.full_name == github.repository" in cleanup
+    assert "startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')" in cleanup
 
 
 def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
@@ -144,7 +172,7 @@ def test_no_privileged_runner_discovery_or_second_workflow():
     assert "sketcher-startup-diagnostic:" not in shared
     assert "*/5 * * * *" not in shared
     maintenance = _job_block(shared, "maintenance-cleanup")
-    assert "runs-on: ubuntu-latest" in maintenance
+    assert "runs-on: [self-hosted, linux, x64, docker]" in maintenance
     assert "github.event_name == 'schedule'" in maintenance
     assert "RUN MAINTENANCE CLEANUP" in maintenance
 

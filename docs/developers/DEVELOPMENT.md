@@ -53,9 +53,9 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 ### Runner routing
 
-Pull requests use GitHub-hosted runners directly. They never enter the self-hosted runner path.
+Same-repository pull requests use the existing `self-hosted/linux/x64/docker` runner when their entry workflow selects `runner_mode: local`; pull requests from forks remain on GitHub-hosted runners. The reusable workflow honours the caller's runner selection instead of forcing all pull-request jobs onto hosted runners.
 
-Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started.
+Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started. The repository retention cleanup job always uses the self-hosted runner directly. Hosted fallback remains available only through the existing trusted-run watchdog path.
 
 A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel. When the local runner does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 import subprocess
@@ -15,6 +17,12 @@ BRANCH_RETENTION_DAYS = 7
 MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
 MAX_RUN_DELETIONS_PER_RUN = 100
+MAX_RUN_CAP_DELETIONS_PER_RUN = 4000
+MAX_RUN_DELETE_WORKERS = 12
+MAX_RETAINED_WORKFLOW_RUNS = 10
+RUN_CAP_SEARCH_DAYS = 0
+MAX_RUN_RESULTS_PER_API_QUERY = 1000
+MAX_RUN_QUERY_SPLITS = 16
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
@@ -22,13 +30,13 @@ PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 def gh_json(*args: str) -> object:
     """Run a GitHub CLI command and parse its JSON output."""
-    result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=10)
+    result = subprocess.run(["gh", *args], check=True, capture_output=True, text=True, timeout=30)
     return json.loads(result.stdout)
 
 
 def gh_delete(*args: str) -> None:
     """Delete a GitHub resource through the GitHub CLI."""
-    subprocess.run(["gh", *args], check=True, timeout=10)
+    subprocess.run(["gh", *args], check=True, timeout=30)
 
 
 def epoch(value: str) -> float:
@@ -419,12 +427,255 @@ def cleanup_pbd_package_versions(
         return result
 
 
+
+def completed_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
+    """List recent completed runs per workflow and stale runs by a global cutoff.
+
+    GitHub caps the repository-wide workflow-run listing at the newest 2,500
+    results. Querying stale runs by creation date avoids that cap, while
+    listing recent runs per workflow preserves all commit SHAs needed to
+    protect package versions from active and retained CI work.
+    """
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    workflows = list(
+        load_api_items(f"repos/{repo}/actions/workflows", collection_key="workflows")
+    )
+    if not workflows:
+        raise RuntimeError("GitHub returned no workflows; refusing incomplete run inventory")
+
+    recent_runs: list[dict[str, object]] = []
+    seen_workflow_ids: set[int] = set()
+    for workflow in workflows:
+        workflow_id = workflow.get("id")
+        if not isinstance(workflow_id, int):
+            raise RuntimeError("GitHub returned a workflow without an integer ID")
+        if workflow_id in seen_workflow_ids:
+            continue
+        seen_workflow_ids.add(workflow_id)
+        recent_runs.extend(
+            load_api_items(
+                f"repos/{repo}/actions/workflows/{workflow_id}/runs"
+                f"?status=completed&created=%3E%3D{cutoff}",
+                collection_key="workflow_runs",
+            )
+        )
+
+    stale_runs = list(
+        load_api_items(
+            f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}",
+            collection_key="workflow_runs",
+        )
+    )
+    return recent_runs, stale_runs
+
+
+
+def stale_completed_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    depth: int = 0,
+) -> list[dict[str, object]]:
+    """Collect all stale completed runs, splitting below GitHub's 1,000-result cap.
+
+    The workflow-runs endpoint reports a larger total_count but only exposes the
+    newest 1,000 matching records through pagination. Recursively query runs
+    older than the oldest returned record so no older run is hidden by that cap.
+    """
+    if depth > MAX_RUN_QUERY_SPLITS:
+        raise RuntimeError("stale workflow-run inventory exceeded the safe date-split depth")
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    endpoint = f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}"
+    inventory = list(load_api_items(endpoint, collection_key="workflow_runs"))
+    stale = stale_completed_runs(inventory, cutoff_epoch)
+    if len(inventory) < MAX_RUN_RESULTS_PER_API_QUERY:
+        return stale
+    if not stale:
+        raise RuntimeError("GitHub returned a capped run page without verifiable creation dates")
+
+    oldest_created_at = stale[0].get("created_at")
+    if not isinstance(oldest_created_at, str):
+        raise RuntimeError("oldest completed workflow run has no verifiable creation date")
+    next_cutoff = epoch(oldest_created_at) + 1.0
+    if next_cutoff >= cutoff_epoch:
+        raise RuntimeError("stale workflow-run inventory could not advance its date boundary")
+    older = stale_completed_workflow_runs(
+        repo,
+        next_cutoff,
+        api_items_loader=load_api_items,
+        depth=depth + 1,
+    )
+    combined_by_id: dict[int, dict[str, object]] = {}
+    for run in older + stale:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            raise RuntimeError("GitHub returned a workflow run without an integer ID")
+        combined_by_id[run_id] = run
+    combined = list(combined_by_id.values())
+    combined.sort(key=lambda run: epoch(str(run["created_at"])))
+    return combined
+
+
+def cleanup_workflow_runs_to_cap(
+    repo: str,
+    *,
+    keep: int = MAX_RETAINED_WORKFLOW_RUNS,
+    now: datetime | None = None,
+    total_count_loader: Callable[..., object] | None = None,
+    completed_runs_loader: Callable[[str, float], list[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
+) -> dict[str, int]:
+    """Keep the newest completed runs up to a repository-wide cap.
+
+    The overall run count comes from GitHub's uncapped total_count field. Candidate
+    runs are completed runs only, recursively date-split below GitHub's per-query
+    result cap, then sorted oldest-first. Active runs are never deletion candidates.
+    """
+    if keep < 0:
+        raise ValueError("run retention cap must be non-negative")
+    load_total = gh_json if total_count_loader is None else total_count_loader
+    load_candidates = (
+        stale_completed_workflow_runs
+        if completed_runs_loader is None
+        else completed_runs_loader
+    )
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+
+    payload = load_total("api", f"repos/{repo}/actions/runs?per_page=1")
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub returned an invalid workflow-run count response")
+    total_count = payload.get("total_count")
+    if not isinstance(total_count, int) or total_count < 0:
+        raise RuntimeError("GitHub returned an invalid total_count for workflow runs")
+
+    needed = max(0, total_count - keep)
+    if needed == 0:
+        return {
+            "total_before": total_count,
+            "keep": keep,
+            "deleted": 0,
+            "remaining_estimate": total_count,
+            "pending": 0,
+        }
+
+    clock = datetime.now(UTC) if now is None else now.astimezone(UTC)
+    search_days = RUN_CAP_SEARCH_DAYS
+    candidates = load_candidates(
+        repo, (clock - timedelta(days=search_days)).timestamp()
+    )
+    while len(candidates) < needed and search_days > 0:
+        search_days -= 1
+        candidates = load_candidates(
+            repo, (clock - timedelta(days=search_days)).timestamp()
+        )
+    candidates.sort(key=lambda run: epoch(str(run.get("created_at", ""))))
+    if len(candidates) < needed:
+        raise RuntimeError(
+            f"only {len(candidates)} completed runs are safely enumerable; "
+            f"{needed} must be removed to reach the {keep}-run cap"
+        )
+
+    delete_count = min(needed, MAX_RUN_CAP_DELETIONS_PER_RUN)
+    selected = candidates[:delete_count]
+    run_ids: list[int] = []
+    for run in selected:
+        run_id = run.get("id")
+        created_at = run.get("created_at")
+        if not isinstance(run_id, int) or not isinstance(created_at, str):
+            raise RuntimeError("GitHub returned an unverifiable run deletion candidate")
+        run_ids.append(run_id)
+    if len(set(run_ids)) != len(run_ids):
+        raise RuntimeError("completed workflow-run inventory contains duplicate IDs")
+
+    def delete_run(run_id: int) -> None:
+        delete_api_resource(
+            "api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}"
+        )
+
+    failures: list[tuple[int, str]] = []
+    deleted = 0
+    with ThreadPoolExecutor(max_workers=MAX_RUN_DELETE_WORKERS) as executor:
+        futures = {executor.submit(delete_run, run_id): run_id for run_id in run_ids}
+        for future in as_completed(futures):
+            run_id = futures[future]
+            try:
+                future.result()
+                deleted += 1
+            except Exception as exc:
+                failures.append((run_id, str(exc)[:200]))
+    if failures:
+        sample = "; ".join(f"{run_id}: {error}" for run_id, error in failures[:5])
+        raise RuntimeError(
+            f"failed to delete {len(failures)} workflow runs after deleting {deleted}: {sample}"
+        )
+
+    pending = max(0, needed - deleted)
+    return {
+        "total_before": total_count,
+        "keep": keep,
+        "deleted": deleted,
+        "remaining_estimate": total_count - deleted,
+        "pending": pending,
+    }
+
+def cleanup_stale_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
+) -> dict[str, int]:
+    """Delete a bounded batch of completed workflow runs older than the cutoff."""
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+    stale = stale_completed_workflow_runs(
+        repo, cutoff_epoch, api_items_loader=load_api_items
+    )
+    selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
+    deleted = 0
+    for run in selected:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            raise RuntimeError("GitHub returned a stale workflow run without an integer ID")
+        delete_api_resource(
+            "api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}"
+        )
+        deleted += 1
+    return {"deleted": deleted, "pending": len(stale) - deleted}
+
 def main() -> int:
     """Remove stale unprotected branches, runs, and unreferenced PBD image versions."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--runs-only",
+        action="store_true",
+        help="prune old completed Actions runs without branch or package cleanup",
+    )
+    args = parser.parse_args()
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
     run_cutoff = (now - timedelta(days=30)).timestamp()
+
+    if args.runs_only:
+        result = cleanup_workflow_runs_to_cap(repo)
+        print(
+            "maintenance-cleanup=passed mode=runs-only "
+            f"total_before={result['total_before']} keep={result['keep']} "
+            f"removed_runs={result['deleted']} "
+            f"remaining_estimate={result['remaining_estimate']} "
+            f"runs_pending_to_cap={result['pending']}"
+        )
+        return 0
 
     pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
     open_heads: set[str] = set()
@@ -480,12 +731,8 @@ def main() -> int:
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
         removed_branches += 1
 
-    runs = list(
-        paginated_api_items(
-            f"repos/{repo}/actions/runs?status=completed", collection_key="workflow_runs"
-        )
-    )
-    stale = stale_completed_runs(runs, run_cutoff)
+    recent_runs, stale_run_inventory = completed_workflow_runs(repo, run_cutoff)
+    stale = stale_completed_runs(stale_run_inventory, run_cutoff)
     selected = stale[:MAX_RUN_DELETIONS_PER_RUN]
     for run in selected:
         run_id = run.get("id")
@@ -500,9 +747,9 @@ def main() -> int:
         main_sha = main_object.get("sha") if isinstance(main_object, dict) else None
         if isinstance(main_sha, str):
             protected_shas.add(main_sha)
-    for run in runs:
-        created_at, sha = run.get("created_at"), run.get("head_sha")
-        if isinstance(created_at, str) and epoch(created_at) >= run_cutoff and isinstance(sha, str):
+    for run in recent_runs:
+        sha = run.get("head_sha")
+        if isinstance(sha, str):
             protected_shas.add(sha)
     for status in ("queued", "in_progress", "requested", "waiting"):
         active_runs = paginated_api_items(
