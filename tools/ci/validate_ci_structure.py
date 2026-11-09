@@ -64,10 +64,7 @@ QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"
 TYPECHECK_COMMANDS = QUALITY_RUNNER_COMMANDS
 
 PYTHON_POLICY_COMMANDS = QUALITY_RUNNER_COMMANDS
-RUFF_COMMANDS = (
-    'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"',
-    'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"',
-)
+RUFF_COMMANDS = QUALITY_RUNNER_COMMANDS
 
 
 def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
@@ -84,51 +81,39 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
         Blocking strict-quality runner commands absent as standalone lines.
     """
     command_lines = {
-        line.strip().removeprefix("run: ").strip()
-        for line in workflow_text.splitlines()
+        line.strip().removeprefix("run: ").strip() for line in workflow_text.splitlines()
     }
     return tuple(command for command in QUALITY_RUNNER_COMMANDS if command not in command_lines)
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required repository Python policy gates missing from the canonical workflow.
+    """Return the strict-quality runner when its Python policies are not blocking.
+
+    The pinned runner owns the source-rewriting and documentation contracts;
+    the workflow must invoke that runner as one standalone command.
 
     Args:
         workflow_text: Full canonical workflow text to inspect.
 
     Returns:
-        Python policy commands that are missing from the workflow.
-    """
-    """Return the pinned runner when it is missing from the workflow.
-
-    The strict runner's tested command inventory owns both Python policies, so
-    the workflow boundary must require the same standalone blocking invocation.
-
-    Args:
-        workflow_text: Full canonical workflow text to inspect.
-
-    Returns:
-        The strict-quality runner command when it is absent as a standalone line.
+        The strict-quality runner command when it is not standalone.
     """
     return missing_typecheck_commands(workflow_text)
 
 
 def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
-    """Return required standalone Ruff commands missing from the canonical workflow.
+    """Return the strict-quality runner when its Ruff gates are not blocking.
+
+    The pinned runner owns both repository-wide Ruff passes; the workflow must
+    invoke that runner as one standalone command.
 
     Args:
         workflow_text: Full canonical workflow text to inspect.
 
     Returns:
-        Ruff commands that are absent as standalone shell lines.
+        The strict-quality runner command when it is not standalone.
     """
-    command_lines: set[str] = set()
-    for line in workflow_text.splitlines():
-        command = line.strip()
-        if command.startswith("run: "):
-            command = command.removeprefix("run: ").strip()
-        command_lines.add(command)
-    return tuple(command for command in RUFF_COMMANDS if command not in command_lines)
+    return missing_typecheck_commands(workflow_text)
 
 
 def _pyright_path_is_included(path: str, include: list[str]) -> bool:

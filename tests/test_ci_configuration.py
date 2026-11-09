@@ -1019,16 +1019,16 @@ def test_blanket_artifact_preserves_example_directory_for_gif_publisher() -> Non
 
 def test_ruff_command_parser_accepts_standalone_run_fields() -> None:
     """Accept YAML inline run fields and a standalone multiline Ruff command."""
-    workflow = f"run: {RUFF_COMMANDS[0]}\n{RUFF_COMMANDS[1]}\n"
+    workflow = f"run: {RUFF_COMMANDS[0]}\n"
     assert missing_ruff_commands(workflow) == (), (
-        "Both standalone Ruff commands must be recognized."
+        "The pinned strict-quality runner must be recognized as the Ruff gate."
     )
 
 
 def test_ruff_command_parser_rejects_and_chained_commands() -> None:
     """Reject a Ruff command chained with another shell expression."""
-    workflow = f"run: {RUFF_COMMANDS[0]} && true\n{RUFF_COMMANDS[1]}\n"
-    assert missing_ruff_commands(workflow) == (RUFF_COMMANDS[0],), (
+    workflow = f"run: {RUFF_COMMANDS[0]} && true\n"
+    assert missing_ruff_commands(workflow) == RUFF_COMMANDS, (
         "Only the chained Ruff command must be reported missing."
     )
 
@@ -1107,12 +1107,10 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
         "Removing the pinned quality runner must be detected for both Python policies."
     )
     commands = {
-        command.label: command.arguments
-        for command in quality_commands(Path("python"), ())
+        command.label: command.arguments for command in quality_commands(Path("python"), ())
     }
-    assert commands["Source-rewriting policy"][-1] == (
-        "tools/ci/check_no_source_rewriting.py"
-    )
-    assert commands["Python documentation contract"][-1] == (
-        "tools/check_documentation_contract.py"
-    )
+    assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
+    assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
+    assert commands["Strict Pyright"][1:] == ("pyright", "-p", "pyrightconfig.json")
+    assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
+    assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")

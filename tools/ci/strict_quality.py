@@ -331,7 +331,12 @@ def main() -> int:
         python = prepare_quality_environment(cache_root, image_id, workspace_key)
         tracked_files = collect_tracked_python_files(ROOT)
         if not tracked_files:
-            raise RuntimeError("Git reported no tracked Python sources or stubs.")
+            print(
+                "::error::Git reported no tracked Python sources or stubs.",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 1
         _run_setup(
             ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
             timeout_seconds=10,
