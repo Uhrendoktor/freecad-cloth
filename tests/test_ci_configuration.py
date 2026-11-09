@@ -558,7 +558,7 @@ def test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap():
     )
 
     assert result == {
-        "total_before": 2_400,
+        "total_before": 9,
         "keep": 10,
         "deleted": 0,
         "remaining_estimate": 9,
