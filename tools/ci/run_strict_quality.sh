@@ -8,17 +8,18 @@ if [[ $# -ne 1 || -z "$1" ]]; then
 fi
 
 image="$1"
-# Preserve GitHub's logical workspace path for Docker bind mounts. The self-hosted
-# Docker daemon may not share the physical path obtained by resolving this symlink.
 workspace="${GITHUB_WORKSPACE:-$(git rev-parse --show-toplevel)}"
 if [[ ! -f "$workspace/tools/ci/strict_quality.py" ]]; then
   echo "::error::Strict-quality source is missing from the runner workspace: $workspace/tools/ci/strict_quality.py" >&2
   exit 1
 fi
 echo "strict-quality-workspace=$workspace"
-tool_cache="${RUNNER_TOOL_CACHE:-$HOME/.cache}"
-cache_root="${tool_cache}/freecad-cloth"
-mkdir -p "$cache_root/home" "$cache_root/pip-cache" "$cache_root/pre-commit" "$cache_root/xdg"
+
+# The runner checkout is not necessarily mounted into the Docker daemon's host
+# namespace. Copy it through the Docker API instead of bind-mounting its path.
+# Keep the dependency environment in a named volume so it survives job containers.
+cache_volume="freecad-cloth-quality-cache"
+docker volume create "$cache_volume" >/dev/null
 
 if ! docker image inspect "$image" >/dev/null 2>&1; then
   if [[ -z "${GH_TOKEN:-}" ]]; then
@@ -30,11 +31,19 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
 fi
 image_id="$(docker image inspect --format '{{.Id}}' "$image")"
 workspace_key="$(printf '%s' "$workspace" | sha256sum | cut -c1-12)"
+container_name="freecad-cloth-quality-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}"
+container_id=""
 
-exec docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
+cleanup() {
+  if [[ -n "$container_id" ]]; then
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+  fi
+}
+trap cleanup EXIT
+
+container_id="$(docker create --name "$container_name" --init --security-opt seccomp=unconfined --shm-size=1g \
   --user "$(id -u):$(id -g)" \
-  --volume "$workspace:/workspace:rw" \
-  --volume "$cache_root:/runner-cache:rw" \
+  --volume "$cache_volume:/runner-cache:rw" \
   --workdir /workspace \
   --env RUNNER_TOOL_CACHE=/runner-cache \
   --env PIP_CACHE_DIR=/runner-cache/pip-cache \
@@ -44,4 +53,7 @@ exec docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
   --env QUALITY_IMAGE_ID="$image_id" \
   --env WORKSPACE_CACHE_KEY="$workspace_key" \
   --env GITHUB_ACTIONS=true \
-  "$image" /opt/conda/envs/freecad/bin/python tools/ci/strict_quality.py
+  "$image" /opt/conda/envs/freecad/bin/python tools/ci/strict_quality.py)"
+
+docker cp -a "$workspace/." "$container_id:/workspace"
+docker start --attach "$container_id"
