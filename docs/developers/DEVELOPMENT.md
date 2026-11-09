@@ -49,13 +49,14 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 ### Runner routing
 
-Pull requests use GitHub-hosted runners directly. They never enter the self-hosted runner path.
+All validation, publication, artifact-budget, maintenance, and merge-queue jobs use the existing `self-hosted/linux/x64/docker` runner. GitHub-hosted runners and automatic hosted fallback are disabled; this repository's CI does not consume Microsoft-hosted runner minutes.
 
-Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started.
+Pull-request jobs run locally only when the head branch belongs to this repository and the PR author is not Dependabot. Fork-originated and Dependabot PRs are skipped rather than executing untrusted code on the persistent machine. Manual dispatch, scheduled validation, trusted pushes, and merge-queue validation use the same local runner. Merge-group readiness checks the associated PR heads and authors and fails closed for external or Dependabot code.
 
-A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel. When the local runner does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
+The `local_runner_readiness` sentinel verifies Docker before substantive work begins. Static Python tools use a dependency-keyed virtual environment under `RUNNER_TOOL_CACHE/freecad-cloth/venvs`; it is recreated only when the Python version, `pyproject.toml`, or explicit extra requirements change. FreeCAD evidence validators use a separate persistent environment. The PBD image action checks the local Docker daemon first, then pulls the immutable GHCR tag, and builds only when neither cache contains it. Installed packages and Docker images persist across workflow runs.
 
-There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The single daily schedule remains for repository maintenance and runner/fallback coverage.
+
+There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The daily schedule remains for repository maintenance and static validation.
 
 The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable PR head SHA with persisted checkout credentials disabled.
 

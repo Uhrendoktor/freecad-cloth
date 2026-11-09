@@ -323,52 +323,31 @@ def test_turntable_frame_counts_validate_after_restore() -> None:
     )
 
 
-def test_canonical_workflow_keeps_simple_local_first_fallback() -> None:
-    """Preserve the simple local-first runner fallback policy."""
+def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
+    """Keep the complete canonical workflow on the existing self-hosted Docker runner."""
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     require(
-        condition=("runner_watchdog:" in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
-    )
-    watchdog = (root / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
-    require(
-        condition=("runner-watchdog=fallback" in watchdog),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
+        condition=("runs-on: [self-hosted, linux, x64, docker]" in workflow),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("runner_mode:" in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
+        condition=("ubuntu-latest" not in workflow and "runner_watchdog" not in workflow),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("fallback_source_run:" in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
+        condition=("RUNNER_TOOL_CACHE" in workflow and "python -m venv" in workflow),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("default: local" in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
+        condition=("needs: [local_runner_readiness]" in workflow),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
     require(
-        condition=("pull_request_broker:" not in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
-    )
-    require(
-        condition=("runner_router:" not in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
-    )
-    require(
-        condition=("runner_heartbeat:" not in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
-    )
-    require(
-        condition=("sketcher-startup-diagnostic:" not in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
-    )
-    require(
-        condition=("*/5 * * * *" not in workflow),
-        message="test_canonical_workflow_keeps_sim...: required condition failed",
+        condition=("fallback_source_run" not in workflow and "inputs.runner_mode" not in workflow),
+        message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
 
 

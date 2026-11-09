@@ -304,10 +304,10 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "\nenv:\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
-    watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
-    watchdog_source = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
-    assert "inputs.runner_mode != 'hosted'" in watchdog
-    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in watchdog_source
+    assert "runs-on: [self-hosted, linux, x64, docker]" in shared
+    assert "ubuntu-latest" not in shared
+    assert "runner_watchdog" not in shared
+    assert "needs: [local_runner_readiness]" in shared
 
 
 def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:

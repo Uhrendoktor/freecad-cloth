@@ -1,7 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Contract checks for the canonical runner topology and trust boundaries."""
+"""Contract checks for the canonical local runner topology and trust boundaries."""
 
 import os
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,7 +31,7 @@ def _job_block(source: str, job: str) -> str:
     start = source.index(marker)
     remainder = source[start + len(marker) :]
     lines = remainder.splitlines(keepends=True)
-    block = []
+    block: list[str] = []
     for line in lines:
         if line.startswith("  ") and not line.startswith("    ") and line.rstrip().endswith(":"):
             break
@@ -39,7 +40,7 @@ def _job_block(source: str, job: str) -> str:
 
 
 def test_one_canonical_workflow() -> None:
-    """Require the canonical workflow and its three entry-point callers only."""
+    """Require the canonical reusable workflow and its three callers only."""
     workflow_dir = ROOT / ".github" / "workflows"
     workflows = sorted(path.name for path in workflow_dir.glob("*.yml"))
     assert workflows == [
@@ -47,148 +48,93 @@ def test_one_canonical_workflow() -> None:
         "commit-validation.yml",
         "main-publication.yml",
         "merge-validation.yml",
-    ], "Only the canonical workflow and its three callers should exist."
+    ]
     shared = WORKFLOW.read_text(encoding="utf-8")
-    assert "workflow_call:" in shared, "The canonical workflow must support workflow_call."
-    assert "workflow_run:" not in shared, (
-        "The canonical workflow must not be triggered by workflow_run."
-    )
+    assert "workflow_call:" in shared
+    assert "workflow_run:" not in shared
 
 
-def test_pull_requests_are_hosted_only() -> None:
-    """Keep all pull-request validation jobs on the hosted runner path."""
+def test_pull_requests_are_trusted_before_using_the_local_runner() -> None:
+    """Allow same-repository, non-Dependabot PRs onto the persistent runner only."""
     workflow_dir = ROOT / ".github" / "workflows"
     entry = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
-    source = WORKFLOW.read_text(encoding="utf-8")
-    assert "pull_request:" in entry, "PR validation trigger is missing."
-    assert "pull_request_target:" not in entry, (
-        "PR validation must not use the privileged pull_request_target event."
-    )
     fast = _job_block(entry, "fast-feedback")
     full = _job_block(entry, "explicit-full-validation")
-    assert "runner_mode: hosted" in fast, "Fast PR feedback must select the hosted runner."
-    assert "execution_mode: fast" in fast, "Fast PR feedback must use fast execution mode."
-    assert "runner_mode: hosted" in full, "Full PR validation must select the hosted runner."
-    assert "execution_mode: full" in full, "Full PR validation must use full execution mode."
-    assert "[full-validation]" in entry, "The full-validation title route must remain explicit."
+    assert "pull_request:" in entry
+    assert "pull_request_target:" not in entry
+    for block in (fast, full):
+        assert "github.event.pull_request.head.repo.full_name == github.repository" in block
+        assert "github.event.pull_request.user.login != 'dependabot[bot]'" in block
+    assert "execution_mode: fast" in fast
+    assert "execution_mode: full" in full
+    assert "[full-validation]" in entry
 
+
+def test_every_canonical_job_uses_only_the_self_hosted_docker_runner() -> None:
+    """Require every canonical job to avoid GitHub-hosted runner minutes."""
+    source = WORKFLOW.read_text(encoding="utf-8")
+    job_source = source.split("\njobs:\n", 1)[1]
+    blocks = re.findall(
+        r"(?ms)^  ([A-Za-z0-9_-]+):\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        job_source,
+    )
+    assert blocks
+    for name, block in blocks:
+        assert "runs-on: [self-hosted, linux, x64, docker]" in block, (
+            f"{name} must use the configured self-hosted Docker runner."
+        )
+    assert "ubuntu-latest" not in source
+    assert "runner_watchdog" not in source
+    assert "fallback_source_run" not in source
+
+
+def test_local_readiness_gates_quality_and_image_work() -> None:
+    """Start static checks and the PBD image build only after local readiness."""
+    source = WORKFLOW.read_text(encoding="utf-8")
+    quality = _job_block(source, "agent-quality")
+    image = _job_block(source, "pbd_validation_image")
     readiness = _job_block(source, "local_runner_readiness")
-    assert "'ubuntu-latest'" in readiness, "Runner readiness must identify the hosted runner."
-    assert "self-hosted" in readiness, "Runner readiness must recognize local runners."
-    runner_selector = "github.event_name == 'pull_request' || inputs.runner_mode == 'hosted'"
-    jobs = (
-        "diagnostic-pbd-contact",
-        "simulation-ladder",
-        "python",
-        "gui-simple",
-        "gui-tunic-visual",
-        "gui-turntables",
-        "gui-visual-examples",
-        "benchmark",
-    )
-    for job in jobs:
-        block = _job_block(source, job)
-        assert runner_selector in block, (
-            f"{job} must select hosted runners for PRs and hosted mode."
-        )
-        assert "'ubuntu-latest'" in block, f"{job} must include the hosted runner label."
-        assert "self-hosted" in block, (
-            f"{job} must preserve the local-runner option for trusted events."
-        )
+    assert "needs: [local_runner_readiness]" in quality
+    assert "needs: [local_runner_readiness]" in image
+    assert "docker info" in readiness
+    assert "github.event_name == 'merge_group'" in readiness
+    assert "commits/${HEAD_SHA}/pulls" in readiness
 
 
-def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
-    """Require main-only publication and mode-appropriate fallback routing."""
-    workflow_dir = ROOT / ".github" / "workflows"
-    publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
-    source = WORKFLOW.read_text(encoding="utf-8")
-    assert "push:" in publication, "Main publication must use a push trigger."
-    assert "branches: [main]" in publication, "Publication pushes must be restricted to main."
-    assert "default: local" in publication, "Publication must default to local execution."
-
-    watchdog = _job_block(source, "runner_watchdog")
-    assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in watchdog, (
-        "The watchdog may activate only for trusted dispatch or push events."
-    )
-    assert "inputs.runner_mode != 'hosted'" in watchdog, (
-        "The watchdog must check the selected runner mode."
-    )
-    assert "tools/ci/runner_watchdog.py" in watchdog, (
-        "The watchdog job must call the canonical watchdog script."
-    )
-    fallback_expression = (
-        "FALLBACK_WORKFLOW: ${{ inputs.execution_mode == 'publication' && "
-        "'main-publication.yml' || 'commit-validation.yml' }}"
-    )
-    assert fallback_expression in watchdog, (
-        "The watchdog must select the fallback workflow for the execution mode."
-    )
+def test_manual_validation_and_publication_have_no_hosted_fallback() -> None:
+    """Keep dispatch, schedule, merge-queue, and publication paths local-only."""
+    workflows = ROOT / ".github" / "workflows"
+    commit = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
+    merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
+    publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
+    assert "workflow_dispatch:" in commit
+    assert "runner_mode" not in commit
+    assert "fallback_source_run" not in commit
+    assert "execution_mode: full" in commit
+    assert "runs-on: [self-hosted, linux, x64, docker]" in merge
+    assert "runner_mode" not in merge
+    assert "fallback_source_run" not in merge
+    assert "push:" in publication
+    assert "branches: [main]" in publication
+    assert "workflow_dispatch:" not in publication
+    assert "ubuntu-latest" not in merge + publication
 
 
-def test_trusted_runs_remain_local_first() -> None:
-    """Keep trusted event runs local-first while allowing explicit hosted fallback."""
-    workflow_dir = ROOT / ".github" / "workflows"
-    commit = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
-    publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
-    source = WORKFLOW.read_text(encoding="utf-8")
-    assert "default: local" in commit, "Commit validation must default to local execution."
-    assert "default: local" in publication, "Main publication must default to local execution."
-    local_selector = 'fromJSON(\'["self-hosted","linux","x64","docker"]\')'
-    jobs = (
-        "diagnostic-pbd-contact",
-        "simulation-ladder",
-        "python",
-        "gui-simple",
-        "gui-tunic-visual",
-        "gui-turntables",
-        "gui-visual-examples",
-        "benchmark",
-    )
-    for job in jobs:
-        block = _job_block(source, job)
-        assert local_selector in block, f"{job} must preserve the local-first runner selector."
-        assert "inputs.runner_mode == 'hosted'" in block, (
-            f"{job} must support an explicit hosted runner selection."
-        )
-
-
-def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs() -> None:
-    """Require trusted-event fallback dispatch without runner discovery."""
-    source = WORKFLOW.read_text(encoding="utf-8")
-    watchdog = _job_block(source, "runner_watchdog")
-    assert "github.event_name == 'push' || github.event_name == 'workflow_dispatch'" in watchdog, (
-        "Hosted fallback must be limited to trusted push or dispatch events."
-    )
-    assert "inputs.runner_mode != 'hosted'" in watchdog, (
-        "Hosted fallback must respect the requested runner mode."
-    )
-    assert "Prefer local, otherwise dispatch hosted" in watchdog, (
-        "The watchdog job must explain the local-first fallback policy."
-    )
-    assert "tools/ci/runner_watchdog.py" in watchdog, (
-        "The watchdog job must invoke the maintained helper script."
-    )
-    assert "FALLBACK_WORKFLOW:" in watchdog, (
-        "The fallback workflow name must be passed to the watchdog."
-    )
-
-    script = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
-    assert "time.monotonic() + 45" in script, (
-        "The watchdog wait must use the bounded monotonic deadline."
-    )
-    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in script, (
-        "The watchdog must preserve the default fallback workflow."
-    )
-    assert '"runner_mode=hosted"' in script, "The hosted fallback must request hosted runner mode."
-    assert 'f"fallback_source_run={run_id}"' in script, (
-        "The hosted fallback must identify its source run."
-    )
-    assert 'f"repos/{repo}/actions/runs/{run_id}/cancel"' in script, (
-        "The watchdog must cancel the stale source run after dispatch."
-    )
-    assert "/actions/runners" not in source + script, (
-        "Runner discovery must not query privileged runner inventory."
-    )
+def test_reusable_dependency_environments_and_docker_images_are_persistent() -> None:
+    """Reuse dependency-keyed virtual environments and locally cached Docker images."""
+    quality = _job_block(WORKFLOW.read_text(encoding="utf-8"), "agent-quality")
+    freecad_action = (
+        ROOT / ".github" / "actions" / "freecad-test" / "action.yml"
+    ).read_text(encoding="utf-8")
+    image_action = (
+        ROOT / ".github" / "actions" / "pbd-image" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "RUNNER_TOOL_CACHE" in quality
+    assert "quality-${py}-${key}-${ws}" in quality
+    assert "RUNNER_TOOL_CACHE" in freecad_action
+    assert "evidence-${py}-${key}-${ws}" in freecad_action
+    assert "docker image inspect" in image_action
+    assert "docker pull" in image_action
 
 
 def test_no_privileged_runner_discovery_or_second_workflow() -> None:
@@ -200,57 +146,35 @@ def test_no_privileged_runner_discovery_or_second_workflow() -> None:
         "commit-validation.yml",
         "main-publication.yml",
         "merge-validation.yml",
-    }, "The workflow directory must contain only the four canonical workflows."
-    assert all("workflow_run:" not in source for source in sources.values()), (
-        "No workflow may be triggered by the privileged workflow_run event."
-    )
+    }
+    assert all("workflow_run:" not in source for source in sources.values())
     shared = sources["canonical-execution.yml"]
-    forbidden_markers = (
-        "CLOTH_RUNNER_DISCOVERY_TOKEN",
-        "runner_router:",
-        "brokered_hosted_status:",
-        "runner_heartbeat:",
-        "sketcher-startup-diagnostic:",
-        "*/5 * * * *",
-    )
-    for marker in forbidden_markers:
-        assert marker not in shared, (
-            f"The canonical workflow must not contain forbidden marker {marker!r}."
-        )
+    for marker in ("CLOTH_RUNNER_DISCOVERY_TOKEN", "runner_router:", "*/5 * * * *"):
+        assert marker not in shared
     maintenance = _job_block(shared, "maintenance-cleanup")
-    assert "runs-on: ubuntu-latest" in maintenance, (
-        "Repository maintenance must run on the hosted runner."
-    )
-    assert "github.event_name == 'schedule'" in maintenance, (
-        "Maintenance cleanup must be restricted to scheduled events."
-    )
-    assert "RUN MAINTENANCE CLEANUP" in maintenance, (
-        "Maintenance cleanup must require its explicit event marker."
-    )
+    assert "runs-on: [self-hosted, linux, x64, docker]" in maintenance
+    assert "github.event_name == 'schedule'" in maintenance
+    assert "RUN MAINTENANCE CLEANUP" in maintenance
 
 
 def test_pr_checkout_is_credential_free_and_uses_head_sha() -> None:
-    """Keep pull-request checkout pinned to the head SHA without persisted credentials."""
+    """Keep PR checkout pinned to its head SHA without persisted checkout credentials."""
     source = WORKFLOW.read_text(encoding="utf-8")
-    assert "github.event.pull_request.head.sha" in source, (
-        "PR validation must use the source branch head SHA."
-    )
-    assert "persist-credentials: false" in source, (
-        "PR checkout must not persist repository credentials."
-    )
+    assert "github.event.pull_request.head.sha" in source
+    assert "persist-credentials: false" in source
 
 
 def test_collection_contract_passes_when_every_requested_module_collects() -> None:
-    """Accept the collection contract when each requested test module is present."""
+    """Accept the collection contract when each requested module is present."""
     result = missing_requested_modules(
         ("tests/test_one.py", "tests/test_two.py"),
         ("tests/test_one.py", "tests/test_two.py", "tests/test_two.py"),
     )
-    assert result == (), "Collection must pass when all requested modules have collected tests."
+    assert result == ()
 
 
 def test_collection_contract_rejects_a_requested_module_with_zero_items() -> None:
-    """Reject a requested test module when collection produces no items from it."""
+    """Reject a requested module when it collects no pytest items."""
     expected = (ROOT / "tests" / "test_one.py", ROOT / "tests" / "test_empty.py")
     collected = SimpleNamespace(path=expected[0])
     with pytest.raises(pytest.UsageError, match=r"tests/test_empty\.py"):

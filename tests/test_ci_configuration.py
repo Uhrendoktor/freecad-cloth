@@ -181,8 +181,8 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup, 'Expected "packages: write" in cleanup.'
 
 
-def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
-    """Retention can finish on GitHub-hosted runners without watchdog cancellation."""
+def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
+    """Run scheduled retention without hosted fallback or cancellation logic."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -190,21 +190,23 @@ def test_one_shot_retention_run_bypasses_runner_fallback() -> None:
         "github.event_name == 'push' && github.ref == 'refs/heads/main' && "
         "startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
     )
-    readiness = workflow.split("  local_runner_readiness:", 1)[1].split("  runner_watchdog:", 1)[0]
-    watchdog = workflow.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
-    image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
+    readiness = workflow.split("  local_runner_readiness:", 1)[1].split(
+        "  pbd_validation_image:", 1
+    )[0]
+    image = workflow.split("  pbd_validation_image:", 1)[1].split(
+        "  diagnostic-pbd-contact:", 1
+    )[0]
+    cleanup = workflow.split("  maintenance-cleanup:", 1)[1].split(
+        "  artifact-budget:", 1
+    )[0]
     artifact_budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
 
-    assert f"!({activation})" in readiness, f"Expected `!({activation})` in readiness."
-    assert f"!({activation})" in watchdog, f"Expected `!({activation})` in watchdog."
-    assert f"!({activation})" in image, f"Expected `!({activation})` in image."
-    assert (
-        "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
-        in artifact_budget
-    ), (
-        "Expected ( \"!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE "
-        "CLEANUP')\" in artifact_budget )."
-    )
+    assert f"!({activation})" in readiness
+    assert f"!({activation})" in image
+    assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
+    assert "ubuntu-latest" not in workflow
+    assert "runner_watchdog" not in workflow
+    assert "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')" in artifact_budget
 
 
 def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:

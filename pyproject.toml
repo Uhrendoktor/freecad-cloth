@@ -52,6 +52,7 @@ dev = [
   "crosshair-tool==0.0.112",
   "defusedxml>=0.7.1,<1",
   "ast-grep-cli==0.45.3",
+  "ty==0.0.91",
 ]
 
 [tool.freecad_cloth.ci]

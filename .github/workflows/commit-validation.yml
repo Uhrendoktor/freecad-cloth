@@ -9,17 +9,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited]
   workflow_dispatch:
     inputs:
-      runner_mode:
-        description: Trusted execution mode; local prefers self-hosted Docker, hosted uses GitHub-hosted runners.
-        required: false
-        type: choice
-        default: local
-        options: [local, hosted]
-      fallback_source_run:
-        description: Original run ID when invoked as an automatic hosted fallback.
-        required: false
-        type: string
-        default: ""
       diagnostic_controls:
         description: Run diagnostic-only PBD contact controls.
         required: false
@@ -51,7 +40,7 @@ permissions:
 jobs:
   fast-feedback:
     name: Fast PR feedback
-    if: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.title, '[full-validation]') }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.title, '[full-validation]') }}
     # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
       actions: write
@@ -61,14 +50,12 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
-      runner_mode: hosted
-      fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
 
   explicit-full-validation:
     name: Explicit full validation
-    if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[full-validation]') }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[full-validation]') }}
     permissions:
       actions: write
       contents: write
@@ -77,8 +64,6 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: full
-      runner_mode: hosted
-      fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ${{ github.event.pull_request.number }}
 
@@ -93,8 +78,6 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: full
-      runner_mode: ${{ inputs.runner_mode || 'local' }}
-      fallback_source_run: ${{ inputs.fallback_source_run || '' }}
       diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
       pr_number: ${{ inputs.pr_number || '' }}
 
@@ -109,7 +92,5 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: scheduled
-      runner_mode: hosted
-      fallback_source_run: ""
       diagnostic_controls: false
       pr_number: ""
