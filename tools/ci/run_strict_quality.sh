@@ -75,6 +75,7 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
   --env QUALITY_BUNDLE_BRANCH="$bundle_branch" \
   --env QUALITY_HEAD_SHA="$head_sha" \
   --env QUALITY_BASE_REF="$base_ref" \
+  --env GITHUB_BASE_REF="$base_ref" \
   --env QUALITY_BASE_SHA="$base_sha" \
   --env GITHUB_ACTIONS=true \
   "$image" bash -lc '
@@ -84,8 +85,12 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
     git -C /tmp/freecad-cloth-worktree update-ref \
       "refs/remotes/origin/$QUALITY_BASE_REF" "$QUALITY_BASE_SHA"
     git -C /tmp/freecad-cloth-worktree checkout --quiet --detach "$QUALITY_HEAD_SHA"
+    rm -rf /workspace
     mv /tmp/freecad-cloth-worktree /workspace
     cd /workspace
+    test -f tools/ci/strict_quality.py
+    test "$(git rev-parse HEAD)" = "$QUALITY_HEAD_SHA"
+    git rev-parse --verify "origin/$QUALITY_BASE_REF"
     exec /opt/conda/envs/freecad/bin/python tools/ci/strict_quality.py
   ')"
 
