@@ -18,10 +18,23 @@ PRE_COMMIT_TIMEOUT_SECONDS = 120
 CPU_TORCH_REQUIREMENT = "torch==2.8.0+cpu"
 PYTORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 REQUIRED_RUNTIME_MODULES = (
-    "FreeCAD", "FreeCADGui", "Mesh", "MeshPart", "Part", "Sketcher",
-    "PySide.QtCore", "PySide.QtWidgets", "pivy.coin", "pypbd", "anny",
-    "anny.paths", "clad_body.load.anny", "clad_body.measure", "triangle",
-    "matplotlib.pyplot", "vulture.core",
+    "FreeCAD",
+    "FreeCADGui",
+    "Mesh",
+    "MeshPart",
+    "Part",
+    "Sketcher",
+    "PySide.QtCore",
+    "PySide.QtWidgets",
+    "pivy.coin",
+    "pypbd",
+    "anny",
+    "anny.paths",
+    "clad_body.load.anny",
+    "clad_body.measure",
+    "triangle",
+    "matplotlib.pyplot",
+    "vulture.core",
 )
 
 
@@ -151,8 +164,18 @@ def prepare_quality_environment(
     if not ready_marker_is_current(environment, cache_key):
         print(f"python-quality-cache=installing key={cache_key}", flush=True)
         _run_setup(
-            (str(python), "-m", "pip", "install", "--disable-pip-version-check",
-             "--extra-index-url", PYTORCH_CPU_INDEX, CPU_TORCH_REQUIREMENT, "-e", ".[dev]"),
+            (
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--extra-index-url",
+                PYTORCH_CPU_INDEX,
+                CPU_TORCH_REQUIREMENT,
+                "-e",
+                ".[dev]",
+            ),
             timeout_seconds=INSTALL_TIMEOUT_SECONDS,
         )
 
@@ -182,7 +205,9 @@ def collect_tracked_python_files(root: Path) -> tuple[str, ...]:
     """
     result = subprocess.run(
         ("git", "ls-files", "-z", "--", "*.py", "*.pyi"),
-        cwd=root, check=True, capture_output=True,
+        cwd=root,
+        check=True,
+        capture_output=True,
     )
     return tuple(os.fsdecode(item) for item in result.stdout.split(b"\0") if item)
 
@@ -199,24 +224,59 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
     """
     executable = str(python)
     return (
-        QualityCommand("Python compilation", (executable, "-m", "compileall", "-q", "tests", "tools/ci")),
+        QualityCommand(
+            "Python compilation", (executable, "-m", "compileall", "-q", "tests", "tools/ci")
+        ),
         QualityCommand("Markdown contract", (executable, "tools/check_markdown_contract.py")),
         QualityCommand("CI structure", (executable, "tools/ci/validate_ci_structure.py")),
         QualityCommand("Import architecture", ("lint-imports",)),
-        QualityCommand("Source-rewriting policy", (executable, "tools/ci/check_no_source_rewriting.py")),
+        QualityCommand(
+            "Source-rewriting policy", (executable, "tools/ci/check_no_source_rewriting.py")
+        ),
         QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json")),
-        QualityCommand("AST-grep rule tests", ("ast-grep", "test", "--skip-snapshot-tests", "--color", "never")),
-        QualityCommand("AST-grep repository contracts", ("ast-grep", "scan", "--min-severity", "error", "--color", "never", "freecad_cloth")),
+        QualityCommand(
+            "AST-grep rule tests", ("ast-grep", "test", "--skip-snapshot-tests", "--color", "never")
+        ),
+        QualityCommand(
+            "AST-grep repository contracts",
+            ("ast-grep", "scan", "--min-severity", "error", "--color", "never", "freecad_cloth"),
+        ),
         QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py")),
         QualityCommand(
             "CrossHair contracts",
-            ("crosshair", "check", "--analysis_kind", "asserts", "--per_path_timeout", "15", "--per_condition_timeout", "10", "tools/crosshair_contracts.py"),
+            (
+                "crosshair",
+                "check",
+                "--analysis_kind",
+                "asserts",
+                "--per_path_timeout",
+                "15",
+                "--per_condition_timeout",
+                "10",
+                "tools/crosshair_contracts.py",
+            ),
         ),
-        QualityCommand("Pre-commit actionlint", (executable, "-m", "pre_commit", "run", "--all-files", "actionlint"), PRE_COMMIT_TIMEOUT_SECONDS),
-        QualityCommand("Pre-commit zizmor", (executable, "-m", "pre_commit", "run", "--all-files", "zizmor"), PRE_COMMIT_TIMEOUT_SECONDS),
-        QualityCommand("Pre-commit yamllint", (executable, "-m", "pre_commit", "run", "--all-files", "yamllint"), PRE_COMMIT_TIMEOUT_SECONDS),
-        QualityCommand("Python documentation contract", (executable, "tools/check_documentation_contract.py")),
-        QualityCommand("Ruff format", (executable, "-m", "ruff", "format", "--check", *tracked_files)),
+        QualityCommand(
+            "Pre-commit actionlint",
+            (executable, "-m", "pre_commit", "run", "--all-files", "actionlint"),
+            PRE_COMMIT_TIMEOUT_SECONDS,
+        ),
+        QualityCommand(
+            "Pre-commit zizmor",
+            (executable, "-m", "pre_commit", "run", "--all-files", "zizmor"),
+            PRE_COMMIT_TIMEOUT_SECONDS,
+        ),
+        QualityCommand(
+            "Pre-commit yamllint",
+            (executable, "-m", "pre_commit", "run", "--all-files", "yamllint"),
+            PRE_COMMIT_TIMEOUT_SECONDS,
+        ),
+        QualityCommand(
+            "Python documentation contract", (executable, "tools/check_documentation_contract.py")
+        ),
+        QualityCommand(
+            "Ruff format", (executable, "-m", "ruff", "format", "--check", *tracked_files)
+        ),
         QualityCommand("Ruff lint", (executable, "-m", "ruff", "check", *tracked_files)),
     )
 
@@ -236,11 +296,17 @@ def run_quality_commands(commands: tuple[QualityCommand, ...]) -> int:
         print(f"::group::Strict quality: {command.label}", flush=True)
         try:
             result = subprocess.run(
-                command.arguments, cwd=ROOT, env=environment, check=False,
+                command.arguments,
+                cwd=ROOT,
+                env=environment,
+                check=False,
                 timeout=command.timeout_seconds,
             )
             if result.returncode:
-                print(f"::error::{command.label} failed with exit code {result.returncode}", flush=True)
+                print(
+                    f"::error::{command.label} failed with exit code {result.returncode}",
+                    flush=True,
+                )
                 failed = 1
         except subprocess.TimeoutExpired:
             print(f"::error::{command.label} timed out", flush=True)
@@ -274,7 +340,11 @@ def main() -> int:
         os.environ["PYTHONPATH"] = str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", "")
         return run_quality_commands(quality_commands(python, tracked_files))
     except (
-        KeyError, OSError, RuntimeError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+        KeyError,
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
     ) as error:
         print(f"::error::Strict quality environment failed: {error}", file=sys.stderr, flush=True)
         return 1

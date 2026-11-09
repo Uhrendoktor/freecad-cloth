@@ -186,9 +186,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
     assert "python -m ruff check --fix" not in quality
     assert "needs: [local_runner_readiness]" in quality
-    image = workflow.split("  pbd_validation_image:", 1)[1].split(
-        "  diagnostic-pbd-contact:", 1
-    )[0]
+    image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
     assert "needs: [local_runner_readiness]" in image
     independent_jobs = {
         "local_runner_readiness",

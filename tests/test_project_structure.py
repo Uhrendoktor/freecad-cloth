@@ -356,6 +356,7 @@ def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
         message="test_canonical_workflow_uses_only_the...: required condition failed",
     )
 
+
 def test_seam_graph_has_one_canonical_implementation() -> None:
     """Require the canonical seam graph to live in the sewing package."""
     root = Path(__file__).resolve().parents[1]

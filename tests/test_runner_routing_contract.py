@@ -125,9 +125,9 @@ def test_reusable_dependency_environments_and_docker_images_are_persistent() -> 
     quality = _job_block(WORKFLOW.read_text(encoding="utf-8"), "agent-quality")
     wrapper = (ROOT / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
     runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
-    image_action = (
-        ROOT / ".github" / "actions" / "pbd-image" / "action.yml"
-    ).read_text(encoding="utf-8")
+    image_action = (ROOT / ".github" / "actions" / "pbd-image" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "needs: [local_runner_readiness, pbd_validation_image]" in quality
     assert "needs.pbd_validation_image.outputs.image" in quality
     assert "bash tools/ci/run_strict_quality.sh" in quality
