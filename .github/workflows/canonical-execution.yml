@@ -126,22 +126,30 @@ jobs:
           python-version: '3.12'
       - name: Reuse persistent strict-quality environment
         shell: bash
+        env:
+          PIP_CACHE_DIR: ${{ runner.tool_cache }}/freecad-cloth/pip-cache
         run: |
           set -euo pipefail
           py="$(python -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-          key="$( { sha256sum pyproject.toml; printf '%s\n' 'torch==2.8.0+cpu' 'quality-v1'; } | sha256sum | cut -c1-20)"
+          key="$( { sha256sum pyproject.toml; printf '%s\n' 'quality-v2'; } | sha256sum | cut -c1-20)"
           ws="$(printf '%s' "$GITHUB_WORKSPACE" | sha256sum | cut -c1-12)"
           env_dir="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/quality-${py}-${key}-${ws}"
-          if [[ ! -x "$env_dir/bin/pyright" || ! -f "$env_dir/.ready" ]]; then
-            mkdir -p "$(dirname "$env_dir")"; rm -rf "$env_dir"; python -m venv "$env_dir"
-            timeout --signal=TERM --kill-after=5s 120s "$env_dir/bin/python" -m pip install --disable-pip-version-check --extra-index-url https://download.pytorch.org/whl/cpu "torch==2.8.0+cpu" -e ".[dev]"
-            touch "$env_dir/.ready"; echo "python-quality-cache=created key=$key"
-          else
-            echo "python-quality-cache=hit key=$key"
+          mkdir -p "$(dirname "$env_dir")" "$PIP_CACHE_DIR"
+          if [[ ! -x "$env_dir/bin/python" ]]; then
+            python -m venv "$env_dir"
+          fi
+          if [[ ! -x "$env_dir/bin/pyright" || ! -x "$env_dir/bin/pre-commit" ]]; then
+            # Do not remove an incomplete environment: keep installed wheels/packages
+            # and resume the same dependency install on the next run.
+            timeout --signal=TERM --kill-after=5s 180s "$env_dir/bin/python" -m pip install --disable-pip-version-check -e ".[dev]"
           fi
           "$env_dir/bin/python" -m pip check
+          "$env_dir/bin/python" -c "import pre_commit, ruff, pyright; print('strict-quality-tools=ready')"
+          touch "$env_dir/.ready"
+          echo "python-quality-cache=ready key=$key"
           echo "$env_dir/bin" >> "$GITHUB_PATH"
       - name: Python and architecture checks
+        if: ${{ success() }}
         run: |
           set -euo pipefail
           # The pytest matrix below is the single execution inventory for test_*.py modules.
@@ -158,14 +166,17 @@ jobs:
           python tools/check_dead_code.py
           crosshair check --analysis_kind asserts --per_path_timeout 15 --per_condition_timeout 10 tools/crosshair_contracts.py
       - name: Workflow linters
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: |
           set -euo pipefail
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files actionlint
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files zizmor
           timeout --signal=TERM --kill-after=5s 60s python -m pre_commit run --all-files yamllint
+      - name: Add persistent user binary directory to PATH
+        if: ${{ success() && github.event_name == 'pull_request' }}
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: PR duplication gate
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ success() && github.event_name == 'pull_request' }}
         uses: kucherenko/jscpd@db415b5d7cc34d72a324fe5eae2147646dc3558b # v5.4.2
         with:
           path: "freecad_cloth tests tools/ci"
@@ -176,14 +187,14 @@ jobs:
           fail-on-new-clones: "true"
           fail-on-empty: "true"
       - name: Python documentation contract (strict, whole repository)
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: |
           python tools/check_documentation_contract.py
       - name: Ruff formatting (strict, whole repository)
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"
       - name: Ruff lint (strict, whole repository)
-        if: ${{ !cancelled() }}
+        if: ${{ success() }}
         run: xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"
   local_runner_readiness:
     name: Selected runner readiness

@@ -131,6 +131,11 @@ def test_reusable_dependency_environments_and_docker_images_are_persistent() -> 
     ).read_text(encoding="utf-8")
     assert "RUNNER_TOOL_CACHE" in quality
     assert "quality-${py}-${key}-${ws}" in quality
+    assert "quality-v2" in quality
+    assert "Do not remove an incomplete environment" in quality
+    assert "180s" in quality
+    assert "torch==2.8.0+cpu" not in quality
+    assert "if: ${{ success() }}" in quality
     assert "RUNNER_TOOL_CACHE" in freecad_action
     assert "evidence-${py}-${key}-${ws}" in freecad_action
     assert "docker image inspect" in image_action
