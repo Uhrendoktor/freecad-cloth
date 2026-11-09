@@ -337,7 +337,12 @@ def _record_source_mutation_violation(node: ast.Call, analysis: _SourceAnalysis)
         analysis: Module analysis state with source aliases and diagnostics.
     """
     if _call_rewrites_known_source(node, analysis.source_names):
-        call_name = node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id
+        if isinstance(node.func, ast.Attribute):
+            call_name = node.func.attr
+        elif isinstance(node.func, ast.Name):
+            call_name = node.func.id
+        else:
+            call_name = "call"
         analysis.violations.append(
             f"{analysis.path}:{node.lineno}: Python source text must not be rewritten with "
             f"{call_name}(); use explicit functions/configuration"

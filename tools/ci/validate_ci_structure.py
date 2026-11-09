@@ -61,6 +61,7 @@ PYRIGHT_EXPECTED_INCLUDE = (".",)
 PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
 
 QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"',)
+TYPECHECK_COMMANDS = QUALITY_RUNNER_COMMANDS
 
 PYTHON_POLICY_COMMANDS = (
     "python tools/ci/check_no_source_rewriting.py",
@@ -85,10 +86,11 @@ def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
     Returns:
         Blocking strict-quality runner commands absent as standalone lines.
     """
-    command_lines = {line.strip() for line in workflow_text.splitlines()}
-    return tuple(
-        command for command in QUALITY_RUNNER_COMMANDS if command not in command_lines
-    )
+    command_lines = {
+        line.strip().removeprefix("run: ").strip()
+        for line in workflow_text.splitlines()
+    }
+    return tuple(command for command in QUALITY_RUNNER_COMMANDS if command not in command_lines)
 
 
 def missing_python_policy_commands(workflow_text: str) -> tuple[str, ...]:

@@ -203,8 +203,12 @@ def register_gui_command() -> None:
                 "Pixmap": "",
             }
 
-    if "ClothRealtimePreview" not in Gui.listCommands():
-        Gui.addCommand("ClothRealtimePreview", _Command())
+    add_command = getattr(Gui, "addCommand", None)
+    list_commands = getattr(Gui, "listCommands", None)
+    if callable(add_command) and (
+        not callable(list_commands) or "ClothRealtimePreview" not in list_commands()
+    ):
+        add_command("ClothRealtimePreview", _Command())
 
 
 register_gui_command()

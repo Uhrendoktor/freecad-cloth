@@ -80,9 +80,7 @@ def _defer_workbench_transition(callback: Callable[[], None]) -> None:
 
 
 _WORKBENCH_BASE: type[object] = (
-    cast("type[object]", getattr(Gui, "Workbench", object))
-    if Gui is not None
-    else object
+    cast("type[object]", getattr(Gui, "Workbench", object)) if Gui is not None else object
 )
 
 

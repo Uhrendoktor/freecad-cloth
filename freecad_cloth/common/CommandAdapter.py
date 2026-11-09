@@ -74,7 +74,12 @@ def register_commands(
     gui: GuiCommandRegistrar,
     commands: Mapping[str, CommandCallable],
 ) -> None:
-    """Register ``name -> callable`` pairs with FreeCAD's command protocol."""
+    """Register named callables with FreeCAD's command protocol.
+
+    Args:
+        gui: FreeCAD GUI object that implements the command-registration protocol.
+        commands: Mapping from stable command identifiers to their callable handlers.
+    """
     if not hasattr(gui, "addCommand"):
         return
     for name, function in commands.items():

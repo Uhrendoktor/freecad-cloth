@@ -140,7 +140,8 @@ runs:
     - name: Verify evidence validator dependencies
       if: inputs.validate-command != ''
       shell: bash
-      run: "$FREECAD_EVIDENCE_BIN/python" -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
+      run: |
+        "$FREECAD_EVIDENCE_BIN/python" -c 'import numpy, pydantic; from PIL import Image; print("evidence-validator-dependencies=ready")'
 
     - name: Validate test evidence
       if: inputs.validate-command != ''
