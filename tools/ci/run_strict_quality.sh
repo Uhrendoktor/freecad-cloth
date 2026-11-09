@@ -32,22 +32,6 @@ if ! docker image inspect "$image" >/dev/null 2>&1; then
   docker pull "$image"
 fi
 image_id="$(docker image inspect --format '{{.Id}}' "$image")"
-# Inspect the native module locations and launcher environment before adapting
-# the virtualenv preflight. AppRun itself may be a thin executable wrapper.
-docker run --rm "$image" bash -lc '
-  echo "=== freecad-runtime-probe ==="
-  id
-  echo "AppRun path: $(readlink -f /opt/freecad/AppRun)"
-  sed -n "1,80p" /opt/freecad/AppRun
-  echo "=== selected environment ==="
-  env | grep -E "^(PATH|PYTHONPATH|LD_LIBRARY_PATH|QT_PLUGIN_PATH|QT_QPA_PLATFORM|CONDA_PREFIX)=" | sort || true
-  echo "=== native module candidates ==="
-  find /opt -type f -o -type l | grep -E "/(FreeCAD|FreeCADGui|Part|Mesh|MeshPart|Sketcher)([^/]*\\.so|\\.so[^/]*)$" | sort || true
-  echo "=== FreeCAD module directories ==="
-  find /opt/conda/envs/freecad -maxdepth 5 -type d | grep -E "/(Mod|lib|site-packages)(/|$)" | sort | head -120 || true
-  echo "=== direct Python probe ==="
-  /opt/conda/envs/freecad/bin/python -c "import sys; print(sys.executable); print(*sys.path, sep=chr(10))"
-'
 workspace_key="$(printf '%s' "$workspace" | sha256sum | cut -c1-12)"
 container_name="freecad-cloth-quality-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}"
 container_id=""
@@ -63,6 +47,9 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
   --volume "$cache_volume:/runner-cache:rw" \
   --workdir /workspace \
   --env RUNNER_TOOL_CACHE=/runner-cache \
+  --env PYTHONPATH="/opt/conda/envs/freecad/lib:/opt/conda/envs/freecad/Mod:/workspace" \
+  --env LD_LIBRARY_PATH="/opt/conda/envs/freecad/lib" \
+  --env TINI_SUBREAPER=1 \
   --env PIP_CACHE_DIR=/runner-cache/pip-cache \
   --env PRE_COMMIT_HOME=/runner-cache/pre-commit \
   --env HOME=/runner-cache/home \
