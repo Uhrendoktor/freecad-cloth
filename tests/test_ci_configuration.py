@@ -480,6 +480,92 @@ def test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit():
     assert deleted[-1][-1].startswith(f"repos/{repo_name}/actions/runs/")
 
 
+
+def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_2500():
+    from datetime import UTC, datetime, timedelta
+
+    from tools.ci import maintenance_cleanup
+
+    repo_name = "example/repo"
+    now = datetime(2026, 11, 9, 12, 24, tzinfo=UTC)
+    target_deletions = 3_835 - maintenance_cleanup.MAX_RETAINED_WORKFLOW_RUNS
+    candidates = [
+        {
+            "id": run_id,
+            "created_at": (
+                now - timedelta(days=29) + timedelta(seconds=run_id)
+            ).isoformat().replace("+00:00", "Z"),
+        }
+        for run_id in range(1, target_deletions + 66)
+    ]
+    deleted: list[tuple[str, ...]] = []
+    count_requests: list[tuple[str, ...]] = []
+    candidate_requests: list[tuple[str, float]] = []
+
+    def fake_total_count(*args: str) -> dict[str, int]:
+        count_requests.append(args)
+        return {"total_count": 3_835}
+
+    def fake_candidates(name: str, cutoff: float) -> list[dict[str, object]]:
+        candidate_requests.append((name, cutoff))
+        return list(reversed(candidates))
+
+    def fake_delete(*args: str) -> None:
+        deleted.append(args)
+
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        repo_name,
+        now=now,
+        total_count_loader=fake_total_count,
+        completed_runs_loader=fake_candidates,
+        delete_resource=fake_delete,
+    )
+
+    deleted_ids = {
+        int(arguments[-1].rsplit("/", maxsplit=1)[1]) for arguments in deleted
+    }
+    assert count_requests == [
+        ("api", f"repos/{repo_name}/actions/runs?per_page=1")
+    ]
+    assert candidate_requests[0][0] == repo_name
+    assert result == {
+        "total_before": 3_835,
+        "keep": 2_500,
+        "deleted": target_deletions,
+        "remaining_estimate": 2_500,
+        "pending": 0,
+    }
+    assert len(deleted_ids) == target_deletions
+    assert deleted_ids == set(range(1, target_deletions + 1))
+
+
+def test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap():
+    from datetime import UTC, datetime
+
+    from tools.ci import maintenance_cleanup
+
+    deleted: list[tuple[str, ...]] = []
+
+    def fake_total_count(*_args: str) -> dict[str, int]:
+        return {"total_count": 2_400}
+
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "example/repo",
+        now=datetime(2026, 11, 9, tzinfo=UTC),
+        total_count_loader=fake_total_count,
+        completed_runs_loader=lambda _repo, _cutoff: [],
+        delete_resource=lambda *args: deleted.append(args),
+    )
+
+    assert result == {
+        "total_before": 2_400,
+        "keep": 2_500,
+        "deleted": 0,
+        "remaining_estimate": 2_400,
+        "pending": 0,
+    }
+    assert deleted == []
+
 def test_stale_workflow_run_inventory_recurses_past_github_result_cap():
     from collections.abc import Iterator
 
@@ -507,8 +593,8 @@ def test_stale_workflow_run_inventory_recurses_past_github_result_cap():
         assert collection_key == "workflow_runs"
         if endpoint.endswith("created=%3C2026-10-09T16:00:00Z"):
             return iter(newest_bucket)
-        if endpoint.endswith("created=%3C2026-10-05T00:00:00Z"):
-            return iter(oldest_bucket)
+        if endpoint.endswith("created=%3C2026-10-05T00:00:01Z"):
+            return iter([*oldest_bucket, newest_bucket[-1]])
         raise AssertionError(f"unexpected stale-run query: {endpoint}")
 
     runs = maintenance_cleanup.stale_completed_workflow_runs(
@@ -518,6 +604,7 @@ def test_stale_workflow_run_inventory_recurses_past_github_result_cap():
     assert len(runs) == maintenance_cleanup.MAX_RUN_RESULTS_PER_API_QUERY + 2
     assert [run["id"] for run in runs[:2]] == [1, 2]
     assert runs[2]["id"] == 10_000
+    assert len({run["id"] for run in runs}) == len(runs)
     assert len(requested) == 2
 
 def test_completed_workflow_runs_fail_closed_without_workflow_inventory():
