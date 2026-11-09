@@ -123,7 +123,7 @@ jobs:
     # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
     if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP')) }}"
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 4
+    timeout-minutes: 10
     permissions:
       actions: write
       contents: write
@@ -140,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py --runs-only
+            timeout --signal=TERM --kill-after=5s 540s python3 tools/ci/maintenance_cleanup.py --runs-only
           else
             timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
           fi
