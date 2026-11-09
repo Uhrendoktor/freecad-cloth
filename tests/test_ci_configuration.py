@@ -532,7 +532,7 @@ def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_10():
         "total_before": 3_835,
         "keep": 10,
         "deleted": target_deletions,
-        "remaining_estimate": 2_500,
+        "remaining_estimate": 10,
         "pending": 0,
     }
     assert len(deleted_ids) == target_deletions
