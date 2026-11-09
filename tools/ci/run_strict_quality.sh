@@ -42,10 +42,9 @@ docker run --rm "$image" bash -lc '
   echo "=== selected environment ==="
   env | grep -E "^(PATH|PYTHONPATH|LD_LIBRARY_PATH|QT_PLUGIN_PATH|QT_QPA_PLATFORM|CONDA_PREFIX)=" | sort
   echo "=== native module candidates ==="
-  find /opt/conda/envs/freecad -maxdepth 5 -type f \\
-    \\( -name "FreeCAD.so" -o -name "FreeCADGui.so" -o -name "Part.so" -o -name "Mesh.so" \\) -print | sort
+  find /opt/conda/envs/freecad -maxdepth 5 -type f \\( -name "FreeCAD.so" -o -name "FreeCADGui.so" -o -name "Part.so" -o -name "Mesh.so" \\) -print | sort
   echo "=== direct Python import probe ==="
-  /opt/conda/envs/freecad/bin/python -c "import sys; print(sys.executable); print(*sys.path, sep=\\\"\\\\n\\\")"
+  /opt/conda/envs/freecad/bin/python -c "import sys; print(sys.executable); print(*sys.path, sep=chr(10))"
 '
 workspace_key="$(printf '%s' "$workspace" | sha256sum | cut -c1-12)"
 container_name="freecad-cloth-quality-${GITHUB_RUN_ID:-$$}-${GITHUB_RUN_ATTEMPT:-1}"
