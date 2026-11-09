@@ -481,7 +481,7 @@ def test_runs_only_cleanup_filters_by_cutoff_and_obeys_the_batch_limit():
 
 
 
-def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_2500():
+def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_10():
     from datetime import UTC, datetime, timedelta
 
     from tools.ci import maintenance_cleanup
@@ -530,7 +530,7 @@ def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_2500():
     assert candidate_requests[0][0] == repo_name
     assert result == {
         "total_before": 3_835,
-        "keep": 2_500,
+        "keep": 10,
         "deleted": target_deletions,
         "remaining_estimate": 2_500,
         "pending": 0,
@@ -547,7 +547,7 @@ def test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap():
     deleted: list[tuple[str, ...]] = []
 
     def fake_total_count(*_args: str) -> dict[str, int]:
-        return {"total_count": 2_400}
+        return {"total_count": 9}
 
     result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
         "example/repo",
@@ -559,9 +559,9 @@ def test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap():
 
     assert result == {
         "total_before": 2_400,
-        "keep": 2_500,
+        "keep": 10,
         "deleted": 0,
-        "remaining_estimate": 2_400,
+        "remaining_estimate": 9,
         "pending": 0,
     }
     assert deleted == []

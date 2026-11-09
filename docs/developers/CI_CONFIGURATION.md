@@ -46,7 +46,7 @@ phrase can also activate the job before merge; fork PRs cannot. These PRs use a
 cleanup-only execution mode: the cleanup job runs first on the local runner, and its
 successful completion is the required validation result for that maintenance PR.
 The full GUI/simulation matrix is not dispatched for this operation. PR-triggered
-cleanup uses `--runs-only` to retain the newest 2,500 completed workflow runs across
+cleanup uses `--runs-only` to retain the newest 10 completed workflow runs across
 the repository, deleting the oldest completed runs first. It does not delete queued or
 in-progress runs. The daily scheduled maintenance path continues to apply its separate
 30-day workflow, branch, and container-package retention policies. The cleanup step
