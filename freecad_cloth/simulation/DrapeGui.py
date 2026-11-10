@@ -20,13 +20,16 @@ try:
 except ImportError:
     _Gui = None
 
-try:
-    from PySide import QtWidgets as _QtWidgets
-except ImportError:
+if TYPE_CHECKING:
+    from PySide2 import QtWidgets as _QtWidgets
+else:
     try:
-        from PySide2 import QtWidgets as _QtWidgets
+        from PySide import QtWidgets as _QtWidgets
     except ImportError:
-        _QtWidgets = None
+        try:
+            from PySide2 import QtWidgets as _QtWidgets
+        except ImportError:
+            _QtWidgets = None
 
 from freecad_cloth.common.UiDesign import apply_panel_style as _apply_panel_style
 from freecad_cloth.common.UiDesign import mark_button as _mark_button
