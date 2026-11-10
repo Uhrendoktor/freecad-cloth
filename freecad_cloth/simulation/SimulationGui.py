@@ -365,12 +365,20 @@ class SimulationTaskPanel:
         )
 
     def accept(self) -> bool:
-        """Commit current panel values to the active simulation document."""
+        """Commit current panel values to the active simulation document.
+
+        Returns:
+            True after the current panel values have been committed.
+        """
         self._ensure_scene().Document.recompute()
         return True
 
     def reject(self) -> bool:
-        """Close the task panel without changing its persisted selections."""
+        """Close the task panel without changing its persisted selections.
+
+        Returns:
+            True after the task panel has closed or the close request was unnecessary.
+        """
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
         return True
