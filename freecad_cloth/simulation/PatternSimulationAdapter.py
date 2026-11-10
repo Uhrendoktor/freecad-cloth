@@ -11,7 +11,7 @@ from collections.abc import Mapping, Sequence
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
-from freecad_cloth.pattern.PatternIR import PatternIR, SeamIR
+from freecad_cloth.pattern.PatternIR import PatternIR, PieceIR, SeamIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     NATIVE_SIGNATURE_PREFIX,
@@ -32,8 +32,15 @@ class ResolvedSimulationPattern:
     pieces: Mapping[str, object]
     signature: tuple[object, ...]
 
-    def piece(self, piece_id: str):
-        """Provide the public piece operation."""
+    def piece(self, piece_id: str) -> PieceIR:
+        """Return one pattern piece by its stable semantic identifier.
+
+        Args:
+            piece_id: Identifier assigned to the requested pattern piece.
+
+        Returns:
+            The resolved PatternIR piece with the requested identity.
+        """
         return self.pattern.piece(piece_id)
 
 
