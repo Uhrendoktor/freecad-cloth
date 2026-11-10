@@ -230,7 +230,7 @@ def test_reset_simulation_resets_scene_and_recomputes() -> None:
             _object_name: Name assigned to the new document feature.
 
         Returns:
-            A placeholder feature representing the newly created document object.
+            A distinct object instance representing the requested FreeCAD feature.
         """
         return object()
 
