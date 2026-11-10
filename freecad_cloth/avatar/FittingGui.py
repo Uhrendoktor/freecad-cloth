@@ -9,6 +9,7 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
+import importlib
 from itertools import starmap
 from typing import TYPE_CHECKING
 
@@ -22,6 +23,8 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_TARGET_COLOR,
 )
 
+if TYPE_CHECKING:
+    from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
 
 def _modules():
     """Load host application, GUI, and Qt modules for interactive fitting.
@@ -33,12 +36,15 @@ def _modules():
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
-        from PySide2 import QtCore, QtWidgets
+        QtCore = _QT_TYPE_QtCore
+        QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            from PySide import QtCore, QtWidgets
+            QtCore = importlib.import_module("PySide.QtCore")
+            QtWidgets = importlib.import_module("PySide.QtWidgets")
         except ImportError:
-            from PySide2 import QtCore, QtWidgets
+            QtCore = importlib.import_module("PySide2.QtCore")
+            QtWidgets = importlib.import_module("PySide2.QtWidgets")
     return App, Gui, QtCore, QtWidgets
 
 
