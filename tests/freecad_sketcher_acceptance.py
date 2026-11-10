@@ -7,6 +7,7 @@ import sys
 import tempfile
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
@@ -34,10 +35,13 @@ print("stage=part-imported", flush=True)
 
 def _events():
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
 
 
@@ -501,10 +505,13 @@ def run_acceptance():
                 _quit_application()
                 os._exit(1)
 
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         QtCore.QTimer.singleShot(0, _continue_after_seam_commit)
         handoff_to_qt = True
         return
@@ -518,10 +525,13 @@ def run_acceptance():
 
 
 def _quit_application():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.quit()
