@@ -314,7 +314,12 @@ class SimulationTaskPanel:
         self._selection_changed()
         return self.scene
 
-    def step(self, count):
+    def step(self, count: int) -> None:
+        """Advance the active scene and refresh its visible simulation state.
+
+        Args:
+            count: Number of solver steps to execute.
+        """
         scene = self._ensure_scene()
         scene.Steps = int(scene.Steps) + int(count)
         scene.Document.recompute()
