@@ -1416,10 +1416,7 @@ class SurfacePenTaskPanel:
         Returns:
             FreeCAD application module, GUI module, and Qt widget module.
         """
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
+        from freecad_cloth.common.qt_compat import QtWidgets
         return __import__("FreeCAD"), __import__("FreeCADGui"), QtWidgets
 
     def finish(self):
@@ -1462,10 +1459,7 @@ class SurfacePenTaskPanel:
             Qt's no-button flag because the panel provides explicit Finish, Clear,
             and Cancel controls.
         """
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
+        from freecad_cloth.common.qt_compat import QtWidgets
         return QtWidgets.QDialogButtonBox.NoButton
 
 
