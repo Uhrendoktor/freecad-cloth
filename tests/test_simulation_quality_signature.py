@@ -60,7 +60,39 @@ def _execution_probe(
     )
     rebuilt_signatures: list[object] = []
 
-    monkeypatch.setattr(proxy, "_base_or_restore", lambda: base)
+    def get_base() -> SimpleNamespace:
+        """Return the synthetic runtime state used by the execution probe.
+
+        Returns:
+            The fake backend state whose rebuild signature is recorded.
+        """
+        return base
+
+    def synchronize_provenance(_base: object) -> None:
+        """Keep seam provenance synchronization outside this signature-only probe.
+
+        Args:
+            _base: Synthetic runtime state passed by the proxy.
+        """
+
+    def advance(_scene: object, _base: object, _count: int) -> None:
+        """Avoid stepping a solver while checking source-signature invalidation.
+
+        Args:
+            _scene: Synthetic scene that would normally be advanced.
+            _base: Synthetic backend state owned by the proxy.
+            _count: Requested solver step count.
+        """
+
+    def publish(_scene: object, _base: object) -> None:
+        """Avoid publishing mesh output while checking source-signature invalidation.
+
+        Args:
+            _scene: Synthetic scene that would normally receive mesh output.
+            _base: Synthetic backend state containing the particle positions.
+        """
+
+    monkeypatch.setattr(proxy, "_base_or_restore", get_base)
 
     def build_demo(_scene: object, signature: object) -> None:
         """Record a derived-scene rebuild and retain its new source signature.
@@ -73,9 +105,9 @@ def _execution_probe(
         base.source_signature = signature
 
     monkeypatch.setattr(proxy, "_build_demo", build_demo)
-    monkeypatch.setattr(proxy, "_sync_seam_stitch_provenance", lambda _base: None)
-    monkeypatch.setattr(proxy, "_advance", lambda _scene, _base, _count: None)
-    monkeypatch.setattr(proxy, "_publish_state", lambda _scene, _base: None)
+    monkeypatch.setattr(proxy, "_sync_seam_stitch_provenance", synchronize_provenance)
+    monkeypatch.setattr(proxy, "_advance", advance)
+    monkeypatch.setattr(proxy, "_publish_state", publish)
     return proxy, scene, rebuilt_signatures
 
 
