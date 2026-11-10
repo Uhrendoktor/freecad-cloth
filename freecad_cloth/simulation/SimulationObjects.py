@@ -9,6 +9,7 @@ from itertools import starmap
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
+from freecad_cloth.simulation.simulation_protocols import _ResettableSimulationScene
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -918,22 +919,20 @@ def step_scene(scene, steps=1):
     return scene
 
 
-def reset_scene(scene: object) -> object:
+def reset_scene(scene: _ResettableSimulationScene) -> _ResettableSimulationScene:
     """Reset the runtime state and recompute the owning document.
 
     Args:
-        scene: FreeCAD simulation feature whose solver state is reset.
+        scene: Simulation scene whose runtime state is reset.
 
     Returns:
-        The same simulation feature after its document has recomputed.
+        The same simulation scene after its document has recomputed.
     """
-    typed_scene = cast("_SimulationFeature", scene)
-    proxy = getattr(typed_scene, "Proxy", None)
-    reset = getattr(proxy, "reset", None)
+    reset = getattr(scene.Proxy, "reset", None)
     if callable(reset):
-        reset(typed_scene)
-    typed_scene.Document.recompute()
-    return typed_scene
+        reset(scene)
+    scene.Document.recompute()
+    return scene
 
 
 def create_drape_scene(doc):
