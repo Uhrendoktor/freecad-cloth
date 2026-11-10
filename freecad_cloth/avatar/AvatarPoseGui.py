@@ -38,7 +38,8 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
 )
 
 if TYPE_CHECKING:
-    from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
+    from PySide2 import QtCore as _QT_TYPE_QtCore
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"

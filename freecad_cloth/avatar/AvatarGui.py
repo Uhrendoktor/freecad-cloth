@@ -7,7 +7,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
-from typing import ClassVar, Protocol, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, Protocol
 
 from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.avatar.AvatarProperties import (
@@ -15,7 +15,8 @@ from freecad_cloth.avatar.AvatarProperties import (
 )
 
 if TYPE_CHECKING:
-    from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
+    from PySide2 import QtCore as _QT_TYPE_QtCore
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
 class _WidgetLayout(Protocol):
