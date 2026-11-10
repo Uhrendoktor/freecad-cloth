@@ -7,7 +7,6 @@ from types import SimpleNamespace
 from typing import Protocol, cast
 
 import pytest
-from freecad_cloth.shared.collision import CollisionSurface
 
 from fixtures.garment_fixtures import mirrored_pair, multi_piece, two_piece_rectangle
 from freecad_cloth.pattern.PatternDerivedGeometry import (
@@ -19,6 +18,7 @@ from freecad_cloth.pattern.PatternDerivedGeometry import (
 )
 from freecad_cloth.pattern.PatternExport import from_dxf_metadata, to_dxf, to_svg
 from freecad_cloth.pattern.PatternGeometry import rectangle
+from freecad_cloth.shared import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
