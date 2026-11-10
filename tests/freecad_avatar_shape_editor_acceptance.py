@@ -2,6 +2,7 @@
 """FreeCAD GUI acceptance and animated evidence for avatar shape editing."""
 
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 import contextlib
 import math
@@ -59,10 +60,13 @@ class _Callback:
 
 def _events():
     """Flush FreeCAD paint and Qt signals before capturing the UI."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     app = QtWidgets.QApplication.instance()
     Gui.updateGui()
     if app is not None:
@@ -228,10 +232,13 @@ def _shape_change_summary(
 
 def _capture_screen(path):
     """Capture and validate the visible 1280 x 720 FreeCAD window."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
 
     app = QtWidgets.QApplication.instance()
     screen = None if app is None else app.primaryScreen()
