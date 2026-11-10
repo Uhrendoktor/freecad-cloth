@@ -51,10 +51,13 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
         import FreeCADGui as gui
 
     if application is None:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtWidgets
+        else:
+            try:
+                from PySide import QtWidgets
+            except ImportError:
+                from PySide2 import QtWidgets
 
     gui.updateGui()
     if application is None:
@@ -698,10 +701,13 @@ def make_shutdown_gui(progress: Callable[[str], None]) -> Callable[[], None]:
 
     def shutdown_gui() -> None:
         try:
-            try:
-                from PySide import QtWidgets
-            except ImportError:
+            if TYPE_CHECKING:
                 from PySide2 import QtWidgets
+            else:
+                try:
+                    from PySide import QtWidgets
+                except ImportError:
+                    from PySide2 import QtWidgets
             app = QtWidgets.QApplication.instance()
             if app is not None:
                 app.quit()
@@ -714,10 +720,13 @@ def make_shutdown_gui(progress: Callable[[str], None]) -> Callable[[], None]:
 
 def schedule_freecad_main(callback: Callable[[], None]) -> None:
     """Schedule a callback after FreeCAD finishes importing a delayed-startup script."""
-    try:
-        from PySide import QtCore
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore
+    else:
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
     QtCore.QTimer.singleShot(0, callback)
 
 
