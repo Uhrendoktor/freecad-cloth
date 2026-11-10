@@ -7,6 +7,7 @@ the task panel is only the interactive frontend.
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 from freecad_cloth.sewing.SewingCorrespondence import (

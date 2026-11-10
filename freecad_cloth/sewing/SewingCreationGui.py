@@ -8,7 +8,7 @@ transaction; Cancel aborts it. The session itself is transient UI state only.
 
 import contextlib
 import re
-from typing import ClassVar, TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 
 def viewport_edge_candidate(document, hit_info):
