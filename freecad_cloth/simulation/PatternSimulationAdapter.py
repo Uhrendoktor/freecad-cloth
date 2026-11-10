@@ -297,12 +297,14 @@ def _piece_model(piece: object) -> PatternPiece:
     Returns:
         Canonical PatternPiece metadata used to validate the sketch-derived IR.
     """
+    piece_id = str(getattr(piece, "PieceId", ""))
+    label = str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece_id)
     return PatternPiece(
-        str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece.PieceId),
+        label,
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
         seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
         grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-        id=str(getattr(piece, "PieceId", "")),
+        id=piece_id,
     )
 
 
@@ -335,7 +337,9 @@ def _resolve_seam_edge(
         raise MissingEdgeReference(msg)
 
     id_attribute = "EdgeAId" if prefix == "A" else "EdgeBId"
-    signature_attribute = "EdgeASignature" if prefix == "A" else "EdgeBSignature"
+    signature_attribute: Literal["EdgeASignature", "EdgeBSignature"] = (
+        "EdgeASignature" if prefix == "A" else "EdgeBSignature"
+    )
     semantic_id = str(getattr(seam_obj, id_attribute, "")).strip()
     if not semantic_id:
         msg = (
