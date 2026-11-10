@@ -25,6 +25,7 @@ import trimesh
 from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
 from freecad_cloth.avatar.MakeHumanTargets import (
     apply_measurement_targets,
     resolve_target,
@@ -831,7 +832,6 @@ def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
     Returns:
         Whether all named body measurements match the default mannequin dimensions.
     """
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     return all(
         math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)
@@ -848,7 +848,6 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
     Returns:
         Ordered normalized-height and scale-factor pairs for torso fitting.
     """
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     bands = (
         ("hip", 0.50),
@@ -1309,7 +1308,6 @@ def _make_source_fitted_mapper(
     Returns:
         A callable mapping one source coordinate to its fitted 3D coordinate.
     """
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     body_coordinates = np.asarray(body, dtype=np.float64).reshape((-1, 3))
