@@ -9,6 +9,7 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 import contextlib
 import math
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -51,10 +52,13 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore, QtWidgets
+    else:
+        try:
+            from PySide import QtCore, QtWidgets
+        except ImportError:
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
