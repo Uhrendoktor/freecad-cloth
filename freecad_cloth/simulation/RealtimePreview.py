@@ -2,7 +2,7 @@
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
 from types import ModuleType
-from typing import Protocol, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 _PREVIEW = None
 
