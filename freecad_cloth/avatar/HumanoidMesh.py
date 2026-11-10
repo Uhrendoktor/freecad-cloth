@@ -620,7 +620,7 @@ def load_makehuman_skeleton(path: str | None = None) -> SkeletonData:
     return cast("SkeletonData", payload)
 
 
-def _joint_point(
+def joint_point(
     source_vertices: Sequence[Point],
     indices: Iterable[int],
     mapper: Callable[[Point], Point] | None = None,
@@ -651,6 +651,10 @@ def _joint_point(
     fitted = [mapper(point) for point in points] if mapper is not None else points
     mean = np.mean(np.asarray(fitted, dtype=np.float64), axis=0)
     return (float(mean[0]), float(mean[1]), float(mean[2]))
+
+
+# Retain the original private helper name for existing internal callers.
+_joint_point = joint_point
 
 
 def _bone_source_endpoints(

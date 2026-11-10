@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import math
-from typing import TYPE_CHECKING, NotRequired, TypedDict
+from typing import TYPE_CHECKING, NotRequired, SupportsFloat, TypedDict, cast
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -129,15 +129,12 @@ def normalize_joint_rotations(
         TypeError: If an input entry is neither a JointRotation nor a mapping.
         ValueError: If an entry names an unsupported joint or has an out-of-range angle.
     """
-    values = {}
+    values: dict[str, JointRotation] = {}
     for rotation in rotations or ():
         if isinstance(rotation, JointRotation):
             item = rotation
-        elif isinstance(rotation, dict):
-            item = JointRotation(**rotation)
         else:
-            msg = "joint rotations must contain JointRotation or mapping values"
-            raise TypeError(msg)
+            item = JointRotation(**rotation)
         item.validate()
         values[item.bone] = item
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
@@ -200,10 +197,11 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
         ValueError: If the payload is invalid JSON or uses an unsupported schema.
         TypeError: If the JSON root or joints member has the wrong type.
     """
-    data = json.loads(payload)
-    if not isinstance(data, dict):
+    decoded: object = json.loads(payload)
+    if not isinstance(decoded, dict):
         msg = "mannequin joint pose JSON must be an object"
         raise TypeError(msg)
+    data = cast("dict[str, object]", decoded)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         msg = "unsupported mannequin joint-pose schema version"
         raise ValueError(msg)
@@ -214,17 +212,19 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
     if not isinstance(joints, dict):
         msg = "mannequin joint pose JSON must contain a joints object"
         raise TypeError(msg)
-    rotations = []
-    for bone, values in joints.items():
+    joint_values = cast("dict[str, object]", joints)
+    rotations: list[JointRotation] = []
+    for bone, values in joint_values.items():
         if not isinstance(values, dict):
             msg = f"joint pose for {bone} must be an object"
             raise TypeError(msg)
+        axes = cast("dict[str, object]", values)
         rotations.append(
             JointRotation(
-                str(bone),
-                float(values.get("x", 0.0)),
-                float(values.get("y", 0.0)),
-                float(values.get("z", 0.0)),
+                bone,
+                float(cast("SupportsFloat | str", axes.get("x", 0.0))),
+                float(cast("SupportsFloat | str", axes.get("y", 0.0))),
+                float(cast("SupportsFloat | str", axes.get("z", 0.0))),
             )
         )
     return normalize_joint_rotations(rotations)
@@ -407,7 +407,12 @@ def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
         Affine transform whose translation keeps the supplied point stationary.
     """
     rotated = _matvec(rotation, point)
-    return AffineTransform(rotation, tuple(point[i] - rotated[i] for i in range(3)))
+    translation: Vector = (
+        point[0] - rotated[0],
+        point[1] - rotated[1],
+        point[2] - rotated[2],
+    )
+    return AffineTransform(rotation, translation)
 
 
 def build_bone_transforms(
@@ -429,10 +434,10 @@ def build_bone_transforms(
     Returns:
         Every skeleton bone name mapped to its composed world-space transform.
     """
-    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+    from freecad_cloth.avatar.HumanoidMesh import joint_point
 
     rotation_map = joint_rotation_map(rotations)
-    cache = {}
+    cache: dict[str, AffineTransform] = {}
 
     def visit(bone_name: str) -> AffineTransform:
         """Resolve and cache one bone transform after its parent.
@@ -451,7 +456,7 @@ def build_bone_transforms(
             return IDENTITY
         parent_name = bone.get("parent")
         parent_transform = visit(parent_name) if parent_name else IDENTITY
-        rest_head = _joint_point(
+        rest_head = joint_point(
             source_vertices, skeleton["joints"][bone["head"]], mapper=fit_point
         )
         rotation = rotation_map.get(bone_name)

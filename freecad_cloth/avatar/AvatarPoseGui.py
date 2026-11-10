@@ -86,7 +86,7 @@ def joint_world_positions(parameters):
     Args:
         parameters: Validated mannequin measurements and joint rotations.
     """
-    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+    from freecad_cloth.avatar.HumanoidMesh import joint_point
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_JOINTS
 
     source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
@@ -95,7 +95,7 @@ def joint_world_positions(parameters):
         data = skeleton["bones"].get(bone)
         if data is None or bone not in transforms:
             continue
-        fitted_head = _joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
+        fitted_head = joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
         result[bone] = tuple(float(value) for value in transforms[bone].apply(fitted_head))
     return result
 
@@ -106,7 +106,7 @@ def skeleton_world_segments(parameters):
     Args:
         parameters: Validated mannequin measurements and joint rotations.
     """
-    from freecad_cloth.avatar.HumanoidMesh import _joint_point
+    from freecad_cloth.avatar.HumanoidMesh import joint_point
 
     source_vertices, skeleton, mapper, transforms = _pose_world_state(parameters)
     segments = {}
@@ -115,8 +115,8 @@ def skeleton_world_segments(parameters):
         transform = transforms.get(bone)
         if transform is None:
             continue
-        fitted_head = _joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
-        fitted_tail = _joint_point(source_vertices, skeleton["joints"][data["tail"]], mapper=mapper)
+        fitted_head = joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
+        fitted_tail = joint_point(source_vertices, skeleton["joints"][data["tail"]], mapper=mapper)
         head = tuple(float(value) for value in transform.apply(fitted_head))
         tail = tuple(float(value) for value in transform.apply(fitted_tail))
         segments[bone] = (head, tail)
