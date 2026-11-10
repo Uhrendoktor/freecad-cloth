@@ -8,14 +8,18 @@ import sys
 import tempfile
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import FreeCAD as App
 import FreeCADGui as Gui
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
 ROOT = Path.cwd()
 if not (ROOT / "InitGui.py").exists():
