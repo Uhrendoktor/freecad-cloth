@@ -45,10 +45,7 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -486,10 +483,7 @@ class SewingCreationTaskPanel:
         return True
 
     def _schedule_close_dialog(self):
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
+        from freecad_cloth.common.qt_compat import QtCore
         timer = QtCore.QTimer(self.form)
         timer.setSingleShot(True)
         timer.timeout.connect(_close_active_task_dialog)
