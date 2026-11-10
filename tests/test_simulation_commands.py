@@ -223,11 +223,26 @@ def test_reset_simulation_resets_scene_and_recomputes() -> None:
     calls: list[object] = []
 
     def add_object(_type_name: str, _object_name: str) -> object:
-        """Provide the document feature-creation operation required by the protocol."""
+        """Provide the document feature-creation operation required by the protocol.
+
+        Args:
+            _type_name: FreeCAD feature type requested by the reset command.
+            _object_name: Name assigned to the new document feature.
+
+        Returns:
+            A placeholder feature representing the newly created document object.
+        """
         return object()
 
     def get_object(_object_name: str) -> object | None:
-        """Return no existing feature from the empty document fixture."""
+        """Return no existing feature from the empty document fixture.
+
+        Args:
+            _object_name: Name of the document feature requested by the reset command.
+
+        Returns:
+            ``None`` because the test document starts without persisted features.
+        """
         return None
 
     document = cast(
