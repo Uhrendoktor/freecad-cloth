@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+from freecad_cloth.simulation.simulation_protocols import _ResettableSimulationScene
 
 
 class _FreeCADDocument(Protocol):
@@ -40,7 +41,7 @@ class _FreeCADDocument(Protocol):
         ...
 
 
-class _SimulationScene(Protocol):
+class _SimulationScene(_ResettableSimulationScene, Protocol):
     """Persisted simulation feature contract used by public commands."""
 
     Steps: int
@@ -341,14 +342,14 @@ def run_simulation(
 
 def reset_simulation(
     *,
-    require_simulation_fn: Callable[[], tuple[object, object]] | None = None,
-    reset_scene_fn: Callable[[_SimulationScene], object] | None = None,
+    require_simulation_fn: Callable[[], tuple[_FreeCADDocument, _SimulationScene]] | None = None,
+    reset_scene_fn: Callable[[_ResettableSimulationScene], object] | None = None,
     refresh_overlay_fn: Callable[[_FreeCADDocument], object] | None = None,
 ) -> _SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
     Args:
-        require_simulation_fn: Optional active-scene lookup returning document and scene fixtures.
+        require_simulation_fn: Optional typed lookup for the active document and scene.
         reset_scene_fn: Optional state-reset callback used by headless tests.
         refresh_overlay_fn: Optional seam-overlay refresh callback used by headless tests.
 
@@ -358,8 +359,7 @@ def reset_simulation(
     require_simulation = (
         _require_simulation if require_simulation_fn is None else require_simulation_fn
     )
-    _doc, scene_value = require_simulation()
-    scene = cast("_SimulationScene", scene_value)
+    _doc, scene = require_simulation()
     if reset_scene_fn is None:
         from freecad_cloth.simulation.SimulationObjects import reset_scene
 
