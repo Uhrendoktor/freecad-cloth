@@ -1,5 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
+from typing import TYPE_CHECKING
 
 
 def _qt() -> tuple[object, object, object]:
@@ -11,10 +12,13 @@ def _qt() -> tuple[object, object, object]:
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
