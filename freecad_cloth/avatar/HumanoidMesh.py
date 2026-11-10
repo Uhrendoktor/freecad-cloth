@@ -1595,7 +1595,6 @@ def fit_makehuman_mesh(
     left_pose_angle = pose.left_arm_angle
     right_pose_angle = pose.right_arm_angle
     if left_pose_angle is None or right_pose_angle is None:
-
         default_pose_angle = DEFAULT_POSE_ARM_ANGLES.get(
             pose.preset, DEFAULT_POSE_ARM_ANGLES["standing"]
         )
