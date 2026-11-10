@@ -56,10 +56,7 @@ def _ensure_workbench_registration():
 
 def _events():
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
@@ -98,10 +95,7 @@ def _activate(name, commands):
 def _dialog_text(dialog):
     form = getattr(dialog, "form", dialog)
     widgets = [form]
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     if hasattr(form, "findChildren"):
         widgets.extend(form.findChildren(QtWidgets.QWidget))
     return " | ".join(
@@ -127,10 +121,7 @@ def _require_dialog(required, label, panel=None):
     # the actual Python panel is hosted in the Tasks dock. Validate the visible
     # user-facing UI through that dock rather than depending on private wrapper
     # attributes.
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     main_window = Gui.getMainWindow()
     dock = None if main_window is None else main_window.findChild(QtWidgets.QDockWidget, "Tasks")
     dock_text = visible_text
