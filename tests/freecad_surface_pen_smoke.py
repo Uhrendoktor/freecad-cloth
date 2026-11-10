@@ -7,6 +7,7 @@ import sys
 import time
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -16,10 +17,13 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
 from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 from freecad_cloth.pattern.SurfacePen import (
