@@ -20,13 +20,14 @@ import numpy as np
 import trimesh
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     import torch
+
+    from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 
 
 # These are measurement keys implemented by clad-body's differentiable Anny
