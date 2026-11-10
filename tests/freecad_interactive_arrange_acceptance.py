@@ -43,10 +43,7 @@ def _assign_drape_source(doc: object, source: object) -> object:
 
 
 def _capture_screen(path):
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     app = QtWidgets.QApplication.instance()
     if app is None or app.primaryScreen() is None:
         msg = "Qt primary screen is unavailable for Interactive Arrange screenshot"
