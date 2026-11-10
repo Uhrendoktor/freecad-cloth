@@ -8,7 +8,7 @@ transaction; Cancel aborts it. The session itself is transient UI state only.
 
 import contextlib
 import re
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 
 def viewport_edge_candidate(document, hit_info):
@@ -45,10 +45,13 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -486,10 +489,13 @@ class SewingCreationTaskPanel:
         return True
 
     def _schedule_close_dialog(self):
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         timer = QtCore.QTimer(self.form)
         timer.setSingleShot(True)
         timer.timeout.connect(_close_active_task_dialog)
