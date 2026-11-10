@@ -13,10 +13,13 @@ from typing import TYPE_CHECKING
 import FreeCAD as App
 import FreeCADGui as Gui
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 from pivy import coin
 
 ROOT = "/workspace"
