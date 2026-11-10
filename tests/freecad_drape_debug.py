@@ -24,10 +24,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
-try:
-    from PySide import QtWidgets
-except ImportError:
-    from PySide2 import QtWidgets
+from freecad_cloth.common.qt_compat import QtWidgets
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
