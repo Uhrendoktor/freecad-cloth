@@ -346,7 +346,11 @@ def _execution_probe(
     rebuilt_signatures: list[object] = []
 
     def get_runtime_base() -> _RuntimeBase:
-        """Return the runtime base used by this isolated execution probe."""
+        """Return the runtime base used by this isolated execution probe.
+
+        Returns:
+            The synthetic state consumed by the public simulation proxy.
+        """
         return runtime
 
     def build_pattern_scene(
@@ -365,11 +369,28 @@ def _execution_probe(
         runtime.source_signature = signature
 
     def synchronize_provenance(_base: _RuntimeBase) -> None:
-        """Stand in for the proxy's seam-stitch provenance synchronization."""
+        """Stand in for seam-stitch provenance synchronization.
+
+        Args:
+            _base: Runtime state whose solver stitch provenance would be synchronized.
+        """
+
     def advance(_scene: object, _base: _RuntimeBase, _count: int) -> None:
-        """Avoid advancing a solver while validating source invalidation."""
+        """Avoid advancing a solver while validating source invalidation.
+
+        Args:
+            _scene: Simulation scene normally advanced by the solver.
+            _base: Runtime state normally containing the simulation backend.
+            _count: Number of solver steps requested by the public proxy.
+        """
+
     def publish(_scene: object, _base: _RuntimeBase) -> None:
-        """Avoid publishing mesh state while validating source invalidation."""
+        """Avoid publishing mesh state while validating source invalidation.
+
+        Args:
+            _scene: Simulation scene whose display meshes would be updated.
+            _base: Runtime state containing the solved particle positions.
+        """
 
     monkeypatch.setattr(proxy, "_base_or_restore", get_runtime_base)
     monkeypatch.setattr(proxy, "_build_pattern_scene", build_pattern_scene)
