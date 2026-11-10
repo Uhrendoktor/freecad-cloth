@@ -54,6 +54,17 @@ def parse_target(
     MakeHuman source targets use native X/Y/Z offsets. MPFB2 stores equivalent
     target rows as X/Z/-Y for its Blender-oriented HM08 mesh. The selected
     format is inferred from the target-library layout by the resolver.
+
+    Args:
+        text: Target file contents containing sparse vertex-index/displacement rows.
+        name: Source name included in parse errors and stored on the returned target.
+        coordinate_format: Coordinate convention used by the source target library.
+
+    Returns:
+        A target containing sorted vertex indices and accumulated 3D offsets.
+
+    Raises:
+        ValueError: If a row is malformed, has a negative vertex index, or contains non-finite offsets.
     """
     collected: dict[int, Point] = {}
     for line_number, raw in enumerate(str(text).splitlines(), start=1):
@@ -96,6 +107,22 @@ def _load_target_cached(
     archive_key: str | None,
     coordinate_format: Literal["makehuman", "mpfb2"],
 ) -> MakeHumanTarget:
+    """Load a target from a loose file or an archive using its cache identity.
+
+    Args:
+        path_text: Absolute or relative path to the target source.
+        modified_ns: Modification timestamp used to invalidate stale cache entries.
+        size: Source file size used to invalidate stale cache entries.
+        archive_key: Sparse target key prefix, or None for a loose target file.
+        coordinate_format: Coordinate convention used by the target data.
+
+    Returns:
+        The parsed sparse target with duplicate vertex offsets combined.
+
+    Raises:
+        OSError: If the source file cannot be read.
+        ValueError: If an archive target is incomplete or contains invalid arrays or values.
+    """
     del modified_ns, size
     source = Path(path_text)
     if archive_key is None:
@@ -146,7 +173,18 @@ def _load_target_cached(
 def load_target(
     path: str | os.PathLike[str] | TargetReference,
 ) -> MakeHumanTarget:
-    """Load a loose, gzip-compressed, or archived target."""
+    """Load a loose, gzip-compressed, or archived target.
+
+    Args:
+        path: File path or reference identifying the target to load.
+
+    Returns:
+        The parsed target with its sparse offsets in the selected coordinate convention.
+
+    Raises:
+        OSError: If the target source cannot be read.
+        ValueError: If the target contents or archive entry are invalid.
+    """
     if isinstance(path, TargetReference):
         source = path.path.expanduser().resolve()
         archive_key = path.archive_key
@@ -166,7 +204,14 @@ def load_target(
 
 
 def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
-    """Identify MPFB2 target packs by their metadata/layout conventions."""
+    """Detect whether a target directory uses MakeHuman or MPFB2 coordinates.
+
+    Args:
+        root: Directory used as the starting point for metadata and layout checks.
+
+    Returns:
+        The coordinate format inferred from target metadata or directory names.
+    """
     for parent in (root, *root.parents):
         if (parent / "target.json").is_file():
             return "mpfb2"
@@ -176,10 +221,16 @@ def _target_coordinate_format(root: Path) -> Literal["makehuman", "mpfb2"]:
 
 
 def target_directory(environ: Mapping[str, str] | None = None) -> Path | None:
-    """Find installed MakeHuman target files or a data directory with targets.npz.
+    """Locate an installed MakeHuman target library or an archive-backed data directory.
 
     Set FREECAD_CLOTH_MAKEHUMAN_TARGETS to a targets directory, a MakeHuman
     data directory, or a checkout of makehuman-assets to select another library.
+
+    Args:
+        environ: Environment mapping to inspect, or None to use the current process environment.
+
+    Returns:
+        The first supported target directory found, or None when no library is installed.
     """
     settings = os.environ if environ is None else environ
     candidates: list[Path] = []
@@ -240,6 +291,14 @@ def target_directory(environ: Mapping[str, str] | None = None) -> Path | None:
 
 @lru_cache(maxsize=16)
 def _target_index(root_text: str) -> dict[str, str]:
+    """Index loose target files by case-insensitive relative path and basename.
+
+    Args:
+        root_text: Target directory whose loose target files should be indexed.
+
+    Returns:
+        Mapping from normalized target aliases to their absolute file paths.
+    """
     root = Path(root_text)
     index: dict[str, str] = {}
     files = sorted((*root.rglob("*.target"), *root.rglob("*.target.gz")))
@@ -254,6 +313,16 @@ def _target_index(root_text: str) -> dict[str, str]:
 
 @lru_cache(maxsize=16)
 def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[str, str]:
+    """Index sparse targets stored in a MakeHuman targets.npz archive.
+
+    Args:
+        path_text: Path to the compressed target archive.
+        modified_ns: Modification timestamp used to invalidate stale cache entries.
+        size: Archive file size used to invalidate stale cache entries.
+
+    Returns:
+        Mapping from normalized target aliases to archive key prefixes.
+    """
     del modified_ns, size
     import numpy as np
 
@@ -270,7 +339,15 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
 
 
 def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
-    """Resolve a target by relative path or basename, with or without extension."""
+    """Resolve a target by relative path or basename, with or without extension.
+
+    Args:
+        name: Relative target name or basename, optionally including its extension.
+        root: Target library root to search, or None to discover an installed library.
+
+    Returns:
+        A reference to the matching loose or archived target, or None when it is absent.
+    """
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None or not base.is_dir():
         return None
@@ -320,6 +397,17 @@ def apply_targets(
 
     Target indices outside the supplied mesh are ignored because HM08's source
     OBJ may contain helper vertices after the visible body surface.
+
+    Args:
+        vertices: Original mesh coordinates in vertex-index order.
+        weights: Target names and their signed blend strengths.
+        root: Target library root to search, or None to discover an installed library.
+
+    Returns:
+        Updated mesh coordinates in their original vertex-index order.
+
+    Raises:
+        ValueError: If a supplied target weight is not finite.
     """
     base = Path(root).expanduser().resolve() if root is not None else target_directory()
     if base is None:
@@ -357,6 +445,14 @@ def apply_measurement_targets(
     Directional measurement targets improve local anatomy; the mesh fitter then
     corrects torso circumference contours in millimetres. Target shape quality
     is additive and does not override numeric torso measurements.
+
+    Args:
+        vertices: Original mesh coordinates in vertex-index order.
+        parameters: Validated avatar parameters that select directional targets.
+        target_root: Optional target library root; None triggers installed-library discovery.
+
+    Returns:
+        Mesh coordinates after applying the selected sparse measurement targets.
     """
     root = target_directory() if target_root is None else target_root
     if root is None:
