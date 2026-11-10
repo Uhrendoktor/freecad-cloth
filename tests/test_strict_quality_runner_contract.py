@@ -101,8 +101,13 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
         message="The strict whole-repository Pyright command must remain enabled.",
     )
+    has_documentation_contract = any(
+        "check_documentation_contract.py" in item
+        for command in arguments
+        for item in command
+    )
     require(
-        condition=any("check_documentation_contract.py" in item for command in arguments for item in command),
+        condition=has_documentation_contract,
         message="The Python documentation contract must remain enabled.",
     )
     require(
