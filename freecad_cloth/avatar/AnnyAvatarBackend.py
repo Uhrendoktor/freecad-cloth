@@ -17,7 +17,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
+import trimesh
 
+from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
@@ -1234,7 +1236,6 @@ def _fitted_body_for(
     }
     if not fit_hip:
         # Hip circumference controls visible hip surface only, not the skeleton.
-        from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
         measurement_values["hip"] = float(DEFAULT_MEASUREMENTS["hip"])
     key = tuple(sorted(measurement_values.items()))
@@ -1285,8 +1286,6 @@ def build_avatar_shape_mesh(
 
     # Preserve Cloth's optional collision/surface padding using trimesh's native
     # vertex normals; the body shape itself still comes from Anny.
-    import numpy as np
-    import trimesh
 
     surface = trimesh.Trimesh(
         vertices=np.asarray(mesh.vertices, dtype=float),
