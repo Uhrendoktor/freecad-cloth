@@ -1,17 +1,20 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI controls for the Cloth Simulation workbench."""
 
-from typing import ClassVar
+from typing import ClassVar, TYPE_CHECKING
 
 
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore, QtWidgets
+    else:
+        try:
+            from PySide import QtCore, QtWidgets
+        except ImportError:
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
