@@ -21,28 +21,24 @@ def test_environment_cache_key_covers_all_mutable_inputs(tmp_path: Path) -> None
     project.write_text("[project]\nname = 'fixture'\n", encoding="utf-8")
     key = build_environment_cache_key(project, "3.12", "sha256:image-a", "worktree-a")
     require(
-        condition=key == build_environment_cache_key(
-            project, "3.12", "sha256:image-a", "worktree-a"
-        ),
+        condition=key
+        == build_environment_cache_key(project, "3.12", "sha256:image-a", "worktree-a"),
         message="Identical project and runtime inputs must produce the same cache key.",
     )
     require(
-        condition=key != build_environment_cache_key(
-            project, "3.12", "sha256:image-b", "worktree-a"
-        ),
+        condition=key
+        != build_environment_cache_key(project, "3.12", "sha256:image-b", "worktree-a"),
         message="A different runtime image must produce a different cache key.",
     )
     require(
-        condition=key != build_environment_cache_key(
-            project, "3.12", "sha256:image-a", "worktree-b"
-        ),
+        condition=key
+        != build_environment_cache_key(project, "3.12", "sha256:image-a", "worktree-b"),
         message="A different workspace identity must produce a different cache key.",
     )
     project.write_text("[project]\nname = 'changed'\n", encoding="utf-8")
     require(
-        condition=key != build_environment_cache_key(
-            project, "3.12", "sha256:image-a", "worktree-a"
-        ),
+        condition=key
+        != build_environment_cache_key(project, "3.12", "sha256:image-a", "worktree-a"),
         message="A changed project manifest must produce a different cache key.",
     )
 
@@ -102,9 +98,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         message="The strict whole-repository Pyright command must remain enabled.",
     )
     has_documentation_contract = any(
-        "check_documentation_contract.py" in item
-        for command in arguments
-        for item in command
+        "check_documentation_contract.py" in item for command in arguments for item in command
     )
     require(
         condition=has_documentation_contract,
