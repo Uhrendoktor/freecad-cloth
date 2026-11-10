@@ -7,9 +7,10 @@ from types import SimpleNamespace
 from typing import Never, cast
 
 import pytest
-from freecad_cloth.simulation.ClothBackend import validate_pinned_stitch_pairs
+
 
 from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.simulation.cloth_backend import validate_pinned_stitch_pairs
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
 from freecad_cloth.simulation.SimulationQuality import (
     QUALITY_PRESETS,
