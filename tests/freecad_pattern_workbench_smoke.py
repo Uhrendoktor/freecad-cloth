@@ -4,6 +4,7 @@
 import importlib
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -17,10 +18,13 @@ from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 
 
 def process_events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
