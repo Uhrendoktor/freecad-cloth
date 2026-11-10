@@ -5,8 +5,13 @@ from pathlib import Path
 
 from tests.support.assertions import require
 from tools.ci.strict_quality import (
+    CPU_TORCH_REQUIREMENT,
+    PIP_READ_TIMEOUT_SECONDS,
+    PIP_RETRY_COUNT,
+    PYTORCH_CPU_INDEX,
     build_environment_cache_key,
     quality_commands,
+    quality_install_command,
     ready_marker_is_current,
 )
 
@@ -62,6 +67,30 @@ def test_ready_marker_accepts_only_the_exact_environment_key(tmp_path: Path) -> 
     require(
         condition=ready_marker_is_current(tmp_path, "required-key"),
         message="The exact dependency/runtime key must be accepted.",
+    )
+
+
+def test_quality_install_command_uses_resilient_download_timeouts() -> None:
+    """Allow large pinned wheels to finish without changing the development dependency set."""
+    python = Path("/runner-cache/venvs/strict-quality/bin/python")
+    command = quality_install_command(python)
+    timeout_index = command.index("--timeout")
+    retries_index = command.index("--retries")
+    require(
+        condition=command[timeout_index + 1] == str(PIP_READ_TIMEOUT_SECONDS),
+        message="The pip socket timeout must use the explicit resilient read-timeout setting.",
+    )
+    require(
+        condition=command[retries_index + 1] == str(PIP_RETRY_COUNT),
+        message="The pip retry budget must remain explicit and testable.",
+    )
+    require(
+        condition=PYTORCH_CPU_INDEX in command and CPU_TORCH_REQUIREMENT in command,
+        message="The CPU-only Torch pin and its index must remain unchanged.",
+    )
+    require(
+        condition=command[-2:] == ("-e", ".[dev]"),
+        message="The complete development dependency set must still be installed.",
     )
 
 
