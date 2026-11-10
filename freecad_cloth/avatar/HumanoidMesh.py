@@ -26,7 +26,6 @@ from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS, DEFAULT_POSE_ARM_ANGLES
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 from freecad_cloth.avatar.MakeHumanTargets import (
     apply_measurement_targets,
     resolve_target,
@@ -74,6 +73,7 @@ DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
+    from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 
 
 Point = tuple[float, float, float]
