@@ -20,6 +20,7 @@ import numpy as np
 import trimesh
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocolProtocol
 from freecad_cloth.avatar.HumanoidMesh import MAKEHUMAN_BODY_VERTEX_COUNT, MeshData
 
 if TYPE_CHECKING:
@@ -27,7 +28,6 @@ if TYPE_CHECKING:
 
     import torch
 
-    from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 # These are measurement keys implemented by clad-body's differentiable Anny
 # measurement API. Fields without a corresponding library measurement remain
@@ -1215,7 +1215,7 @@ def _cached_fitted_body(
 
 
 def _fitted_body_for(
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
     *,
     fit_hip: bool = True,
 ) -> tuple[MeshData, tuple[tuple[float, float, float], ...]]:
@@ -1252,7 +1252,7 @@ def _fitted_body_for(
 
 
 def build_avatar_rig_vertices(
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
 ) -> tuple[tuple[float, float, float], ...]:
     """Return cached hip-neutral Anny vertices for stable skeleton anchor mapping.
 
@@ -1267,7 +1267,7 @@ def build_avatar_rig_vertices(
 
 
 def build_avatar_shape_mesh(
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
     *,
     include_skin_offset: bool = True,
 ) -> MeshData:
