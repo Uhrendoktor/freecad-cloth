@@ -17,10 +17,7 @@ from freecad_cloth.pattern.workbench import ClothPatternWorkbench
 
 
 def process_events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
