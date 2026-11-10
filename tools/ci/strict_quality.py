@@ -26,10 +26,39 @@ else:
 
 ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_VERSION = "freecad-quality-v1"
-INSTALL_TIMEOUT_SECONDS = 180
+INSTALL_TIMEOUT_SECONDS = 300
 PRE_COMMIT_TIMEOUT_SECONDS = 120
+PIP_READ_TIMEOUT_SECONDS = 120
+PIP_RETRY_COUNT = 5
 CPU_TORCH_REQUIREMENT = "torch==2.8.0+cpu"
 PYTORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
+
+
+def quality_install_command(python: Path) -> tuple[str, ...]:
+    """Build the pinned developer install command with resilient package-download timeouts.
+
+    Args:
+        python: Interpreter inside the persistent FreeCAD-aware virtual environment.
+
+    Returns:
+        Shell-free pip arguments for the unchanged CPU Torch and development requirements.
+    """
+    return (
+        str(python),
+        "-m",
+        "pip",
+        "install",
+        "--disable-pip-version-check",
+        "--timeout",
+        str(PIP_READ_TIMEOUT_SECONDS),
+        "--retries",
+        str(PIP_RETRY_COUNT),
+        "--extra-index-url",
+        PYTORCH_CPU_INDEX,
+        CPU_TORCH_REQUIREMENT,
+        "-e",
+        ".[dev]",
+    )
 REQUIRED_RUNTIME_MODULES = (
     "FreeCAD",
     "FreeCADGui",
@@ -173,18 +202,7 @@ def prepare_quality_environment(
         sys.stdout.write(f"python-quality-cache=installing key={cache_key}\n")
         sys.stdout.flush()
         _run_setup(
-            (
-                str(python),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--extra-index-url",
-                PYTORCH_CPU_INDEX,
-                CPU_TORCH_REQUIREMENT,
-                "-e",
-                ".[dev]",
-            ),
+            quality_install_command(python),
             timeout_seconds=INSTALL_TIMEOUT_SECONDS,
         )
 
