@@ -16,10 +16,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
-try:
-    from PySide import QtWidgets
-except ImportError:
-    from PySide2 import QtWidgets
+from freecad_cloth.common.qt_compat import QtWidgets
 
 from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 from freecad_cloth.pattern.SurfacePen import (
