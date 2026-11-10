@@ -34,10 +34,7 @@ print("stage=part-imported", flush=True)
 
 def _events():
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
 
 
@@ -501,10 +498,7 @@ def run_acceptance():
                 _quit_application()
                 os._exit(1)
 
-        try:
-            from PySide import QtCore
-        except ImportError:
-            from PySide2 import QtCore
+        from freecad_cloth.common.qt_compat import QtCore
         QtCore.QTimer.singleShot(0, _continue_after_seam_commit)
         handoff_to_qt = True
         return
@@ -518,10 +512,7 @@ def run_acceptance():
 
 
 def _quit_application():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     app = QtWidgets.QApplication.instance()
     if app is not None:
         app.quit()
