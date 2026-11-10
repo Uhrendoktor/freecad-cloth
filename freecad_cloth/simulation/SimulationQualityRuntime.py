@@ -53,7 +53,7 @@ class _QualityScene(Protocol):
         ...
 
 
-def ensure_quality_properties(scene: object) -> object:
+def ensure_quality_properties(scene: object) -> _QualityScene:
     """Create and validate persistent simulation-quality properties on a scene.
 
     Args:
@@ -251,34 +251,34 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = finite_state
 
-    def execute(self, obj: _QualityScene) -> None:
+    def execute(self, obj: object) -> None:
         """Recompute the FreeCAD object from its current source properties.
 
         Args:
-            obj: Persisted simulation feature whose source and quality controls are read.
+            obj: Native FreeCAD simulation feature receiving the derived scene state.
         """
-        ensure_quality_properties(obj)
+        scene = ensure_quality_properties(obj)
         base = self._base_or_restore()
-        signature = self._signature(obj)
+        signature = self._signature(scene)
         pieces = [
-            p
-            for p in getattr(obj, "ClothPieces", ())
-            if getattr(p, "PatternType", "") == "PatternPiece"
+            piece
+            for piece in scene.ClothPieces
+            if getattr(piece, "PatternType", "") == "PatternPiece"
         ]
         if (
             base.backend is None
             or signature != base.source_signature
-            or int(obj.Steps) < base.last_steps
+            or int(scene.Steps) < base.last_steps
         ):
             if pieces:
-                self._build_pattern_scene(obj, pieces, signature)
+                self._build_pattern_scene(scene, pieces, signature)
             else:
-                self._build_demo(obj, signature)
+                self._build_demo(scene, signature)
             self._sync_seam_stitch_provenance(base)
-        steps = int(obj.Steps)
+        steps = int(scene.Steps)
         if steps > base.last_steps:
-            self._advance(obj, base, steps - base.last_steps)
-        self._publish_state(obj, base)
+            self._advance(scene, base, steps - base.last_steps)
+        self._publish_state(scene, base)
 
     def advance_preview_frame(self, obj):
         """Advance one interactive frame without triggering a document recompute."""
