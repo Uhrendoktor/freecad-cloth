@@ -59,6 +59,8 @@ def quality_install_command(python: Path) -> tuple[str, ...]:
         "-e",
         ".[dev]",
     )
+
+
 REQUIRED_RUNTIME_MODULES = (
     "FreeCAD",
     "FreeCADGui",
