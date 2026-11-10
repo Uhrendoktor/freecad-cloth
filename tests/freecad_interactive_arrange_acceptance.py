@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -43,10 +44,13 @@ def _assign_drape_source(doc: object, source: object) -> object:
 
 
 def _capture_screen(path):
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     app = QtWidgets.QApplication.instance()
     if app is None or app.primaryScreen() is None:
         msg = "Qt primary screen is unavailable for Interactive Arrange screenshot"
