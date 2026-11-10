@@ -2,7 +2,7 @@
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
 from types import ModuleType
-from typing import Protocol, cast
+from typing import Protocol, TYPE_CHECKING, cast
 
 _PREVIEW = None
 
@@ -23,10 +23,13 @@ class _SimulationScene(Protocol):
 
 
 def _qt() -> ModuleType:
-    try:
-        from PySide import QtCore
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore
+    else:
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
     return QtCore
 
 
