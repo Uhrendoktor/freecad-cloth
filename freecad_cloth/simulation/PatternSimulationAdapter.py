@@ -154,9 +154,9 @@ def resolve_simulation_pattern(
             SeamIR(
                 id=seam.id,
                 piece_a=seam.piece_a,
-                edge_a=seam.edge_a,
+                edge_a=edge_a,
                 piece_b=seam.piece_b,
-                edge_b=seam.edge_b,
+                edge_b=edge_b,
                 start_a=seam.start_a,
                 end_a=seam.end_a,
                 start_b=seam.start_b,
