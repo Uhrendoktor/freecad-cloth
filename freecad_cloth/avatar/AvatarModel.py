@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
+from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS, DEFAULT_POSE_ARM_ANGLES
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
@@ -28,12 +28,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-DEFAULT_POSE_ARM_ANGLES = {
-    "standing": 70.0,
-    "sewing": 55.0,
-    "sitting": 25.0,
-    "t_pose": 12.0,
-}
 AVATAR_SCHEMA_VERSION = 4
 POSE_ANGLE_MIN_DEGREES = -90.0
 POSE_ANGLE_MAX_DEGREES = 90.0
