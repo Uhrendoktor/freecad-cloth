@@ -13,18 +13,40 @@ import math
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Protocol
 
+import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
-    from freecad_cloth.avatar.AvatarModel import AvatarParameters
-
 Point = tuple[float, float, float]
 
 TARGETS_ENV = "FREECAD_CLOTH_MAKEHUMAN_TARGETS"
+_TARGET_ROW_FIELD_COUNT = 4
+_VECTOR_ARRAY_RANK = 2
+_VECTOR_COMPONENT_COUNT = 3
+_MIN_TARGET_WEIGHT = 1e-12
+
+
+class _AvatarTargetParameters(Protocol):
+    """Structural avatar settings consumed when deriving morph-target weights."""
+
+    gender: float
+    breast_size: float
+
+    def measurement(self, name: str) -> float:
+        """Return one validated anthropometric measurement in millimetres.
+
+        Args:
+            name: Canonical measurement key requested by the target selector.
+
+        Returns:
+            The selected measurement value in millimetres.
+        """
 
 
 @pydantic_dataclass(frozen=True)
@@ -70,10 +92,10 @@ def parse_target(
     collected: dict[int, Point] = {}
     for line_number, raw in enumerate(str(text).splitlines(), start=1):
         line = raw.strip()
-        if not line or line.startswith("#") or line.startswith('"'):
+        if not line or line.startswith(("#", '"')):
             continue
         fields = line.split()
-        if len(fields) < 4:
+        if len(fields) < _TARGET_ROW_FIELD_COUNT:
             msg = f"{name}:{line_number}: target row needs four fields"
             raise ValueError(msg)
         try:
@@ -121,7 +143,6 @@ def _load_target_cached(
         The parsed sparse target with duplicate vertex offsets combined.
 
     Raises:
-        OSError: If the source file cannot be read.
         ValueError: If an archive target is incomplete or contains invalid arrays or values.
     """
     del modified_ns, size
@@ -134,8 +155,6 @@ def _load_target_cached(
             payload = source.read_text(encoding="utf-8", errors="strict")
         return parse_target(payload, source.as_posix(), coordinate_format)
 
-    import numpy as np
-
     with np.load(source, allow_pickle=False) as archive:
         index_key = f"{archive_key}.index"
         vector_key = f"{archive_key}.vector"
@@ -146,9 +165,9 @@ def _load_target_cached(
         vectors = archive[vector_key]
         if (
             indices.ndim != 1
-            or vectors.ndim != 2
+            or vectors.ndim != _VECTOR_ARRAY_RANK
             or vectors.shape[0] != indices.shape[0]
-            or vectors.shape[1] != 3
+            or vectors.shape[1] != _VECTOR_COMPONENT_COUNT
         ):
             msg = f"{source}: archive target has invalid array shapes: {archive_key}"
             raise ValueError(msg)
@@ -182,9 +201,6 @@ def load_target(
     Returns:
         The parsed target with its sparse offsets in the selected coordinate convention.
 
-    Raises:
-        OSError: If the target source cannot be read.
-        ValueError: If the target contents or archive entry are invalid.
     """
     if isinstance(path, TargetReference):
         source = path.path.expanduser().resolve()
@@ -325,8 +341,6 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
         Mapping from normalized target aliases to archive key prefixes.
     """
     del modified_ns, size
-    import numpy as np
-
     index: dict[str, str] = {}
     with np.load(path_text, allow_pickle=False) as archive:
         for key in archive.files:
@@ -419,7 +433,7 @@ def apply_targets(
         if not math.isfinite(weight):
             msg = f"target weight for {name!r} must be finite"
             raise ValueError(msg)
-        if abs(weight) < 1e-12:
+        if abs(weight) < _MIN_TARGET_WEIGHT:
             continue
         source = resolve_target(name, base)
         if source is None:
@@ -437,7 +451,7 @@ def apply_targets(
 
 def apply_measurement_targets(
     vertices: Sequence[Point],
-    parameters: AvatarParameters,
+    parameters: _AvatarTargetParameters,
     *,
     target_root: Path | None = None,
 ) -> tuple[Point, ...]:
@@ -458,8 +472,6 @@ def apply_measurement_targets(
     root = target_directory() if target_root is None else target_root
     if root is None:
         return tuple((float(p[0]), float(p[1]), float(p[2])) for p in vertices)
-
-    from freecad_cloth.avatar.AvatarModel import DEFAULT_MEASUREMENTS
 
     weights: dict[str, float] = {}
     gender = float(parameters.gender)
