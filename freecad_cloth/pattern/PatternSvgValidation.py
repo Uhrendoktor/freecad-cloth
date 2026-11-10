@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import math
 import re
-import importlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
@@ -44,14 +43,10 @@ def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
         QtSvg = _QT_TYPE_QtSvg
     else:
         try:
-            QtCore = importlib.import_module("PySide.QtCore")
-            QtGui = importlib.import_module("PySide.QtGui")
-            QtSvg = importlib.import_module("PySide.QtSvg")
+            from PySide import QtCore, QtGui, QtSvg
         except ImportError:
             try:
-                QtCore = importlib.import_module("PySide2.QtCore")
-                QtGui = importlib.import_module("PySide2.QtGui")
-                QtSvg = importlib.import_module("PySide2.QtSvg")
+                from PySide2 import QtCore, QtGui, QtSvg
             except ImportError as exc:
                 msg = "independent SVG validation requires FreeCAD's QtSvg modules"
                 raise RuntimeError(msg) from exc

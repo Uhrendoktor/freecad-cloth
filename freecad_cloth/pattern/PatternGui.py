@@ -1,6 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI helpers for the Cloth Pattern workbench."""
-import importlib
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -9,6 +9,7 @@ if TYPE_CHECKING:
         QtGui as _QT_TYPE_QtGui,
         QtWidgets as _QT_TYPE_QtWidgets,
     )
+
 
 def _gui_modules():
     import FreeCAD as App
@@ -20,13 +21,9 @@ def _gui_modules():
         QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            QtCore = importlib.import_module("PySide.QtCore")
-            QtGui = importlib.import_module("PySide.QtGui")
-            QtWidgets = importlib.import_module("PySide.QtWidgets")
+            from PySide import QtCore, QtGui, QtWidgets
         except ImportError:
-            QtCore = importlib.import_module("PySide2.QtCore")
-            QtGui = importlib.import_module("PySide2.QtGui")
-            QtWidgets = importlib.import_module("PySide2.QtWidgets")
+            from PySide2 import QtCore, QtGui, QtWidgets
     return App, Gui, QtWidgets, QtGui, QtCore
 
 

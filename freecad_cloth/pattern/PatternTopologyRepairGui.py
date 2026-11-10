@@ -1,10 +1,11 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for explicit semantic-edge topology repair."""
-import importlib
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
 
 def _gui_modules():
     import FreeCADGui as Gui
@@ -13,9 +14,9 @@ def _gui_modules():
         QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            QtWidgets = importlib.import_module("PySide.QtWidgets")
+            from PySide import QtWidgets
         except ImportError:
-            QtWidgets = importlib.import_module("PySide2.QtWidgets")
+            from PySide2 import QtWidgets
     return Gui, QtWidgets
 
 

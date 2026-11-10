@@ -8,7 +8,6 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 
 import contextlib
 import math
-import importlib
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -61,11 +60,9 @@ def _modules():
         QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            QtCore = importlib.import_module("PySide.QtCore")
-            QtWidgets = importlib.import_module("PySide.QtWidgets")
+            from PySide import QtCore, QtWidgets
         except ImportError:
-            QtCore = importlib.import_module("PySide2.QtCore")
-            QtWidgets = importlib.import_module("PySide2.QtWidgets")
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 

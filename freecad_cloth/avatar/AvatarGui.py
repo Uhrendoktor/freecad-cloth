@@ -7,7 +7,6 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
-import importlib
 from typing import ClassVar, Protocol, TYPE_CHECKING
 
 from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
@@ -17,6 +16,7 @@ from freecad_cloth.avatar.AvatarProperties import (
 
 if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
+
 
 class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
@@ -39,9 +39,9 @@ def _modules():
         QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            QtWidgets = importlib.import_module("PySide.QtWidgets")
+            from PySide import QtWidgets
         except ImportError:
-            QtWidgets = importlib.import_module("PySide2.QtWidgets")
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -359,9 +359,9 @@ class AvatarTaskPanel:
             QtCore = _QT_TYPE_QtCore
         else:
             try:
-                QtCore = importlib.import_module("PySide.QtCore")
+                from PySide import QtCore
             except ImportError:
-                QtCore = importlib.import_module("PySide2.QtCore")
+                from PySide2 import QtCore
 
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText("Advanced Anny parameters")
@@ -554,9 +554,9 @@ class AvatarTaskPanel:
             QtCore = _QT_TYPE_QtCore
         else:
             try:
-                QtCore = importlib.import_module("PySide.QtCore")
+                from PySide import QtCore
             except ImportError:
-                QtCore = importlib.import_module("PySide2.QtCore")
+                from PySide2 import QtCore
         self.advanced_toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
         if expanded and not self._advanced_controls_built:
             try:
@@ -678,9 +678,9 @@ class AvatarTaskPanel:
             QtCore = _QT_TYPE_QtCore
         else:
             try:
-                QtCore = importlib.import_module("PySide.QtCore")
+                from PySide import QtCore
             except ImportError:
-                QtCore = importlib.import_module("PySide2.QtCore")
+                from PySide2 import QtCore
 
         group = QtWidgets.QGroupBox("Body shape")
         layout = QtWidgets.QFormLayout(group)
