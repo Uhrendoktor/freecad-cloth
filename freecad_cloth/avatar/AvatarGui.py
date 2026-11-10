@@ -7,6 +7,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
+import importlib
 from typing import ClassVar, Protocol, TYPE_CHECKING
 
 from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
@@ -14,6 +15,8 @@ from freecad_cloth.avatar.AvatarProperties import (
     SHAPE_PROPERTY_MAP as AVATAR_SHAPE_PROPERTY_MAP,
 )
 
+if TYPE_CHECKING:
+    from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
 
 class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
@@ -33,12 +36,12 @@ def _modules():
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
-        from PySide2 import QtWidgets
+        QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            from PySide import QtWidgets
+            QtWidgets = importlib.import_module("PySide.QtWidgets")
         except ImportError:
-            from PySide2 import QtWidgets
+            QtWidgets = importlib.import_module("PySide2.QtWidgets")
     return App, Gui, QtWidgets
 
 
@@ -353,12 +356,12 @@ class AvatarTaskPanel:
         """
         _, _, QtWidgets = _modules()
         if TYPE_CHECKING:
-            from PySide2 import QtCore
+            QtCore = _QT_TYPE_QtCore
         else:
             try:
-                from PySide import QtCore
+                QtCore = importlib.import_module("PySide.QtCore")
             except ImportError:
-                from PySide2 import QtCore
+                QtCore = importlib.import_module("PySide2.QtCore")
 
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText("Advanced Anny parameters")
@@ -548,12 +551,12 @@ class AvatarTaskPanel:
         """
         self.advanced_content.setVisible(bool(expanded))
         if TYPE_CHECKING:
-            from PySide2 import QtCore
+            QtCore = _QT_TYPE_QtCore
         else:
             try:
-                from PySide import QtCore
+                QtCore = importlib.import_module("PySide.QtCore")
             except ImportError:
-                from PySide2 import QtCore
+                QtCore = importlib.import_module("PySide2.QtCore")
         self.advanced_toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
         if expanded and not self._advanced_controls_built:
             try:
@@ -672,12 +675,12 @@ class AvatarTaskPanel:
         """
         _, _, QtWidgets = _modules()
         if TYPE_CHECKING:
-            from PySide2 import QtCore
+            QtCore = _QT_TYPE_QtCore
         else:
             try:
-                from PySide import QtCore
+                QtCore = importlib.import_module("PySide.QtCore")
             except ImportError:
-                from PySide2 import QtCore
+                QtCore = importlib.import_module("PySide2.QtCore")
 
         group = QtWidgets.QGroupBox("Body shape")
         layout = QtWidgets.QFormLayout(group)
