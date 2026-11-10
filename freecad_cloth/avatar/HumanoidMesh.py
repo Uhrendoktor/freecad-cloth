@@ -26,6 +26,7 @@ from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocolProtocol
 from freecad_cloth.avatar.MakeHumanTargets import (
     apply_measurement_targets,
     resolve_target,
@@ -74,7 +75,6 @@ DEFAULT_SKELETON_NAME = "makehuman-default.mhskel"
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
 
-    from freecad_cloth.avatar.AvatarModel import AvatarParameters
 
 Point = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -823,7 +823,7 @@ def _profile_scale(z: float, profile: Sequence[tuple[float, float]]) -> float:
     return profile[-1][1]
 
 
-def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
+def _is_default_measurement_shape(parameters: AvatarParametersProtocol) -> bool:
     """Check whether every authored avatar measurement matches its canonical default.
 
     Args:
@@ -839,7 +839,7 @@ def _is_default_measurement_shape(parameters: AvatarParameters) -> bool:
     )
 
 
-def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, float]]:
+def _measurement_profile(parameters: AvatarParametersProtocol) -> list[tuple[float, float]]:
     """Build the clamped vertical scale profile from measured torso circumferences.
 
     Args:
@@ -865,7 +865,7 @@ def _measurement_profile(parameters: AvatarParameters) -> list[tuple[float, floa
 
 
 def _measurement_axis_profiles(
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Split circumference changes into anatomically asymmetric width and depth profiles.
 
@@ -902,7 +902,7 @@ def _measurement_axis_profiles(
 
 
 def _gender_axis_profiles(
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
 ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     """Build separate lateral and depth profiles for the continuous gender shape blend.
 
@@ -1286,7 +1286,7 @@ def _section_circumference(
 
 def _make_source_fitted_mapper(
     source_vertices: Sequence[Point],
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
     skin_offset: float,
     source_triangles: Sequence[Triangle] | None = None,
 ) -> Callable[[Point], Point]:
@@ -1502,7 +1502,7 @@ def _make_source_fitted_mapper(
     return transform
 
 
-def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[str, Point]]:
+def _authored_arm_rig_points(parameters: AvatarParametersProtocol) -> dict[float, dict[str, Point]]:
     """Return fitted shoulder and wrist positions from authored MakeHuman bones.
 
     Args:
@@ -1533,7 +1533,7 @@ def _authored_arm_rig_points(parameters: AvatarParameters) -> dict[float, dict[s
 
 def fit_makehuman_mesh(
     mesh: MeshData,
-    parameters: AvatarParameters,
+    parameters: AvatarParametersProtocol,
     arm_weights: tuple[Sequence[float], Sequence[float]] | None = None,
 ) -> MeshData:
     """Fit HM08 and pose arms using source-authored bones and skinning weights.
@@ -1677,7 +1677,7 @@ def arm_pose_weight(
 
 
 def build_humanoid_mesh(
-    parameters: AvatarParameters, source_path: str | os.PathLike[str] | None = None
+    parameters: AvatarParametersProtocol, source_path: str | os.PathLike[str] | None = None
 ) -> MeshData:
     """Load and fit the pinned MakeHuman mannequin for Cloth.
 
