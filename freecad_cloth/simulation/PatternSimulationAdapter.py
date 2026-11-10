@@ -132,12 +132,8 @@ def resolve_simulation_pattern(
             raise ValueError(msg)
         piece_a_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_a_id)
         piece_b_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_b_id)
-        edge_a: str = _resolve_seam_edge(
-            piece_objects[piece_a_id], seam_obj, "A", piece_a_ir
-        )
-        edge_b: str = _resolve_seam_edge(
-            piece_objects[piece_b_id], seam_obj, "B", piece_b_ir
-        )
+        edge_a: str = _resolve_seam_edge(piece_objects[piece_a_id], seam_obj, "A", piece_a_ir)
+        edge_b: str = _resolve_seam_edge(piece_objects[piece_b_id], seam_obj, "B", piece_b_ir)
         seam = Seam(
             piece_a=piece_a_id,
             edge_a=edge_a,
