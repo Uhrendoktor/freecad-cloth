@@ -4,11 +4,9 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from PySide2 import (
-        QtCore as _QT_TYPE_QtCore,
-        QtGui as _QT_TYPE_QtGui,
-        QtWidgets as _QT_TYPE_QtWidgets,
-    )
+    from PySide2 import QtCore as _QT_TYPE_QtCore
+    from PySide2 import QtGui as _QT_TYPE_QtGui
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
 def _gui_modules():

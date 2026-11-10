@@ -13,11 +13,9 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 if TYPE_CHECKING:
-    from PySide2 import (
-        QtCore as _QT_TYPE_QtCore,
-        QtGui as _QT_TYPE_QtGui,
-        QtSvg as _QT_TYPE_QtSvg,
-    )
+    from PySide2 import QtCore as _QT_TYPE_QtCore
+    from PySide2 import QtGui as _QT_TYPE_QtGui
+    from PySide2 import QtSvg as _QT_TYPE_QtSvg
 
 _MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
 

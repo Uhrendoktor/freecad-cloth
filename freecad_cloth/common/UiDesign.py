@@ -7,7 +7,7 @@ feature-domain behavior.
 """
 
 from types import ModuleType
-from typing import Protocol, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
