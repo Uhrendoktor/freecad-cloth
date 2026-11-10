@@ -31,14 +31,17 @@ def _parse_mm_length(value: str, name: str) -> float:
 
 def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
     """Load the Qt SVG modules supported by FreeCAD without a module-level Qt dependency."""
-    try:
-        from PySide import QtCore, QtGui, QtSvg
-    except ImportError:
+    if TYPE_CHECKING:
+        from PySide2 import QtCore, QtGui, QtSvg
+    else:
         try:
-            from PySide2 import QtCore, QtGui, QtSvg
-        except ImportError as exc:
-            msg = "independent SVG validation requires FreeCAD's QtSvg modules"
-            raise RuntimeError(msg) from exc
+            from PySide import QtCore, QtGui, QtSvg
+        except ImportError:
+            try:
+                from PySide2 import QtCore, QtGui, QtSvg
+            except ImportError as exc:
+                msg = "independent SVG validation requires FreeCAD's QtSvg modules"
+                raise RuntimeError(msg) from exc
     return QtCore, QtGui, QtSvg
 
 
