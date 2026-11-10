@@ -19,10 +19,11 @@ import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
+
+    from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 
 Point = tuple[float, float, float]
 
@@ -374,9 +375,7 @@ def _resolve_loose_target(cleaned: str, base: Path) -> TargetReference | None:
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is None:
         return None
-    return TargetReference(
-        Path(indexed_path), coordinate_format=_target_coordinate_format(base)
-    )
+    return TargetReference(Path(indexed_path), coordinate_format=_target_coordinate_format(base))
 
 
 def _resolve_archived_target(cleaned: str, base: Path) -> TargetReference | None:
@@ -425,6 +424,7 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
     if cleaned is None:
         return None
     return _resolve_loose_target(cleaned, base) or _resolve_archived_target(cleaned, base)
+
 
 def apply_targets(
     vertices: Sequence[Point],
