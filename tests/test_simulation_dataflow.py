@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify public simulation execution rebuilds after pattern source changes."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from math import pi
 from typing import TYPE_CHECKING
