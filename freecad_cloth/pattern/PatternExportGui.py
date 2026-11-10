@@ -1,21 +1,24 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for deterministic production pattern export."""
 
+import importlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 def _qt():
     import FreeCAD as App
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
-        from PySide2 import QtWidgets
+        QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            from PySide import QtWidgets
+            QtWidgets = importlib.import_module("PySide.QtWidgets")
         except ImportError:
-            from PySide2 import QtWidgets
+            QtWidgets = importlib.import_module("PySide2.QtWidgets")
     return App, Gui, QtWidgets
 
 
