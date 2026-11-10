@@ -28,13 +28,16 @@ class _QtPoint(Protocol):
 
 def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     """Return the QtCore, QtGui, QtTest and QtWidgets modules available in FreeCAD."""
-    try:
-        from PySide import QtCore, QtGui, QtTest, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
+        from PySide2 import QtCore, QtGui, QtTest, QtWidgets
+    else:
         try:
-            from PySide2 import QtCore, QtGui, QtTest, QtWidgets
+            from PySide import QtCore, QtGui, QtTest, QtWidgets
         except ImportError:
-            from PySide6 import QtCore, QtGui, QtTest, QtWidgets
+            try:
+                from PySide2 import QtCore, QtGui, QtTest, QtWidgets
+            except ImportError:
+                from PySide6 import QtCore, QtGui, QtTest, QtWidgets
     return QtCore, QtGui, QtTest, QtWidgets
 
 
