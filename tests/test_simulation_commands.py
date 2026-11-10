@@ -13,6 +13,7 @@ import pytest
 
 from freecad_cloth.sewing import SeamOverlay
 from freecad_cloth.simulation import DrapeTarget, SimulationCommands
+from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 from tests.support.assertions import require
 
 DEFAULT_SIMULATION_STEPS = 30
@@ -220,24 +221,29 @@ def test_simulate_selected_blocks_a_stale_target_before_advancing_the_scene(
 def test_reset_simulation_resets_scene_and_recomputes() -> None:
     """Reset the scene and recompute its document exactly once."""
     calls: list[object] = []
+    def add_object(_type_name: str, _object_name: str) -> object:
+        """Provide the document feature-creation operation required by the protocol."""
+        return object()
+
+    def get_object(_object_name: str) -> object | None:
+        """Return no existing feature from the empty document fixture."""
+        return None
+
     document = cast(
-        "SimulationCommands._FreeCADDocument",
+        "SimulationDocument",
         SimpleNamespace(
             Objects=(),
-            addObject=lambda _type_name, _object_name: object(),
-            getObject=lambda _object_name: None,
+            addObject=add_object,
+            getObject=get_object,
             recompute=lambda: calls.append("recompute"),
         ),
     )
     scene = cast(
-        "SimulationCommands._SimulationScene",
+        "SimulationScene",
         SimpleNamespace(Steps=0, Document=document, ClothPieces=(), Proxy=None),
     )
 
-    def require_simulation() -> tuple[
-        SimulationCommands._FreeCADDocument,
-        SimulationCommands._SimulationScene,
-    ]:
+    def require_simulation() -> tuple[SimulationDocument, SimulationScene]:
         """Return the active document and its selected simulation scene.
 
         Returns:
