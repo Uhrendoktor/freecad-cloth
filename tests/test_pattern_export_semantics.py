@@ -1104,7 +1104,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
             condition=(metadata["seam_ids"] == ["front-back"]),
             message='Export contract failed: metadata["seam_ids"] == ["front-back"]',
         )
-            _require_export_measurements(metadata)
+        _require_export_measurements(metadata)
         require(
             condition=(metadata["mark_ids"] == ["piece-front:grainline"]),
             message='Export contract failed: metadata["mark_ids"] == ["piece-front:grainli',
