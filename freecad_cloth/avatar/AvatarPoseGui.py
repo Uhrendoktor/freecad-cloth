@@ -8,6 +8,7 @@ the primary manipulation. Exact Euler entry is retained behind a precision drawe
 
 import contextlib
 import math
+import importlib
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -37,6 +38,9 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ROTATION_RING_THICKNESS,
 )
 
+if TYPE_CHECKING:
+    from PySide2 import QtCore as _QT_TYPE_QtCore, QtWidgets as _QT_TYPE_QtWidgets
+
 _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
@@ -53,12 +57,15 @@ def _modules():
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
-        from PySide2 import QtCore, QtWidgets
+        QtCore = _QT_TYPE_QtCore
+        QtWidgets = _QT_TYPE_QtWidgets
     else:
         try:
-            from PySide import QtCore, QtWidgets
+            QtCore = importlib.import_module("PySide.QtCore")
+            QtWidgets = importlib.import_module("PySide.QtWidgets")
         except ImportError:
-            from PySide2 import QtCore, QtWidgets
+            QtCore = importlib.import_module("PySide2.QtCore")
+            QtWidgets = importlib.import_module("PySide2.QtWidgets")
     return App, Gui, QtCore, QtWidgets
 
 
