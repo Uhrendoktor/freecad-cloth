@@ -2,9 +2,11 @@
 """Dependency-free, deterministic SVG/DXF interchange for sewing patterns."""
 
 import json
+from collections.abc import Iterable, Mapping
 from html import escape
 from math import cos, hypot, radians, sin
 from pathlib import Path
+from typing import Protocol, TypedDict
 from xml.etree import ElementTree
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
@@ -27,6 +29,21 @@ from freecad_cloth.pattern.PatternGeometry import (
     PolylineSegment,
     signed_area,
 )
+
+
+class _PatternPieceFeature(Protocol):
+    """Native PatternPiece geometry dimensions required by export adapters."""
+
+    Width: float
+    Height: float
+
+
+class _ExportValidation(TypedDict):
+    """Deterministic validation result shared by SVG and DXF exporters."""
+
+    format: str
+    valid: bool
+    metadata: dict[str, object]
 
 
 def _fmt(value: float) -> str:
@@ -344,10 +361,10 @@ def _sampled_sewing(pattern, curve_samples):
 
 
 def _metadata(
-    pattern,
+    pattern: ParametricPattern,
     units: str,
     piece_id: str = "",
-    seam_ids=(),
+    seam_ids: Iterable[str] = (),
     derived: DerivedPattern | None = None,
     seam_allowance: float = 0.0,
 ) -> dict[str, object]:
@@ -415,7 +432,7 @@ def to_svg(
     units: str = "mm",
     derived: DerivedPattern | None = None,
     piece_id: str = "",
-    seam_ids=(),
+    seam_ids: Iterable[str] = (),
     seam_allowance: float = 0.0,
 ) -> str:
     """Generate deterministic SVG for sewing, cut, notch, and construction geometry.
@@ -539,7 +556,7 @@ def to_dxf(
     units: str = "mm",
     derived: DerivedPattern | None = None,
     piece_id: str = "",
-    seam_ids=(),
+    seam_ids: Iterable[str] = (),
     seam_allowance: float = 0.0,
 ) -> str:
     """Generate deterministic DXF entities for the sewing and cut boundaries.
@@ -686,9 +703,9 @@ def validate_export(
     units: str = "mm",
     derived: DerivedPattern | None = None,
     piece_id: str = "",
-    seam_ids=(),
+    seam_ids: Iterable[str] = (),
     seam_allowance: float = 0.0,
-) -> dict:
+) -> _ExportValidation:
     """Validate an export against its authoritative pattern model.
 
     The exporter is deterministic, so byte equality with a freshly generated
@@ -786,7 +803,7 @@ def validate_svg_export(
     return result
 
 
-def _piece_seams(piece):
+def _piece_seams(piece: _PatternPieceFeature) -> tuple[str, ...]:
     """Collect all valid semantic seam identities attached to one PatternPiece.
 
     Args:
@@ -821,7 +838,10 @@ def _piece_seams(piece):
     return tuple(sorted(set(seams)))
 
 
-def _piece_construction_marks(piece, pattern):
+def _piece_construction_marks(
+    piece: _PatternPieceFeature,
+    pattern: ParametricPattern,
+) -> tuple[tuple[Notch, ...], tuple[PatternMark, ...]]:
     """Materialize persisted native construction marks into the export model.
 
     Args:
@@ -839,8 +859,8 @@ def _piece_construction_marks(piece, pattern):
         msg = "pattern piece is not attached to a FreeCAD document"
         raise ValueError(msg)
     piece_id = str(getattr(piece, "PieceId", "")).strip()
-    notches = []
-    marks = []
+    notches: list[Notch] = []
+    marks: list[PatternMark] = []
     for obj in getattr(doc, "Objects", ()):
         mark_type = str(getattr(obj, "PatternMarkType", "")).strip()
         if not mark_type or str(getattr(obj, "PieceId", "")).strip() != piece_id:
@@ -884,7 +904,10 @@ def _piece_construction_marks(piece, pattern):
     )
 
 
-def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPattern:
+def pattern_from_pattern_piece(
+    piece: _PatternPieceFeature,
+    curve_samples: int = 64,
+) -> ParametricPattern:
     """Build a deterministic export model only from native Sketcher geometry.
 
     Args:
@@ -946,8 +969,8 @@ def pattern_from_pattern_piece(piece, curve_samples: int = 64) -> ParametricPatt
 
 
 def export_pattern_piece(
-    piece,
-    path,
+    piece: _PatternPieceFeature,
+    path: str | Path,
     export_format: str,
     *,
     units: str = "mm",
@@ -955,7 +978,7 @@ def export_pattern_piece(
     paper_size: str = "A4",
     margin_mm: float = 10.0,
     overlap_mm: float = 10.0,
-) -> dict:
+) -> Mapping[str, object]:
     """Write and validate an export derived from authoritative piece geometry.
 
     Args:
