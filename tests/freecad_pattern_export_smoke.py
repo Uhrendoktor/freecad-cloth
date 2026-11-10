@@ -31,10 +31,7 @@ LOG_PATH.write_text("", encoding="utf-8")
 
 
 def process_events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
