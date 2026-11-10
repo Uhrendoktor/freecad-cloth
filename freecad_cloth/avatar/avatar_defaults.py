@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Dependency-neutral default anthropometric measurements for the avatar domain."""
+"""Dependency-neutral anthropometric and pose defaults for the avatar domain."""
 
 DEFAULT_MEASUREMENTS: dict[str, float] = {
     "height": 1750.0,
@@ -28,4 +28,11 @@ DEFAULT_MEASUREMENTS: dict[str, float] = {
     "back_rise": 390.0,
     "shirt_length": 700.0,
     "back_neck_to_waist": 450.0,
+}
+
+DEFAULT_POSE_ARM_ANGLES: dict[str, float] = {
+    "standing": 70.0,
+    "sewing": 55.0,
+    "sitting": 25.0,
+    "t_pose": 12.0,
 }
