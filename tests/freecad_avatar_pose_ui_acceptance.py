@@ -101,10 +101,7 @@ def _runtime_diagnostics():
 
 
 def _events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     app = QtWidgets.QApplication.instance()
     Gui.updateGui()
     if app is not None:
@@ -115,10 +112,7 @@ def _events():
 
 
 def _capture_pose_screen(path, panel, view):
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
 
     app = QtWidgets.QApplication.instance()
     screen = None if app is None else app.primaryScreen()
@@ -519,10 +513,7 @@ def run():
     if panel.joint_list_widget.isVisible():
         msg = "Pose Mode exposed the joint-list fallback by default"
         raise RuntimeError(msg)
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     if panel.form.findChildren(QtWidgets.QSlider):
         msg = "Pose Mode retained redundant slider-based primary controls"
         raise RuntimeError(msg)
