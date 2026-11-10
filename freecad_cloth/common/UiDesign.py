@@ -159,10 +159,7 @@ def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None 
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
     if layout_type is None:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
+        from freecad_cloth.common.qt_compat import QtWidgets
         layout_type = cast("type[object]", QtWidgets.QLayout)
     for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
