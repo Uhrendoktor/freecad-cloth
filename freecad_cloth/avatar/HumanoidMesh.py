@@ -26,7 +26,7 @@ from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS, DEFAULT_POSE_ARM_ANGLES
-from freecad_cloth.avatar.MakeHumanTargets import (
+from freecad_cloth.avatar.make_human_targets import (
     apply_measurement_targets,
     resolve_target,
     target_directory,
