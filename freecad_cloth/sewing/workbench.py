@@ -99,7 +99,7 @@ class ClothSewingWorkbench(ClothWorkbenchBase):
     def Initialize(self):
         if self.commands:
             return
-        from freecad_cloth.avatar.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
+        from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
         from freecad_cloth.sewing import SewingCommands, SewingNetworkCommands
 
         groups = list(COMMAND_GROUPS[:3])
