@@ -12,7 +12,7 @@ from freecad_cloth.avatar.HumanoidMesh import (
     _make_source_fitted_mapper,
     _section_circumference,
 )
-from freecad_cloth.avatar.MakeHumanTargets import (
+from freecad_cloth.avatar.make_human_targets import (
     TARGETS_ENV,
     apply_measurement_targets,
     apply_targets,
