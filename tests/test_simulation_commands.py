@@ -83,10 +83,18 @@ def _install_freecad_scene(
     app_module.__dict__["ActiveDocument"] = document
     monkeypatch.setitem(sys.modules, "FreeCAD", app_module)
     monkeypatch.setattr(DrapeTarget, "target_status", _ready_target_status)
+    def record_overlay_refresh(_document: object) -> None:
+        """Record a seam-overlay refresh requested by a public command.
+
+        Args:
+            _document: FreeCAD document passed to the overlay refresh callback.
+        """
+        calls.append("refresh")
+
     monkeypatch.setattr(
         SeamOverlay,
         "refresh_seam_overlay",
-        lambda _document: calls.append("refresh"),
+        record_overlay_refresh,
     )
     return app_module, scene, calls
 

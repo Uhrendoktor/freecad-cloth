@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Simulation workbench."""
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
@@ -11,6 +11,18 @@ class _FreeCADDocument(Protocol):
     """Minimal FreeCAD document API used by simulation-scene creation."""
 
     Objects: Sequence[object]
+
+    def addObject(self, type_name: str, object_name: str) -> object:
+        """Create a FreeCAD feature in this document.
+
+        Args:
+            type_name: Native FreeCAD object type identifier.
+            object_name: Stable internal name for the new feature.
+
+        Returns:
+            The newly created document feature.
+        """
+        ...
 
     def getObject(self, object_name: str) -> object | None:
         """Return a document object by internal name, if present.
@@ -28,6 +40,40 @@ class _FreeCADDocument(Protocol):
         ...
 
 
+class _SimulationScene(Protocol):
+    """Persisted simulation feature contract used by public commands."""
+
+    Steps: int
+    Document: _FreeCADDocument
+    ClothPieces: Sequence[object]
+    Proxy: object
+
+
+class _FreeCADAvatarFeature(Protocol):
+    """Avatar feature members needed by simulation-scene setup."""
+
+    Label: str
+
+
+class _FreeCADViewObject(Protocol):
+    """Viewport visibility property used when initializing the avatar."""
+
+    Visibility: bool
+
+
+class _FreeCADGui(Protocol):
+    """Minimal FreeCAD GUI command-registration API."""
+
+    def addCommand(self, command_name: str, command: object) -> None:
+        """Register one Python workbench command.
+
+        Args:
+            command_name: Stable FreeCAD command identifier.
+            command: Command object implementing the native workbench interface.
+        """
+        ...
+
+
 def create_simulation() -> object:
     """Create a quality-aware simulation in the active document.
 
@@ -36,7 +82,10 @@ def create_simulation() -> object:
     """
     import FreeCAD as App
 
-    doc = App.ActiveDocument or App.newDocument("ClothSimulation")
+    doc = cast(
+        "_FreeCADDocument",
+        App.ActiveDocument or App.newDocument("ClothSimulation"),
+    )
     return create_quality_simulation_scene(doc)
 
 
@@ -66,14 +115,26 @@ def create_quality_simulation_scene(
         ensure_quality_properties,
     )
 
-    scene = create_simulation_scene(doc)
+    create_scene = cast(
+        "Callable[[_FreeCADDocument], _SimulationScene]",
+        create_simulation_scene,
+    )
+    ensure_quality = cast(
+        "Callable[[_SimulationScene], object]",
+        ensure_quality_properties,
+    )
+    scene = create_scene(doc)
     scene.ClothPieces = list(cloth_pieces)
     if avatar_source is None:
-        avatar = doc.getObject("ClothAvatar")
-        if avatar is None:
-            avatar = create_avatar(doc=doc, attach_collision=False)
+        avatar_object = doc.getObject("ClothAvatar")
+        if avatar_object is None:
+            avatar_object = create_avatar(doc=doc, attach_collision=False)
+        avatar = cast("_FreeCADAvatarFeature", avatar_object)
         avatar.Label = "Cloth Human Avatar (MakeHuman)"
-        view = getattr(avatar, "ViewObject", None)
+        view = cast(
+            "_FreeCADViewObject | None",
+            getattr(avatar_object, "ViewObject", None),
+        )
         if view is not None:
             view.Visibility = True
     else:
@@ -82,7 +143,7 @@ def create_quality_simulation_scene(
     is_mannequin = str(getattr(avatar, "AvatarType", "")) == "ClothAvatar"
     thickness_mm = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if is_mannequin else 2.0
     set_drape_target_source(scene, avatar, thickness_mm, 1.0)
-    ensure_quality_properties(scene)
+    ensure_quality(scene)
     scene.Proxy = QualitySimulationProxy()
     doc.recompute()
     return scene
@@ -115,7 +176,7 @@ def _is_simulation_scene(obj: object) -> bool:
     )
 
 
-def _find_simulation(doc: _FreeCADDocument) -> object | None:
+def _find_simulation(doc: _FreeCADDocument) -> _SimulationScene | None:
     """Find the first simulation scene in a document.
 
     Args:
@@ -124,7 +185,10 @@ def _find_simulation(doc: _FreeCADDocument) -> object | None:
     Returns:
         The first matching simulation scene, or None when no scene exists.
     """
-    return next((obj for obj in doc.Objects if _is_simulation_scene(obj)), None)
+    return next(
+        (cast("_SimulationScene", obj) for obj in doc.Objects if _is_simulation_scene(obj)),
+        None,
+    )
 
 
 def _find_drape_target(doc: _FreeCADDocument) -> object | None:
@@ -151,7 +215,7 @@ def _require_drape_target_ready(
     doc: _FreeCADDocument,
     *,
     find_target: Callable[..., object | None] | None = None,
-    target_status_fn: Callable[..., dict[str, str]] | None = None,
+    target_status_fn: Callable[[object | None], Mapping[str, object]] | None = None,
 ) -> object | None:
     """Reject simulation advancement when its persisted drape target is stale.
 
@@ -180,34 +244,38 @@ def _require_drape_target_ready(
     return target
 
 
-_ACTIVE_SIMULATION_QUALITY_TASK_PANEL = None
+_active_simulation_quality_task_panel: object | None = None
 
 
-def get_active_simulation_quality_task_panel():
+def get_active_simulation_quality_task_panel() -> object | None:
     """Return the task panel opened by the public simulation controls command."""
     return _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
 
 
-def edit_simulation():
+def edit_simulation() -> object:
     """Open the native simulation quality controls task panel."""
-    global _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
+    global _active_simulation_quality_task_panel
     import FreeCAD as App
 
     from freecad_cloth.simulation.SimulationQualityGui import show_simulation_quality_task
     from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
-    doc = App.ActiveDocument
-    scene = _find_simulation(doc) if doc else None
+    doc = cast("_FreeCADDocument | None", App.ActiveDocument)
+    scene = _find_simulation(doc) if doc is not None else None
     if scene is not None:
-        ensure_quality_properties(scene)
-    _ACTIVE_SIMULATION_QUALITY_TASK_PANEL = show_simulation_quality_task(scene)
-    return _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
+        from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
-
-class _SimulationScene(Protocol):
-    """Document-backed scene fields required by public simulation controls."""
-
-    Steps: int
+        ensure_quality = cast(
+            "Callable[[_SimulationScene], object]",
+            ensure_quality_properties,
+        )
+        ensure_quality(scene)
+    show_quality_task = cast(
+        "Callable[[_SimulationScene | None], object]",
+        show_simulation_quality_task,
+    )
+    _active_simulation_quality_task_panel = show_quality_task(scene)
+    return _active_simulation_quality_task_panel
 
 
 def _require_simulation() -> tuple[_FreeCADDocument, _SimulationScene]:
@@ -221,7 +289,7 @@ def _require_simulation() -> tuple[_FreeCADDocument, _SimulationScene]:
     """
     import FreeCAD as App
 
-    doc = App.ActiveDocument
+    doc = cast("_FreeCADDocument | None", App.ActiveDocument)
     if doc is None:
         msg = "no active document"
         raise RuntimeError(msg)
@@ -279,10 +347,12 @@ def run_simulation(
 
 def reset_simulation(
     *,
-    require_simulation_fn: Callable[[], tuple[object, object]] | None = None,
-    reset_scene_fn: Callable[[object], object] | None = None,
-    refresh_overlay_fn: Callable[[object], object] | None = None,
-):
+    require_simulation_fn: Callable[
+        [], tuple[_FreeCADDocument, _SimulationScene]
+    ] | None = None,
+    reset_scene_fn: Callable[[_SimulationScene], object] | None = None,
+    refresh_overlay_fn: Callable[[_FreeCADDocument], object] | None = None,
+) -> _SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
     Args:
@@ -293,18 +363,24 @@ def reset_simulation(
     require_simulation = (
         _require_simulation if require_simulation_fn is None else require_simulation_fn
     )
-    _doc, scene = require_simulation()
+    doc, scene = require_simulation()
     if reset_scene_fn is None:
         from freecad_cloth.simulation.SimulationObjects import reset_scene
 
-        reset_scene_fn = reset_scene
+        reset_scene_fn = cast(
+            "Callable[[_SimulationScene], object]",
+            reset_scene,
+        )
     reset_scene_fn(scene)
     scene.Document.recompute()
     if refresh_overlay_fn is None:
         from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
-        refresh_overlay_fn = refresh_seam_overlay
-    refresh_overlay_fn(scene.Document)
+        refresh_overlay_fn = cast(
+            "Callable[[_FreeCADDocument], object]",
+            refresh_seam_overlay,
+        )
+    refresh_overlay_fn(doc)
     return scene
 
 
@@ -415,7 +491,8 @@ def _has_simulation() -> bool:
     try:
         import FreeCAD as App
 
-        return bool(App.ActiveDocument and _find_simulation(App.ActiveDocument) is not None)
+        doc = cast("_FreeCADDocument | None", App.ActiveDocument)
+        return bool(doc is not None and _find_simulation(doc) is not None)
     except (ImportError, AttributeError):
         return False
 
@@ -432,8 +509,9 @@ COMMANDS = [
 try:
     import FreeCADGui as Gui
 
-    if hasattr(Gui, "addCommand"):
-        Gui.addCommand(
+    gui = cast("_FreeCADGui", Gui)
+    if callable(getattr(gui, "addCommand", None)):
+        gui.addCommand(
             "ClothSimulation_Create",
             _FunctionCommand(
                 create_simulation,
@@ -442,7 +520,7 @@ try:
                 "ClothSimulation_Create",
             ),
         )
-        Gui.addCommand(
+        gui.addCommand(
             "ClothSimulation_CreateDrape",
             _FunctionCommand(
                 create_drape_scene,
@@ -451,7 +529,7 @@ try:
                 "ClothSimulation_CreateDrape",
             ),
         )
-        Gui.addCommand(
+        gui.addCommand(
             "ClothSimulation_Edit",
             _FunctionCommand(
                 edit_simulation,
@@ -460,7 +538,7 @@ try:
                 "ClothSimulation_Edit",
             ),
         )
-        Gui.addCommand(
+        gui.addCommand(
             "ClothSimulation_Step",
             _FunctionCommand(
                 lambda: simulate_selected(),
@@ -470,7 +548,7 @@ try:
                 _has_simulation,
             ),
         )
-        Gui.addCommand(
+        gui.addCommand(
             "ClothSimulation_Run",
             _FunctionCommand(
                 run_simulation,
@@ -480,7 +558,7 @@ try:
                 _has_simulation,
             ),
         )
-        Gui.addCommand(
+        gui.addCommand(
             "ClothSimulation_Reset",
             _FunctionCommand(
                 reset_simulation,
