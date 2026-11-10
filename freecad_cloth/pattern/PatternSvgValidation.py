@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import math
 import re
+import importlib
 from pathlib import Path
 from typing import TYPE_CHECKING
 from xml.etree import ElementTree
@@ -12,6 +13,12 @@ from xml.etree import ElementTree
 if TYPE_CHECKING:
     from types import ModuleType
 
+if TYPE_CHECKING:
+    from PySide2 import (
+        QtCore as _QT_TYPE_QtCore,
+        QtGui as _QT_TYPE_QtGui,
+        QtSvg as _QT_TYPE_QtSvg,
+    )
 
 _MM_LENGTH = re.compile(r"^\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)mm\s*$")
 
@@ -32,13 +39,19 @@ def _parse_mm_length(value: str, name: str) -> float:
 def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType]:
     """Load the Qt SVG modules supported by FreeCAD without a module-level Qt dependency."""
     if TYPE_CHECKING:
-        from PySide2 import QtCore, QtGui, QtSvg
+        QtCore = _QT_TYPE_QtCore
+        QtGui = _QT_TYPE_QtGui
+        QtSvg = _QT_TYPE_QtSvg
     else:
         try:
-            from PySide import QtCore, QtGui, QtSvg
+            QtCore = importlib.import_module("PySide.QtCore")
+            QtGui = importlib.import_module("PySide.QtGui")
+            QtSvg = importlib.import_module("PySide.QtSvg")
         except ImportError:
             try:
-                from PySide2 import QtCore, QtGui, QtSvg
+                QtCore = importlib.import_module("PySide2.QtCore")
+                QtGui = importlib.import_module("PySide2.QtGui")
+                QtSvg = importlib.import_module("PySide2.QtSvg")
             except ImportError as exc:
                 msg = "independent SVG validation requires FreeCAD's QtSvg modules"
                 raise RuntimeError(msg) from exc
