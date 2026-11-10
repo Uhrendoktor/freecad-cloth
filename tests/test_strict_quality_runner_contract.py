@@ -16,6 +16,9 @@ def _require(condition: bool, message: str) -> None:
     Args:
         condition: Boolean invariant that must hold for the test to pass.
         message: Explanation shown when the invariant is not satisfied.
+
+    Raises:
+        AssertionError: If the required invariant is false.
     """
     if not condition:
         raise AssertionError(message)
@@ -105,9 +108,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
     _require(
         any(
-            "check_documentation_contract.py" in item
-            for command in arguments
-            for item in command
+            "check_documentation_contract.py" in item for command in arguments for item in command
         ),
         "The Python documentation contract must remain enabled.",
     )
