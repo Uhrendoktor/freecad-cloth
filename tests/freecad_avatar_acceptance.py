@@ -20,10 +20,7 @@ import FreeCADGui as Gui
 
 def _events():
     Gui.updateGui()
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
 
 
