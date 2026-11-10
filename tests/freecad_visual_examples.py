@@ -7,6 +7,7 @@ import site
 import sys
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
@@ -20,10 +21,13 @@ import FreeCAD as App
 import FreeCADGui as Gui
 from support.freecad_mesh_geometry import opposite_top_edge_vertices
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
 
 # A generic FreeCAD cube requires PositionBasedDynamics's mesh collision path; torso-envelope is for avatar-style targets.
