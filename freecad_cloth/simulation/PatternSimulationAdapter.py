@@ -7,11 +7,12 @@ is absent instead of rebuilding geometry from cached outline or size fields.
 """
 
 from collections.abc import Mapping, Sequence
+from typing import Literal, Protocol
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
-from freecad_cloth.pattern.PatternIR import PatternIR, PieceIR, SeamIR
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     NATIVE_SIGNATURE_PREFIX,
@@ -22,11 +23,28 @@ from freecad_cloth.pattern.SeamReference import (
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 CURVE_SAMPLES = 64
+DEFAULT_PLACEMENT_TRANSLATION = 0.0
+DEFAULT_PLACEMENT_ANGLE = 0.0
+DEFAULT_ROTATION_AXIS_X = 0.0
+DEFAULT_ROTATION_AXIS_Y = 0.0
+DEFAULT_ROTATION_AXIS_Z = 1.0
+
+
+class _PatternDocument(Protocol):
+    """Minimal document interface required by simulation pattern resolution."""
+
+    Objects: Sequence[object]
 
 
 @pydantic_dataclass(frozen=True)
 class ResolvedSimulationPattern:
-    """Resolved PatternIR plus the originating FreeCAD PatternPiece objects."""
+    """Resolved PatternIR plus the originating FreeCAD PatternPiece objects.
+
+    Attributes:
+        pattern: Validated solver-neutral geometry and canonical seam relationships.
+        pieces: Original document features indexed by their persistent PieceId.
+        signature: Immutable source geometry, placement, and seam signature.
+    """
 
     pattern: PatternIR
     pieces: Mapping[str, object]
@@ -40,24 +58,34 @@ class ResolvedSimulationPattern:
 
         Returns:
             The resolved PatternIR piece with the requested identity.
+
+        Raises:
+            KeyError: If no pattern piece has the requested identifier.
         """
         return self.pattern.piece(piece_id)
 
 
-def is_sketch_authoritative(piece) -> bool:
-    """Return whether this document object declares native Sketcher authority."""
+def is_sketch_authoritative(piece: object) -> bool:
+    """Return whether a document feature declares native Sketcher authority.
+
+    Args:
+        piece: FreeCAD document feature representing a pattern piece.
+
+    Returns:
+        True when the feature declares Sketcher as its authoritative geometry source.
+    """
     return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
 
 
 def resolve_simulation_pattern(
-    doc: object,
+    doc: _PatternDocument | None,
     pieces: Sequence[object],
     curve_samples: int = CURVE_SAMPLES,
 ) -> ResolvedSimulationPattern:
     """Resolve document PatternPieces and canonical seams into one PatternIR.
 
     Args:
-        doc: FreeCAD document supplying the persisted pattern-piece and seam objects.
+        doc: FreeCAD document supplying persisted pattern-piece and seam objects.
         pieces: Selected PatternPiece features whose native Sketcher geometry is resolved.
         curve_samples: Number of samples used to represent each native sketch curve.
 
@@ -73,10 +101,10 @@ def resolve_simulation_pattern(
         msg = "curve_samples must be at least 2"
         raise ValueError(msg)
 
-    pieces = tuple(pieces)
-    piece_objects = {}
-    piece_irs = []
-    for piece in pieces:
+    selected_pieces = tuple(pieces)
+    piece_objects: dict[str, object] = {}
+    piece_irs: list[PieceIR] = []
+    for piece in selected_pieces:
         piece_id = str(getattr(piece, "PieceId", "")).strip()
         if not piece_id:
             msg = "simulation PatternPiece is missing PieceId"
@@ -87,15 +115,16 @@ def resolve_simulation_pattern(
         piece_objects[piece_id] = piece
         piece_irs.append(_resolve_piece_ir(piece, curve_samples))
 
-    seams = []
-    selected = set(piece_objects)
-    for seam_obj in getattr(doc, "Objects", ()):
+    seams: list[SeamIR] = []
+    selected_ids = set(piece_objects)
+    document_objects = doc.Objects if doc is not None else ()
+    for seam_obj in document_objects:
         seam_id = str(getattr(seam_obj, "SeamId", "")).strip()
         if not seam_id:
             continue
         piece_a_id = str(getattr(seam_obj, "PieceA", "")).strip()
         piece_b_id = str(getattr(seam_obj, "PieceB", "")).strip()
-        if piece_a_id not in selected or piece_b_id not in selected:
+        if piece_a_id not in selected_ids or piece_b_id not in selected_ids:
             continue
         status = str(getattr(seam_obj, "Status", "Valid"))
         if status != "Valid":
@@ -103,8 +132,12 @@ def resolve_simulation_pattern(
             raise ValueError(msg)
         piece_a_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_a_id)
         piece_b_ir = next(piece_ir for piece_ir in piece_irs if piece_ir.id == piece_b_id)
-        edge_a = _resolve_seam_edge(piece_objects[piece_a_id], seam_obj, "A", piece_a_ir)
-        edge_b = _resolve_seam_edge(piece_objects[piece_b_id], seam_obj, "B", piece_b_ir)
+        edge_a: str = _resolve_seam_edge(
+            piece_objects[piece_a_id], seam_obj, "A", piece_a_ir
+        )
+        edge_b: str = _resolve_seam_edge(
+            piece_objects[piece_b_id], seam_obj, "B", piece_b_ir
+        )
         seam = Seam(
             piece_a=piece_a_id,
             edge_a=edge_a,
@@ -141,7 +174,7 @@ def resolve_simulation_pattern(
 
     pattern = PatternIR(tuple(piece_irs), tuple(seams))
     pattern.validate()
-    signature = (
+    signature: tuple[object, ...] = (
         tuple(
             (
                 piece_id,
@@ -181,17 +214,36 @@ def resolve_simulation_pattern(
     return ResolvedSimulationPattern(pattern, piece_objects, signature)
 
 
-def resolve_piece_ir(piece, curve_samples: int = CURVE_SAMPLES):
-    """Resolve one Sketcher-authoritative document PatternPiece."""
+def resolve_piece_ir(piece: object, curve_samples: int = CURVE_SAMPLES) -> PieceIR:
+    """Resolve one Sketcher-authoritative document PatternPiece.
+
+    Args:
+        piece: FreeCAD document feature whose Sketcher geometry is authoritative.
+        curve_samples: Number of samples used to represent each native sketch curve.
+
+    Returns:
+        The validated solver-neutral piece with stable semantic boundary identifiers.
+
+    Raises:
+        ValueError: If curve_samples is smaller than two.
+        MissingEdgeReference: If the feature does not contain authoritative Sketcher data.
+    """
     if curve_samples < 2:
         msg = "curve_samples must be at least 2"
         raise ValueError(msg)
     return _resolve_piece_ir(piece, curve_samples)
 
 
-def geometry_from_piece_ir(piece_ir):
-    """Convert PatternIR boundaries into the existing ParametricPattern mesh input."""
-    segments = []
+def geometry_from_piece_ir(piece_ir: PieceIR) -> ParametricPattern:
+    """Convert PatternIR boundaries into the existing ParametricPattern mesh input.
+
+    Args:
+        piece_ir: Validated pattern piece containing native curve samples and identities.
+
+    Returns:
+        Parametric mesh input preserving each boundary's semantic identifier and shape.
+    """
+    segments: list[LineSegment | PolylineSegment] = []
     for boundary in piece_ir.boundaries:
         points = tuple((float(sample[0]), float(sample[1])) for sample in boundary.samples)
         if boundary.kind == "line" and len(points) == 2:
@@ -201,7 +253,20 @@ def geometry_from_piece_ir(piece_ir):
     return ParametricPattern(segments)
 
 
-def _resolve_piece_ir(piece, curve_samples):
+def _resolve_piece_ir(piece: object, curve_samples: int) -> PieceIR:
+    """Build one solver-neutral piece from a native authoritative sketch.
+
+    Args:
+        piece: FreeCAD document feature whose Sketcher geometry is authoritative.
+        curve_samples: Number of samples used to represent each native sketch curve.
+
+    Returns:
+        Validated PatternIR piece carrying native boundary provenance.
+
+    Raises:
+        MissingEdgeReference: If the feature lacks Sketcher authority or a sketch object.
+        ValueError: If native sketch geometry cannot be converted into valid boundaries.
+    """
     if not is_sketch_authoritative(piece):
         msg = (
             f"pattern piece {getattr(piece, 'PieceId', '')} must declare "
@@ -223,27 +288,60 @@ def _resolve_piece_ir(piece, curve_samples):
     ).piece(model.id)
 
 
-def _piece_model(piece):
-    """Build PatternIR metadata; native Sketcher geometry supplies the boundary."""
+def _piece_model(piece: object) -> PatternPiece:
+    """Build PatternIR metadata while native Sketcher geometry supplies boundaries.
+
+    Args:
+        piece: Native document feature whose label, identity, and metadata are read.
+
+    Returns:
+        Canonical PatternPiece metadata used to validate the sketch-derived IR.
+    """
     return PatternPiece(
         str(getattr(piece, "Label", "") or getattr(piece, "Name", "") or piece.PieceId),
         [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)],
         seam_allowance=float(getattr(piece, "SeamAllowance", 0.0)),
         grainline_angle=float(getattr(piece, "GrainlineAngle", 0.0)),
-        id=str(piece.PieceId),
+        id=str(getattr(piece, "PieceId", "")),
     )
 
 
-def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
+def _resolve_seam_edge(
+    piece: object,
+    seam_obj: object,
+    prefix: Literal["A", "B"],
+    piece_ir: PieceIR,
+) -> str:
+    """Verify one persisted seam side against current semantic boundary provenance.
+
+    Args:
+        piece: Sketcher-authoritative document feature owning the boundary.
+        seam_obj: Persisted sewing relationship containing its edge identity/signature.
+        prefix: Side marker selecting the A or B edge identity and signature fields.
+        piece_ir: Current solver-neutral geometry of the owning piece.
+
+    Returns:
+        Stable semantic edge identity to store in the solver-neutral seam record.
+
+    Raises:
+        MissingEdgeReference: If the piece or referenced semantic edge is unavailable.
+        ChangedEdgeReference: If the stored signature does not match current native geometry.
+    """
     if not is_sketch_authoritative(piece) or getattr(piece, "Sketch", None) is None:
-        msg = f"seam {getattr(seam_obj, 'SeamId', '')} references a piece without native Sketcher geometry"
+        msg = (
+            f"seam {getattr(seam_obj, 'SeamId', '')} references a piece "
+            "without native Sketcher geometry"
+        )
         raise MissingEdgeReference(msg)
 
     id_attribute = "EdgeAId" if prefix == "A" else "EdgeBId"
     signature_attribute = "EdgeASignature" if prefix == "A" else "EdgeBSignature"
     semantic_id = str(getattr(seam_obj, id_attribute, "")).strip()
     if not semantic_id:
-        msg = f"Sketcher-authoritative seam {getattr(seam_obj, 'SeamId', '')} is missing {id_attribute}"
+        msg = (
+            f"Sketcher-authoritative seam {getattr(seam_obj, 'SeamId', '')} "
+            f"is missing {id_attribute}"
+        )
         raise MissingEdgeReference(msg)
 
     boundary = next(
@@ -260,7 +358,13 @@ def _resolve_seam_edge(piece, seam_obj, prefix, piece_ir):
     return semantic_id
 
 
-def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attribute) -> None:
+def _validate_edge_signature(
+    piece: object,
+    seam_obj: object,
+    edge_id: str,
+    boundary: BoundaryIR,
+    signature_attribute: Literal["EdgeASignature", "EdgeBSignature"],
+) -> None:
     """Require the stored seam signature to match current native PatternIR provenance.
 
     Args:
@@ -281,7 +385,7 @@ def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attri
         )
         raise ChangedEdgeReference(msg)
 
-    samples = tuple(tuple(point) for point in boundary.samples)
+    samples = boundary.samples
     if len(samples) < 2:
         msg = f"semantic edge reference {edge_id} has fewer than two current samples"
         raise ChangedEdgeReference(msg)
@@ -307,7 +411,32 @@ def _validate_edge_signature(piece, seam_obj, edge_id, boundary, signature_attri
         raise ChangedEdgeReference(msg)
 
 
-def _placement_signature(piece):
+def _numeric_attribute(value: object, name: str, default: float) -> float:
+    """Read a numeric FreeCAD placement field without accepting malformed values.
+
+    Args:
+        value: Native placement component that may expose a numeric member.
+        name: Attribute name to read from the component.
+        default: Fallback used when the component or member is not numeric.
+
+    Returns:
+        The numeric attribute converted to float, or the supplied default.
+    """
+    candidate = getattr(value, name, default)
+    if isinstance(candidate, (int, float)) and not isinstance(candidate, bool):
+        return float(candidate)
+    return default
+
+
+def _placement_signature(piece: object) -> tuple[float, ...]:
+    """Return the native placement fields used by the simulation source signature.
+
+    Args:
+        piece: PatternPiece feature whose native Placement is included in the signature.
+
+    Returns:
+        Translation, rotation angle, and rotation-axis components in stable order.
+    """
     placement = getattr(piece, "Placement", None)
     if placement is None:
         return ()
@@ -315,11 +444,11 @@ def _placement_signature(piece):
     rotation = getattr(placement, "Rotation", None)
     axis = getattr(rotation, "Axis", None) if rotation is not None else None
     return (
-        float(getattr(base, "x", 0.0)),
-        float(getattr(base, "y", 0.0)),
-        float(getattr(base, "z", 0.0)),
-        float(getattr(rotation, "Angle", 0.0)) if rotation is not None else 0.0,
-        float(getattr(axis, "x", 0.0)) if axis is not None else 0.0,
-        float(getattr(axis, "y", 0.0)) if axis is not None else 0.0,
-        float(getattr(axis, "z", 1.0)) if axis is not None else 1.0,
+        _numeric_attribute(base, "x", DEFAULT_PLACEMENT_TRANSLATION),
+        _numeric_attribute(base, "y", DEFAULT_PLACEMENT_TRANSLATION),
+        _numeric_attribute(base, "z", DEFAULT_PLACEMENT_TRANSLATION),
+        _numeric_attribute(rotation, "Angle", DEFAULT_PLACEMENT_ANGLE),
+        _numeric_attribute(axis, "x", DEFAULT_ROTATION_AXIS_X),
+        _numeric_attribute(axis, "y", DEFAULT_ROTATION_AXIS_Y),
+        _numeric_attribute(axis, "z", DEFAULT_ROTATION_AXIS_Z),
     )
