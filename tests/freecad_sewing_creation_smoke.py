@@ -142,10 +142,7 @@ def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
 
 
 def process_events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
@@ -419,10 +416,7 @@ def open_public(command):
     assert getattr(panel, "form", None) is not None
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     widgets = [panel.form] + list(panel.form.findChildren(QtWidgets.QWidget))
     dialog_text = " | ".join(
         str(getter())
