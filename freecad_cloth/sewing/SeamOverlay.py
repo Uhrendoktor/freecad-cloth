@@ -1064,10 +1064,13 @@ def schedule_seam_overlay_refresh(document: object | None = None) -> None:
         return
     _REFRESH_PENDING = True
     try:
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         QtCore.QTimer.singleShot(0, _run_scheduled_refresh)
     except ImportError:
         _run_scheduled_refresh()
