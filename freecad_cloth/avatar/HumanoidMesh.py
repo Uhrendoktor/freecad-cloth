@@ -26,7 +26,7 @@ from pydantic import StrictInt
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocolProtocol
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 from freecad_cloth.avatar.MakeHumanTargets import (
     apply_measurement_targets,
     resolve_target,
@@ -583,13 +583,13 @@ def _load_source_vertices(path: str | None = None) -> tuple[Point, ...]:
                 point = (float(fields[1]), float(fields[2]), float(fields[3]))
                 if not all(math.isfinite(value) for value in point):
                     msg = "source vertex coordinates must be finite"
-                    raise ValueError(msg)
+                    raise HumanoidMeshError(msg)
                 vertices.append(point)
         if len(vertices) < 3:
             msg = "source mesh contains fewer than three vertices"
-            raise ValueError(msg)
+            raise HumanoidMeshError(msg)
         return tuple(vertices)
-    except (OSError, UnicodeError, ValueError) as exc:
+    except (OSError, UnicodeError, ValueError, HumanoidMeshError) as exc:
         msg = f"unable to parse MakeHuman source vertices {source}: {exc}"
         raise HumanoidMeshError(msg) from exc
 
