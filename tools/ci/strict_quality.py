@@ -125,7 +125,7 @@ def _run_setup(arguments: tuple[str, ...], timeout_seconds: int) -> None:
             options=CommandOptions(cwd=ROOT, timeout=timeout_seconds),
         )
     except (CommandExecutionError, CommandTimeoutError, OSError) as error:
-        msg = f"Setup command failed: {arguments[0]}"
+        msg = f"Setup command failed: {arguments[0]}: {error}"
         raise RuntimeError(msg) from error
 
 
@@ -140,11 +140,7 @@ def _verify_runtime(python: Path) -> None:
     """
     modules = (*REQUIRED_RUNTIME_MODULES, "pre_commit", "ruff", "pyright")
     probe = "import importlib, sys; [importlib.import_module(name) for name in sys.argv[1:]]"
-    try:
-        _run_setup((str(python), "-c", probe, *modules), timeout_seconds=45)
-    except RuntimeError as error:
-        msg = "A required runtime module or strict-quality tool could not be imported."
-        raise RuntimeError(msg) from error
+    _run_setup((str(python), "-c", probe, *modules), timeout_seconds=45)
 
 
 def prepare_quality_environment(
@@ -319,22 +315,22 @@ def run_quality_commands(commands: tuple[QualityCommand, ...]) -> int:
                 ),
             )
             if result.returncode:
-                sys.stderr.write(
+                sys.stdout.write(
                     f"::error::{command.label} failed with exit code {result.returncode}\n"
                 )
-                sys.stderr.flush()
+                sys.stdout.flush()
                 failed = 1
         except CommandTimeoutError:
-            sys.stderr.write(f"::error::{command.label} timed out\n")
-            sys.stderr.flush()
+            sys.stdout.write(f"::error::{command.label} timed out\n")
+            sys.stdout.flush()
             failed = 1
         except CommandExecutionError as error:
-            sys.stderr.write(f"::error::{command.label} could not execute: {error}\n")
-            sys.stderr.flush()
+            sys.stdout.write(f"::error::{command.label} could not execute: {error}\n")
+            sys.stdout.flush()
             failed = 1
         except OSError as error:
-            sys.stderr.write(f"::error::{command.label} could not start: {error}\n")
-            sys.stderr.flush()
+            sys.stdout.write(f"::error::{command.label} could not start: {error}\n")
+            sys.stdout.flush()
             failed = 1
         sys.stdout.write("::endgroup::\n")
         sys.stdout.flush()
