@@ -882,8 +882,8 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         message="Only formatter-conflicting Ruff rules may be ignored.",
     )
     require(
-        condition=not lint.get("per-file-ignores"),
-        message="Per-file lint exemptions are prohibited.",
+        condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
+        message="Only pytest's S101 assertion rule may be exempted, and only under tests/.",
     )
     require(
         condition="python -m ruff check --fix" not in quality,
