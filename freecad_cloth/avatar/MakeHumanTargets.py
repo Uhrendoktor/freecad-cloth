@@ -368,7 +368,9 @@ def _resolve_loose_target(cleaned: str, base: Path) -> TargetReference | None:
     """
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
-            return TargetReference(path.resolve(), coordinate_format=_target_coordinate_format(base))
+            return TargetReference(
+                path.resolve(), coordinate_format=_target_coordinate_format(base)
+            )
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
     if indexed_path is None:
         return None
