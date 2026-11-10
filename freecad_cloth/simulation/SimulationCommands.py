@@ -341,14 +341,14 @@ def run_simulation(
 
 def reset_simulation(
     *,
-    require_simulation_fn: Callable[[], tuple[_FreeCADDocument, _SimulationScene]] | None = None,
+    require_simulation_fn: Callable[[], tuple[object, object]] | None = None,
     reset_scene_fn: Callable[[_SimulationScene], object] | None = None,
     refresh_overlay_fn: Callable[[_FreeCADDocument], object] | None = None,
 ) -> _SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
     Args:
-        require_simulation_fn: Optional active-scene lookup used by headless tests.
+        require_simulation_fn: Optional active-scene lookup returning document and scene fixtures.
         reset_scene_fn: Optional state-reset callback used by headless tests.
         refresh_overlay_fn: Optional seam-overlay refresh callback used by headless tests.
 
@@ -358,7 +358,8 @@ def reset_simulation(
     require_simulation = (
         _require_simulation if require_simulation_fn is None else require_simulation_fn
     )
-    _doc, scene = require_simulation()
+    _doc, scene_value = require_simulation()
+    scene = cast("_SimulationScene", scene_value)
     if reset_scene_fn is None:
         from freecad_cloth.simulation.SimulationObjects import reset_scene
 

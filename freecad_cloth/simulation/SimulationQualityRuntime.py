@@ -43,6 +43,9 @@ class _QualityScene(Protocol):
             type_name: Native FreeCAD property type.
             name: Property name to add.
             group: Property group displayed by FreeCAD.
+
+        Returns:
+            The FreeCAD feature on which the property was registered.
         """
         ...
 

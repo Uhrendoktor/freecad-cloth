@@ -220,16 +220,10 @@ def test_simulate_selected_blocks_a_stale_target_before_advancing_the_scene(
 def test_reset_simulation_resets_scene_and_recomputes() -> None:
     """Reset the scene and recompute its document exactly once."""
     calls: list[object] = []
-    document = cast(
-        "SimulationCommands._FreeCADDocument",
-        SimpleNamespace(recompute=lambda: calls.append("recompute")),
-    )
-    scene = cast("_SimulationScene", SimpleNamespace(Document=document))
+    document = SimpleNamespace(recompute=lambda: calls.append("recompute"))
+    scene = SimpleNamespace(Document=document)
 
-    def require_simulation() -> tuple[
-        SimulationCommands._FreeCADDocument,
-        SimulationCommands._SimulationScene,
-    ]:
+    def require_simulation() -> tuple[object, object]:
         """Return the active document and its selected simulation scene.
 
         Returns:

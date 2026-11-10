@@ -6,12 +6,13 @@ from __future__ import annotations
 from collections.abc import Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+
 
 class _SimulationDocument(Protocol):
     """Document API used by the simulation scene and its mesh outputs."""
@@ -50,6 +51,7 @@ class _SimulationFeature(Protocol):
     """Feature properties created and persisted by the simulation factory."""
 
     Label: str
+    ClothMeshType: str
     Iterations: int
     TimeStep: float
     Steps: int
@@ -830,6 +832,15 @@ class SimulationProxy:
         doc: _SimulationDocument,
         index: int,
     ) -> _SimulationFeature:
+        """Return the existing panel feature or create its persistent replacement.
+
+        Args:
+            doc: FreeCAD document that owns the simulation output panels.
+            index: Zero-based panel index used to choose the persistent object name.
+
+        Returns:
+            The existing panel feature or the newly created panel feature.
+        """
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
@@ -907,21 +918,22 @@ def step_scene(scene, steps=1):
     return scene
 
 
-def reset_scene(scene: _SimulationFeature) -> _SimulationFeature:
+def reset_scene(scene: object) -> object:
     """Reset the runtime state and recompute the owning document.
 
     Args:
-        scene: Persisted simulation feature whose solver state is reset.
+        scene: FreeCAD simulation feature whose solver state is reset.
 
     Returns:
         The same simulation feature after its document has recomputed.
     """
-    proxy = getattr(scene, "Proxy", None)
+    typed_scene = cast("_SimulationFeature", scene)
+    proxy = getattr(typed_scene, "Proxy", None)
     reset = getattr(proxy, "reset", None)
     if callable(reset):
-        reset(scene)
-    scene.Document.recompute()
-    return scene
+        reset(typed_scene)
+    typed_scene.Document.recompute()
+    return typed_scene
 
 
 def create_drape_scene(doc):
