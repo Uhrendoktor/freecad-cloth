@@ -31,9 +31,6 @@ def run(
     Returns:
         Process exit status and any captured standard output or error.
 
-    Raises:
-        ValueError: If no executable command is provided.
-        FileNotFoundError: If the requested executable is unavailable on PATH.
     """
     return run_command(args, options=CommandOptions(cwd=cwd, check=check))
 
