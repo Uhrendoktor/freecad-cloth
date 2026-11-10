@@ -5,8 +5,6 @@ from collections.abc import Sequence
 from math import pi
 from typing import TYPE_CHECKING
 
-import pytest
-
 from freecad_cloth.pattern.PatternIR import BoundaryIR
 from freecad_cloth.pattern.SeamReference import capture_edge_reference
 from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
