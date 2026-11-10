@@ -5,49 +5,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
-from freecad_cloth.simulation.simulation_protocols import _ResettableSimulationScene
-
-
-class _FreeCADDocument(Protocol):
-    """Minimal FreeCAD document API used by simulation-scene creation."""
-
-    Objects: Sequence[object]
-
-    def addObject(self, type_name: str, object_name: str) -> object:
-        """Create a FreeCAD feature in this document.
-
-        Args:
-            type_name: Native FreeCAD object type identifier.
-            object_name: Stable internal name for the new feature.
-
-        Returns:
-            The newly created document feature.
-        """
-        ...
-
-    def getObject(self, object_name: str) -> object | None:
-        """Return a document object by internal name, if present.
-
-        Args:
-            object_name: Internal FreeCAD object name to look up.
-
-        Returns:
-            The matching document object or None when it is absent.
-        """
-        ...
-
-    def recompute(self) -> None:
-        """Recompute derived document state after scene properties change."""
-        ...
-
-
-class _SimulationScene(_ResettableSimulationScene, Protocol):
-    """Persisted simulation feature contract used by public commands."""
-
-    Steps: int
-    Document: _FreeCADDocument
-    ClothPieces: Sequence[object]
-    Proxy: object
+from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
 
 class _FreeCADAvatarFeature(Protocol):
@@ -84,14 +42,14 @@ def create_simulation() -> object:
     import FreeCAD as App
 
     doc = cast(
-        "_FreeCADDocument",
+        "SimulationDocument",
         App.ActiveDocument or App.newDocument("ClothSimulation"),
     )
     return create_quality_simulation_scene(doc)
 
 
 def create_quality_simulation_scene(
-    doc: _FreeCADDocument,
+    doc: SimulationDocument,
     *,
     avatar_source: object | None = None,
     cloth_pieces: Sequence[object] = (),
@@ -151,7 +109,7 @@ def create_drape_scene() -> object:
     import FreeCAD as App
 
     doc = cast(
-        "_FreeCADDocument",
+        "SimulationDocument",
         App.ActiveDocument or App.newDocument("ClothDrape"),
     )
     return create_quality_simulation_scene(doc)
@@ -172,7 +130,7 @@ def _is_simulation_scene(obj: object) -> bool:
     )
 
 
-def _find_simulation(doc: _FreeCADDocument) -> _SimulationScene | None:
+def _find_simulation(doc: SimulationDocument) -> SimulationScene | None:
     """Find the first simulation scene in a document.
 
     Args:
@@ -182,12 +140,12 @@ def _find_simulation(doc: _FreeCADDocument) -> _SimulationScene | None:
         The first matching simulation scene, or None when no scene exists.
     """
     return next(
-        (cast("_SimulationScene", obj) for obj in doc.Objects if _is_simulation_scene(obj)),
+        (cast("SimulationScene", obj) for obj in doc.Objects if _is_simulation_scene(obj)),
         None,
     )
 
 
-def _find_drape_target(doc: _FreeCADDocument) -> object | None:
+def _find_drape_target(doc: SimulationDocument) -> object | None:
     """Find the persistent drape target in a FreeCAD document.
 
     Args:
@@ -208,7 +166,7 @@ def _find_drape_target(doc: _FreeCADDocument) -> object | None:
 
 
 def _require_drape_target_ready(
-    doc: _FreeCADDocument,
+    doc: SimulationDocument,
     *,
     find_target: Callable[..., object | None] | None = None,
     target_status_fn: Callable[[object | None], Mapping[str, object]] | None = None,
@@ -263,7 +221,7 @@ def edit_simulation() -> object:
 
     from freecad_cloth.simulation.SimulationQualityGui import show_simulation_quality_task
 
-    doc = cast("_FreeCADDocument | None", App.ActiveDocument)
+    doc = cast("SimulationDocument | None", App.ActiveDocument)
     scene = _find_simulation(doc) if doc is not None else None
     if scene is not None:
         from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
@@ -273,7 +231,7 @@ def edit_simulation() -> object:
     return _active_simulation_quality_task_panel
 
 
-def _require_simulation() -> tuple[_FreeCADDocument, _SimulationScene]:
+def _require_simulation() -> tuple[SimulationDocument, SimulationScene]:
     """Require an active document and an existing simulation scene.
 
     Returns:
@@ -284,7 +242,7 @@ def _require_simulation() -> tuple[_FreeCADDocument, _SimulationScene]:
     """
     import FreeCAD as App
 
-    doc = cast("_FreeCADDocument | None", App.ActiveDocument)
+    doc = cast("SimulationDocument | None", App.ActiveDocument)
     if doc is None:
         msg = "no active document"
         raise RuntimeError(msg)
@@ -342,10 +300,10 @@ def run_simulation(
 
 def reset_simulation(
     *,
-    require_simulation_fn: Callable[[], tuple[_FreeCADDocument, _SimulationScene]] | None = None,
+    require_simulation_fn: Callable[[], tuple[SimulationDocument, SimulationScene]] | None = None,
     reset_scene_fn: Callable[[_ResettableSimulationScene], object] | None = None,
-    refresh_overlay_fn: Callable[[_FreeCADDocument], object] | None = None,
-) -> _SimulationScene:
+    refresh_overlay_fn: Callable[[SimulationDocument], object] | None = None,
+) -> SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
     Args:
@@ -370,7 +328,7 @@ def reset_simulation(
         from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
         refresh_overlay_fn = cast(
-            "Callable[[_FreeCADDocument], object]",
+            "Callable[[SimulationDocument], object]",
             refresh_seam_overlay,
         )
     refresh_overlay_fn(scene.Document)
@@ -484,7 +442,7 @@ def _has_simulation() -> bool:
     try:
         import FreeCAD as App
 
-        doc = cast("_FreeCADDocument | None", App.ActiveDocument)
+        doc = cast("SimulationDocument | None", App.ActiveDocument)
         return bool(doc is not None and _find_simulation(doc) is not None)
     except (ImportError, AttributeError):
         return False
