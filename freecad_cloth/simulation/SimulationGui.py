@@ -328,7 +328,8 @@ class SimulationTaskPanel:
         if self.Gui.activeDocument():
             self.Gui.activeDocument().activeView().fitAll()
 
-    def reset(self):
+    def reset(self) -> None:
+        """Reset runtime state while retaining the selected cloth and drape target."""
         if self.scene is not None:
             from freecad_cloth.simulation.SimulationObjects import reset_scene
 
@@ -363,16 +364,23 @@ class SimulationTaskPanel:
             )
         )
 
-    def accept(self):
+    def accept(self) -> bool:
+        """Commit current panel values to the active simulation document."""
         self._ensure_scene().Document.recompute()
         return True
 
-    def reject(self):
+    def reject(self) -> bool:
+        """Close the task panel without changing its persisted selections."""
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
         return True
 
-    def getStandardButtons(self):
+    def getStandardButtons(self) -> object:
+        """Return the native OK and Cancel buttons for FreeCAD's task-panel host.
+
+        Returns:
+            The combined Qt dialog-button flags requested by the workbench host.
+        """
         _, _, _, QtWidgets = _modules()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
