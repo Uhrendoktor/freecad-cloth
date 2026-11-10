@@ -7,6 +7,7 @@ the task panel is only the interactive frontend.
 """
 
 from __future__ import annotations
+from typing import TYPE_CHECKING
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     CorrespondenceReport,
@@ -26,10 +27,13 @@ def _gui_modules() -> tuple[object, object, object, object]:
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore, QtWidgets
+    else:
+        try:
+            from PySide import QtCore, QtWidgets
+        except ImportError:
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
