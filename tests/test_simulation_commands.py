@@ -221,6 +221,7 @@ def test_simulate_selected_blocks_a_stale_target_before_advancing_the_scene(
 def test_reset_simulation_resets_scene_and_recomputes() -> None:
     """Reset the scene and recompute its document exactly once."""
     calls: list[object] = []
+
     def add_object(_type_name: str, _object_name: str) -> object:
         """Provide the document feature-creation operation required by the protocol."""
         return object()
