@@ -64,7 +64,8 @@ def parse_target(
         A target containing sorted vertex indices and accumulated 3D offsets.
 
     Raises:
-        ValueError: If a row is malformed, has a negative vertex index, or contains non-finite offsets.
+        ValueError: If a row is malformed, has a negative vertex index, or
+            contains non-finite offsets.
     """
     collected: dict[int, Point] = {}
     for line_number, raw in enumerate(str(text).splitlines(), start=1):
