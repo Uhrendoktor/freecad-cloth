@@ -157,8 +157,21 @@ class _NativeCurve:
             y += dx * offset
         return _Point(x, y)
 
-# Keep FreeCAD's native camel-case curve API available to the adapter.
-setattr(_NativeCurve, "valueAt", _NativeCurve.value_at)
+    def __getattr__(self, name: str) -> object:
+        """Expose the native curve evaluator name expected by FreeCAD adapters.
+
+        Args:
+            name: Missing attribute requested by the adapter.
+
+        Returns:
+            Bound curve evaluator for the supported native method name.
+
+        Raises:
+            AttributeError: If the requested attribute is not the native evaluator.
+        """
+        if name == "valueAt":
+            return self.value_at
+        raise AttributeError(name)
 
 
 class ArcOfCircle(_NativeCurve):
@@ -201,8 +214,21 @@ class _Sketch:
         """
         return False
 
-# Preserve the camel-case name exposed by a native Sketcher object.
-setattr(_Sketch, "getConstruction", staticmethod(_Sketch.get_construction))
+    def __getattr__(self, name: str) -> object:
+        """Expose the native construction-query name used by Sketcher adapters.
+
+        Args:
+            name: Missing attribute requested by the native geometry adapter.
+
+        Returns:
+            Construction-query function that identifies fixture edges as boundaries.
+
+        Raises:
+            AttributeError: If the requested attribute is not the native query method.
+        """
+        if name == "getConstruction":
+            return self.get_construction
+        raise AttributeError(name)
 
 
 def _sketch_graph(curve: _NativeCurve, edge_id: str) -> tuple[SeamGraph, _Sketch]:
