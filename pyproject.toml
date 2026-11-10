@@ -96,6 +96,10 @@ ignore = [
   "COM819",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# pytest assert statements provide rewritten, expression-aware failure diagnostics.
+"tests/**/*.py" = ["S101"]
+
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
