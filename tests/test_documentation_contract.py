@@ -169,8 +169,8 @@ def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
         message="Only formatter-conflicting rules may be ignored",
     )
     _require(
-        condition=not lint.get("per-file-ignores"),
-        message="Per-file Ruff exemptions are prohibited",
+        condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
+        message="Only S101 may be exempted, and only for pytest files under tests/",
     )
 
 
