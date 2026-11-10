@@ -135,8 +135,6 @@ def _verify_runtime(python: Path) -> None:
     Args:
         python: Interpreter inside the persistent virtual environment.
 
-    Raises:
-        RuntimeError: If a required module or developer tool cannot be imported.
     """
     modules = (*REQUIRED_RUNTIME_MODULES, "pre_commit", "ruff", "pyright")
     probe = "import importlib, sys; [importlib.import_module(name) for name in sys.argv[1:]]"
