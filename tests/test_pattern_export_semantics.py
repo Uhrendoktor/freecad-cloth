@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for canonical export metadata and native Sketcher boundaries."""
 
+from collections.abc import Mapping
 import math
 import re
 from importlib import import_module
@@ -66,6 +67,36 @@ class _RenderReport(TypedDict):
     ink_pixel_count: int
     ink_bounds_px: list[int]
     png_path: str
+
+
+def _require_export_measurements(metadata: Mapping[str, object]) -> None:
+    """Verify the scale and seam allowance recorded by a pattern export.
+
+    Args:
+        metadata: Parsed metadata returned by an SVG, DXF, or PDF reader.
+    """
+    require(
+        condition=(
+            math.isclose(
+                float(cast("float", metadata["scale"])),
+                EXPECTED_SCALE,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
+        ),
+        message='Export contract failed: metadata["scale"] == 1.0',
+    )
+    require(
+        condition=(
+            math.isclose(
+                float(cast("float", metadata["seam_allowance_mm"])),
+                EXPECTED_SEAM_ALLOWANCE_MM,
+                rel_tol=0.0,
+                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
+            )
+        ),
+        message='Export contract failed: metadata["seam_allowance_mm"] == 5.0',
+    )
 
 
 class _NativeSketch(Protocol):
@@ -921,28 +952,7 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
         condition=(metadata["piece_id"] == "piece-front"),
         message='Export contract failed: metadata["piece_id"] == "piece-front"',
     )
-    require(
-        condition=(
-            math.isclose(
-                float(cast("float", metadata["scale"])),
-                EXPECTED_SCALE,
-                rel_tol=0.0,
-                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
-            )
-        ),
-        message='Export contract failed: metadata["scale"] == 1.0',
-    )
-    require(
-        condition=(
-            math.isclose(
-                float(cast("float", metadata["seam_allowance_mm"])),
-                EXPECTED_SEAM_ALLOWANCE_MM,
-                rel_tol=0.0,
-                abs_tol=EXPECTED_COORDINATE_TOLERANCE,
-            )
-        ),
-        message='Export contract failed: metadata["seam_allowance_mm"] == 5.0',
-    )
+    _require_export_measurements(metadata)
     require(
         condition=(metadata["page_count"] == 1),
         message='Export contract failed: metadata["page_count"] == 1',
@@ -1094,28 +1104,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
             condition=(metadata["seam_ids"] == ["front-back"]),
             message='Export contract failed: metadata["seam_ids"] == ["front-back"]',
         )
-        require(
-            condition=(
-                math.isclose(
-                    float(cast("float", metadata["scale"])),
-                    EXPECTED_SCALE,
-                    rel_tol=0.0,
-                    abs_tol=EXPECTED_COORDINATE_TOLERANCE,
-                )
-            ),
-            message='Export contract failed: metadata["scale"] == 1.0',
-        )
-        require(
-            condition=(
-                math.isclose(
-                    float(cast("float", metadata["seam_allowance_mm"])),
-                    EXPECTED_SEAM_ALLOWANCE_MM,
-                    rel_tol=0.0,
-                    abs_tol=EXPECTED_COORDINATE_TOLERANCE,
-                )
-            ),
-            message='Export contract failed: metadata["seam_allowance_mm"] == 5.0',
-        )
+            _require_export_measurements(metadata)
         require(
             condition=(metadata["mark_ids"] == ["piece-front:grainline"]),
             message='Export contract failed: metadata["mark_ids"] == ["piece-front:grainli',

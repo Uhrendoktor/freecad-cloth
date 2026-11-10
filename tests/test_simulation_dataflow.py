@@ -7,11 +7,10 @@ from collections.abc import Sequence
 from math import pi
 from typing import TYPE_CHECKING
 
-from freecad_cloth.pattern.PatternIR import BoundaryIR
-from freecad_cloth.pattern.SeamReference import capture_edge_reference
 from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
+from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 
 if TYPE_CHECKING:
     from pytest import MonkeyPatch
@@ -305,28 +304,6 @@ class _RuntimeBase:
     source_signature: object | None = None
     last_steps: int = 0
     seam_stitch_pairs: dict[str, tuple[object, ...]]
-
-
-def _edge_reference(piece_id: str, boundary: BoundaryIR) -> str:
-    """Capture the canonical native provenance for a semantic sketch edge.
-
-    Args:
-        piece_id: Pattern-piece identifier that owns the boundary.
-        boundary: Resolved PatternIR boundary used by the seam fixture.
-
-    Returns:
-        Stored signature accepted by the Sketcher-authoritative seam adapter.
-    """
-    samples = tuple(tuple(point) for point in boundary.samples)
-    points = ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1]))
-    provenance = (
-        "PatternIR",
-        "Sketcher",
-        boundary.kind,
-        tuple(float(value) for value in boundary.parameter_range),
-        samples,
-    )
-    return capture_edge_reference(piece_id, boundary.id, points, provenance).signature
 
 
 def _execution_probe(

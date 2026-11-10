@@ -439,12 +439,12 @@ def to_svg(
 
     Args:
         pattern: Authoritative parametric sewing boundary.
-        curve_samples: Sampling resolution used for curved boundary segments.
-        units: Physical export unit; only millimetres are supported.
-        derived: Optional cut boundary, notch, and construction-mark model.
-        piece_id: Persistent source PatternPiece identity.
-        seam_ids: Stable sewing relationship IDs associated with the piece.
-        seam_allowance: Authored seam allowance in millimetres.
+        curve_samples: Number of samples used to approximate curved sewing segments.
+        units: Millimetre unit label written to the SVG dimensions and metadata.
+        derived: Optional cut contour, notches, and construction marks to serialize.
+        piece_id: Stable PatternPiece identifier embedded in the SVG root attributes.
+        seam_ids: Persistent seam relationship IDs embedded in the SVG metadata.
+        seam_allowance: Authored allowance value recorded in the SVG metadata.
 
     Returns:
         Complete UTF-8 SVG document containing paths and semantic metadata.
@@ -563,12 +563,12 @@ def to_dxf(
 
     Args:
         pattern: Authoritative parametric sewing boundary.
-        curve_samples: Sampling resolution used for curved boundary segments.
-        units: Physical export unit; only millimetres are supported.
-        derived: Optional cut boundary, notch, and construction-mark model.
-        piece_id: Persistent source PatternPiece identity.
-        seam_ids: Stable sewing relationship IDs associated with the piece.
-        seam_allowance: Authored seam allowance in millimetres.
+        curve_samples: Number of samples used to approximate curved sewing segments.
+        units: Millimetre unit code written to the DXF header and metadata.
+        derived: Optional cut contour and construction marks emitted on DXF layers.
+        piece_id: Stable PatternPiece identifier stored in the DXF metadata.
+        seam_ids: Persistent seam relationship IDs stored in the DXF metadata.
+        seam_allowance: Authored allowance value recorded in the DXF metadata.
 
     Returns:
         Complete ASCII DXF document with semantic metadata in the header.

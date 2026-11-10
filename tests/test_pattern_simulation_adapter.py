@@ -1,11 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 import math
 
-from freecad_cloth.pattern.SeamReference import (
-    ChangedEdgeReference,
-    MissingEdgeReference,
-    capture_edge_reference,
-)
+from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
+from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 from freecad_cloth.simulation.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
@@ -122,19 +119,6 @@ class _Seam:
 class _Doc:
     def __init__(self, objects):
         self.Objects = list(objects)
-
-
-def _edge_reference(piece_id, boundary):
-    samples = tuple(tuple(point) for point in boundary.samples)
-    points = ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1]))
-    provenance = (
-        "PatternIR",
-        "Sketcher",
-        boundary.kind,
-        tuple(float(value) for value in boundary.parameter_range),
-        samples,
-    )
-    return capture_edge_reference(piece_id, boundary.id, points, provenance).signature
 
 
 def _square_sketch(prefix, curved=False, bend=1.0):

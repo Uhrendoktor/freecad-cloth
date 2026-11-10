@@ -14,7 +14,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import NormalizedRange, validate_finite_number
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-from freecad_cloth.pattern.PatternModel import PatternPiece
+from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 Point3 = tuple[float, float, float]
@@ -119,6 +119,34 @@ class SeamIR:
     alignment: str = "endpoints"
     stitch_group: str = ""
     kind: str = "plain"
+
+    @classmethod
+    def from_seam(cls, seam: Seam, *, edge_a: str, edge_b: str) -> "SeamIR":
+        """Build a solver-neutral seam from model data and resolved edge identities.
+
+        Args:
+            seam: Canonical sewing relationship supplying persistent seam fields.
+            edge_a: Resolved semantic boundary ID belonging to piece A.
+            edge_b: Resolved semantic boundary ID belonging to piece B.
+
+        Returns:
+            SeamIR with the supplied semantic edge identities and seam metadata.
+        """
+        return cls(
+            id=seam.id,
+            piece_a=seam.piece_a,
+            edge_a=edge_a,
+            piece_b=seam.piece_b,
+            edge_b=edge_b,
+            start_a=seam.start_a,
+            end_a=seam.end_a,
+            start_b=seam.start_b,
+            end_b=seam.end_b,
+            reversed_b=seam.reversed_b,
+            alignment=seam.alignment,
+            stitch_group=seam.stitch_group or seam.id,
+            kind=seam.kind,
+        )
 
     def validate(self, pieces: Mapping[str, PieceIR]) -> None:
         """Validate seam identity, piece/edge references, parameter ranges, and alignment.
@@ -339,23 +367,7 @@ def _with_seams(
         edge_b = _resolve_edge(
             seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b)
         )
-        seams.append(
-            SeamIR(
-                id=seam.id,
-                piece_a=seam.piece_a,
-                edge_a=edge_a,
-                piece_b=seam.piece_b,
-                edge_b=edge_b,
-                start_a=seam.start_a,
-                end_a=seam.end_a,
-                start_b=seam.start_b,
-                end_b=seam.end_b,
-                reversed_b=seam.reversed_b,
-                alignment=seam.alignment,
-                stitch_group=seam.stitch_group or seam.id,
-                kind=seam.kind,
-            )
-        )
+        seams.append(SeamIR.from_seam(seam, edge_a=edge_a, edge_b=edge_b))
     result = cls(piece_tuple, tuple(seams))
     result.validate()
     return result

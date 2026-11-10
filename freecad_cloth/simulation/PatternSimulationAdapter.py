@@ -150,23 +150,7 @@ def resolve_simulation_pattern(
             kind=str(getattr(seam_obj, "Kind", "plain") or "plain"),
         )
         seam.validate()
-        seams.append(
-            SeamIR(
-                id=seam.id,
-                piece_a=seam.piece_a,
-                edge_a=edge_a,
-                piece_b=seam.piece_b,
-                edge_b=edge_b,
-                start_a=seam.start_a,
-                end_a=seam.end_a,
-                start_b=seam.start_b,
-                end_b=seam.end_b,
-                reversed_b=seam.reversed_b,
-                alignment=seam.alignment,
-                stitch_group=seam.stitch_group,
-                kind=seam.kind,
-            )
-        )
+        seams.append(SeamIR.from_seam(seam, edge_a=edge_a, edge_b=edge_b))
 
     pattern = PatternIR(tuple(piece_irs), tuple(seams))
     pattern.validate()
