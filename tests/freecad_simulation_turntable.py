@@ -14,10 +14,7 @@ ROOT = "/workspace"
 import FreeCAD as App
 import FreeCADGui as Gui
 
-try:
-    from PySide import QtWidgets
-except ImportError:
-    from PySide2 import QtWidgets
+from freecad_cloth.common.qt_compat import QtWidgets
 from pivy import coin
 
 if ROOT not in sys.path:
