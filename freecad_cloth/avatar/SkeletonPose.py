@@ -81,7 +81,14 @@ class JointRotation:
     z: float = 0.0
 
     def validate(self) -> JointRotation:
-        """Validate the joint name and bounded Euler angles."""
+        """Validate the joint name and bounded Euler angles.
+
+        Returns:
+            This rotation after its authored values pass validation.
+
+        Raises:
+            ValueError: If the bone is not controllable or an angle is outside the supported range.
+        """
         if self.bone not in CONTROLLABLE_BONES:
             msg = f"unsupported mannequin joint: {self.bone}"
             raise ValueError(msg)
@@ -93,7 +100,11 @@ class JointRotation:
         return self
 
     def mirrored(self) -> JointRotation:
-        """Return the sagittal mirror of this joint rotation."""
+        """Return the sagittal mirror of this joint rotation.
+
+        Returns:
+            Mirrored joint rotation with left/right identity and reflected axes.
+        """
         mirror = MIRROR_BONES.get(self.bone)
         if mirror is None:
             return self
@@ -106,7 +117,18 @@ class JointRotation:
 def normalize_joint_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
-    """Validate, de-duplicate and deterministically order joint rotations."""
+    """Validate, de-duplicate and deterministically order joint rotations.
+
+    Args:
+        rotations: Optional iterable of typed rotations or mapping inputs to normalize.
+
+    Returns:
+        Unique joint rotations in the canonical controllable-bone order.
+
+    Raises:
+        TypeError: If an input entry is neither a JointRotation nor a mapping.
+        ValueError: If an entry names an unsupported joint or has an out-of-range angle.
+    """
     values = {}
     for rotation in rotations or ():
         if isinstance(rotation, JointRotation):
@@ -124,14 +146,28 @@ def normalize_joint_rotations(
 def joint_rotation_map(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> dict[str, JointRotation]:
-    """Return joint rotations keyed by authored MakeHuman bone name."""
+    """Return joint rotations keyed by authored MakeHuman bone name.
+
+    Args:
+        rotations: Optional iterable of typed rotations or mapping inputs to normalize.
+
+    Returns:
+        Mapping from each authored bone name to its validated rotation.
+    """
     return {item.bone: item for item in normalize_joint_rotations(rotations)}
 
 
 def joint_rotations_to_json(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> str:
-    """Serialize persistent joint rotations to deterministic JSON."""
+    """Serialize persistent joint rotations to deterministic JSON.
+
+    Args:
+        rotations: Optional iterable of typed rotations or mapping inputs to serialize.
+
+    Returns:
+        Compact JSON containing the versioned degree-based joint pose.
+    """
     values = normalize_joint_rotations(rotations)
     return json.dumps(
         {
@@ -197,7 +233,14 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
 def mirror_rotations(
     rotations: Iterable[JointRotation | JointRotationInput] | None,
 ) -> tuple[JointRotation, ...]:
-    """Return a deterministic left/right mirrored pose."""
+    """Return a deterministic left/right mirrored pose.
+
+    Args:
+        rotations: Optional iterable of typed rotations or mapping inputs to mirror.
+
+    Returns:
+        Mirrored joint rotations in canonical controllable-bone order.
+    """
     mirrored = [item.mirrored() for item in normalize_joint_rotations(rotations)]
     return normalize_joint_rotations(mirrored)
 
@@ -214,7 +257,14 @@ class AffineTransform:
     translation: Vector
 
     def apply(self, point: Vector) -> Vector:
-        """Transform one point."""
+        """Transform one point through this affine matrix and translation.
+
+        Args:
+            point: Three-dimensional coordinate in the transform source frame.
+
+        Returns:
+            Transformed coordinate in the destination frame.
+        """
         x, y, z = point
         m = self.matrix
         t = self.translation
@@ -225,7 +275,11 @@ class AffineTransform:
         )
 
     def inverse(self) -> AffineTransform:
-        """Return the inverse of this rigid affine transform."""
+        """Return the inverse of this rigid affine transform.
+
+        Returns:
+            Transform that maps destination-frame coordinates back to the source frame.
+        """
         m = self.matrix
         inverse_matrix = (
             m[0],
@@ -254,7 +308,15 @@ IDENTITY = AffineTransform(
 
 
 def _matmul(a: Matrix, b: Matrix) -> Matrix:
-    """Multiply two row-major 3x3 matrices."""
+    """Multiply two row-major 3x3 matrices.
+
+    Args:
+        a: First matrix applied to the input vector.
+        b: Second matrix applied before the first matrix.
+
+    Returns:
+        Row-major matrix representing the product of the two matrices.
+    """
     return tuple(
         sum(a[row * 3 + k] * b[k * 3 + col] for k in range(3))
         for row in range(3)
@@ -263,7 +325,15 @@ def _matmul(a: Matrix, b: Matrix) -> Matrix:
 
 
 def _matvec(matrix: Matrix, vector: Vector) -> Vector:
-    """Multiply a row-major matrix by a 3D vector."""
+    """Multiply a row-major matrix by a 3D vector.
+
+    Args:
+        matrix: Row-major 3x3 transformation matrix.
+        vector: Three-dimensional value multiplied by the matrix.
+
+    Returns:
+        Transformed three-dimensional vector.
+    """
     x, y, z = vector
     return (
         matrix[0] * x + matrix[1] * y + matrix[2] * z,
@@ -291,12 +361,29 @@ def compose_transforms(
 
 
 def _compose(first: AffineTransform, second: AffineTransform) -> AffineTransform:
-    """Return the transform that applies second then first."""
+    """Return the transform that applies second, then first.
+
+    Args:
+        first: Transform applied after the second transform.
+        second: Transform applied before the first transform.
+
+    Returns:
+        Affine transform equivalent to applying second and then first.
+    """
     return compose_transforms(first, second)
 
 
 def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Matrix:
-    """Return an XYZ Euler rotation matrix."""
+    """Return an XYZ Euler rotation matrix.
+
+    Args:
+        x_degrees: Rotation about the local X axis in degrees.
+        y_degrees: Rotation about the local Y axis in degrees.
+        z_degrees: Rotation about the local Z axis in degrees.
+
+    Returns:
+        Row-major 3x3 matrix for the composed XYZ rotation.
+    """
     rx = math.radians(float(x_degrees))
     ry = math.radians(float(y_degrees))
     rz = math.radians(float(z_degrees))
@@ -310,7 +397,15 @@ def _rotation_matrix(x_degrees: float, y_degrees: float, z_degrees: float) -> Ma
 
 
 def _rotation_about_point(point: Vector, rotation: Matrix) -> AffineTransform:
-    """Create a rotation about an existing rest-space joint."""
+    """Create a rotation about an existing rest-space joint.
+
+    Args:
+        point: Rest-space joint position that remains fixed by the rotation.
+        rotation: Row-major 3x3 rotation matrix to apply around the joint.
+
+    Returns:
+        Affine transform whose translation keeps the supplied point stationary.
+    """
     rotated = _matvec(rotation, point)
     return AffineTransform(rotation, tuple(point[i] - rotated[i] for i in range(3)))
 
@@ -322,13 +417,32 @@ def build_bone_transforms(
     rotations: Iterable[JointRotation],
     rotation_pivots: Mapping[str, Vector] | None = None,
 ) -> dict[str, AffineTransform]:
-    """Build FK transforms, using optional rig-defined pivots for driven bones."""
+    """Build forward-kinematics transforms using optional rig-defined pivots.
+
+    Args:
+        source_vertices: Source mannequin coordinates used to locate the joints.
+        skeleton: Authored hierarchy containing bone parents, heads and joint indices.
+        fit_point: Mapping from source-space coordinates into fitted mesh coordinates.
+        rotations: Validated user rotations applied to controllable bones.
+        rotation_pivots: Optional fitted-space pivot overrides keyed by bone name.
+
+    Returns:
+        Every skeleton bone name mapped to its composed world-space transform.
+    """
     from freecad_cloth.avatar.HumanoidMesh import _joint_point
 
     rotation_map = joint_rotation_map(rotations)
     cache = {}
 
     def visit(bone_name: str) -> AffineTransform:
+        """Resolve and cache one bone transform after its parent.
+
+        Args:
+            bone_name: Authored skeleton bone whose transform should be resolved.
+
+        Returns:
+            Composed transform for the requested bone in the skeleton hierarchy.
+        """
         if bone_name in cache:
             return cache[bone_name]
         bone = skeleton["bones"].get(bone_name)
