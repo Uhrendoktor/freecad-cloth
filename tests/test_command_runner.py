@@ -48,7 +48,7 @@ def test_run_command_captures_standard_output_and_error() -> None:
         message="Captured standard output must preserve emitted text.",
     )
     require(
-        condition=result.stderr == "",
+        condition=result.stderr is not None and not result.stderr,
         message="Successful command must expose an empty captured standard-error stream.",
     )
 
