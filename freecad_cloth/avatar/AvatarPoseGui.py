@@ -42,7 +42,9 @@ if TYPE_CHECKING:
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
-    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol_VIEW_POSITION_METHOD = "getPointOnScreen"
+    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+
+_VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
