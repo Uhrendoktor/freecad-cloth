@@ -9,15 +9,18 @@ import pathlib
 import sys
 import traceback
 from collections.abc import Callable, Sequence
-from typing import Protocol, cast
+from typing import Protocol, TYPE_CHECKING, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
 ROOT = "/workspace"
 if ROOT not in sys.path:
