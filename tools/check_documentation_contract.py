@@ -407,7 +407,8 @@ def check_source(source: str, filename: str = "<memory>") -> list[str]:
         return [f"{filename}: cannot parse Python source: {exc}"]
 
     errors = suppression_violations(source, filename)
-    if ast.get_docstring(tree) is None:
+    # Stub files are declarations, not prose modules; Ruff's pyi rules prohibit docstrings.
+    if not filename.endswith(".pyi") and ast.get_docstring(tree) is None:
         errors.append(f"{filename}: missing module docstring")
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
