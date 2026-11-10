@@ -6,6 +6,7 @@ proxy. It is the only quality runtime implementation.
 """
 
 import weakref
+from collections.abc import Sequence
 from math import ceil
 from typing import Protocol, cast
 
@@ -35,6 +36,8 @@ class _QualityScene(Protocol):
     FabricRoughness: float
     FabricTransparency: int
     AvatarSkinOffset: float
+    Steps: int
+    ClothPieces: Sequence[object]
 
     def addProperty(self, type_name: str, name: str, group: str) -> object:
         """Register one persistent property on the FreeCAD feature.
@@ -178,13 +181,21 @@ class QualitySimulationProxy:
         self.seam_stitch_pairs = {}
 
     @staticmethod
-    def _signature(obj):
+    def _signature(obj: _QualityScene) -> tuple[object, ...]:
+        """Return the deterministic inputs that invalidate the derived simulation.
+
+        Args:
+            obj: Simulation feature whose persisted source and quality values are read.
+
+        Returns:
+            Immutable source, preset, solver, and fabric controls for scene rebuilding.
+        """
         from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
         pieces = [
-            p
-            for p in getattr(obj, "ClothPieces", ())
-            if getattr(p, "PatternType", "") == "PatternPiece"
+            piece
+            for piece in obj.ClothPieces
+            if getattr(piece, "PatternType", "") == "PatternPiece"
         ]
         return (
             _simulation_source_signature(obj, pieces),
@@ -240,8 +251,12 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = finite_state
 
-    def execute(self, obj):
-        """Recompute the FreeCAD object from its current source properties."""
+    def execute(self, obj: _QualityScene) -> None:
+        """Recompute the FreeCAD object from its current source properties.
+
+        Args:
+            obj: Persisted simulation feature whose source and quality controls are read.
+        """
         ensure_quality_properties(obj)
         base = self._base_or_restore()
         signature = self._signature(obj)
