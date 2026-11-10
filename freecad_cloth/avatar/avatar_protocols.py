@@ -34,3 +34,9 @@ class AvatarParametersProtocol(Protocol):
             The selected measurement value in millimetres.
         """
         ...
+
+
+class AvatarTaskPanelProtocol(Protocol):
+    """Minimal handle for a FreeCAD avatar task panel."""
+
+    form: object

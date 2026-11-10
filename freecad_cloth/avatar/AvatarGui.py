@@ -18,6 +18,8 @@ if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
+    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+
 
 class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
@@ -48,6 +50,8 @@ def _modules():
 
 class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
+
+    form: object
 
     PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_PROPERTY_MAP)
     SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_SHAPE_PROPERTY_MAP)
@@ -1077,11 +1081,14 @@ class AvatarTaskPanel:
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
-def show_avatar_task(avatar=None):
+def show_avatar_task(avatar=None) -> "AvatarTaskPanelProtocol":
     """Open the native FreeCAD task panel for a mannequin.
 
     Args:
         avatar: Mannequin feature currently being edited.
+
+    Returns:
+        Task-panel handle exposing the form shown by FreeCAD.
     """
     _App, Gui, _QtWidgets = _modules()
     panel = AvatarTaskPanel(avatar)

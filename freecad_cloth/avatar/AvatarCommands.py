@@ -35,8 +35,7 @@ from freecad_cloth.avatar.SkeletonPose import (
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 
 if TYPE_CHECKING:
-    from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
-    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
     from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar
 
 _MISSING = object()
@@ -870,7 +869,7 @@ def rebuild_avatar() -> _AvatarFeature:
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-def edit_avatar() -> "AvatarTaskPanel":
+def edit_avatar() -> "AvatarTaskPanelProtocol":
     """Open the avatar measurement and shape editor.
 
     Returns:
@@ -889,7 +888,7 @@ def edit_avatar() -> "AvatarTaskPanel":
     return show_avatar_task(obj)
 
 
-def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarPoseTaskPanel":
+def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarTaskPanelProtocol":
     """Open the focused 3D Pose Mode editor for a mannequin.
 
     Args:

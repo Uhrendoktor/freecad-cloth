@@ -41,7 +41,8 @@ if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-_VIEW_POSITION_METHOD = "getPointOnScreen"
+
+    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol_VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
@@ -1097,6 +1098,8 @@ class SkeletonPoseController:
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
+    form: object
+
     PRESETS = (
         ("t_pose", "T-pose"),
         ("standing", "Standing"),
@@ -1727,11 +1730,14 @@ class AvatarPoseTaskPanel:
             ok.setText("Apply & Rebuild")
 
 
-def show_avatar_pose_task(avatar=None):
+def show_avatar_pose_task(avatar=None) -> "AvatarTaskPanelProtocol":
     """Open the focused Pose Mode task panel.
 
     Args:
         avatar: Mannequin feature currently being edited.
+
+    Returns:
+        Task-panel handle exposing the form shown by FreeCAD.
     """
     _App, Gui, _QtCore, _QtWidgets = _modules()
     panel = AvatarPoseTaskPanel(avatar)
