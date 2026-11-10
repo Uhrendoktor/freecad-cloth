@@ -6,10 +6,7 @@ def _qt():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtGui, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtGui, QtWidgets
+    from freecad_cloth.common.qt_compat import QtCore, QtGui, QtWidgets
     return App, Gui, QtCore, QtWidgets, QtGui
 
 
