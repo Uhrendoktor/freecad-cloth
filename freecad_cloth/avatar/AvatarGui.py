@@ -7,7 +7,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 """
 
 import contextlib
-from typing import ClassVar, Protocol
+from typing import ClassVar, Protocol, TYPE_CHECKING
 
 from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.avatar.AvatarProperties import (
@@ -32,10 +32,13 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -349,10 +352,13 @@ class AvatarTaskPanel:
             parent: Parent Qt layout that receives the advanced controls.
         """
         _, _, QtWidgets = _modules()
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
 
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText("Advanced Anny parameters")
@@ -541,10 +547,13 @@ class AvatarTaskPanel:
             expanded: Whether the advanced editor section is expanded.
         """
         self.advanced_content.setVisible(bool(expanded))
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         self.advanced_toggle.setArrowType(QtCore.Qt.DownArrow if expanded else QtCore.Qt.RightArrow)
         if expanded and not self._advanced_controls_built:
             try:
@@ -662,10 +671,13 @@ class AvatarTaskPanel:
             parent: Parent Qt layout that receives the shape controls.
         """
         _, _, QtWidgets = _modules()
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
 
         group = QtWidgets.QGroupBox("Body shape")
         layout = QtWidgets.QFormLayout(group)
