@@ -13,12 +13,13 @@ import math
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, Protocol
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.avatar_defaults import DEFAULT_MEASUREMENTS
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
 
 if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
@@ -30,23 +31,6 @@ _TARGET_ROW_FIELD_COUNT = 4
 _VECTOR_ARRAY_RANK = 2
 _VECTOR_COMPONENT_COUNT = 3
 _MIN_TARGET_WEIGHT = 1e-12
-
-
-class _AvatarTargetParameters(Protocol):
-    """Structural avatar settings consumed when deriving morph-target weights."""
-
-    gender: float
-    breast_size: float
-
-    def measurement(self, name: str) -> float:
-        """Return one validated anthropometric measurement in millimetres.
-
-        Args:
-            name: Canonical measurement key requested by the target selector.
-
-        Returns:
-            The selected measurement value in millimetres.
-        """
 
 
 @pydantic_dataclass(frozen=True)
@@ -353,19 +337,15 @@ def _archive_target_index(path_text: str, modified_ns: int, size: int) -> dict[s
     return index
 
 
-def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
-    """Resolve a target by relative path or basename, with or without extension.
+def _clean_target_name(name: str) -> str | None:
+    """Normalize a user-supplied target identifier and reject traversal paths.
 
     Args:
         name: Relative target name or basename, optionally including its extension.
-        root: Target library root to search, or None to discover an installed library.
 
     Returns:
-        A reference to the matching loose or archived target, or None when it is absent.
+        A normalized target identifier, or None when the path attempts traversal.
     """
-    base = Path(root).expanduser().resolve() if root is not None else target_directory()
-    if base is None or not base.is_dir():
-        return None
     cleaned = str(name).replace("\\", "/").strip().lstrip("/")
     if ".." in Path(cleaned).parts:
         return None
@@ -373,18 +353,41 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
         if cleaned.endswith(suffix):
             cleaned = cleaned[: -len(suffix)]
             break
+    return cleaned
+
+
+def _resolve_loose_target(cleaned: str, base: Path) -> TargetReference | None:
+    """Find a loose target by explicit relative path or indexed basename.
+
+    Args:
+        cleaned: Normalized target identifier without a target-file extension.
+        base: Root directory of the target library.
+
+    Returns:
+        A reference to the loose target, or None when no loose target matches.
+    """
     for path in (base / f"{cleaned}.target", base / f"{cleaned}.target.gz"):
         if path.is_file():
-            return TargetReference(
-                path.resolve(), coordinate_format=_target_coordinate_format(base)
-            )
+            return TargetReference(path.resolve(), coordinate_format=_target_coordinate_format(base))
     indexed_path = _target_index(base.as_posix()).get(cleaned.casefold())
-    if indexed_path is not None:
-        return TargetReference(
-            Path(indexed_path), coordinate_format=_target_coordinate_format(base)
-        )
-    archive_candidates = (base / "targets.npz", base.parent / "targets.npz")
-    for archive_path in archive_candidates:
+    if indexed_path is None:
+        return None
+    return TargetReference(
+        Path(indexed_path), coordinate_format=_target_coordinate_format(base)
+    )
+
+
+def _resolve_archived_target(cleaned: str, base: Path) -> TargetReference | None:
+    """Find a target in a local targets.npz archive.
+
+    Args:
+        cleaned: Normalized target identifier without a target-file extension.
+        base: Root directory of the target library.
+
+    Returns:
+        A reference to the archived target, or None when no archive entry matches.
+    """
+    for archive_path in (base / "targets.npz", base.parent / "targets.npz"):
         if not archive_path.is_file():
             continue
         stat = archive_path.stat()
@@ -402,6 +405,24 @@ def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> Tar
             )
     return None
 
+
+def resolve_target(name: str, root: str | os.PathLike[str] | None = None) -> TargetReference | None:
+    """Resolve a target by relative path or basename, with or without extension.
+
+    Args:
+        name: Relative target name or basename, optionally including its extension.
+        root: Target library root to search, or None to discover an installed library.
+
+    Returns:
+        A reference to the matching loose or archived target, or None when it is absent.
+    """
+    base = Path(root).expanduser().resolve() if root is not None else target_directory()
+    if base is None or not base.is_dir():
+        return None
+    cleaned = _clean_target_name(name)
+    if cleaned is None:
+        return None
+    return _resolve_loose_target(cleaned, base) or _resolve_archived_target(cleaned, base)
 
 def apply_targets(
     vertices: Sequence[Point],
@@ -451,7 +472,7 @@ def apply_targets(
 
 def apply_measurement_targets(
     vertices: Sequence[Point],
-    parameters: _AvatarTargetParameters,
+    parameters: AvatarParametersProtocol,
     *,
     target_root: Path | None = None,
 ) -> tuple[Point, ...]:
