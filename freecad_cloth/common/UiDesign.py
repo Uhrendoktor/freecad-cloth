@@ -6,9 +6,12 @@ change FreeCAD's application-wide style or palette, and they do not own any
 feature-domain behavior.
 """
 
+import importlib
 from types import ModuleType
 from typing import Protocol, TYPE_CHECKING, cast
 
+if TYPE_CHECKING:
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 class _Style(Protocol):
     """Minimal Qt style operations needed to refresh dynamic properties."""
@@ -160,12 +163,12 @@ def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None 
         layout.setSpacing(6)
     if layout_type is None:
         if TYPE_CHECKING:
-            from PySide2 import QtWidgets
+            QtWidgets = _QT_TYPE_QtWidgets
         else:
             try:
-                from PySide import QtWidgets
+                QtWidgets = importlib.import_module("PySide.QtWidgets")
             except ImportError:
-                from PySide2 import QtWidgets
+                QtWidgets = importlib.import_module("PySide2.QtWidgets")
         layout_type = cast("type[object]", QtWidgets.QLayout)
     for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
