@@ -1,4 +1,4 @@
-"""Typing compatibility exports for FreeCAD's PySide namespace alias."""
+# Copyright (C) 2026 FreeCAD Cloth contributors
 
 from PySide2 import QtCore as QtCore
 from PySide2 import QtGui as QtGui
