@@ -6,6 +6,7 @@ silently edit a network whose canonical seam references are invalid.
 """
 
 from itertools import starmap
+from typing import TYPE_CHECKING
 
 
 def _modules():
@@ -17,10 +18,13 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore, QtWidgets
+    else:
+        try:
+            from PySide import QtCore, QtWidgets
+        except ImportError:
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
