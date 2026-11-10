@@ -52,6 +52,16 @@ def parse_count(value: str) -> int:
     )
 
 
+def test_stub_modules_do_not_require_module_docstrings() -> None:
+    """Accept declaration-only stubs without prose module docstrings."""
+    source = "from PySide2 import QtCore as QtCore\n"
+    errors = check_source(source, "typings/PySide/__init__.pyi")
+    _require(
+        condition=not any("missing module docstring" in error for error in errors),
+        message=str(errors),
+    )
+
+
 def test_missing_symbol_docstrings_are_reported() -> None:
     """Reject undocumented classes and functions even when they are private."""
     source = '''"""Documentation checker fixture module."""
