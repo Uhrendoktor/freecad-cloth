@@ -26,10 +26,7 @@ def _gui_modules() -> tuple[object, object, object, object]:
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtWidgets
+    from freecad_cloth.common.qt_compat import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
