@@ -42,8 +42,26 @@ def is_sketch_authoritative(piece) -> bool:
     return str(getattr(piece, "GeometryAuthority", "")).strip() == "Sketcher"
 
 
-def resolve_simulation_pattern(doc, pieces: Sequence[object], curve_samples: int = CURVE_SAMPLES):
-    """Resolve document PatternPieces and canonical seams into one PatternIR."""
+def resolve_simulation_pattern(
+    doc: object,
+    pieces: Sequence[object],
+    curve_samples: int = CURVE_SAMPLES,
+) -> ResolvedSimulationPattern:
+    """Resolve document PatternPieces and canonical seams into one PatternIR.
+
+    Args:
+        doc: FreeCAD document supplying the persisted pattern-piece and seam objects.
+        pieces: Selected PatternPiece features whose native Sketcher geometry is resolved.
+        curve_samples: Number of samples used to represent each native sketch curve.
+
+    Returns:
+        PatternIR, source-piece objects, and a deterministic geometry/placement signature.
+
+    Raises:
+        ValueError: If the sample count is invalid, piece IDs repeat, or a seam is invalid.
+        MissingEdgeReference: If a selected piece lacks authoritative Sketcher geometry.
+        ChangedEdgeReference: If a semantic seam no longer matches its stored edge provenance.
+    """
     if curve_samples < 2:
         msg = "curve_samples must be at least 2"
         raise ValueError(msg)
