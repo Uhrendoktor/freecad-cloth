@@ -4,6 +4,7 @@
 import contextlib
 from collections.abc import Callable
 from types import ModuleType
+from typing import TYPE_CHECKING
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
@@ -664,10 +665,13 @@ def show_sewing_2d(
 
 def _build_seam_overlay_options_dialog():
     """Build the real overlay options dialog and return its setting controls."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
 
     from freecad_cloth.sewing.SeamOverlay import (
         seam_highlights_enabled,
@@ -711,10 +715,13 @@ def _build_seam_overlay_options_dialog():
 
 def show_seam_overlay_options():
     """Present persistent controls for seam highlight visibility and occlusion."""
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
 
     from freecad_cloth.sewing.SeamOverlay import (
         set_seam_highlights_enabled,
