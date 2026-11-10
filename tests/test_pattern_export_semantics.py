@@ -1,9 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for canonical export metadata and native Sketcher boundaries."""
 
-from collections.abc import Mapping
 import math
 import re
+from collections.abc import Mapping
 from importlib import import_module
 from pathlib import Path
 from types import SimpleNamespace

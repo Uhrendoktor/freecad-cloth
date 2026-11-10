@@ -2,10 +2,10 @@
 import math
 
 from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
-from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 from freecad_cloth.simulation.PatternSimulationAdapter import (
     resolve_simulation_pattern,
 )
+from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 
 
 class _Point:
