@@ -456,9 +456,7 @@ def build_bone_transforms(
             return IDENTITY
         parent_name = bone.get("parent")
         parent_transform = visit(parent_name) if parent_name else IDENTITY
-        rest_head = joint_point(
-            source_vertices, skeleton["joints"][bone["head"]], mapper=fit_point
-        )
+        rest_head = joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=fit_point)
         rotation = rotation_map.get(bone_name)
         if rotation is None:
             local = IDENTITY
