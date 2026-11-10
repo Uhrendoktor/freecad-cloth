@@ -4,12 +4,25 @@
 from __future__ import annotations
 
 import hashlib
-import importlib
 import os
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+if __package__:
+    from tools.ci.command_runner import (
+        CommandExecutionError,
+        CommandOptions,
+        CommandTimeoutError,
+        run_command,
+    )
+else:
+    from command_runner import (
+        CommandExecutionError,
+        CommandOptions,
+        CommandTimeoutError,
+        run_command,
+    )
 
 ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_VERSION = "freecad-quality-v1"
@@ -97,33 +110,41 @@ def ready_marker_is_current(environment: Path, cache_key: str) -> bool:
 
 
 def _run_setup(arguments: tuple[str, ...], timeout_seconds: int) -> None:
-    """Run one bounded environment setup command.
+    """Run one bounded environment setup command through the shell-free runner.
 
     Args:
-        arguments: Executable and argument vector passed to subprocess.run.
+        arguments: Executable and argument vector passed to the process runner.
         timeout_seconds: Maximum time allowed for the setup operation.
 
     Raises:
-        OSError: If the executable cannot be started.
-        subprocess.CalledProcessError: If the setup command exits unsuccessfully.
-        subprocess.TimeoutExpired: If the setup command exceeds its time bound.
+        RuntimeError: If the command cannot start, fails, or exceeds its time bound.
     """
-    subprocess.run(arguments, cwd=ROOT, check=True, timeout=timeout_seconds)
+    try:
+        run_command(
+            arguments,
+            options=CommandOptions(cwd=ROOT, timeout=timeout_seconds),
+        )
+    except (CommandExecutionError, CommandTimeoutError, OSError) as error:
+        msg = f"Setup command failed: {arguments[0]}"
+        raise RuntimeError(msg) from error
 
 
 def _verify_runtime(python: Path) -> None:
-    """Import native host modules and required developer tools before marking the cache ready.
+    """Import required native host modules and developer tools before cache reuse.
 
     Args:
-        python: Interpreter inside the persistent venv.
+        python: Interpreter inside the persistent virtual environment.
 
     Raises:
-        subprocess.CalledProcessError: If any required runtime or tooling import is missing.
-        subprocess.TimeoutExpired: If the import preflight exceeds its time bound.
+        RuntimeError: If a required module or developer tool cannot be imported.
     """
     modules = (*REQUIRED_RUNTIME_MODULES, "pre_commit", "ruff", "pyright")
     probe = "import importlib, sys; [importlib.import_module(name) for name in sys.argv[1:]]"
-    subprocess.run((str(python), "-c", probe, *modules), cwd=ROOT, check=True, timeout=45)
+    try:
+        _run_setup((str(python), "-c", probe, *modules), timeout_seconds=45)
+    except RuntimeError as error:
+        msg = "A required runtime module or strict-quality tool could not be imported."
+        raise RuntimeError(msg) from error
 
 
 def prepare_quality_environment(
@@ -141,14 +162,7 @@ def prepare_quality_environment(
     Returns:
         Interpreter path for the ready strict-quality environment.
 
-    Raises:
-        OSError: If the cache or virtual environment cannot be created.
-        RuntimeError: If the container does not provide Python 3.12 or newer.
-        subprocess.CalledProcessError: If installation or runtime verification fails.
-        subprocess.TimeoutExpired: If bounded setup exceeds its time limit.
     """
-    if sys.version_info < (3, 12):
-        raise RuntimeError("Strict quality requires the Python 3.12 FreeCAD runtime.")
     python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
     project_file = ROOT / "pyproject.toml"
     cache_key = build_environment_cache_key(project_file, python_version, image_id, workspace_key)
@@ -162,7 +176,8 @@ def prepare_quality_environment(
         )
 
     if not ready_marker_is_current(environment, cache_key):
-        print(f"python-quality-cache=installing key={cache_key}", flush=True)
+        sys.stdout.write(f"python-quality-cache=installing key={cache_key}\n")
+        sys.stdout.flush()
         _run_setup(
             (
                 str(python),
@@ -184,10 +199,12 @@ def prepare_quality_environment(
     if not ready_marker_is_current(environment, cache_key):
         temporary_marker = environment / ".ready.tmp"
         temporary_marker.write_text(f"{cache_key}\n", encoding="utf-8")
-        os.replace(temporary_marker, environment / ".ready")
-        print(f"python-quality-cache=ready key={cache_key}", flush=True)
+        temporary_marker.replace(environment / ".ready")
+        sys.stdout.write(f"python-quality-cache=ready key={cache_key}\n")
+        sys.stdout.flush()
     else:
-        print(f"python-quality-cache=hit key={cache_key}", flush=True)
+        sys.stdout.write(f"python-quality-cache=hit key={cache_key}\n")
+        sys.stdout.flush()
     return python
 
 
@@ -200,16 +217,12 @@ def collect_tracked_python_files(root: Path) -> tuple[str, ...]:
     Returns:
         Relative paths to tracked .py and .pyi files.
 
-    Raises:
-        subprocess.CalledProcessError: If Git cannot enumerate tracked Python files.
     """
-    result = subprocess.run(
+    result = run_command(
         ("git", "ls-files", "-z", "--", "*.py", "*.pyi"),
-        cwd=root,
-        check=True,
-        capture_output=True,
+        options=CommandOptions(cwd=root, capture_output=True, timeout=30),
     )
-    return tuple(os.fsdecode(item) for item in result.stdout.split(b"\0") if item)
+    return tuple(path for path in (result.stdout or "").split("\0") if path)
 
 
 def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[QualityCommand, ...]:
@@ -282,76 +295,87 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
 
 
 def run_quality_commands(commands: tuple[QualityCommand, ...]) -> int:
-    """Run all checks in order and return a failed aggregate without short-circuiting.
+    """Run every required quality check and return an aggregate failure status.
 
     Args:
-        commands: Every independent strict-quality command required by CI.
+        commands: Independent strict-quality commands required by CI.
 
     Returns:
-        Zero only when all commands succeed; otherwise one.
+        Zero only when every command succeeds; otherwise one.
     """
     failed = 0
     environment = os.environ.copy()
     for command in commands:
-        print(f"::group::Strict quality: {command.label}", flush=True)
+        sys.stdout.write(f"::group::Strict quality: {command.label}\n")
+        sys.stdout.flush()
         try:
-            result = subprocess.run(
+            result = run_command(
                 command.arguments,
-                cwd=ROOT,
-                env=environment,
-                check=False,
-                timeout=command.timeout_seconds,
+                options=CommandOptions(
+                    cwd=ROOT,
+                    env=environment,
+                    check=False,
+                    timeout=command.timeout_seconds,
+                ),
             )
             if result.returncode:
-                print(
-                    f"::error::{command.label} failed with exit code {result.returncode}",
-                    flush=True,
+                sys.stderr.write(
+                    f"::error::{command.label} failed with exit code {result.returncode}\n"
                 )
+                sys.stderr.flush()
                 failed = 1
-        except subprocess.TimeoutExpired:
-            print(f"::error::{command.label} timed out", flush=True)
+        except CommandTimeoutError:
+            sys.stderr.write(f"::error::{command.label} timed out\n")
+            sys.stderr.flush()
+            failed = 1
+        except CommandExecutionError as error:
+            sys.stderr.write(f"::error::{command.label} could not execute: {error}\n")
+            sys.stderr.flush()
             failed = 1
         except OSError as error:
-            print(f"::error::{command.label} could not start: {error}", flush=True)
+            sys.stderr.write(f"::error::{command.label} could not start: {error}\n")
+            sys.stderr.flush()
             failed = 1
-        print("::endgroup::", flush=True)
+        sys.stdout.write("::endgroup::\n")
+        sys.stdout.flush()
     return failed
 
 
-def main() -> int:
-    """Prepare the persistent runtime, execute every check, and return aggregate status.
+def _run_repository_quality() -> int:
+    """Prepare the pinned runtime and execute every independent strict-quality check.
 
     Returns:
-        Zero only when environment setup and all required quality checks succeed.
+        Zero only when the environment is ready and every required check succeeds.
+    """
+    cache_root = Path(os.environ["RUNNER_TOOL_CACHE"])
+    image_id = os.environ["QUALITY_IMAGE_ID"]
+    workspace_key = os.environ["WORKSPACE_CACHE_KEY"]
+    python = prepare_quality_environment(cache_root, image_id, workspace_key)
+    tracked_files = collect_tracked_python_files(ROOT)
+    if not tracked_files:
+        sys.stderr.write("::error::Git reported no tracked Python sources or stubs.\n")
+        sys.stderr.flush()
+        return 1
+    _run_setup(
+        ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
+        timeout_seconds=10,
+    )
+    os.environ["PATH"] = str(python.parent) + os.pathsep + os.environ.get("PATH", "")
+    os.environ["PYTHONPATH"] = str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", "")
+    return run_quality_commands(quality_commands(python, tracked_files))
+
+
+def main() -> int:
+    """Prepare the environment and return the aggregate strict-quality status.
+
+    Returns:
+        Zero only when environment setup and every required check succeeds.
     """
     try:
-        cache_root = Path(os.environ["RUNNER_TOOL_CACHE"])
-        image_id = os.environ["QUALITY_IMAGE_ID"]
-        workspace_key = os.environ["WORKSPACE_CACHE_KEY"]
-        python = prepare_quality_environment(cache_root, image_id, workspace_key)
-        tracked_files = collect_tracked_python_files(ROOT)
-        if not tracked_files:
-            print(
-                "::error::Git reported no tracked Python sources or stubs.",
-                file=sys.stderr,
-                flush=True,
-            )
-            return 1
-        _run_setup(
-            ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
-            timeout_seconds=10,
-        )
-        os.environ["PATH"] = str(python.parent) + os.pathsep + os.environ.get("PATH", "")
-        os.environ["PYTHONPATH"] = str(ROOT) + os.pathsep + os.environ.get("PYTHONPATH", "")
-        return run_quality_commands(quality_commands(python, tracked_files))
-    except (
-        KeyError,
-        OSError,
-        RuntimeError,
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-    ) as error:
-        print(f"::error::Strict quality environment failed: {error}", file=sys.stderr, flush=True)
+        return _run_repository_quality()
+    except (KeyError, OSError, RuntimeError) as error:
+        sys.stderr.write(f"::error::Strict quality environment failed: {error}\n")
+        sys.stderr.flush()
         return 1
 
 
