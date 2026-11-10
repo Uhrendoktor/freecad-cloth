@@ -7,16 +7,19 @@ import tempfile
 import time
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
-try:
-    from PySide import QtWidgets
-except ImportError:
+if TYPE_CHECKING:
     from PySide2 import QtWidgets
+else:
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
 
 def _progress(message: str) -> None:
