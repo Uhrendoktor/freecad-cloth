@@ -3,19 +3,99 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
+class _SimulationDocument(Protocol):
+    """Document API used by the simulation scene and its mesh outputs."""
+
+    Objects: Sequence[object]
+
+    def addObject(self, type_name: str, object_name: str) -> _SimulationFeature:
+        """Create a simulation feature in the owning document.
+
+        Args:
+            type_name: Native FreeCAD object type identifier.
+            object_name: Stable internal object name.
+
+        Returns:
+            The created FreeCAD feature.
+        """
+        ...
+
+    def getObject(self, object_name: str) -> _SimulationFeature | None:
+        """Look up a simulation feature by internal name.
+
+        Args:
+            object_name: Stable internal object name.
+
+        Returns:
+            The matching feature or None when it is absent.
+        """
+        ...
+
+    def recompute(self) -> None:
+        """Recompute the document after changing persistent simulation state."""
+        ...
+
+
+class _SimulationFeature(Protocol):
+    """Feature properties created and persisted by the simulation factory."""
+
+    Label: str
+    Iterations: int
+    TimeStep: float
+    Steps: int
+    StartHeight: float
+    StitchSamples: int
+    GravityX: float
+    GravityY: float
+    GravityZ: float
+    ClothPieces: Sequence[object]
+    DrapePanels: Sequence[object]
+    DrapeTarget: object
+    PinMode: str
+    PinSelection: list[str]
+    SeamSelection: list[str]
+    SimulatedTime: float
+    ParticleCount: int
+    FiniteState: bool
+    CollisionX: float
+    CollisionY: float
+    CollisionZ: float
+    CollisionRadius: float
+    Proxy: object
+    Document: _SimulationDocument
+
+    def addProperty(self, type_name: str, name: str, group: str) -> _SimulationFeature:
+        """Add one native FreeCAD property and return the feature.
+
+        Args:
+            type_name: FreeCAD property type identifier.
+            name: Property name stored on the feature.
+            group: Property group shown in the FreeCAD property editor.
+
+        Returns:
+            The feature object with the new property registered.
+        """
+        ...
+
+
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
 
 
-def _mesh_object(doc, name, label):
+def _mesh_object(
+    doc: _SimulationDocument,
+    name: str,
+    label: str,
+) -> _SimulationFeature:
     """Create one persistent FreeCAD mesh feature for simulation visualization.
 
     Args:
@@ -745,7 +825,11 @@ class SimulationProxy:
         ):
             _write_grid_mesh(panel, positions, self.panel_indices[key], nx, ny)
 
-    def _ensure_panel(self, doc, index):
+    def _ensure_panel(
+        self,
+        doc: _SimulationDocument,
+        index: int,
+    ) -> _SimulationFeature:
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
@@ -762,9 +846,21 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_simulation_scene(doc, build=True):
-    """Create and return the requested simulation scene object."""
-    scene = doc.addObject("App::FeaturePython", "ClothSimulation")
+def create_simulation_scene(
+    doc: object,
+    build: bool = True,
+) -> _SimulationFeature:
+    """Create the persistent simulation feature and its output mesh objects.
+
+    Args:
+        doc: FreeCAD document that owns the simulation and generated panels.
+        build: Whether to initialize the deterministic solver state immediately.
+
+    Returns:
+        The created simulation feature with its panel links and proxy installed.
+    """
+    typed_doc = cast("_SimulationDocument", doc)
+    scene = typed_doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
     scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
@@ -793,11 +889,11 @@ def create_simulation_scene(doc, build=True):
     scene.Proxy = proxy
     from freecad_cloth.common.GarmentDocument import link_garment_object
 
-    link_garment_object(scene, "Simulation", doc)
-    panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
-    panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
-    link_garment_object(panel_a, "SimulationOutput", doc)
-    link_garment_object(panel_b, "SimulationOutput", doc)
+    link_garment_object(scene, "Simulation", typed_doc)
+    panel_a = _mesh_object(typed_doc, "DrapePanelA", "Drape Panel A")
+    panel_b = _mesh_object(typed_doc, "DrapePanelB", "Drape Panel B")
+    link_garment_object(panel_a, "SimulationOutput", typed_doc)
+    link_garment_object(panel_b, "SimulationOutput", typed_doc)
     scene.DrapePanels = [panel_a, panel_b]
     if build:
         proxy._build(scene, ())
@@ -811,11 +907,19 @@ def step_scene(scene, steps=1):
     return scene
 
 
-def reset_scene(scene):
-    """Provide the public reset scene operation."""
+def reset_scene(scene: _SimulationFeature) -> _SimulationFeature:
+    """Reset the runtime state and recompute the owning document.
+
+    Args:
+        scene: Persisted simulation feature whose solver state is reset.
+
+    Returns:
+        The same simulation feature after its document has recomputed.
+    """
     proxy = getattr(scene, "Proxy", None)
-    if proxy is not None and hasattr(proxy, "reset"):
-        proxy.reset(scene)
+    reset = getattr(proxy, "reset", None)
+    if callable(reset):
+        reset(scene)
     scene.Document.recompute()
     return scene
 

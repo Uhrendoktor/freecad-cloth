@@ -115,15 +115,7 @@ def create_quality_simulation_scene(
         ensure_quality_properties,
     )
 
-    create_scene = cast(
-        "Callable[[_FreeCADDocument], _SimulationScene]",
-        create_simulation_scene,
-    )
-    ensure_quality = cast(
-        "Callable[[_SimulationScene], object]",
-        ensure_quality_properties,
-    )
-    scene = create_scene(doc)
+    scene = create_simulation_scene(doc)
     scene.ClothPieces = list(cloth_pieces)
     if avatar_source is None:
         avatar_object = doc.getObject("ClothAvatar")
@@ -143,7 +135,7 @@ def create_quality_simulation_scene(
     is_mannequin = str(getattr(avatar, "AvatarType", "")) == "ClothAvatar"
     thickness_mm = DEFAULT_MANNEQUIN_COLLISION_THICKNESS_MM if is_mannequin else 2.0
     set_drape_target_source(scene, avatar, thickness_mm, 1.0)
-    ensure_quality(scene)
+    ensure_quality_properties(scene)
     scene.Proxy = QualitySimulationProxy()
     doc.recompute()
     return scene
@@ -251,12 +243,20 @@ _active_simulation_quality_task_panel: object | None = None
 
 
 def get_active_simulation_quality_task_panel() -> object | None:
-    """Return the task panel opened by the public simulation controls command."""
+    """Return the task panel opened by the public simulation controls command.
+
+    Returns:
+        The active quality task panel, or None when no panel is open.
+    """
     return _active_simulation_quality_task_panel
 
 
 def edit_simulation() -> object:
-    """Open the native simulation quality controls task panel."""
+    """Open the native simulation quality controls task panel.
+
+    Returns:
+        The native task-panel object displayed by FreeCAD.
+    """
     global _active_simulation_quality_task_panel
     import FreeCAD as App
 
@@ -267,16 +267,8 @@ def edit_simulation() -> object:
     if scene is not None:
         from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
-        ensure_quality = cast(
-            "Callable[[_SimulationScene], object]",
-            ensure_quality_properties,
-        )
-        ensure_quality(scene)
-    show_quality_task = cast(
-        "Callable[[_SimulationScene | None], object]",
-        show_simulation_quality_task,
-    )
-    _active_simulation_quality_task_panel = show_quality_task(scene)
+        ensure_quality_properties(scene)
+    _active_simulation_quality_task_panel = show_simulation_quality_task(scene)
     return _active_simulation_quality_task_panel
 
 
@@ -299,7 +291,7 @@ def _require_simulation() -> tuple[_FreeCADDocument, _SimulationScene]:
     if scene is None:
         msg = "no Cloth Simulation object in active document"
         raise RuntimeError(msg)
-    return cast("_FreeCADDocument", doc), cast("_SimulationScene", scene)
+    return doc, scene
 
 
 def simulate_selected(steps: int | None = None) -> object:
@@ -349,9 +341,7 @@ def run_simulation(
 
 def reset_simulation(
     *,
-    require_simulation_fn: Callable[
-        [], tuple[_FreeCADDocument, _SimulationScene]
-    ] | None = None,
+    require_simulation_fn: Callable[[], tuple[_FreeCADDocument, _SimulationScene]] | None = None,
     reset_scene_fn: Callable[[_SimulationScene], object] | None = None,
     refresh_overlay_fn: Callable[[_FreeCADDocument], object] | None = None,
 ) -> _SimulationScene:
@@ -372,10 +362,7 @@ def reset_simulation(
     if reset_scene_fn is None:
         from freecad_cloth.simulation.SimulationObjects import reset_scene
 
-        reset_scene_fn = cast(
-            "Callable[[_SimulationScene], object]",
-            reset_scene,
-        )
+        reset_scene_fn = reset_scene
     reset_scene_fn(scene)
     scene.Document.recompute()
     if refresh_overlay_fn is None:

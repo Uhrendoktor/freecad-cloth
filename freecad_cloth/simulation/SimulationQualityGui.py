@@ -657,7 +657,17 @@ class SimulationQualityTaskPanel:
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
-def show_simulation_quality_task(scene=None):
+def show_simulation_quality_task(
+    scene: object | None = None,
+) -> SimulationQualityTaskPanel:
+    """Create and show the native simulation-quality task panel.
+
+    Args:
+        scene: Optional simulation feature whose settings are displayed and edited.
+
+    Returns:
+        The task-panel instance displayed by the FreeCAD GUI.
+    """
     _App, Gui, _QtCore, _QtWidgets, _QtGui = _qt()
     panel = SimulationQualityTaskPanel(scene)
     Gui.Control.showDialog(panel)

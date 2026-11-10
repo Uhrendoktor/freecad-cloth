@@ -7,7 +7,7 @@ proxy. It is the only quality runtime implementation.
 
 import weakref
 from math import ceil
-from typing import cast
+from typing import Protocol, cast
 
 from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
 from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
@@ -16,8 +16,47 @@ QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
-def ensure_quality_properties(scene):
-    """Create and validate persistent simulation-quality properties on a scene."""
+class _QualityScene(Protocol):
+    """Dynamic FreeCAD feature fields owned by the quality runtime."""
+
+    QualityPreset: str
+    ParticleDistance: float
+    SolverIterations: int
+    SolverSubsteps: int
+    PinMode: str
+    FabricDensity: float
+    FabricThickness: float
+    FabricStretch: float
+    FabricShear: float
+    FabricBend: float
+    FabricFriction: float
+    FabricColor: tuple[float, float, float]
+    FabricSpecular: float
+    FabricRoughness: float
+    FabricTransparency: int
+    AvatarSkinOffset: float
+
+    def addProperty(self, type_name: str, name: str, group: str) -> object:
+        """Register one persistent property on the FreeCAD feature.
+
+        Args:
+            type_name: Native FreeCAD property type.
+            name: Property name to add.
+            group: Property group displayed by FreeCAD.
+        """
+        ...
+
+
+def ensure_quality_properties(scene: object) -> object:
+    """Create and validate persistent simulation-quality properties on a scene.
+
+    Args:
+        scene: FreeCAD simulation feature receiving quality and fabric properties.
+
+    Returns:
+        The same feature after its quality properties have been initialized and clamped.
+    """
+    typed_scene = cast("_QualityScene", scene)
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
         ("ParticleDistance", "App::PropertyFloat", "Quality", None, 4.0),
@@ -37,16 +76,21 @@ def ensure_quality_properties(scene):
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
     )
     for name, type_name, group, values, default in specs:
-        if not hasattr(scene, name):
-            scene.addProperty(type_name, name, group)
+        if not hasattr(typed_scene, name):
+            typed_scene.addProperty(type_name, name, group)
             if values is not None:
-                setattr(scene, name, values)
-            setattr(scene, name, default)
-    _validate_properties(scene)
-    return scene
+                setattr(typed_scene, name, values)
+            setattr(typed_scene, name, default)
+    _validate_properties(typed_scene)
+    return typed_scene
 
 
-def _validate_properties(scene):
+def _validate_properties(scene: _QualityScene) -> None:
+    """Clamp persisted quality and fabric properties to their supported ranges.
+
+    Args:
+        scene: Simulation feature whose saved values are normalized in place.
+    """
     scene.ParticleDistance = max(0.25, float(scene.ParticleDistance))
     scene.SolverIterations = max(1, int(scene.SolverIterations))
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
