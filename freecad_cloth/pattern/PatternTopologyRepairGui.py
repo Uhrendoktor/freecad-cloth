@@ -5,10 +5,7 @@
 def _gui_modules():
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    from freecad_cloth.common.qt_compat import QtWidgets
     return Gui, QtWidgets
 
 
