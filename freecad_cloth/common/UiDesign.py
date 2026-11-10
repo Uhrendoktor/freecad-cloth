@@ -7,7 +7,7 @@ feature-domain behavior.
 """
 
 from types import ModuleType
-from typing import Protocol, cast
+from typing import Protocol, TYPE_CHECKING, cast
 
 
 class _Style(Protocol):
@@ -159,10 +159,13 @@ def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None 
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
     if layout_type is None:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtWidgets
+        else:
+            try:
+                from PySide import QtWidgets
+            except ImportError:
+                from PySide2 import QtWidgets
         layout_type = cast("type[object]", QtWidgets.QLayout)
     for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
