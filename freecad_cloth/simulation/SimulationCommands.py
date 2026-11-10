@@ -301,7 +301,7 @@ def run_simulation(
 def reset_simulation(
     *,
     require_simulation_fn: Callable[[], tuple[SimulationDocument, SimulationScene]] | None = None,
-    reset_scene_fn: Callable[[_ResettableSimulationScene], object] | None = None,
+    reset_scene_fn: Callable[[SimulationScene], object] | None = None,
     refresh_overlay_fn: Callable[[SimulationDocument], object] | None = None,
 ) -> SimulationScene:
     """Reset the active simulation state without changing its authored settings.
