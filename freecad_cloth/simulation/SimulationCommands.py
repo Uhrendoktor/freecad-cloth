@@ -157,7 +157,10 @@ def create_drape_scene() -> object:
     """
     import FreeCAD as App
 
-    doc = App.ActiveDocument or App.newDocument("ClothDrape")
+    doc = cast(
+        "_FreeCADDocument",
+        App.ActiveDocument or App.newDocument("ClothDrape"),
+    )
     return create_quality_simulation_scene(doc)
 
 
@@ -249,7 +252,7 @@ _active_simulation_quality_task_panel: object | None = None
 
 def get_active_simulation_quality_task_panel() -> object | None:
     """Return the task panel opened by the public simulation controls command."""
-    return _ACTIVE_SIMULATION_QUALITY_TASK_PANEL
+    return _active_simulation_quality_task_panel
 
 
 def edit_simulation() -> object:
@@ -258,7 +261,6 @@ def edit_simulation() -> object:
     import FreeCAD as App
 
     from freecad_cloth.simulation.SimulationQualityGui import show_simulation_quality_task
-    from freecad_cloth.simulation.SimulationQualityRuntime import ensure_quality_properties
 
     doc = cast("_FreeCADDocument | None", App.ActiveDocument)
     scene = _find_simulation(doc) if doc is not None else None
@@ -359,11 +361,14 @@ def reset_simulation(
         require_simulation_fn: Optional active-scene lookup used by headless tests.
         reset_scene_fn: Optional state-reset callback used by headless tests.
         refresh_overlay_fn: Optional seam-overlay refresh callback used by headless tests.
+
+    Returns:
+        The reset simulation scene with its authored settings unchanged.
     """
     require_simulation = (
         _require_simulation if require_simulation_fn is None else require_simulation_fn
     )
-    doc, scene = require_simulation()
+    _doc, scene = require_simulation()
     if reset_scene_fn is None:
         from freecad_cloth.simulation.SimulationObjects import reset_scene
 
@@ -380,7 +385,7 @@ def reset_simulation(
             "Callable[[_FreeCADDocument], object]",
             refresh_seam_overlay,
         )
-    refresh_overlay_fn(doc)
+    refresh_overlay_fn(scene.Document)
     return scene
 
 
