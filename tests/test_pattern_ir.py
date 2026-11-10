@@ -31,7 +31,11 @@ NATIVE_CURVE_EPSILON = 1e-12
 
 
 def _graph() -> SeamGraph:
-    """Build two square panels joined by a seam with mixed edge-reference forms."""
+    """Build two square panels joined by a seam with mixed edge-reference forms.
+
+    Returns:
+        Validated seam graph used by the semantic-edge conversion tests.
+    """
     graph = SeamGraph()
     graph.add_piece(PatternPiece("front", [(0, 0), (20, 0), (20, 20), (0, 20)], id="front"))
     graph.add_piece(PatternPiece("back", [(0, 0), (20, 0), (20, 20), (0, 20)], id="back"))
@@ -85,7 +89,13 @@ class _Point:
     z: float
 
     def __init__(self, x: float, y: float, z: float = 0.0) -> None:
-        """Store a three-dimensional point used by the Sketcher geometry fixtures."""
+        """Store a three-dimensional point used by the Sketcher geometry fixtures.
+
+        Args:
+            x: Horizontal coordinate of the fixture point.
+            y: Vertical coordinate of the fixture point.
+            z: Depth coordinate, defaulting to the sketch plane.
+        """
         self.x = x
         self.y = y
         self.z = z
@@ -98,7 +108,12 @@ class LineSegment:
     EndPoint: _Point
 
     def __init__(self, start: Point2, end: Point2) -> None:
-        """Create a straight edge from two two-dimensional endpoint coordinates."""
+        """Create a straight edge from two two-dimensional endpoint coordinates.
+
+        Args:
+            start: First endpoint in sketch coordinates.
+            end: Second endpoint in sketch coordinates.
+        """
         self.StartPoint = _Point(*start)
         self.EndPoint = _Point(*end)
 
@@ -110,13 +125,26 @@ class _NativeCurve:
     LastParameter: ClassVar[float] = 4.0
 
     def __init__(self, start: Point2, end: Point2, bend: float = 0.0) -> None:
-        """Store curve endpoints and a perpendicular midpoint displacement."""
+        """Store curve endpoints and a perpendicular midpoint displacement.
+
+        Args:
+            start: Native curve start point in sketch coordinates.
+            end: Native curve end point in sketch coordinates.
+            bend: Signed perpendicular displacement at the curve midpoint.
+        """
         self._start = start
         self._end = end
         self._bend = bend
 
     def value_at(self, parameter: float) -> _Point:
-        """Evaluate a bent curve at a native parameter within its parameter range."""
+        """Evaluate a bent curve at a native parameter within its parameter range.
+
+        Args:
+            parameter: Native curve parameter between the stored first and last values.
+
+        Returns:
+            Evaluated point in sketch coordinates.
+        """
         t = (parameter - self.FirstParameter) / (self.LastParameter - self.FirstParameter)
         x = self._start[0] + (self._end[0] - self._start[0]) * t
         y = self._start[1] + (self._end[1] - self._start[1]) * t
@@ -129,8 +157,8 @@ class _NativeCurve:
             y += dx * offset
         return _Point(x, y)
 
-    # The production adapter uses FreeCAD's camel-case native API spelling.
-    valueAt = value_at
+# Keep FreeCAD's native camel-case curve API available to the adapter.
+setattr(_NativeCurve, "valueAt", _NativeCurve.value_at)
 
 
 class ArcOfCircle(_NativeCurve):
@@ -152,21 +180,41 @@ class _Sketch:
     SemanticEdgeIds: Sequence[str]
 
     def __init__(self, geometry: Sequence[object], semantic_ids: Sequence[str]) -> None:
-        """Retain the ordered geometry and optional persistent IDs for each edge."""
+        """Retain the ordered geometry and optional persistent IDs for each edge.
+
+        Args:
+            geometry: Native-style edge objects in sketch insertion order.
+            semantic_ids: Persistent edge identifiers parallel to the geometry sequence.
+        """
         self.Geometry = geometry
         self.SemanticEdgeIds = semantic_ids
 
     @staticmethod
     def get_construction(_index: int) -> bool:
-        """Mark every fixture geometry element as a real boundary edge."""
+        """Mark every fixture geometry element as a real boundary edge.
+
+        Args:
+            _index: Geometry index inspected by the native adapter.
+
+        Returns:
+            False because this fixture contains no construction geometry.
+        """
         return False
 
-    # The production adapter reads FreeCAD's native camel-case method name.
-    getConstruction = get_construction
+# Preserve the camel-case name exposed by a native Sketcher object.
+setattr(_Sketch, "getConstruction", staticmethod(_Sketch.get_construction))
 
 
 def _sketch_graph(curve: _NativeCurve, edge_id: str) -> tuple[SeamGraph, _Sketch]:
-    """Pair a curved edge fixture with two panels and a seam referencing that edge."""
+    """Pair a curved edge fixture with two panels and a seam referencing that edge.
+
+    Args:
+        curve: Native-style curved geometry to place in the first panel sketch.
+        edge_id: Semantic identifier assigned to the curved edge.
+
+    Returns:
+        Seam graph and matching sketch fixture for the first panel.
+    """
     graph = SeamGraph()
     graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10), (0, 10)], id="piece"))
     graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
@@ -185,7 +233,11 @@ def _sketch_graph(curve: _NativeCurve, edge_id: str) -> tuple[SeamGraph, _Sketch
 
 
 def _other_sketch() -> _Sketch:
-    """Build a square companion sketch with stable IDs for each of its four edges."""
+    """Build a square companion sketch with stable IDs for each of its four edges.
+
+    Returns:
+        Sketch fixture for the second square panel.
+    """
     return _Sketch(
         (
             LineSegment((0, 0), (10, 0)),
@@ -230,7 +282,14 @@ class _PatternIREdgeRecord(TypedDict):
 
 
 def _pattern_ir_edge_record(boundary: BoundaryIR) -> _PatternIREdgeRecord:
-    """Project a sampled IR boundary into the edge-reference adapter's input shape."""
+    """Project a sampled IR boundary into the edge-reference adapter's input shape.
+
+    Args:
+        boundary: Sampled IR boundary whose native provenance must be persisted.
+
+    Returns:
+        Typed edge record containing its semantic identity, endpoints, and provenance.
+    """
     samples = boundary.samples
     return {
         "piece_id": "piece",
@@ -256,10 +315,14 @@ def test_native_curve_shape_change_with_same_endpoints_is_changed_reference() ->
     first_graph, first_sketch = _sketch_graph(first_curve, "piece:curved")
     second_graph, second_sketch = _sketch_graph(second_curve, "piece:curved")
     first_ir = PatternIR.from_sketches(
-        first_graph, {"piece": first_sketch, "other": _other_sketch()}, curve_samples=CURVE_SAMPLE_COUNT
+        first_graph,
+        {"piece": first_sketch, "other": _other_sketch()},
+        curve_samples=CURVE_SAMPLE_COUNT,
     )
     second_ir = PatternIR.from_sketches(
-        second_graph, {"piece": second_sketch, "other": _other_sketch()}, curve_samples=CURVE_SAMPLE_COUNT
+        second_graph,
+        {"piece": second_sketch, "other": _other_sketch()},
+        curve_samples=CURVE_SAMPLE_COUNT,
     )
     first_edge = _pattern_ir_edge_record(first_ir.boundary("piece", "piece:curved"))
     second_edge = _pattern_ir_edge_record(second_ir.boundary("piece", "piece:curved"))
