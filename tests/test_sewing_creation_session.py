@@ -4,8 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeAlias
 from unittest.mock import Mock
 
 import pytest
@@ -26,10 +25,22 @@ class _SewingObject:
     Status: str
 
 
+@dataclass(slots=True)
+class _PatternPiece:
+    """Minimal selected pattern-piece object restored after preview cancellation."""
+
+    Name: str
+
+
+SelectionEntry: TypeAlias = _PatternPiece | _SewingObject
+
+
 class _Selection:
     """In-memory selection adapter exposing the FreeCAD callback names."""
 
-    def __init__(self, selected: Sequence[object] = ()) -> None:
+    selected: list[SelectionEntry]
+
+    def __init__(self, selected: Sequence[SelectionEntry] = ()) -> None:
         """Initialize selection state and bind its host-facing callback aliases.
 
         Args:
@@ -40,7 +51,7 @@ class _Selection:
         self.clearSelection = self.clear_selection
         self.addSelection = self.add_selection
 
-    def get_selection(self) -> list[object]:
+    def get_selection(self) -> list[SelectionEntry]:
         """Return the currently selected objects.
 
         Returns:
@@ -52,7 +63,7 @@ class _Selection:
         """Remove every selected object."""
         self.selected = []
 
-    def add_selection(self, obj: object) -> None:
+    def add_selection(self, obj: SelectionEntry) -> None:
         """Append one object to the current selection.
 
         Args:
@@ -144,7 +155,7 @@ def _builder(
 def test_preview_commit_cancel_and_failed_preview_share_one_transaction_contract() -> None:
     """Preserve the single-transaction contract through commit, cancel, and rejection."""
     doc = _Document()
-    anchor = SimpleNamespace(Name="PatternPiece")
+    anchor = _PatternPiece(Name="PatternPiece")
     gui = _Gui(_Selection([anchor]))
 
     session = SewingCreationSession(doc, gui, "Create Seam", _builder(doc))
