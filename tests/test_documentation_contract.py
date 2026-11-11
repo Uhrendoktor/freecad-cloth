@@ -170,6 +170,83 @@ def consume_builtin(value: builtins.object) -> "object":
     _require(condition=len(violations) == 4, message="\n".join(errors))
 
 
+
+def test_object_annotations_cannot_hide_behind_aliases_or_typing_helpers() -> None:
+    """Reject aliased, nested, type-comment, and typing-constructor object escapes."""
+    source = '''"""Typing escape-hatch fixture module."""
+
+import builtins as native_builtins
+from builtins import object as NativeObject
+from typing import Annotated, Literal, NewType, TypeVar, cast
+
+Bounded = TypeVar("Bounded", bound=object)
+LegacyEntity = NewType("LegacyEntity", object)
+
+
+def imported_aliases(
+    value: NativeObject,
+    native: native_builtins.object,
+    nested: list["object"],
+) -> None:
+    """Inspect values that use aliased native object types.
+
+    Args:
+        value: Value received through the imported built-in alias.
+        native: Value received through the qualified builtins module.
+        nested: Nested values whose forward reference must be inspected.
+    """
+    object.__setattr__(native, "value", value)
+
+
+def metadata_is_not_a_type(
+    value: Literal["object"],
+    details: Annotated[str, object],
+) -> str:
+    """Keep literal values and Annotated metadata outside the type scan.
+
+    Args:
+        value: Literal string whose contents happen to name a built-in.
+        details: String value with runtime metadata attached.
+
+    Returns:
+        The literal value unchanged.
+    """
+    return value
+
+
+def legacy_comment(value):  # type: (object) -> object
+    """Reject function type comments that widen values to every Python object.
+
+    Args:
+        value: Value passed through a legacy unannotated declaration.
+
+    Returns:
+        The unchanged input value.
+    """
+    return value
+
+
+legacy_value = None  # type: object
+
+
+def cast_target(value: str) -> str:
+    """Reject cast targets that erase the caller's value type.
+
+    Args:
+        value: Text value whose declared type should remain precise.
+
+    Returns:
+        The same text after the cast expression.
+    """
+    return cast(object, value)
+'''
+    errors = check_source(source, "sample.py")
+    violations = [
+        error for error in errors if "generic object type annotations are prohibited" in error
+    ]
+    _require(condition=len(violations) == 9, message="\\n".join(errors))
+
+
 def test_structural_protocols_and_json_value_unions_are_accepted() -> None:
     """Accept structural protocols and recursive JSON types as precise alternatives."""
     source = '''"""Documentation checker fixture module."""
