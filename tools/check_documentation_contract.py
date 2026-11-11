@@ -42,32 +42,170 @@ MIN_DESCRIPTION_WORDS = 2
 PLACEHOLDER = re.compile(r"\b(?:todo|tbd|fixme|placeholder|document me)\b", re.IGNORECASE)
 
 
-def _contains_generic_object(annotation: ast.expr) -> bool:
-    """Determine whether an annotation contains the unrestricted built-in object type.
+def _expression_name(expression: ast.AST) -> str | None:
+    """Return a dotted name for a Name or Attribute expression.
 
     Args:
-        annotation: Type expression attached to a parameter, result, field, or alias.
+        expression: AST node that may identify an imported typing symbol.
 
     Returns:
-        True when the annotation contains object directly or through builtins.object.
+        Dotted identifier, or None for expressions without a static name.
+    """
+    if isinstance(expression, ast.Name):
+        return expression.id
+    if isinstance(expression, ast.Attribute):
+        parent = _expression_name(expression.value)
+        return f"{parent}.{expression.attr}" if parent is not None else None
+    return None
+
+
+def _typing_context(
+    tree: ast.AST,
+) -> tuple[set[str], set[str], set[str], dict[str, set[str]]]:
+    """Collect aliases used for builtins and standard typing operators.
+
+    Args:
+        tree: Parsed module whose import declarations define local aliases.
+
+    Returns:
+        Builtins-module aliases, object aliases, typing-module aliases, and direct
+        aliases for Literal, Annotated, TypeVar, NewType, TypeAliasType, and cast.
+    """
+    builtins_modules = {"builtins"}
+    object_names = {"object"}
+    typing_modules = {"typing", "typing_extensions"}
+    operators = {
+        name: {name}
+        for name in ("Literal", "Annotated", "TypeVar", "NewType", "TypeAliasType", "cast")
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "builtins":
+                    builtins_modules.add(alias.asname or "builtins")
+                elif alias.name in {"typing", "typing_extensions"}:
+                    typing_modules.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "builtins":
+                object_names.update(
+                    alias.asname or alias.name for alias in node.names if alias.name == "object"
+                )
+            elif node.module in {"typing", "typing_extensions"}:
+                for alias in node.names:
+                    if alias.name in operators:
+                        operators[alias.name].add(alias.asname or alias.name)
+    return builtins_modules, object_names, typing_modules, operators
+
+
+def _is_typing_operator(
+    expression: ast.AST,
+    symbol: str,
+    typing_modules: set[str],
+    operators: dict[str, set[str]],
+) -> bool:
+    """Determine whether an expression names an imported typing operator.
+
+    Args:
+        expression: Callable or generic type expression to inspect.
+        symbol: Expected typing operator, such as Literal or TypeVar.
+        typing_modules: Local aliases for typing and typing_extensions modules.
+        operators: Local aliases for directly imported typing operators.
+
+    Returns:
+        True when the expression resolves syntactically to the requested operator.
+    """
+    if isinstance(expression, ast.Name):
+        return expression.id in operators[symbol]
+    dotted = _expression_name(expression)
+    return dotted is not None and any(
+        dotted == f"{module}.{symbol}" for module in typing_modules
+    )
+
+
+def _type_expression_items(expression: ast.expr) -> tuple[ast.expr, ...]:
+    """Return the individual expressions represented by a generic type slice.
+
+    Args:
+        expression: Generic slice expression from an annotation.
+
+    Returns:
+        Tuple elements for a multi-argument slice, or the single expression itself.
+    """
+    if isinstance(expression, ast.Tuple):
+        return tuple(expression.elts)
+    return (expression,)
+
+
+def _contains_generic_object(
+    annotation: ast.expr,
+    builtins_modules: set[str],
+    object_names: set[str],
+    typing_modules: set[str],
+    operators: dict[str, set[str]],
+) -> bool:
+    """Detect unrestricted built-in object types inside an annotation expression.
+
+    Args:
+        annotation: Type expression attached to a declaration or typing constructor.
+        builtins_modules: Local aliases for the builtins module.
+        object_names: Local names resolving to builtins.object.
+        typing_modules: Local aliases for typing and typing_extensions.
+        operators: Local aliases for typing operators used to distinguish metadata.
+
+    Returns:
+        True when the type expression contains generic built-in object, including
+        nested forward references and imported aliases.
     """
     if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
         try:
             forwarded = ast.parse(annotation.value, mode="eval").body
         except SyntaxError:
             return False
-        return _contains_generic_object(forwarded)
+        if isinstance(forwarded, ast.Constant) and isinstance(forwarded.value, str):
+            return False
+        return _contains_generic_object(
+            forwarded, builtins_modules, object_names, typing_modules, operators
+        )
+
+    if isinstance(annotation, ast.Name) and annotation.id in object_names:
+        return True
+    if isinstance(annotation, ast.Attribute):
+        dotted = _expression_name(annotation)
+        if annotation.attr == "object" and dotted is not None:
+            module, _, _attribute = dotted.rpartition(".")
+            if module in builtins_modules:
+                return True
+
+    if isinstance(annotation, ast.Subscript):
+        if _is_typing_operator(annotation.value, "Literal", typing_modules, operators):
+            return False
+        if _is_typing_operator(annotation.value, "Annotated", typing_modules, operators):
+            items = _type_expression_items(annotation.slice)
+            return bool(items) and _contains_generic_object(
+                items[0], builtins_modules, object_names, typing_modules, operators
+            )
 
     return any(
-        (isinstance(item, ast.Name) and item.id == "object")
-        or (
-            isinstance(item, ast.Attribute)
-            and item.attr == "object"
-            and isinstance(item.value, ast.Name)
-            and item.value.id == "builtins"
-        )
-        for item in ast.walk(annotation)
+        _contains_generic_object(item, builtins_modules, object_names, typing_modules, operators)
+        for item in ast.iter_child_nodes(annotation)
+        if isinstance(item, ast.expr)
     )
+
+
+def _type_comment_expression(comment: str) -> ast.expr | None:
+    """Parse one assignment or loop type comment as a type expression.
+
+    Args:
+        comment: Type comment without its leading comment marker.
+
+    Returns:
+        Parsed expression, or None when the comment is not an expression type.
+    """
+    try:
+        parsed = ast.parse(comment, mode="eval").body
+    except SyntaxError:
+        return None
+    return parsed if isinstance(parsed, ast.expr) else None
 
 
 def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
@@ -78,9 +216,10 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
         tree: Parsed syntax tree for the complete Python module.
 
     Returns:
-        One actionable diagnostic for every parameter, result, field, or type alias
-        annotation that uses the unrestricted built-in object type.
+        One actionable diagnostic for every parameter, result, field, alias, or
+        supported typing-constructor use that contains built-in object as a type.
     """
+    builtins_modules, object_names, typing_modules, operators = _typing_context(tree)
     annotations: list[tuple[int, str, ast.expr]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.arg) and node.annotation is not None:
@@ -88,6 +227,19 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.returns is not None:
                 annotations.append((node.returns.lineno, f"{node.name} return value", node.returns))
+            if node.type_comment:
+                try:
+                    function_type = ast.parse(node.type_comment, mode="func_type").body
+                except SyntaxError:
+                    function_type = None
+                if isinstance(function_type, ast.FunctionType):
+                    annotations.extend(
+                        (node.lineno, f"{node.name} type-comment parameter", value)
+                        for value in function_type.argtypes
+                    )
+                    annotations.append(
+                        (node.lineno, f"{node.name} type-comment return", function_type.returns)
+                    )
         elif isinstance(node, ast.AnnAssign):
             subject = ast.unparse(node.target)
             annotations.append((node.annotation.lineno, subject, node.annotation))
@@ -96,6 +248,29 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
                 annotations.append((node.value.lineno, f"{subject} type alias", node.value))
         elif isinstance(node, ast.TypeAlias):
             annotations.append((node.value.lineno, ast.unparse(node.name), node.value))
+        elif isinstance(node, (ast.Assign, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)):
+            comment = getattr(node, "type_comment", None)
+            if comment:
+                expression = _type_comment_expression(comment)
+                if expression is not None:
+                    annotations.append((node.lineno, "type comment", expression))
+        elif isinstance(node, ast.Call):
+            if _is_typing_operator(node.func, "TypeVar", typing_modules, operators):
+                annotations.extend(
+                    (node.lineno, "TypeVar constraint or bound", value)
+                    for value in (*node.args[1:], *(keyword.value for keyword in node.keywords))
+                )
+            elif _is_typing_operator(node.func, "NewType", typing_modules, operators):
+                annotations.extend(
+                    (node.lineno, "NewType base", value) for value in node.args[1:]
+                )
+            elif _is_typing_operator(node.func, "TypeAliasType", typing_modules, operators):
+                annotations.extend(
+                    (node.lineno, "TypeAliasType value", value) for value in node.args[1:]
+                )
+            elif _is_typing_operator(node.func, "cast", typing_modules, operators):
+                if node.args:
+                    annotations.append((node.lineno, "cast target type", node.args[0]))
 
     return [
         (
@@ -103,9 +278,10 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
             "use a concrete type, Protocol, TypedDict, or recursive JSON value type"
         )
         for line, subject, annotation in annotations
-        if _contains_generic_object(annotation)
+        if _contains_generic_object(
+            annotation, builtins_modules, object_names, typing_modules, operators
+        )
     ]
-
 
 def _python_files(arguments: list[str]) -> tuple[Path, ...]:
     """Return requested paths or all repository Python sources in stable order.
@@ -468,7 +644,7 @@ def check_source(source: str, filename: str = "<memory>") -> list[str]:
         All documentation and suppression violations found.
     """
     try:
-        tree = ast.parse(source, filename=filename)
+        tree = ast.parse(source, filename=filename, type_comments=True)
     except SyntaxError as exc:
         return [f"{filename}: cannot parse Python source: {exc}"]
 
