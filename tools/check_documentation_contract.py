@@ -59,7 +59,6 @@ def _expression_name(expression: ast.AST) -> str | None:
     return None
 
 
-
 def _is_object_reference(
     expression: ast.expr,
     builtins_modules: set[str],
