@@ -7,8 +7,6 @@ from collections.abc import Callable
 
 import pytest
 
-from tests.support.assertions import require as _require
-
 from freecad_cloth.common.GarmentDocument import (
     GARMENT_GROUPS,
     FreeCADDocumentObjectProtocol,
@@ -18,12 +16,16 @@ from freecad_cloth.common.GarmentDocument import (
     garment_structure,
     link_garment_object,
 )
+from tests.support.assertions import require as _require
 
 _EXPECTED_RECOMPUTATIONS = 2
 
 
 class _FakeObject:
     """Dynamic native-object stand-in for hierarchy and property operations."""
+
+    addProperty: Callable[[str, str, str], bool]
+    addObject: Callable[[FreeCADDocumentObjectProtocol], None]
 
     def __init__(self, object_type: str, name: str) -> None:
         """Create a named native-object stand-in with mock property methods.
@@ -38,17 +40,15 @@ class _FakeObject:
         self.PropertiesList: list[str] = []
         self.Group: list[FreeCADDocumentObjectProtocol] = []
         self._property_groups: dict[str, tuple[str, str]] = {}
-        self.addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol] = (
-            self._add_property
-        )
-        self.addObject: Callable[[FreeCADDocumentObjectProtocol], None] = self._add_object
+        self.addProperty = self._add_property
+        self.addObject = self._add_object
 
     def _add_property(
         self,
         property_type: str,
         name: str,
         group: str,
-    ) -> _FakeObject:
+    ) -> bool:
         """Register a property through the fake native-object API.
 
         Args:
@@ -60,7 +60,7 @@ class _FakeObject:
             This fake object after recording the property.
         """
         self._record_property(property_type, name, group)
-        return self
+        return True
 
     def _record_property(self, property_type: str, name: str, group: str) -> None:
         """Record a native property declaration for assertions.
@@ -93,11 +93,13 @@ class _FakeObject:
 class _FakeDocument:
     """Document stand-in implementing the dynamic methods used by the adapter."""
 
+    addObject: Callable[[str, str], FreeCADDocumentObjectProtocol]
+
     def __init__(self) -> None:
         """Initialize the document with callable runtime API stand-ins."""
         self.Objects: list[FreeCADDocumentObjectProtocol] = []
         self.recompute_calls = 0
-        self.addObject: Callable[[str, str], FreeCADDocumentObjectProtocol] = self._add_object
+        self.addObject = self._add_object
 
     def _add_object(self, object_type: str, name: str) -> _FakeObject:
         """Create and retain a fake document object.
