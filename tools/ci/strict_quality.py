@@ -254,6 +254,18 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
         QualityCommand(
             "Python compilation", (executable, "-m", "compileall", "-q", "tests", "tools/ci")
         ),
+        QualityCommand(
+            "Focused migration regression tests",
+            (
+                executable,
+                "-m",
+                "pytest",
+                "-q",
+                "tests/test_command_runner.py",
+                "tests/test_sewing_creation_session.py",
+            ),
+            timeout_seconds=120,
+        ),
         QualityCommand("Markdown contract", (executable, "tools/check_markdown_contract.py")),
         QualityCommand("CI structure", (executable, "tools/ci/validate_ci_structure.py")),
         QualityCommand("Import architecture", ("lint-imports",)),
