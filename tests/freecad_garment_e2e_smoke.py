@@ -398,7 +398,7 @@ def run_acceptance():
         if doc is None:
             msg = "public Garment creation command did not create an active FreeCAD document"
             raise RuntimeError(msg)
-        from freecad_cloth.common.GarmentDocument import garment_structure
+        from freecad_cloth.common.garment_document import garment_structure
 
         initial_structure = garment_structure(doc)
         if set(initial_structure["groups"]) != {

@@ -349,7 +349,7 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     obj.setEditorMode("CorrespondenceSeverity", 1)
     obj.Proxy = SewingNetworkProxy()
     obj.Proxy.execute(obj)
-    from freecad_cloth.common.GarmentDocument import link_garment_object
+    from freecad_cloth.common.garment_document import link_garment_object
 
     link_garment_object(obj, "SewingNetwork", doc)
     return obj

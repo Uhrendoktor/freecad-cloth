@@ -7,7 +7,7 @@ from collections.abc import Callable
 
 import pytest
 
-from freecad_cloth.common.GarmentDocument import (
+from freecad_cloth.common.garment_document import (
     GARMENT_GROUPS,
     FreeCADDocumentObjectProtocol,
     create_garment_document,

@@ -161,7 +161,7 @@ def create_sketch_for_piece(
             ]
             document.recompute()
         _attach(existing, piece, document)
-        from freecad_cloth.common.GarmentDocument import link_garment_object
+        from freecad_cloth.common.garment_document import link_garment_object
 
         link_garment_object(existing, "PatternSketch", document)
         return existing
@@ -184,7 +184,7 @@ def create_sketch_for_piece(
     else:
         _add_native_geometry(sketch, geometry_segments)
     _attach(sketch, piece, document)
-    from freecad_cloth.common.GarmentDocument import link_garment_object
+    from freecad_cloth.common.garment_document import link_garment_object
 
     link_garment_object(sketch, "PatternSketch", document)
     document.recompute()
