@@ -40,19 +40,19 @@ class FreeCADDocumentObjectProtocol(Protocol):
     Name: str
     Label: str
     TypeId: str
-    PropertiesList: Sequence[str]
+    PropertiesList: list[str]
 
 
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
-    Group: Sequence[FreeCADDocumentObjectProtocol]
+    Group: list[FreeCADDocumentObjectProtocol]
 
 
 class _FreeCADDocument(Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    Objects: list[FreeCADDocumentObjectProtocol]
 
     def recompute(self) -> None:
         """Recompute the document after hierarchy changes."""
@@ -119,8 +119,8 @@ def _add_property(
         group: Property-editor group that should contain the property.
     """
     add_property = cast(
-        Callable[[str, str, str], FreeCADDocumentObjectProtocol],
-        getattr(obj, "addProperty"),
+        "Callable[[str, str, str], bool]",
+        obj.__getattribute__("addProperty"),
     )
     add_property(property_type, name, group)
 
@@ -141,8 +141,8 @@ def _new_document_object(
         The created FreeCAD document object.
     """
     add_object = cast(
-        Callable[[str, str], FreeCADDocumentObjectProtocol],
-        getattr(doc, "addObject"),
+        "Callable[[str, str], FreeCADDocumentObjectProtocol]",
+        doc.__getattribute__("addObject"),
     )
     return add_object(object_type, name)
 
@@ -155,8 +155,8 @@ def _add_child(container: _FreeCADContainer, child: FreeCADDocumentObjectProtoco
         child: Document object to add to the container.
     """
     add_child = cast(
-        Callable[[FreeCADDocumentObjectProtocol], None],
-        getattr(container, "addObject"),
+        "Callable[[FreeCADDocumentObjectProtocol], None]",
+        container.__getattribute__("addObject"),
     )
     add_child(child)
 
@@ -477,8 +477,8 @@ def create_garment_document(
         runtime_module = loaded_module
     if isinstance(runtime_module, ModuleType):
         create_document = cast(
-            Callable[[str], _FreeCADDocument],
-            getattr(runtime_module, "newDocument"),
+            "Callable[[str], _FreeCADDocument]",
+            runtime_module.__getattribute__("newDocument"),
         )
         doc = create_document(str(name))
     else:
