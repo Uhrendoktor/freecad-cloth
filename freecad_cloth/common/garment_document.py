@@ -115,7 +115,7 @@ def _add_property(
         group: Property-editor group that should contain the property.
     """
     add_property = cast(
-        "Callable[[str, str, str], bool]",
+        "Callable[[str, str, str], FreeCADDocumentObjectProtocol]",
         obj.__getattribute__("addProperty"),
     )
     add_property(property_type, name, group)
