@@ -283,7 +283,7 @@ def create_drape_target(
     target.InvalidationReason = "collision cache missing"
     if source is not None:
         assign_drape_target(target, source, target_type)
-    from freecad_cloth.common.garment_document import link_garment_object
+    from freecad_cloth.common.GarmentDocument import link_garment_object
 
     link_garment_object(target, "DrapeTarget", doc)
     return target

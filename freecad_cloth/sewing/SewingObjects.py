@@ -819,7 +819,7 @@ def add_sewing_operation(
     proxy = SewingOperationProxy()
     obj.Proxy = proxy
     proxy.execute(obj)
-    from freecad_cloth.common.garment_document import link_garment_object
+    from freecad_cloth.common.GarmentDocument import link_garment_object
 
     link_garment_object(obj, "SewingOperation", doc)
     from freecad_cloth.sewing.SewingView import apply_seam_colors

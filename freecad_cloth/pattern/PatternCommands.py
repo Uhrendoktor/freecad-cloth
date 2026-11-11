@@ -13,7 +13,7 @@ from types import ModuleType
 from typing import Protocol
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
-from freecad_cloth.common.garment_document import create_garment_document
+from freecad_cloth.common.GarmentDocument import create_garment_document
 
 
 class _SketchDocumentObject(Protocol):

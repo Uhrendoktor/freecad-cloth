@@ -10,7 +10,7 @@ import pytest
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-from freecad_cloth.common.garment_document import (
+from freecad_cloth.common.GarmentDocument import (
     GARMENT_GROUPS,
     FreeCADDocumentObjectProtocol,
     create_garment_document,

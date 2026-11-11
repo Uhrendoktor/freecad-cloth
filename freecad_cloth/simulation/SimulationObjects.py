@@ -899,7 +899,7 @@ def create_simulation_scene(
     scene.addProperty("App::PropertyFloat", "CollisionRadius", "Collision").CollisionRadius = 38.0
     proxy = SimulationProxy()
     scene.Proxy = proxy
-    from freecad_cloth.common.garment_document import link_garment_object
+    from freecad_cloth.common.GarmentDocument import link_garment_object
 
     link_garment_object(scene, "Simulation", typed_doc)
     panel_a = _mesh_object(typed_doc, "DrapePanelA", "Drape Panel A")
