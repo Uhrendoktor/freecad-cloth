@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -12,6 +12,9 @@ import pytest
 
 from freecad_cloth.sewing.SewingCreationGui import SewingCreationSession, SewingCreationTaskPanel
 from tests.support.assertions import require
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Sequence
 
 
 @dataclass(slots=True)
@@ -33,9 +36,9 @@ class _Selection:
             selected: Objects selected before the staged operation begins.
         """
         self.selected = list(selected)
-        setattr(self, "getSelection", self.get_selection)
-        setattr(self, "clearSelection", self.clear_selection)
-        setattr(self, "addSelection", self.add_selection)
+        self.getSelection = self.get_selection
+        self.clearSelection = self.clear_selection
+        self.addSelection = self.add_selection
 
     def get_selection(self) -> list[object]:
         """Return the currently selected objects.
@@ -84,10 +87,10 @@ class _Document:
         self.Objects = []
         self.calls = []
         self._snapshot = None
-        setattr(self, "openTransaction", self.open_transaction)
-        setattr(self, "commitTransaction", self.commit_transaction)
-        setattr(self, "abortTransaction", self.abort_transaction)
-        setattr(self, "recompute", self.recompute_document)
+        self.openTransaction = self.open_transaction
+        self.commitTransaction = self.commit_transaction
+        self.abortTransaction = self.abort_transaction
+        self.recompute = self.recompute_document
 
     def open_transaction(self, name: str) -> None:
         """Record a transaction start and snapshot the current objects.
@@ -157,8 +160,7 @@ def test_preview_commit_cancel_and_failed_preview_share_one_transaction_contract
     )
     session.commit()
     require(
-        condition=[call[0] for call in doc.calls]
-        == ["open", "recompute", "recompute", "commit"],
+        condition=[call[0] for call in doc.calls] == ["open", "recompute", "recompute", "commit"],
         message="Commit must recompute and close the original preview transaction.",
     )
     require(
@@ -217,8 +219,13 @@ class _FailedSession:
     """Session double that rejects preview before any object can be committed."""
 
     def preview(self) -> None:
-        """Raise the validation error consumed by the public task-panel preview action."""
-        raise ValueError("select exactly two edges on pattern pieces")
+        """Raise the validation error consumed by the public task-panel preview action.
+
+        Raises:
+            ValueError: Always, to model the rejection of an invalid edge selection.
+        """
+        msg = "select exactly two edges on pattern pieces"
+        raise ValueError(msg)
 
 
 class _ErrorFeedbackPanel(SewingCreationTaskPanel):
@@ -261,4 +268,8 @@ def test_preview_error_feedback_is_actionable_and_disables_commit() -> None:
         message="The feedback label must explain how the user can recover from the rejection.",
     )
     feedback.setProperty.assert_any_call("clothState", "error")
-    commit_button.setEnabled.assert_called_once_with(False)
+    commit_button.setEnabled.assert_called_once()
+    require(
+        condition=commit_button.setEnabled.call_args.args == (False,),
+        message="Commit must be disabled after a preview validation error.",
+    )
