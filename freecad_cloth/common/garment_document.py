@@ -9,9 +9,13 @@ Standalone object creation remains valid when no Garment root is present.
 from __future__ import annotations
 
 import sys
-from collections.abc import Callable
 from types import ModuleType
-from typing import Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
 GARMENT_GROUPS: tuple[str, ...] = ("Patterns", "Sewing", "Fabric", "Avatar", "Simulation")
@@ -116,7 +120,7 @@ def _add_property(
     """
     add_property = cast(
         "Callable[[str, str, str], FreeCADDocumentObjectProtocol]",
-        obj.__getattribute__("addProperty"),
+        getattr(obj, "addProperty"),
     )
     add_property(property_type, name, group)
 
@@ -138,7 +142,7 @@ def _new_document_object(
     """
     add_object = cast(
         "Callable[[str, str], FreeCADDocumentObjectProtocol]",
-        doc.__getattribute__("addObject"),
+        getattr(doc, "addObject"),
     )
     return add_object(object_type, name)
 
@@ -152,7 +156,7 @@ def _add_child(container: _FreeCADContainer, child: FreeCADDocumentObjectProtoco
     """
     add_child = cast(
         "Callable[[FreeCADDocumentObjectProtocol], None]",
-        container.__getattribute__("addObject"),
+        getattr(container, "addObject"),
     )
     add_child(child)
 
@@ -474,7 +478,7 @@ def create_garment_document(
     if isinstance(runtime_module, ModuleType):
         create_document = cast(
             "Callable[[str], _FreeCADDocument]",
-            runtime_module.__getattribute__("newDocument"),
+            getattr(runtime_module, "newDocument"),
         )
         doc = create_document(str(name))
     else:

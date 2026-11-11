@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
 import pytest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 from freecad_cloth.common.garment_document import (
     GARMENT_GROUPS,
@@ -24,9 +26,6 @@ _EXPECTED_RECOMPUTATIONS = 2
 class _FakeObject:
     """Dynamic native-object stand-in for hierarchy and property operations."""
 
-    addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol]
-    addObject: Callable[[FreeCADDocumentObjectProtocol], None]
-
     def __init__(self, object_type: str, name: str) -> None:
         """Create a named native-object stand-in with mock property methods.
 
@@ -40,8 +39,26 @@ class _FakeObject:
         self.PropertiesList: list[str] = []
         self.Group: list[FreeCADDocumentObjectProtocol] = []
         self._property_groups: dict[str, tuple[str, str]] = {}
-        self.addProperty = self._add_property
-        self.addObject = self._add_object
+    def __getattr__(
+        self,
+        name: str,
+    ) -> Callable[..., FreeCADDocumentObjectProtocol] | Callable[..., None]:
+        """Resolve native FreeCAD methods through the narrow fake runtime boundary.
+
+        Args:
+            name: Native method name requested by the garment adapter.
+
+        Returns:
+            The typed fake implementation for addProperty or addObject.
+
+        Raises:
+            AttributeError: If the requested native method is not implemented.
+        """
+        if name == "addProperty":
+            return self._add_property
+        if name == "addObject":
+            return self._add_object
+        raise AttributeError(name)
 
     def _add_property(
         self,
@@ -93,13 +110,25 @@ class _FakeObject:
 class _FakeDocument:
     """Document stand-in implementing the dynamic methods used by the adapter."""
 
-    addObject: Callable[[str, str], FreeCADDocumentObjectProtocol]
-
     def __init__(self) -> None:
         """Initialize the document with callable runtime API stand-ins."""
         self.Objects: list[FreeCADDocumentObjectProtocol] = []
         self.recompute_calls = 0
-        self.addObject = self._add_object
+    def __getattr__(self, name: str) -> Callable[..., FreeCADDocumentObjectProtocol]:
+        """Resolve the native document factory method used by the garment adapter.
+
+        Args:
+            name: Native document method requested by the adapter.
+
+        Returns:
+            The typed fake addObject implementation.
+
+        Raises:
+            AttributeError: If the requested native method is not implemented.
+        """
+        if name == "addObject":
+            return self._add_object
+        raise AttributeError(name)
 
     def _add_object(self, object_type: str, name: str) -> _FakeObject:
         """Create and retain a fake document object.
