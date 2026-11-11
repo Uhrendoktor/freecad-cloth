@@ -9,10 +9,16 @@ from pathlib import Path
 import pytest
 
 from tests.support.assertions import require
-from tools.ci.command_runner import CommandExecutionError, CommandOptions, run_command
+from tools.ci.command_runner import (
+    CommandExecutionError,
+    CommandOptions,
+    CommandResult,
+    run_command,
+)
 
 COMMAND_FAILURE_EXIT_CODE = 7
 COMMAND_TIMEOUT_SECONDS = 0.05
+CAPTURE_OUTPUT_DISABLED: bool = False
 EXPECTED_STDOUT = "command-runner-ok\n"
 MISSING_EXECUTABLE = Path("/missing/cloth-command-runner")
 
@@ -26,10 +32,22 @@ def _python_executable() -> str:
     Raises:
         RuntimeError: If the interpreter does not expose an executable path.
     """
-    if sys.executable is None:
+    if not sys.executable:
         msg = "Python executable path is unavailable"
         raise RuntimeError(msg)
     return sys.executable
+
+
+def _has_uncaptured_streams(result: CommandResult) -> bool:
+    """Check the public result representation for inherited output streams.
+
+    Args:
+        result: Completed command result to inspect.
+
+    Returns:
+        True when neither output stream was captured.
+    """
+    return result.stdout is None and result.stderr is None
 
 
 def test_run_command_captures_standard_output_and_error() -> None:
@@ -53,6 +71,19 @@ def test_run_command_captures_standard_output_and_error() -> None:
     )
 
 
+def test_run_command_leaves_inherited_streams_uncaptured() -> None:
+    """Keep output streams absent from the result when they are inherited by the child."""
+    result = run_command(
+        [_python_executable(), "-c", "pass"],
+        options=CommandOptions(capture_output=CAPTURE_OUTPUT_DISABLED),
+    )
+
+    require(
+        condition=_has_uncaptured_streams(result),
+        message="A command without output capture must expose no captured output streams.",
+    )
+
+
 def test_run_command_returns_nonzero_status_when_check_is_disabled() -> None:
     """Return a failing exit status without raising when check=False."""
     result = run_command(
@@ -68,7 +99,9 @@ def test_run_command_returns_nonzero_status_when_check_is_disabled() -> None:
 
 def test_run_command_raises_for_a_failing_checked_process() -> None:
     """Raise the typed command error when a checked child exits unsuccessfully."""
-    with pytest.raises(CommandExecutionError, match=f"exit code {COMMAND_FAILURE_EXIT_CODE}"):
+    with pytest.raises(
+        CommandExecutionError, match=f"exited with code {COMMAND_FAILURE_EXIT_CODE}"
+    ):
         run_command(
             [_python_executable(), "-c", f"raise SystemExit({COMMAND_FAILURE_EXIT_CODE})"],
             options=CommandOptions(capture_output=True),

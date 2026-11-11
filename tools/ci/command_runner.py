@@ -108,8 +108,8 @@ async def _execute(args: tuple[str, ...], options: CommandOptions) -> CommandRes
     return CommandResult(
         args=args,
         returncode=process.returncode,
-        stdout=stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes is not None else None,
-        stderr=stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes is not None else None,
+        stdout=stdout_bytes.decode("utf-8", errors="replace") if options.capture_output else None,
+        stderr=stderr_bytes.decode("utf-8", errors="replace") if options.capture_output else None,
     )
 
 
