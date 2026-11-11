@@ -263,6 +263,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                 "-q",
                 "tests/test_command_runner.py",
                 "tests/test_sewing_creation_session.py",
+                "tests/test_strict_quality_runner_contract.py",
             ),
             timeout_seconds=120,
         ),
