@@ -9,8 +9,12 @@ Standalone object creation remains valid when no Garment root is present.
 from __future__ import annotations
 
 import sys
-from collections.abc import Sequence
-from typing import Protocol, TypedDict, cast
+from collections.abc import Callable
+from types import ModuleType
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
@@ -30,75 +34,25 @@ _ROLE_TO_GROUP: dict[str, str] = {
 }
 
 
-class _FreeCADDocumentObject(Protocol):
-    """Native document-object capabilities used by the garment hierarchy adapter."""
+class FreeCADDocumentObjectProtocol(Protocol):
+    """Native FreeCAD object identity and property capabilities used by the hierarchy adapter."""
 
     Name: str
     Label: str
     TypeId: str
-    PropertiesList: Sequence[str]
-    Document: "_FreeCADDocument | None"
-
-    def addProperty(
-        self,
-        property_type: str,
-        name: str,
-        group: str,
-    ) -> "_FreeCADDocumentObject":
-        """Register a property and return its owning native document object.
-
-        Args:
-            property_type: FreeCAD property type identifier.
-            name: Persisted property name.
-            group: Property-editor group containing the property.
-
-        Returns:
-            The document object that owns the registered property.
-        """
-        ...
+    PropertiesList: list[str]
 
 
-class _FreeCADContainer(_FreeCADDocumentObject, Protocol):
+class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
-    Group: Sequence[_FreeCADDocumentObject]
-
-    def addObject(self, child: _FreeCADDocumentObject) -> None:
-        """Add a document object to the native container.
-
-        Args:
-            child: Document object to add to the container.
-        """
-        ...
+    Group: list[FreeCADDocumentObjectProtocol]
 
 
 class _FreeCADDocument(Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    Objects: Sequence[_FreeCADDocumentObject]
-
-    def addObject(self, object_type: str, name: str) -> _FreeCADDocumentObject:
-        """Create one native document object.
-
-        Args:
-            object_type: FreeCAD object type identifier.
-            name: Internal document name assigned to the new object.
-
-        Returns:
-            Newly created native document object.
-        """
-        ...
-
-    def getObject(self, name: str) -> _FreeCADDocumentObject | None:
-        """Find a native document object by its internal name.
-
-        Args:
-            name: Internal document name to find.
-
-        Returns:
-            Matching document object, or None when no object has that name.
-        """
-        ...
+    Objects: list[FreeCADDocumentObjectProtocol]
 
     def recompute(self) -> None:
         """Recompute the document after hierarchy changes."""
@@ -108,7 +62,7 @@ class _FreeCADDocument(Protocol):
 class _FreeCADApplication(Protocol):
     """Application operation needed to create a new FreeCAD document."""
 
-    def newDocument(self, name: str) -> _FreeCADDocument:
+    def new_document(self, name: str) -> _FreeCADDocument:
         """Create a document using its internal name.
 
         Args:
@@ -118,6 +72,14 @@ class _FreeCADApplication(Protocol):
             Newly created FreeCAD document.
         """
         ...
+
+
+
+
+class _FreeCADMaterial(FreeCADDocumentObjectProtocol, Protocol):
+    """Native material feature after its persisted color property is registered."""
+
+    Color: tuple[float, float, float]
 
 
 class _GarmentRootSnapshot(TypedDict):
@@ -145,7 +107,7 @@ class _GarmentStructure(TypedDict):
 
 
 def _add_property(
-    obj: _FreeCADDocumentObject,
+    obj: FreeCADDocumentObjectProtocol,
     property_type: str,
     name: str,
     group: str,
@@ -158,14 +120,18 @@ def _add_property(
         name: Persisted property name to register.
         group: Property-editor group that should contain the property.
     """
-    obj.addProperty(property_type, name, group)
+    add_property = cast(
+        Callable[[str, str, str], FreeCADDocumentObjectProtocol],
+        getattr(obj, "addProperty"),
+    )
+    add_property(property_type, name, group)
 
 
 def _new_document_object(
     doc: _FreeCADDocument,
     object_type: str,
     name: str,
-) -> _FreeCADDocumentObject:
+) -> FreeCADDocumentObjectProtocol:
     """Create a native document object using FreeCAD's runtime API.
 
     Args:
@@ -176,17 +142,25 @@ def _new_document_object(
     Returns:
         The created FreeCAD document object.
     """
-    return doc.addObject(object_type, name)
+    add_object = cast(
+        Callable[[str, str], FreeCADDocumentObjectProtocol],
+        getattr(doc, "addObject"),
+    )
+    return add_object(object_type, name)
 
 
-def _add_child(container: _FreeCADContainer, child: _FreeCADDocumentObject) -> None:
+def _add_child(container: _FreeCADContainer, child: FreeCADDocumentObjectProtocol) -> None:
     """Add a document object to a native container.
 
     Args:
         container: FreeCAD group or Part receiving the child.
         child: Document object to add to the container.
     """
-    container.addObject(child)
+    add_child = cast(
+        Callable[[FreeCADDocumentObjectProtocol], None],
+        getattr(container, "addObject"),
+    )
+    add_child(child)
 
 
 def _recompute_document(doc: _FreeCADDocument) -> None:
@@ -199,7 +173,7 @@ def _recompute_document(doc: _FreeCADDocument) -> None:
 
 
 def _ensure_string(
-    obj: _FreeCADDocumentObject,
+    obj: FreeCADDocumentObjectProtocol,
     name: str,
     group: str,
     value: str,
@@ -217,27 +191,7 @@ def _ensure_string(
     setattr(obj, name, str(value))
 
 
-def _ensure_link(
-    obj: _FreeCADDocumentObject,
-    name: str,
-    group: str,
-    value: _FreeCADDocumentObject | None = None,
-) -> None:
-    """Ensure a link property exists and optionally assign its target.
-
-    Args:
-        obj: FreeCAD object receiving the link property.
-        name: Persisted link property name.
-        group: Property-editor group used when adding the property.
-        value: Optional linked object to assign when it is not None.
-    """
-    if name not in getattr(obj, "PropertiesList", ()):
-        _add_property(obj, "App::PropertyLink", name, group)
-    if value is not None:
-        setattr(obj, name, value)
-
-
-def _children(container: _FreeCADContainer) -> tuple[_FreeCADDocumentObject, ...]:
+def _children(container: _FreeCADContainer) -> tuple[FreeCADDocumentObjectProtocol, ...]:
     """Return the objects currently stored in a native group or Part.
 
     Args:
@@ -263,9 +217,9 @@ def garment_root(doc: _FreeCADDocument | None) -> _FreeCADContainer | None:
     for obj in doc.Objects:
         if str(getattr(obj, "GarmentRole", "")) == "GarmentRoot":
             return cast("_FreeCADContainer", obj)
-    candidate = doc.getObject(GARMENT_ROOT_NAME)
-    if candidate is not None and candidate.TypeId == "App::Part":
-        return cast("_FreeCADContainer", candidate)
+    for obj in doc.Objects:
+        if obj.Name == GARMENT_ROOT_NAME and obj.TypeId == "App::Part":
+            return cast("_FreeCADContainer", obj)
     return None
 
 
@@ -321,7 +275,7 @@ def _ensure_group(
 def ensure_fabric_material(
     doc: _FreeCADDocument,
     root: _FreeCADContainer | None = None,
-) -> _FreeCADDocumentObject | None:
+) -> FreeCADDocumentObjectProtocol | None:
     """Ensure the default fabric material object exists inside the Fabric group.
 
     Args:
@@ -368,7 +322,7 @@ def ensure_fabric_material(
             setattr(material, name, float(value))
     if "Color" not in getattr(material, "PropertiesList", ()):
         _add_property(material, "App::PropertyColor", "Color", "Presentation")
-        setattr(material, "Color", (0.72, 0.34, 0.46))
+        cast("_FreeCADMaterial", material).Color = (0.72, 0.34, 0.46)
     if material not in _children(fabric_group):
         _add_child(fabric_group, material)
     return material
@@ -412,10 +366,10 @@ def ensure_garment_hierarchy(
 
 
 def link_garment_object(
-    obj: _FreeCADDocumentObject | None,
+    obj: FreeCADDocumentObjectProtocol | None,
     role: str,
     doc: _FreeCADDocument | None = None,
-) -> _FreeCADDocumentObject | None:
+) -> FreeCADDocumentObjectProtocol | None:
     """Link an existing object into the native Garment group for its role.
 
     This is intentionally a no-op when no Garment root exists, keeping
@@ -434,7 +388,10 @@ def link_garment_object(
     """
     if obj is None:
         return None
-    doc = doc or obj.Document
+    if doc is None:
+        doc = cast("_FreeCADDocument | None", getattr(obj, "Document", None))
+    if doc is None:
+        return obj
     root = garment_root(doc)
     if root is None:
         return obj
@@ -498,14 +455,14 @@ def create_garment_document(
     name: str = "Garment",
     label: str = "Garment",
     *,
-    app_module: _FreeCADApplication | None = None,
+    app_module: _FreeCADApplication | ModuleType | None = None,
 ) -> _FreeCADDocument:
     """Create a new FreeCAD document with the complete native garment hierarchy.
 
     Args:
         name: Internal FreeCAD document name.
         label: User-facing label for the Garment root.
-        app_module: Optional injected FreeCAD application module for host boundaries.
+        app_module: Optional injected application adapter or native FreeCAD module.
 
     Returns:
         The newly created document after its root, groups, and default material exist.
@@ -519,7 +476,14 @@ def create_garment_document(
         if loaded_module is None:
             msg = "FreeCAD must be loaded or supplied as app_module to create a document"
             raise ImportError(msg)
-        runtime_module = cast("_FreeCADApplication", loaded_module)
-    doc = runtime_module.newDocument(str(name))
+        runtime_module = loaded_module
+    if isinstance(runtime_module, ModuleType):
+        create_document = cast(
+            Callable[[str], _FreeCADDocument],
+            getattr(runtime_module, "newDocument"),
+        )
+        doc = create_document(str(name))
+    else:
+        doc = runtime_module.new_document(str(name))
     ensure_garment_hierarchy(doc, label)
     return doc

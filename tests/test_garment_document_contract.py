@@ -1,16 +1,23 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for the native Garment document hierarchy."""
 
+from __future__ import annotations
+
+from collections.abc import Callable
+
 import pytest
 
 from freecad_cloth.common.GarmentDocument import (
     GARMENT_GROUPS,
+    FreeCADDocumentObjectProtocol,
     create_garment_document,
     ensure_garment_hierarchy,
     garment_group,
     garment_structure,
     link_garment_object,
 )
+
+_EXPECTED_RECOMPUTATIONS = 2
 
 
 class _FakeObject:
@@ -27,11 +34,19 @@ class _FakeObject:
         self.TypeId = object_type
         self.Label = name
         self.PropertiesList: list[str] = []
-        self.Group: list[_FreeCADDocumentObject] = []
-        self.Document: _FakeDocument | None = None
+        self.Group: list[FreeCADDocumentObjectProtocol] = []
         self._property_groups: dict[str, tuple[str, str]] = {}
+        self.addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol] = (
+            self._add_property
+        )
+        self.addObject: Callable[[FreeCADDocumentObjectProtocol], None] = self._add_object
 
-    def addProperty(self, property_type: str, name: str, group: str) -> _FakeObject:
+    def _add_property(
+        self,
+        property_type: str,
+        name: str,
+        group: str,
+    ) -> _FakeObject:
         """Register a property through the fake native-object API.
 
         Args:
@@ -56,7 +71,7 @@ class _FakeObject:
         self.PropertiesList.append(name)
         self._property_groups[name] = (property_type, group)
 
-    def addObject(self, child: _FreeCADDocumentObject) -> None:
+    def _add_object(self, child: FreeCADDocumentObjectProtocol) -> None:
         """Attach one child through the fake native-container API.
 
         Args:
@@ -64,7 +79,7 @@ class _FakeObject:
         """
         self._record_child(child)
 
-    def _record_child(self, child: _FreeCADDocumentObject) -> None:
+    def _record_child(self, child: FreeCADDocumentObjectProtocol) -> None:
         """Append a child object to the fake native container.
 
         Args:
@@ -78,10 +93,11 @@ class _FakeDocument:
 
     def __init__(self) -> None:
         """Initialize the document with callable runtime API stand-ins."""
-        self.Objects: list[_FakeObject] = []
+        self.Objects: list[FreeCADDocumentObjectProtocol] = []
         self.recompute_calls = 0
+        self.addObject: Callable[[str, str], FreeCADDocumentObjectProtocol] = self._add_object
 
-    def addObject(self, object_type: str, name: str) -> _FakeObject:
+    def _add_object(self, object_type: str, name: str) -> _FakeObject:
         """Create and retain a fake document object.
 
         Args:
@@ -95,17 +111,6 @@ class _FakeDocument:
         obj.Document = self
         self.Objects.append(obj)
         return obj
-
-    def getObject(self, name: str) -> _FakeObject | None:
-        """Find a fake document object by internal name.
-
-        Args:
-            name: Internal object name requested by getObject.
-
-        Returns:
-            The matching object, or None if no object has that name.
-        """
-        return next((obj for obj in self.Objects if obj.Name == name), None)
 
     def recompute(self) -> None:
         """Record a native document recomputation."""
@@ -124,7 +129,7 @@ class _FakeApplication:
         self.document = document
         self.last_document_name: str | None = None
 
-    def newDocument(self, name: str) -> _FakeDocument:
+    def new_document(self, name: str) -> _FakeDocument:
         """Return the retained fake document for the requested internal name.
 
         Args:
@@ -157,7 +162,7 @@ def test_hierarchy_creation_is_idempotent_and_populates_fabric_defaults() -> Non
         str(getattr(child, "GarmentRole", "")) == "FabricMaterial" for child in fabric_children
     )
     assert fabric_material_count == 1, "Hierarchy repair must retain one default fabric material."
-    assert document.recompute_calls == 2, (
+    assert document.recompute_calls == _EXPECTED_RECOMPUTATIONS, (
         "Each hierarchy repair must recompute the owning document."
     )
 

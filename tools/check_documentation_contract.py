@@ -231,7 +231,11 @@ def _forwarded_type_expression(annotation: ast.expr) -> ast.expr | None:
         forwarded = ast.parse(annotation.value, mode="eval").body
     except SyntaxError:
         return None
-    return None if isinstance(forwarded, ast.Constant) and isinstance(forwarded.value, str) else forwarded
+    return (
+        None
+        if isinstance(forwarded, ast.Constant) and isinstance(forwarded.value, str)
+        else forwarded
+    )
 
 
 def _is_builtin_object_type(
@@ -457,6 +461,7 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
             annotation, builtins_modules, object_names, typing_modules, operators
         )
     ]
+
 
 def _python_files(arguments: list[str]) -> tuple[Path, ...]:
     """Return requested paths or all repository Python sources in stable order.

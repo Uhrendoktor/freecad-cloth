@@ -177,7 +177,6 @@ def consume_builtin(value: builtins.object) -> "object":
     )
 
 
-
 def test_object_annotations_cannot_hide_behind_aliases_or_typing_helpers() -> None:
     """Reject aliased, nested, type-comment, and typing-constructor object escapes."""
     source = '''"""Typing escape-hatch fixture module."""
