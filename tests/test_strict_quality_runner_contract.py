@@ -134,6 +134,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         "-q",
         "tests/test_command_runner.py",
         "tests/test_documentation_contract.py",
+        "tests/test_garment_document_contract.py",
         "tests/test_sewing_creation_session.py",
         "tests/test_strict_quality_runner_contract.py",
     )

@@ -11,7 +11,10 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from types import ModuleType
-from typing import Protocol, TypedDict, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
@@ -37,19 +40,19 @@ class FreeCADDocumentObjectProtocol(Protocol):
     Name: str
     Label: str
     TypeId: str
-    PropertiesList: list[str]
+    PropertiesList: Sequence[str]
 
 
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
-    Group: list[FreeCADDocumentObjectProtocol]
+    Group: Sequence[FreeCADDocumentObjectProtocol]
 
 
 class _FreeCADDocument(Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    Objects: list[FreeCADDocumentObjectProtocol]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
     def recompute(self) -> None:
         """Recompute the document after hierarchy changes."""
@@ -69,6 +72,12 @@ class _FreeCADApplication(Protocol):
             Newly created FreeCAD document.
         """
         ...
+
+
+class _FreeCADMaterial(FreeCADDocumentObjectProtocol, Protocol):
+    """Native material feature after its persisted color property is registered."""
+
+    Color: tuple[float, float, float]
 
 
 class _GarmentRootSnapshot(TypedDict):
@@ -311,11 +320,7 @@ def ensure_fabric_material(
             setattr(material, name, float(value))
     if "Color" not in getattr(material, "PropertiesList", ()):
         _add_property(material, "App::PropertyColor", "Color", "Presentation")
-        set_color = cast(
-            Callable[[str, tuple[float, float, float]], None],
-            getattr(material, "__setattr__"),
-        )
-        set_color("Color", (0.72, 0.34, 0.46))
+        cast("_FreeCADMaterial", material).Color = (0.72, 0.34, 0.46)
     if material not in _children(fabric_group):
         _add_child(fabric_group, material)
     return material
