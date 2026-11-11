@@ -3,8 +3,9 @@
 
 from __future__ import annotations
 
-import pytest
 from typing import TYPE_CHECKING
+
+import pytest
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,6 +40,7 @@ class _FakeObject:
         self.PropertiesList: list[str] = []
         self.Group: list[FreeCADDocumentObjectProtocol] = []
         self._property_groups: dict[str, tuple[str, str]] = {}
+
     def __getattr__(
         self,
         name: str,
@@ -114,6 +116,7 @@ class _FakeDocument:
         """Initialize the document with callable runtime API stand-ins."""
         self.Objects: list[FreeCADDocumentObjectProtocol] = []
         self.recompute_calls = 0
+
     def __getattr__(self, name: str) -> Callable[..., FreeCADDocumentObjectProtocol]:
         """Resolve the native document factory method used by the garment adapter.
 
