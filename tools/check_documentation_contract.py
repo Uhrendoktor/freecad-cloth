@@ -59,6 +59,31 @@ def _expression_name(expression: ast.AST) -> str | None:
     return None
 
 
+
+def _is_object_reference(
+    expression: ast.expr,
+    builtins_modules: set[str],
+    object_names: set[str],
+) -> bool:
+    """Determine whether a simple expression aliases the built-in object type.
+
+    Args:
+        expression: Assignment value or annotation expression to inspect.
+        builtins_modules: Local aliases for the builtins module.
+        object_names: Local names already known to resolve to builtins.object.
+
+    Returns:
+        True for a direct or qualified reference to builtins.object.
+    """
+    if isinstance(expression, ast.Name):
+        return expression.id in object_names
+    dotted = _expression_name(expression)
+    if dotted is None:
+        return False
+    module, _, attribute = dotted.rpartition(".")
+    return attribute == "object" and module in builtins_modules
+
+
 def _typing_context(
     tree: ast.AST,
 ) -> tuple[set[str], set[str], set[str], dict[str, set[str]]]:
@@ -78,7 +103,8 @@ def _typing_context(
         name: {name}
         for name in ("Literal", "Annotated", "TypeVar", "NewType", "TypeAliasType", "cast")
     }
-    for node in ast.walk(tree):
+    nodes = tuple(ast.walk(tree))
+    for node in nodes:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 if alias.name == "builtins":
@@ -94,6 +120,21 @@ def _typing_context(
                 for alias in node.names:
                     if alias.name in operators:
                         operators[alias.name].add(alias.asname or alias.name)
+
+    changed = True
+    while changed:
+        changed = False
+        for node in nodes:
+            if (
+                isinstance(node, ast.Assign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and isinstance(node.value, ast.expr)
+                and _is_object_reference(node.value, builtins_modules, object_names)
+                and node.targets[0].id not in object_names
+            ):
+                object_names.add(node.targets[0].id)
+                changed = True
     return builtins_modules, object_names, typing_modules, operators
 
 
