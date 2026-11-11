@@ -249,6 +249,78 @@ def _type_comment_expression(comment: str) -> ast.expr | None:
     return parsed if isinstance(parsed, ast.expr) else None
 
 
+def _function_type_comment_annotations(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+    annotations: list[tuple[int, str, ast.expr]],
+) -> None:
+    """Collect parameter and result types from a legacy function type comment.
+
+    Args:
+        node: Function declaration carrying the parsed type comment.
+        annotations: Mutable annotation inventory receiving each type expression.
+    """
+    if not node.type_comment:
+        return
+    try:
+        function_type = ast.parse(node.type_comment, mode="func_type").body
+    except SyntaxError:
+        return
+    if not isinstance(function_type, ast.FunctionType):
+        return
+    annotations.extend(
+        (node.lineno, f"{node.name} type-comment parameter", value)
+        for value in function_type.argtypes
+    )
+    annotations.append((node.lineno, f"{node.name} type-comment return", function_type.returns))
+
+
+def _ordinary_type_comment_annotation(
+    node: ast.AST,
+    annotations: list[tuple[int, str, ast.expr]],
+) -> None:
+    """Collect an assignment, loop, or context-manager type comment.
+
+    Args:
+        node: Statement that may carry a legacy type comment.
+        annotations: Mutable annotation inventory receiving the parsed expression.
+    """
+    if not isinstance(node, (ast.Assign, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)):
+        return
+    comment = getattr(node, "type_comment", None)
+    if not comment:
+        return
+    expression = _type_comment_expression(comment)
+    if expression is not None:
+        annotations.append((node.lineno, "type comment", expression))
+
+
+def _typing_call_annotations(
+    node: ast.Call,
+    annotations: list[tuple[int, str, ast.expr]],
+    typing_modules: set[str],
+    operators: dict[str, set[str]],
+) -> None:
+    """Collect type expressions supplied to common typing constructors.
+
+    Args:
+        node: Call expression to inspect for a typing helper.
+        annotations: Mutable annotation inventory receiving constructor type arguments.
+        typing_modules: Local aliases for typing and typing_extensions modules.
+        operators: Local aliases for supported directly imported typing helpers.
+    """
+    if _is_typing_operator(node.func, "TypeVar", typing_modules, operators):
+        annotations.extend(
+            (node.lineno, "TypeVar constraint or bound", value)
+            for value in (*node.args[1:], *(keyword.value for keyword in node.keywords))
+        )
+    elif _is_typing_operator(node.func, "NewType", typing_modules, operators):
+        annotations.extend((node.lineno, "NewType base", value) for value in node.args[1:])
+    elif _is_typing_operator(node.func, "TypeAliasType", typing_modules, operators):
+        annotations.extend((node.lineno, "TypeAliasType value", value) for value in node.args[1:])
+    elif _is_typing_operator(node.func, "cast", typing_modules, operators) and node.args:
+        annotations.append((node.lineno, "cast target type", node.args[0]))
+
+
 def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
     """Reject generic object annotations throughout one parsed Python module.
 
@@ -268,19 +340,7 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             if node.returns is not None:
                 annotations.append((node.returns.lineno, f"{node.name} return value", node.returns))
-            if node.type_comment:
-                try:
-                    function_type = ast.parse(node.type_comment, mode="func_type").body
-                except SyntaxError:
-                    function_type = None
-                if isinstance(function_type, ast.FunctionType):
-                    annotations.extend(
-                        (node.lineno, f"{node.name} type-comment parameter", value)
-                        for value in function_type.argtypes
-                    )
-                    annotations.append(
-                        (node.lineno, f"{node.name} type-comment return", function_type.returns)
-                    )
+            _function_type_comment_annotations(node, annotations)
         elif isinstance(node, ast.AnnAssign):
             subject = ast.unparse(node.target)
             annotations.append((node.annotation.lineno, subject, node.annotation))
@@ -289,29 +349,10 @@ def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
                 annotations.append((node.value.lineno, f"{subject} type alias", node.value))
         elif isinstance(node, ast.TypeAlias):
             annotations.append((node.value.lineno, ast.unparse(node.name), node.value))
-        elif isinstance(node, (ast.Assign, ast.For, ast.AsyncFor, ast.With, ast.AsyncWith)):
-            comment = getattr(node, "type_comment", None)
-            if comment:
-                expression = _type_comment_expression(comment)
-                if expression is not None:
-                    annotations.append((node.lineno, "type comment", expression))
         elif isinstance(node, ast.Call):
-            if _is_typing_operator(node.func, "TypeVar", typing_modules, operators):
-                annotations.extend(
-                    (node.lineno, "TypeVar constraint or bound", value)
-                    for value in (*node.args[1:], *(keyword.value for keyword in node.keywords))
-                )
-            elif _is_typing_operator(node.func, "NewType", typing_modules, operators):
-                annotations.extend(
-                    (node.lineno, "NewType base", value) for value in node.args[1:]
-                )
-            elif _is_typing_operator(node.func, "TypeAliasType", typing_modules, operators):
-                annotations.extend(
-                    (node.lineno, "TypeAliasType value", value) for value in node.args[1:]
-                )
-            elif _is_typing_operator(node.func, "cast", typing_modules, operators):
-                if node.args:
-                    annotations.append((node.lineno, "cast target type", node.args[0]))
+            _typing_call_annotations(node, annotations, typing_modules, operators)
+        else:
+            _ordinary_type_comment_annotation(node, annotations)
 
     return [
         (
