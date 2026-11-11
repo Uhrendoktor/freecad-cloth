@@ -24,7 +24,7 @@ _EXPECTED_RECOMPUTATIONS = 2
 class _FakeObject:
     """Dynamic native-object stand-in for hierarchy and property operations."""
 
-    addProperty: Callable[[str, str, str], bool]
+    addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol]
     addObject: Callable[[FreeCADDocumentObjectProtocol], None]
 
     def __init__(self, object_type: str, name: str) -> None:
@@ -48,7 +48,7 @@ class _FakeObject:
         property_type: str,
         name: str,
         group: str,
-    ) -> bool:
+    ) -> _FakeObject:
         """Register a property through the fake native-object API.
 
         Args:
@@ -60,7 +60,7 @@ class _FakeObject:
             This fake object after recording the property.
         """
         self._record_property(property_type, name, group)
-        return True
+        return self
 
     def _record_property(self, property_type: str, name: str, group: str) -> None:
         """Record a native property declaration for assertions.
