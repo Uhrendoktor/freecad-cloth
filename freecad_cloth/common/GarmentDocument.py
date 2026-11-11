@@ -11,11 +11,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Callable
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol, TypedDict, cast
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
+from typing import Protocol, TypedDict, cast
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
 GARMENT_GROUPS: tuple[str, ...] = ("Patterns", "Sewing", "Fabric", "Avatar", "Simulation")
