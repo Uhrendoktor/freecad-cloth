@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from types import SimpleNamespace
+from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
 import pytest
@@ -218,7 +218,8 @@ def test_preview_commit_cancel_and_failed_preview_share_one_transaction_contract
 class _FailedSession:
     """Session double that rejects preview before any object can be committed."""
 
-    def preview(self) -> None:
+    @staticmethod
+    def preview() -> None:
         """Raise the validation error consumed by the public task-panel preview action.
 
         Raises:
