@@ -117,6 +117,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "Pre-commit zizmor",
             "Pre-commit yamllint",
             "Python documentation contract",
+            "Focused migration regression tests",
             "Ruff format",
             "Ruff lint",
         },
@@ -125,6 +126,19 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     require(
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
         message="The strict whole-repository Pyright command must remain enabled.",
+    )
+    focused_regression_command = (
+        str(python),
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_command_runner.py",
+        "tests/test_sewing_creation_session.py",
+        "tests/test_strict_quality_runner_contract.py",
+    )
+    require(
+        condition=focused_regression_command in arguments,
+        message="The focused migration regressions must run in the pinned quality environment.",
     )
     has_documentation_contract = any(
         "check_documentation_contract.py" in item for command in arguments for item in command
