@@ -1,9 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for the native Garment document hierarchy."""
 
-from types import ModuleType
-from unittest.mock import Mock
-
 import pytest
 
 from freecad_cloth.common.GarmentDocument import (
@@ -30,10 +27,23 @@ class _FakeObject:
         self.TypeId = object_type
         self.Label = name
         self.PropertiesList: list[str] = []
-        self.Group: list[object] = []
+        self.Group: list[_FreeCADDocumentObject] = []
+        self.Document: _FakeDocument | None = None
         self._property_groups: dict[str, tuple[str, str]] = {}
-        self.addProperty = Mock(side_effect=self._record_property)
-        self.addObject = Mock(side_effect=self._record_child)
+
+    def addProperty(self, property_type: str, name: str, group: str) -> _FakeObject:
+        """Register a property through the fake native-object API.
+
+        Args:
+            property_type: FreeCAD property type passed by the adapter.
+            name: Persisted property name.
+            group: Property-editor group.
+
+        Returns:
+            This fake object after recording the property.
+        """
+        self._record_property(property_type, name, group)
+        return self
 
     def _record_property(self, property_type: str, name: str, group: str) -> None:
         """Record a native property declaration for assertions.
@@ -46,7 +56,15 @@ class _FakeObject:
         self.PropertiesList.append(name)
         self._property_groups[name] = (property_type, group)
 
-    def _record_child(self, child: object) -> None:
+    def addObject(self, child: _FreeCADDocumentObject) -> None:
+        """Attach one child through the fake native-container API.
+
+        Args:
+            child: Document object being added to the container.
+        """
+        self._record_child(child)
+
+    def _record_child(self, child: _FreeCADDocumentObject) -> None:
         """Append a child object to the fake native container.
 
         Args:
@@ -61,11 +79,9 @@ class _FakeDocument:
     def __init__(self) -> None:
         """Initialize the document with callable runtime API stand-ins."""
         self.Objects: list[_FakeObject] = []
-        self.addObject = Mock(side_effect=self._create_object)
-        self.getObject = Mock(side_effect=self._get_object)
-        self.recompute = Mock()
+        self.recompute_calls = 0
 
-    def _create_object(self, object_type: str, name: str) -> _FakeObject:
+    def addObject(self, object_type: str, name: str) -> _FakeObject:
         """Create and retain a fake document object.
 
         Args:
@@ -76,10 +92,11 @@ class _FakeDocument:
             The created object appended to the document.
         """
         obj = _FakeObject(object_type, name)
+        obj.Document = self
         self.Objects.append(obj)
         return obj
 
-    def _get_object(self, name: str) -> _FakeObject | None:
+    def getObject(self, name: str) -> _FakeObject | None:
         """Find a fake document object by internal name.
 
         Args:
@@ -89,6 +106,35 @@ class _FakeDocument:
             The matching object, or None if no object has that name.
         """
         return next((obj for obj in self.Objects if obj.Name == name), None)
+
+    def recompute(self) -> None:
+        """Record a native document recomputation."""
+        self.recompute_calls += 1
+
+
+class _FakeApplication:
+    """Application stand-in for the injected FreeCAD document factory."""
+
+    def __init__(self, document: _FakeDocument) -> None:
+        """Retain the document returned by the next creation request.
+
+        Args:
+            document: Fake native document to return to the adapter.
+        """
+        self.document = document
+        self.last_document_name: str | None = None
+
+    def newDocument(self, name: str) -> _FakeDocument:
+        """Return the retained fake document for the requested internal name.
+
+        Args:
+            name: Internal name supplied to the host application.
+
+        Returns:
+            Retained fake document instance.
+        """
+        self.last_document_name = name
+        return self.document
 
 
 def test_hierarchy_creation_is_idempotent_and_populates_fabric_defaults() -> None:
@@ -111,7 +157,7 @@ def test_hierarchy_creation_is_idempotent_and_populates_fabric_defaults() -> Non
         str(getattr(child, "GarmentRole", "")) == "FabricMaterial" for child in fabric_children
     )
     assert fabric_material_count == 1, "Hierarchy repair must retain one default fabric material."
-    assert document.recompute.call_count == 2, (
+    assert document.recompute_calls == 2, (
         "Each hierarchy repair must recompute the owning document."
     )
 
@@ -134,15 +180,13 @@ def test_object_linking_is_a_standalone_no_op_and_rejects_unknown_roles() -> Non
 def test_document_creation_accepts_an_injected_host_module() -> None:
     """Create a document through an explicit application dependency in headless tests."""
     document = _FakeDocument()
-    freecad_module = ModuleType("FreeCAD")
-    new_document = Mock(return_value=document)
-    freecad_module.newDocument = new_document
+    application = _FakeApplication(document)
 
-    created = create_garment_document(app_module=freecad_module)
+    created = create_garment_document(app_module=application)
 
     assert created is document, (
         "Document creation must return the injected application's new document."
     )
-    assert new_document.call_args.args == ("Garment",), (
+    assert application.last_document_name == "Garment", (
         "Document creation must preserve the requested internal document name."
     )
