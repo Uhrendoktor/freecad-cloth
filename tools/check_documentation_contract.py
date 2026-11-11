@@ -84,6 +84,66 @@ def _is_object_reference(
     return attribute == "object" and module in builtins_modules
 
 
+def _record_import_aliases(
+    node: ast.AST,
+    builtins_modules: set[str],
+    object_names: set[str],
+    typing_modules: set[str],
+    operators: dict[str, set[str]],
+) -> None:
+    """Record local names introduced by builtins and typing imports.
+
+    Args:
+        node: Import statement to inspect.
+        builtins_modules: Mutable aliases for the builtins module.
+        object_names: Mutable aliases for builtins.object.
+        typing_modules: Mutable aliases for typing modules.
+        operators: Mutable aliases for supported typing constructors.
+    """
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            if alias.name == "builtins":
+                builtins_modules.add(alias.asname or "builtins")
+            elif alias.name in {"typing", "typing_extensions"}:
+                typing_modules.add(alias.asname or alias.name)
+        return
+    if not isinstance(node, ast.ImportFrom):
+        return
+    if node.module == "builtins":
+        object_names.update(
+            alias.asname or alias.name for alias in node.names if alias.name == "object"
+        )
+    elif node.module in {"typing", "typing_extensions"}:
+        for alias in node.names:
+            if alias.name in operators:
+                operators[alias.name].add(alias.asname or alias.name)
+
+
+def _object_assignment_alias(
+    node: ast.AST,
+    builtins_modules: set[str],
+    object_names: set[str],
+) -> str | None:
+    """Return the local target when an assignment aliases builtins.object.
+
+    Args:
+        node: AST node considered as a possible assignment.
+        builtins_modules: Local aliases for the builtins module.
+        object_names: Names already known to refer to builtins.object.
+
+    Returns:
+        Newly discovered alias name, or None when the node is not such an assignment.
+    """
+    if not isinstance(node, ast.Assign) or len(node.targets) != 1:
+        return None
+    target = node.targets[0]
+    if not isinstance(target, ast.Name) or target.id in object_names:
+        return None
+    if _is_object_reference(node.value, builtins_modules, object_names):
+        return target.id
+    return None
+
+
 def _typing_context(
     tree: ast.AST,
 ) -> tuple[set[str], set[str], set[str], dict[str, set[str]]]:
@@ -105,36 +165,17 @@ def _typing_context(
     }
     nodes = tuple(ast.walk(tree))
     for node in nodes:
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.name == "builtins":
-                    builtins_modules.add(alias.asname or "builtins")
-                elif alias.name in {"typing", "typing_extensions"}:
-                    typing_modules.add(alias.asname or alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module == "builtins":
-                object_names.update(
-                    alias.asname or alias.name for alias in node.names if alias.name == "object"
-                )
-            elif node.module in {"typing", "typing_extensions"}:
-                for alias in node.names:
-                    if alias.name in operators:
-                        operators[alias.name].add(alias.asname or alias.name)
+        _record_import_aliases(node, builtins_modules, object_names, typing_modules, operators)
 
-    changed = True
-    while changed:
-        changed = False
+    while True:
+        discovered_alias = False
         for node in nodes:
-            if (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and isinstance(node.value, ast.expr)
-                and _is_object_reference(node.value, builtins_modules, object_names)
-                and node.targets[0].id not in object_names
-            ):
-                object_names.add(node.targets[0].id)
-                changed = True
+            alias = _object_assignment_alias(node, builtins_modules, object_names)
+            if alias is not None:
+                object_names.add(alias)
+                discovered_alias = True
+        if not discovered_alias:
+            break
     return builtins_modules, object_names, typing_modules, operators
 
 
@@ -158,9 +199,7 @@ def _is_typing_operator(
     if isinstance(expression, ast.Name):
         return expression.id in operators[symbol]
     dotted = _expression_name(expression)
-    return dotted is not None and any(
-        dotted == f"{module}.{symbol}" for module in typing_modules
-    )
+    return dotted is not None and any(dotted == f"{module}.{symbol}" for module in typing_modules)
 
 
 def _type_expression_items(expression: ast.expr) -> tuple[ast.expr, ...]:
@@ -175,6 +214,50 @@ def _type_expression_items(expression: ast.expr) -> tuple[ast.expr, ...]:
     if isinstance(expression, ast.Tuple):
         return tuple(expression.elts)
     return (expression,)
+
+
+def _forwarded_type_expression(annotation: ast.expr) -> ast.expr | None:
+    """Parse a quoted forward reference into its nested type expression.
+
+    Args:
+        annotation: Type expression that may be a quoted forward reference.
+
+    Returns:
+        Parsed inner expression, or None for non-string and nested string literals.
+    """
+    if not isinstance(annotation, ast.Constant) or not isinstance(annotation.value, str):
+        return None
+    try:
+        forwarded = ast.parse(annotation.value, mode="eval").body
+    except SyntaxError:
+        return None
+    return None if isinstance(forwarded, ast.Constant) and isinstance(forwarded.value, str) else forwarded
+
+
+def _is_builtin_object_type(
+    annotation: ast.expr,
+    builtins_modules: set[str],
+    object_names: set[str],
+) -> bool:
+    """Check whether one annotation node directly refers to builtins.object.
+
+    Args:
+        annotation: Type-expression node to inspect.
+        builtins_modules: Local aliases for the builtins module.
+        object_names: Local aliases for builtins.object.
+
+    Returns:
+        True when the node is the generic built-in object type.
+    """
+    if isinstance(annotation, ast.Name):
+        return annotation.id in object_names
+    if not isinstance(annotation, ast.Attribute):
+        return False
+    dotted = _expression_name(annotation)
+    if dotted is None:
+        return False
+    module, _, _attribute = dotted.rpartition(".")
+    return annotation.attr == "object" and module in builtins_modules
 
 
 def _contains_generic_object(
@@ -197,35 +280,48 @@ def _contains_generic_object(
         True when the type expression contains generic built-in object, including
         nested forward references and imported aliases.
     """
-    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
-        try:
-            forwarded = ast.parse(annotation.value, mode="eval").body
-        except SyntaxError:
-            return False
-        if isinstance(forwarded, ast.Constant) and isinstance(forwarded.value, str):
-            return False
+    forwarded = _forwarded_type_expression(annotation)
+    if forwarded is not None:
         return _contains_generic_object(
             forwarded, builtins_modules, object_names, typing_modules, operators
         )
-
-    if isinstance(annotation, ast.Name) and annotation.id in object_names:
+    if _is_builtin_object_type(annotation, builtins_modules, object_names):
         return True
-    if isinstance(annotation, ast.Attribute):
-        dotted = _expression_name(annotation)
-        if annotation.attr == "object" and dotted is not None:
-            module, _, _attribute = dotted.rpartition(".")
-            if module in builtins_modules:
-                return True
+    if not isinstance(annotation, ast.Subscript):
+        return _contains_child_generic_object(
+            annotation, builtins_modules, object_names, typing_modules, operators
+        )
+    if _is_typing_operator(annotation.value, "Literal", typing_modules, operators):
+        return False
+    if _is_typing_operator(annotation.value, "Annotated", typing_modules, operators):
+        items = _type_expression_items(annotation.slice)
+        return bool(items) and _contains_generic_object(
+            items[0], builtins_modules, object_names, typing_modules, operators
+        )
+    return _contains_child_generic_object(
+        annotation, builtins_modules, object_names, typing_modules, operators
+    )
 
-    if isinstance(annotation, ast.Subscript):
-        if _is_typing_operator(annotation.value, "Literal", typing_modules, operators):
-            return False
-        if _is_typing_operator(annotation.value, "Annotated", typing_modules, operators):
-            items = _type_expression_items(annotation.slice)
-            return bool(items) and _contains_generic_object(
-                items[0], builtins_modules, object_names, typing_modules, operators
-            )
 
+def _contains_child_generic_object(
+    annotation: ast.expr,
+    builtins_modules: set[str],
+    object_names: set[str],
+    typing_modules: set[str],
+    operators: dict[str, set[str]],
+) -> bool:
+    """Inspect nested expression children for a generic object type.
+
+    Args:
+        annotation: Parent expression whose child expressions should be inspected.
+        builtins_modules: Local aliases for the builtins module.
+        object_names: Local aliases for builtins.object.
+        typing_modules: Local aliases for typing and typing_extensions.
+        operators: Local aliases for typing operators used to distinguish metadata.
+
+    Returns:
+        True when any nested expression contains generic builtins.object.
+    """
     return any(
         _contains_generic_object(item, builtins_modules, object_names, typing_modules, operators)
         for item in ast.iter_child_nodes(annotation)
@@ -243,10 +339,9 @@ def _type_comment_expression(comment: str) -> ast.expr | None:
         Parsed expression, or None when the comment is not an expression type.
     """
     try:
-        parsed = ast.parse(comment, mode="eval").body
+        return ast.parse(comment, mode="eval").body
     except SyntaxError:
         return None
-    return parsed if isinstance(parsed, ast.expr) else None
 
 
 def _function_type_comment_annotations(
@@ -262,7 +357,7 @@ def _function_type_comment_annotations(
     if not node.type_comment:
         return
     try:
-        function_type = ast.parse(node.type_comment, mode="func_type").body
+        function_type = ast.parse(node.type_comment, mode="func_type")
     except SyntaxError:
         return
     if not isinstance(function_type, ast.FunctionType):

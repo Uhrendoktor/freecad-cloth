@@ -10,6 +10,10 @@ from tests.support.assertions import require as _require
 from tools.check_documentation_contract import check_source, suppression_violations
 
 
+_EXPECTED_DIRECT_OBJECT_ANNOTATION_COUNT = 4
+_EXPECTED_ALIASED_OBJECT_ANNOTATION_COUNT = 10
+
+
 def test_complete_google_docstrings_pass() -> None:
     """Accept complete descriptions of inputs, results, and failure behavior."""
     source = '''"""Documentation checker fixture module."""
@@ -167,7 +171,10 @@ def consume_builtin(value: builtins.object) -> "object":
     violations = [
         error for error in errors if "generic object type annotations are prohibited" in error
     ]
-    _require(condition=len(violations) == 4, message="\n".join(errors))
+    _require(
+        condition=len(violations) == _EXPECTED_DIRECT_OBJECT_ANNOTATION_COUNT,
+        message="\n".join(errors),
+    )
 
 
 
@@ -255,7 +262,10 @@ def cast_target(value: str) -> str:
     violations = [
         error for error in errors if "generic object type annotations are prohibited" in error
     ]
-    _require(condition=len(violations) == 10, message="\\n".join(errors))
+    _require(
+        condition=len(violations) == _EXPECTED_ALIASED_OBJECT_ANNOTATION_COUNT,
+        message="\n".join(errors),
+    )
 
 
 def test_structural_protocols_and_json_value_unions_are_accepted() -> None:
@@ -353,7 +363,7 @@ def _inventory_entries(path: Path) -> tuple[tuple[str, str], ...]:
     Returns:
         Inventory paths and their complete description text in document order.
     """
-    entries = []
+    entries: list[tuple[str, str]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if not line.startswith("- `"):
             continue
