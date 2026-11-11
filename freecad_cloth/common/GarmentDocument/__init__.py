@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Compatibility exports for the historical GarmentDocument import path."""
 
-from ..garment_document import (
+from freecad_cloth.common.garment_document import (
     GARMENT_GROUPS,
     GARMENT_ROOT_NAME,
     GARMENT_SCHEMA_VERSION,
