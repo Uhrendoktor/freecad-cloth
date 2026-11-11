@@ -1,9 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Enforce descriptive Python documentation without inline lint suppression comments.
+"""Enforce descriptive Python docs and reject generic object type annotations.
 
-Every tracked Python source and stub is checked. Ruff enforces type annotations and
-the full compatible lint rule set; this contract verifies prose for function
-parameters, return values, yielded values, and explicitly raised exceptions.
+Every tracked Python source and stub is checked. Ruff enforces annotation syntax and the full
+compatible lint rule set; this contract verifies documentation prose and prohibits object as a
+generic annotation escape hatch. Use concrete types, structural Protocols, TypedDicts, or
+recursive JSON value unions instead.
 """
 
 from __future__ import annotations
@@ -39,6 +40,71 @@ EXCEPTION_LINE = re.compile(r"^\s{4}([A-Za-z_][A-Za-z0-9_]*):\s*(\S.*)$")
 DESCRIPTION_WORD = re.compile(r"[A-Za-z0-9_]+")
 MIN_DESCRIPTION_WORDS = 2
 PLACEHOLDER = re.compile(r"\b(?:todo|tbd|fixme|placeholder|document me)\b", re.IGNORECASE)
+
+
+def _contains_generic_object(annotation: ast.expr) -> bool:
+    """Determine whether an annotation contains the unrestricted built-in object type.
+
+    Args:
+        annotation: Type expression attached to a parameter, result, field, or alias.
+
+    Returns:
+        True when the annotation contains object directly or through builtins.object.
+    """
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        try:
+            forwarded = ast.parse(annotation.value, mode="eval").body
+        except SyntaxError:
+            return False
+        return _contains_generic_object(forwarded)
+
+    return any(
+        (isinstance(item, ast.Name) and item.id == "object")
+        or (
+            isinstance(item, ast.Attribute)
+            and item.attr == "object"
+            and isinstance(item.value, ast.Name)
+            and item.value.id == "builtins"
+        )
+        for item in ast.walk(annotation)
+    )
+
+
+def _object_annotation_errors(filename: str, tree: ast.AST) -> list[str]:
+    """Reject generic object annotations throughout one parsed Python module.
+
+    Args:
+        filename: Source filename used in diagnostic messages.
+        tree: Parsed syntax tree for the complete Python module.
+
+    Returns:
+        One actionable diagnostic for every parameter, result, field, or type alias
+        annotation that uses the unrestricted built-in object type.
+    """
+    annotations: list[tuple[int, str, ast.expr]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.arg) and node.annotation is not None:
+            annotations.append((node.annotation.lineno, node.arg, node.annotation))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if node.returns is not None:
+                annotations.append((node.returns.lineno, f"{node.name} return value", node.returns))
+        elif isinstance(node, ast.AnnAssign):
+            subject = ast.unparse(node.target)
+            annotations.append((node.annotation.lineno, subject, node.annotation))
+            alias_kind = ast.unparse(node.annotation).rsplit(".", 1)[-1]
+            if alias_kind in {"TypeAlias", "TypeAliasType"} and node.value is not None:
+                annotations.append((node.value.lineno, f"{subject} type alias", node.value))
+        elif isinstance(node, ast.TypeAlias):
+            annotations.append((node.value.lineno, ast.unparse(node.name), node.value))
+
+    return [
+        (
+            f"{filename}:{line}: {subject}: generic object type annotations are prohibited; "
+            "use a concrete type, Protocol, TypedDict, or recursive JSON value type"
+        )
+        for line, subject, annotation in annotations
+        if _contains_generic_object(annotation)
+    ]
 
 
 def _python_files(arguments: list[str]) -> tuple[Path, ...]:
@@ -407,6 +473,7 @@ def check_source(source: str, filename: str = "<memory>") -> list[str]:
         return [f"{filename}: cannot parse Python source: {exc}"]
 
     errors = suppression_violations(source, filename)
+    errors.extend(_object_annotation_errors(filename, tree))
     # Stub files are declarations, not prose modules; Ruff's pyi rules prohibit docstrings.
     if not filename.endswith(".pyi") and ast.get_docstring(tree) is None:
         errors.append(f"{filename}: missing module docstring")

@@ -7,7 +7,6 @@ import tomllib
 from pathlib import Path
 
 from tests.support.assertions import require as _require
-
 from tools.check_documentation_contract import check_source, suppression_violations
 
 
@@ -129,6 +128,79 @@ def parse(value: str, radix: int) -> int:
         condition="non-descriptive Raises entries for ValueError" in errors,
         message=errors,
     )
+
+
+def test_generic_object_annotations_are_rejected() -> None:
+    """Reject object annotations in parameter, result, field, and alias positions."""
+    source = '''"""Documentation checker fixture module."""
+
+import builtins
+from typing import TypeAlias
+
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+
+
+def consume(value: object) -> dict[str, object]:
+    """Encode one supplied value into a JSON-compatible mapping.
+
+    Args:
+        value: Value to encode into the resulting mapping.
+
+    Returns:
+        A mapping containing the supplied value.
+    """
+    return {"value": value}
+
+
+def consume_builtin(value: builtins.object) -> "object":
+    """Return the supplied value through a legacy binding annotation.
+
+    Args:
+        value: Value received from the dynamic binding.
+
+    Returns:
+        The unchanged value supplied by the caller.
+    """
+    return value
+'''
+    errors = check_source(source, "sample.py")
+    violations = [
+        error for error in errors if "generic object type annotations are prohibited" in error
+    ]
+    _require(condition=len(violations) == 4, message="\n".join(errors))
+
+
+def test_structural_protocols_and_json_value_unions_are_accepted() -> None:
+    """Accept structural protocols and recursive JSON types as precise alternatives."""
+    source = '''"""Documentation checker fixture module."""
+
+from typing import Protocol, TypeAlias
+
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+
+
+class SketchProtocol(Protocol):
+    """Expose the native sketch geometry consumed by the adapter."""
+
+    Geometry: tuple[tuple[float, float], ...]
+
+
+def inspect_sketch(sketch: SketchProtocol) -> dict[str, JsonValue]:
+    """Describe the supplied sketch using a JSON-compatible payload.
+
+    Args:
+        sketch: Sketch exposing its native two-dimensional geometry.
+
+    Returns:
+        A JSON-compatible mapping containing the geometry count.
+    """
+    return {"geometry_count": len(sketch.Geometry)}
+'''
+    errors = check_source(source, "sample.py")
+    violations = [
+        error for error in errors if "generic object type annotations are prohibited" in error
+    ]
+    _require(condition=not violations, message="\n".join(violations))
 
 
 def test_ruff_suppression_comments_are_rejected() -> None:
