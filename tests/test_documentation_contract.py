@@ -179,6 +179,8 @@ import builtins as native_builtins
 from builtins import object as NativeObject
 from typing import Annotated, Literal, NewType, TypeVar, cast
 
+NativeObjectAlias = native_builtins.object
+ChainedObjectAlias = NativeObjectAlias
 Bounded = TypeVar("Bounded", bound=object)
 LegacyEntity = NewType("LegacyEntity", object)
 
@@ -196,6 +198,15 @@ def imported_aliases(
         nested: Nested values whose forward reference must be inspected.
     """
     object.__setattr__(native, "value", value)
+
+
+def assignment_alias(value: ChainedObjectAlias) -> None:
+    """Reject ordinary assignments used as hidden type aliases.
+
+    Args:
+        value: Value declared through a chained alias of builtins.object.
+    """
+
 
 
 def metadata_is_not_a_type(
@@ -244,7 +255,7 @@ def cast_target(value: str) -> str:
     violations = [
         error for error in errors if "generic object type annotations are prohibited" in error
     ]
-    _require(condition=len(violations) == 9, message="\\n".join(errors))
+    _require(condition=len(violations) == 10, message="\\n".join(errors))
 
 
 def test_structural_protocols_and_json_value_unions_are_accepted() -> None:
