@@ -360,8 +360,6 @@ def _function_type_comment_annotations(
         function_type = ast.parse(node.type_comment, mode="func_type")
     except SyntaxError:
         return
-    if not isinstance(function_type, ast.FunctionType):
-        return
     annotations.extend(
         (node.lineno, f"{node.name} type-comment parameter", value)
         for value in function_type.argtypes
@@ -472,7 +470,7 @@ def _python_files(arguments: list[str]) -> tuple[Path, ...]:
     if arguments:
         candidates = [Path(value) for value in arguments if value.endswith((".py", ".pyi"))]
     else:
-        candidates = []
+        candidates: list[Path] = []
         for directory, names, filenames in os.walk(ROOT):
             names[:] = sorted(name for name in names if name not in IGNORED_DIRECTORIES)
             candidates.extend(
