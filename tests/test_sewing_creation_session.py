@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
 import pytest
@@ -32,7 +32,7 @@ class _PatternPiece:
     Name: str
 
 
-SelectionEntry: TypeAlias = _PatternPiece | _SewingObject
+type SelectionEntry = _PatternPiece | _SewingObject
 
 
 class _Selection:
