@@ -19,6 +19,9 @@ if TYPE_CHECKING:
 GARMENT_SCHEMA_VERSION = "1"
 GARMENT_ROOT_NAME = "Garment"
 GARMENT_GROUPS: tuple[str, ...] = ("Patterns", "Sewing", "Fabric", "Avatar", "Simulation")
+_NATIVE_ADD_PROPERTY = "addProperty"
+_NATIVE_ADD_OBJECT = "addObject"
+_NATIVE_NEW_DOCUMENT = "newDocument"
 _ROLE_TO_GROUP: dict[str, str] = {
     "PatternPiece": "Patterns",
     "PatternSketch": "Patterns",
@@ -120,7 +123,7 @@ def _add_property(
     """
     add_property = cast(
         "Callable[[str, str, str], FreeCADDocumentObjectProtocol]",
-        getattr(obj, "addProperty"),
+        getattr(obj, _NATIVE_ADD_PROPERTY),
     )
     add_property(property_type, name, group)
 
@@ -142,7 +145,7 @@ def _new_document_object(
     """
     add_object = cast(
         "Callable[[str, str], FreeCADDocumentObjectProtocol]",
-        getattr(doc, "addObject"),
+        getattr(doc, _NATIVE_ADD_OBJECT),
     )
     return add_object(object_type, name)
 
@@ -156,7 +159,7 @@ def _add_child(container: _FreeCADContainer, child: FreeCADDocumentObjectProtoco
     """
     add_child = cast(
         "Callable[[FreeCADDocumentObjectProtocol], None]",
-        getattr(container, "addObject"),
+        getattr(container, _NATIVE_ADD_OBJECT),
     )
     add_child(child)
 
@@ -478,7 +481,7 @@ def create_garment_document(
     if isinstance(runtime_module, ModuleType):
         create_document = cast(
             "Callable[[str], _FreeCADDocument]",
-            getattr(runtime_module, "newDocument"),
+            getattr(runtime_module, _NATIVE_NEW_DOCUMENT),
         )
         doc = create_document(str(name))
     else:
