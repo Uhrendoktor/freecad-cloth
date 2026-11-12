@@ -424,9 +424,6 @@ def _validate_python_quality_contracts(text: str) -> None:
     if PYRIGHT_LEGACY_CONFIG.exists():
         msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
         raise SystemExit(msg)
-    if PYRIGHT_LEGACY_CONFIG.exists():
-        msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
-        raise SystemExit(msg)
     coverage_violations = pyright_coverage_contract_violations(
         PYRIGHT_CONFIG.read_text(encoding="utf-8")
     )
