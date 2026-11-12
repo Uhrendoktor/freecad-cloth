@@ -16,7 +16,6 @@ from freecad_cloth.pattern.SeamReference import (
     semantic_edge_id,
 )
 
-
 type _Point2D = tuple[float, float]
 type _EdgeProvenance = tuple[str, str, str, tuple[float, float], tuple[_Point2D, ...]]
 
