@@ -21,12 +21,12 @@ if TYPE_CHECKING:
 class _SimulationDocument(SimulationDocument, Protocol):
     """Document API used by the simulation scene and its mesh outputs."""
 
-    def addObject(self, type_name: str, object_name: str) -> _SimulationFeature:
+    def addObject(self, object_type: str, name: str) -> _SimulationFeature:
         """Create a simulation feature in the owning document.
 
         Args:
-            type_name: Native FreeCAD object type identifier.
-            object_name: Stable internal object name.
+            object_type: Native FreeCAD object type identifier.
+            name: Stable internal object name.
 
         Returns:
             The created FreeCAD feature.
@@ -80,11 +80,22 @@ class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
 
 
 class _NativeMeshVector(Protocol):
-    """Coordinate interface accepted by a mutable FreeCAD mesh buffer."""
+    """Read-only coordinate properties exposed by native FreeCAD vectors."""
 
-    x: float
-    y: float
-    z: float
+    @property
+    def x(self) -> float:
+        """Return the X coordinate in millimetres."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """Return the Y coordinate in millimetres."""
+        ...
+
+    @property
+    def z(self) -> float:
+        """Return the Z coordinate in millimetres."""
+        ...
 
 
 class _MeshBuffer(Protocol):
@@ -117,6 +128,7 @@ class _SimulationMeshFeature(_MeshObjectKey, Protocol):
     """FreeCAD mesh feature written by the simulation visualization adapter."""
 
     Mesh: _MeshBuffer
+    ClothMeshType: str
 
 
 class _SimulationFeature(_MeshObjectKey, Protocol):
