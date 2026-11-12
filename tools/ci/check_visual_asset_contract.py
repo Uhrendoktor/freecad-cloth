@@ -9,10 +9,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from visual_evidence import documented_assets
-
-type JSONPrimitive = str | int | float | bool | None
-type JSONValue = JSONPrimitive | list[JSONValue] | dict[str, JSONValue]
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tools" / "ci" / "visual_asset_sources.json"
@@ -21,14 +19,14 @@ PUBLISH_ACTION = ROOT / ".github" / "actions" / "publish-visual-evidence" / "act
 PUBLISHER_SCRIPT = ROOT / "tools" / "ci" / "publish_visual_evidence.py"
 
 
-def _manifest_assets() -> tuple[dict[str, object] | None, list[str]]:
+def _manifest_assets() -> tuple[JsonObject | None, list[str]]:
     """Load and validate the visual asset manifest's top-level structure.
 
     Returns:
         The asset mapping and an empty error list when valid, or diagnostics when invalid.
     """
     try:
-        payload = cast("JSONValue", json.loads(MANIFEST.read_text(encoding="utf-8")))
+        payload = cast("JsonValue", json.loads(MANIFEST.read_text(encoding="utf-8")))
     except (OSError, json.JSONDecodeError) as exc:
         return None, [f"cannot read visual asset manifest: {exc}"]
     if not isinstance(payload, dict) or payload.get("schema_version") != 1:
@@ -36,7 +34,7 @@ def _manifest_assets() -> tuple[dict[str, object] | None, list[str]]:
     assets = payload.get("assets")
     if not isinstance(assets, dict):
         return None, ["visual asset manifest must contain an assets object"]
-    return cast("dict[str, object]", assets), []
+    return cast("JsonObject", assets), []
 
 
 def _production_configuration(
@@ -64,7 +62,7 @@ def _production_configuration(
     return chr(10).join(production_sources)
 
 
-def _asset_mapping_errors(name: str, entry: object, production_config: str) -> list[str]:
+def _asset_mapping_errors(name: str, entry: JsonValue, production_config: str) -> list[str]:
     """Validate one manifest mapping against its wired production inputs.
 
     Args:

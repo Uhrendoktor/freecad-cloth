@@ -3,7 +3,7 @@
 
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TypedDict, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -21,7 +21,21 @@ from freecad_cloth.pattern.SeamReference import (
 )
 
 
-def _provenance(points: tuple[tuple[float, float], ...]) -> tuple[object, ...]:
+type _Point2D = tuple[float, float]
+type _EdgeProvenance = tuple[str, str, str, tuple[float, float], tuple[_Point2D, ...]]
+
+
+class _EdgeRecord(TypedDict):
+    """Semantic edge record persisted by the seam-reference adapter."""
+
+    piece_id: str
+    id: str
+    points: tuple[_Point2D, ...]
+    ordinal: int
+    provenance: _EdgeProvenance
+
+
+def _provenance(points: tuple[_Point2D, ...]) -> _EdgeProvenance:
     """Build the same native line provenance used by a test edge record."""
     return ("PatternIR", "Sketcher", "line", (0.0, 1.0), tuple(points))
 
@@ -29,8 +43,8 @@ def _provenance(points: tuple[tuple[float, float], ...]) -> tuple[object, ...]:
 def _edge(
     piece_id: str = "front",
     edge_id: str = "front:edge:2",
-    points: tuple[tuple[float, float], ...] = ((0.0, 0.0), (10.0, 0.0)),
-) -> dict[str, object]:
+    points: tuple[_Point2D, ...] = ((0.0, 0.0), (10.0, 0.0)),
+) -> _EdgeRecord:
     """Build a current semantic edge record with complete native provenance."""
     return {
         "piece_id": piece_id,
@@ -44,7 +58,7 @@ def _edge(
 def _reference(
     piece_id: str = "front",
     edge_id: str = "front:edge:2",
-    points: tuple[tuple[float, float], ...] = ((0.0, 0.0), (10.0, 0.0)),
+    points: tuple[_Point2D, ...] = ((0.0, 0.0), (10.0, 0.0)),
 ) -> EdgeReference:
     """Capture an edge using the same provenance stored in the current record."""
     return capture_edge_reference(piece_id, edge_id, points, _provenance(points))

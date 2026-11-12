@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from tools.ci.scene_understanding_report import (
     _float_value,
     _int_value,
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 
-def _expect_dict(value: object, *, message: str) -> dict[str, object]:
+def _expect_dict(value: JsonValue, *, message: str) -> JsonObject:
     """Validate and normalize one dictionary-shaped value from the scene report.
 
     Args:
@@ -33,7 +34,7 @@ def _expect_dict(value: object, *, message: str) -> dict[str, object]:
     """
     if not isinstance(value, dict):
         raise AssertionError(message)
-    normalized: dict[str, object] = {}
+    normalized: JsonObject = {}
     for key, item in value.items():
         if not isinstance(key, str):
             raise AssertionError(f"{message} Dictionary keys must be strings.")
@@ -41,7 +42,7 @@ def _expect_dict(value: object, *, message: str) -> dict[str, object]:
     return normalized
 
 
-def _expect_list(value: object, *, message: str) -> list[object]:
+def _expect_list(value: JsonValue, *, message: str) -> list[JsonValue]:
     """Validate and copy one list-shaped value from the scene report.
 
     Args:
@@ -67,7 +68,7 @@ def test_float_value_accepts_integer_and_float_literals() -> None:
 
 
 @pytest.mark.parametrize("value", [True, "1.5", None])
-def test_float_value_rejects_non_numeric_literals(value: object) -> None:
+def test_float_value_rejects_non_numeric_literals(value: JsonValue) -> None:
     """Reject diagnostic values that cannot be trusted as numeric literals.
 
     Args:
@@ -78,7 +79,7 @@ def test_float_value_rejects_non_numeric_literals(value: object) -> None:
 
 
 @pytest.mark.parametrize("value", [True, 2.5, "2"])
-def test_int_value_rejects_non_integer_literals(value: object) -> None:
+def test_int_value_rejects_non_integer_literals(value: JsonValue) -> None:
     """Reject diagnostic values that are not exact integer literals.
 
     Args:

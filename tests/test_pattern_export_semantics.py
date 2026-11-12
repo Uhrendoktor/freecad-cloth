@@ -10,6 +10,9 @@ from types import SimpleNamespace
 from typing import Protocol, TypedDict, cast
 
 import pytest
+
+from freecad_cloth.common.JsonTypes import JsonValue
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from defusedxml import ElementTree
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
@@ -69,7 +72,7 @@ class _RenderReport(TypedDict):
     png_path: str
 
 
-def _require_export_measurements(metadata: Mapping[str, object]) -> None:
+def _require_export_measurements(metadata: Mapping[str, JsonValue]) -> None:
     """Verify the scale and seam allowance recorded by a pattern export.
 
     Args:
@@ -116,7 +119,7 @@ class _PieceSeed(Protocol):
 class _ExportDocument(Protocol):
     """Document collection used to discover persisted seams and marks."""
 
-    Objects: tuple[object, ...]
+    Objects: tuple[FreeCADDocumentObjectProtocol, ...]
 
 
 class _PatternPiece(_PieceSeed, Protocol):
@@ -260,7 +263,7 @@ def _native_piece(piece: _PieceSeed) -> _PatternPiece:
     return adopted_piece
 
 
-def _piece_sketch(piece: object) -> _NativeSketch:
+def _piece_sketch(piece: _PatternPiece) -> _NativeSketch:
     """Return the native sketch stored under FreeCAD's persisted property name.
 
     Args:
@@ -931,7 +934,7 @@ def test_pattern_piece_pdf_export_is_binary_and_reports_page_layout(tmp_path: Pa
     class Document:
         """Minimal document double that exposes its persisted object collection."""
 
-        Objects: tuple[object, ...] = ()
+        Objects: tuple[FreeCADDocumentObjectProtocol, ...] = ()
 
     piece = _native_piece(Piece())
     piece.Document = Document()
@@ -1065,7 +1068,7 @@ def test_pattern_piece_export_adapter_is_deterministic_and_read_only(tmp_path: P
     class Document:
         """Document fixture holding a pattern piece and its persisted semantics."""
 
-        Objects: tuple[object, ...] = ()
+        Objects: tuple[FreeCADDocumentObjectProtocol, ...] = ()
 
     piece = _native_piece(Piece())
     piece.Document = Document()
@@ -1154,7 +1157,7 @@ def test_pattern_piece_export_blocks_invalid_semantic_seams(tmp_path: Path) -> N
     class Document:
         """Document fixture containing a piece and a stale seam reference."""
 
-        Objects: tuple[object, ...] = ()
+        Objects: tuple[FreeCADDocumentObjectProtocol, ...] = ()
 
     piece = _native_piece(Piece())
     piece.Document = Document()
@@ -1240,7 +1243,7 @@ def test_pattern_piece_export_uses_persisted_native_construction_marks(tmp_path:
     class Document:
         """Document fixture holding the pattern piece and its persisted marks."""
 
-        Objects: tuple[object, ...] = ()
+        Objects: tuple[FreeCADDocumentObjectProtocol, ...] = ()
 
     piece = _native_piece(Piece())
     notch = Mark("notch-front", "Notch")
@@ -1368,7 +1371,7 @@ def test_pattern_piece_export_blocks_missing_persisted_mark_edge(tmp_path: Path)
     class Document:
         """Document fixture containing a piece and a stale construction mark."""
 
-        Objects: tuple[object, ...] = ()
+        Objects: tuple[FreeCADDocumentObjectProtocol, ...] = ()
 
     piece = _native_piece(Piece())
     mark = Mark()
