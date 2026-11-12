@@ -94,6 +94,9 @@ ignore = [
   "Q004",
   "COM812",
   "COM819",
+  # FreeCAD plugins defer optional host/backend imports until runtime.
+  # Pyright still checks missing imports, stubs, and import cycles.
+  "PLC0415",
 ]
 
 [tool.ruff.lint.per-file-ignores]
