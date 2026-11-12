@@ -1,10 +1,21 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Small generated, license-safe garment fixtures for regression tests."""
 
-from freecad_cloth.pattern.PatternGeometry import rectangle
+from typing import TypedDict
+
+from freecad_cloth.pattern.PatternGeometry import ParametricPattern, rectangle
 
 
-def two_piece_rectangle() -> dict[str, object]:
+class _GarmentFixture(TypedDict, total=False):
+    """Typed schema shared by small generated pattern test fixtures."""
+
+    pieces: list[ParametricPattern]
+    seams: list[tuple[str, str]] | int
+    curved: bool
+    mirrored: bool
+
+
+def two_piece_rectangle() -> _GarmentFixture:
     """Create two equal rectangular panels joined along opposing side edges.
 
     Returns:
@@ -13,7 +24,7 @@ def two_piece_rectangle() -> dict[str, object]:
     return {"pieces": [rectangle(100, 60), rectangle(100, 60)], "seams": [("right", "left")]}
 
 
-def curved_panel() -> dict[str, object]:
+def curved_panel() -> _GarmentFixture:
     """Create one rectangular panel fixture marked for curved-boundary tests.
 
     Returns:
@@ -22,7 +33,7 @@ def curved_panel() -> dict[str, object]:
     return {"pieces": [rectangle(100, 60)], "curved": True}
 
 
-def mirrored_pair() -> dict[str, object]:
+def mirrored_pair() -> _GarmentFixture:
     """Create two equal panels for mirrored-pair arrangement tests.
 
     Returns:
@@ -31,7 +42,7 @@ def mirrored_pair() -> dict[str, object]:
     return {"pieces": [rectangle(80, 50), rectangle(80, 50)], "mirrored": True}
 
 
-def multi_piece() -> dict[str, object]:
+def multi_piece() -> _GarmentFixture:
     """Create a three-panel fixture for multi-piece assembly tests.
 
     Returns:
