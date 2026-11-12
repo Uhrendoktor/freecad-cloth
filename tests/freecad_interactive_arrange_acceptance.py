@@ -18,9 +18,14 @@ import FreeCADGui as Gui
 import Part
 
 from tests.support.freecad_input import UiGifRecorder
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.simulation.simulation_protocols import SimulationDocument
 
 
-def _assign_drape_source(doc: object, source: object) -> object:
+def _assign_drape_source(
+    doc: SimulationDocument,
+    source: FreeCADDocumentObjectProtocol,
+) -> FreeCADDocumentObjectProtocol:
     """Assign a test source through the persistent DrapeTarget.
 
     Args:
