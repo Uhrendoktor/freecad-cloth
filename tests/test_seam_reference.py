@@ -1,11 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for provenance-backed semantic seam-edge references."""
 
-import sys
-from pathlib import Path
 from typing import TypedDict, cast
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
