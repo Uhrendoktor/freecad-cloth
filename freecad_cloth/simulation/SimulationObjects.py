@@ -356,13 +356,29 @@ def _parse_int_list(values, particle_count=None):
 
 
 def normalize_pin_mode(value):
-    """Return a supported pinning mode, defaulting invalid values to Automatic."""
+    """Return a supported pinning mode, defaulting invalid values to Automatic.
+
+    Args:
+        value: Authored pin-mode value read from the persistent simulation feature.
+
+    Returns:
+        A supported pinning mode name, or Automatic when the value is invalid.
+    """
     mode = str(value or "Automatic").strip()
     return mode if mode in PIN_MODE_NAMES else "Automatic"
 
 
 def resolve_pin_indices(obj, particle_count, automatic_default=()):
-    """Resolve the solver pin indices from the persistent pinning mode."""
+    """Resolve the solver pin indices from the persistent pinning mode.
+
+    Args:
+        obj: Persistent simulation feature containing the selected pin mode and indices.
+        particle_count: Number of solver particles available for pin selection.
+        automatic_default: Fallback particle indices used by Automatic mode.
+
+    Returns:
+        Unique in-range solver particle indices selected by the active pin mode.
+    """
     mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
     explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
     if mode == "None":
@@ -648,6 +664,9 @@ class SimulationProxy:
 
         Args:
             obj: Persistent simulation feature whose source state is recomputed.
+
+        Raises:
+            RuntimeError: If rebuilding the scene does not initialize a solver backend.
         """
         _ensure_state_properties(obj)
         target = getattr(obj, "DrapeTarget", None)
