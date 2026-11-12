@@ -531,7 +531,6 @@ def _display_path(path: Path) -> str:
         return str(path)
 
 
-
 def _label(filename: str, line: int, name: str) -> str:
     """Format a declaration location for documentation diagnostics.
 
@@ -755,7 +754,6 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
                 f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}"
             )
     return errors
-
 
 
 _SUPPRESSION_COMMENT = re.compile(
