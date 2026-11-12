@@ -266,10 +266,22 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                     "tests/test_ci_configuration.py::"
                     "test_ruff_covers_every_tracked_python_file_without_auto_fixing"
                 ),
+                (
+                    "tests/test_ci_configuration.py::"
+                    "test_pyright_uses_the_reviewed_staged_production_inventory"
+                ),
+                (
+                    "tests/test_ci_configuration.py::"
+                    "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
+                ),
                 "tests/test_avatar_service_contract.py",
+                "tests/test_changed_python_types.py",
                 "tests/test_command_runner.py",
                 "tests/test_documentation_contract.py",
+                "tests/test_explicit_any_annotations.py",
                 "tests/test_garment_document_contract.py",
+                "tests/test_no_source_rewriting.py",
+                "tests/test_pydantic_models_policy.py",
                 "tests/test_sewing_creation_session.py",
                 "tests/test_strict_quality_runner_contract.py",
             ),
@@ -281,7 +293,29 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
         QualityCommand(
             "Source-rewriting policy", (executable, "tools/ci/check_no_source_rewriting.py")
         ),
+        QualityCommand(
+            "Explicit Any policy", (executable, "tools/ci/check_explicit_any_annotations.py")
+        ),
+        QualityCommand(
+            "Pydantic model policy", (executable, "tools/ci/check_pydantic_models.py")
+        ),
         QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json")),
+        QualityCommand(
+            "Typed simulation core",
+            (
+                "ty",
+                "check",
+                "--output-format",
+                "github",
+                "freecad_cloth/simulation/DrapeFailureClassifier.py",
+                "freecad_cloth/simulation/ClothBackend.py",
+                "freecad_cloth/simulation/ClothSolver.py",
+            ),
+        ),
+        QualityCommand(
+            "Changed Python annotation ratchet",
+            (executable, "tools/ci/check_changed_python_types.py"),
+        ),
         QualityCommand(
             "AST-grep rule tests", ("ast-grep", "test", "--skip-snapshot-tests", "--color", "never")
         ),
