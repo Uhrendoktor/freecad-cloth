@@ -22,6 +22,7 @@ def _is_avatar_parameters[T](value: T) -> TypeGuard[AvatarParameters]:
     """
     return isinstance(value, AvatarParameters)
 
+
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
 AvatarSurface = tuple[tuple[Point3, ...], tuple[Triangle, ...]]
