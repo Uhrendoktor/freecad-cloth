@@ -1,6 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for persistent avatar arrangement-point metadata."""
 
+import freecad_cloth.avatar.AvatarArrangement as legacy_module
+import freecad_cloth.avatar.avatar_arrangement as implementation_module
+
 from freecad_cloth.avatar.AvatarArrangement import (
     arrangement_point_map,
     arrangement_points_from_landmarks,
@@ -59,4 +62,15 @@ def test_arrangement_map_rejects_invalid_record_shapes_and_values() -> None:
     require(
         condition=mapped == {"neck": "1,2,3"},
         message="Malformed arrangement metadata must be omitted from the point map.",
+    )
+
+
+def test_legacy_import_path_reexports_the_lowercase_implementation() -> None:
+    """Keep historical PascalCase imports bound to the lowercase implementation."""
+    require(
+        condition=legacy_module.arrangement_point_map
+        is implementation_module.arrangement_point_map
+        and legacy_module.arrangement_points_from_landmarks
+        is implementation_module.arrangement_points_from_landmarks,
+        message="The historical AvatarArrangement path must re-export canonical functions.",
     )
