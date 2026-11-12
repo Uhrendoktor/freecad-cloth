@@ -6,7 +6,21 @@ Document adapters and simulation providers share one typed mesh and landmark
 contract without depending on Part or OpenCascade.
 """
 
+from typing import TypeGuard
+
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose, generate_mesh
+
+
+def _is_avatar_parameters[T](value: T) -> TypeGuard[AvatarParameters]:
+    """Determine whether a dynamically supplied value is an avatar parameter state.
+
+    Args:
+        value: Runtime value checked at the service construction boundary.
+
+    Returns:
+        Whether the value is an instance of the canonical avatar parameter model.
+    """
+    return isinstance(value, AvatarParameters)
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -26,7 +40,7 @@ class AvatarService:
             TypeError: If parameters is not an AvatarParameters instance.
         """
         self._parameters = parameters if parameters is not None else AvatarParameters()
-        if not isinstance(self._parameters, AvatarParameters):
+        if not _is_avatar_parameters(self._parameters):
             msg = "AvatarService requires AvatarParameters"
             raise TypeError(msg)
 
@@ -97,7 +111,10 @@ class AvatarService:
         Raises:
             KeyError: If name is not a supported measurement.
         """
-        return self._parameters.measurement(str(name))
+        key = str(name)
+        if key not in self._parameters.measurements:
+            raise KeyError(key)
+        return self._parameters.measurement(key)
 
     def measurements(self) -> tuple[tuple[str, float], ...]:
         """Return a deterministic snapshot of anthropometric measurements.
