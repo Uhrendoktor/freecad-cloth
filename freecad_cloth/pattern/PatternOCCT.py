@@ -26,6 +26,18 @@ def offset_outline(outline, distance, join_type=0):
 
     The caller owns semantic edge IDs; OCCT-generated edges are therefore
     treated as derived geometry and never used as stable sewing identifiers.
+
+    Args:
+        outline: Ordered planar boundary coordinates used to build the source wire.
+        distance: Non-negative offset distance in model units.
+        join_type: Native OCCT join-style selector passed to FreeCAD Part.
+
+    Returns:
+        Native offset wire or compound shape returned by the installed Part API.
+
+    Raises:
+        ValueError: If the outline has too few points or the offset distance is negative.
+        RuntimeError: If the FreeCAD Part/OCCT module is unavailable.
     """
     try:
         import FreeCAD as App
@@ -43,11 +55,36 @@ def offset_outline(outline, distance, join_type=0):
 
 
 def native_offset_wire(wire, distance, join_type=0):
-    """Compatibility API for callers that already own a FreeCAD wire."""
+    """Offset a caller-owned FreeCAD wire without rebuilding its source outline.
+
+    Args:
+        wire: Native FreeCAD wire to offset.
+        distance: Non-negative offset distance in model units.
+        join_type: Native OCCT join-style selector passed to FreeCAD Part.
+
+    Returns:
+        Native offset wire or shape produced by the installed Part API.
+
+    Raises:
+        ValueError: If the offset distance is negative.
+        RuntimeError: If the installed Part API does not expose wire offset support.
+    """
     return _make_offset_wire(wire, distance, join_type)
 
 
 def compare_native_offset(piece, distance):
-    """Generate a native offset candidate while preserving the semantic source."""
+    """Generate a native offset candidate while preserving the semantic source.
+
+    Args:
+        piece: Validated semantic pattern piece that supplies the source outline.
+        distance: Non-negative offset distance in model units.
+
+    Returns:
+        Native offset geometry derived from the validated piece outline.
+
+    Raises:
+        ValueError: If the source piece or offset distance is invalid.
+        RuntimeError: If the FreeCAD Part/OCCT module is unavailable.
+    """
     piece.validate()
     return offset_outline(piece.outline, distance)
