@@ -7,18 +7,16 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Literal, Protocol, SupportsFloat, SupportsInt, SupportsStr, cast
+from typing import Protocol, SupportsFloat, SupportsInt, SupportsStr, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
 type JsonObject = dict[str, JsonValue]
 type CoordinateValue = SupportsFloat | str | bytes
 type NativePoint = _NativeVector | Sequence[CoordinateValue]
-type MeshTopologyInput = tuple[
-    Sequence[NativePoint], Sequence[Sequence[SupportsInt | str | bytes]]
-]
+type MeshTopologyInput = tuple[Sequence[NativePoint], Sequence[Sequence[SupportsInt | str | bytes]]]
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -457,9 +455,7 @@ def _points_in_local_space(
         if host_module is None:
             msg = "FreeCAD must be loaded when converting placed mesh coordinates"
             raise ImportError(msg)
-        make_vector = cast(
-            "Callable[[float, float, float], _NativeVector]", host_module.Vector
-        )
+        make_vector = cast("Callable[[float, float, float], _NativeVector]", host_module.Vector)
     inverse = placement.inverse()
     return tuple(_point_xyz(inverse.multVec(make_vector(*point))) for point in points)
 
@@ -671,9 +667,7 @@ def _shape_signature_components(shape: _NativeShape) -> ShapeSignatureComponents
     Returns:
         Sorted geometry components and the combined local-shape signature tuple.
     """
-    vertices = tuple(
-        sorted(_rounded_point(vertex.Point) for vertex in shape.Vertexes)
-    )
+    vertices = tuple(sorted(_rounded_point(vertex.Point) for vertex in shape.Vertexes))
     edges = tuple(
         sorted(
             (
@@ -1070,10 +1064,7 @@ def _mesh_anchor_local_position(
     if triangle_index < 0 or triangle_index >= len(triangles):
         msg = "anchored mesh triangle no longer exists"
         raise ValueError(msg)
-    weights = tuple(
-        float(value)
-        for value in cast("Iterable[CoordinateValue]", anchor["barycentric"])
-    )
+    weights = tuple(float(value) for value in cast("Iterable[CoordinateValue]", anchor["barycentric"]))
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
         msg = "stored mesh-anchor barycentric coordinates are invalid"
         raise ValueError(msg)
@@ -1328,9 +1319,7 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def addObject(
-        self, type_id: str, name: str
-    ) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, type_id: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native document object with the supplied type and internal name.
 
         Args:
