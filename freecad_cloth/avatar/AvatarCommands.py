@@ -947,7 +947,7 @@ def rebuild_avatar() -> _AvatarFeature:
     return apply_avatar_parameters(obj, _parameters(obj))
 
 
-def edit_avatar() -> "AvatarTaskPanelProtocol":
+def edit_avatar() -> AvatarTaskPanelProtocol:
     """Open the avatar measurement and shape editor.
 
     Returns:
@@ -966,7 +966,7 @@ def edit_avatar() -> "AvatarTaskPanelProtocol":
     return show_avatar_task(obj)
 
 
-def pose_avatar(avatar: _AvatarFeature | None = None) -> "AvatarTaskPanelProtocol":
+def pose_avatar(avatar: _AvatarFeature | None = None) -> AvatarTaskPanelProtocol:
     """Open the focused 3D Pose Mode editor for a mannequin.
 
     Args:
