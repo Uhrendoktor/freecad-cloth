@@ -106,9 +106,7 @@ class _FreeCADDocument(Protocol):
 
     Objects: Sequence[FreeCADDocumentObjectProtocol]
 
-    def addObject(
-        self, object_type: str, object_name: str
-    ) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native feature with the requested type and internal name."""
         ...
 
