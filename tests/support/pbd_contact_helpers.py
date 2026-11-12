@@ -16,12 +16,206 @@ from numbers import Real
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.shared.Collision import CollisionSurface
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping, Sequence
     from types import ModuleType
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
+
+
+class _NativeVector(Protocol):
+    """Read-only XYZ coordinates exposed by FreeCAD vectors."""
+
+    @property
+    def x(self) -> float:
+        """Return the horizontal model coordinate."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """Return the vertical model coordinate."""
+        ...
+
+    @property
+    def z(self) -> float:
+        """Return the depth model coordinate."""
+        ...
+
+
+class _NativeShape(Protocol):
+    """Native FreeCAD shape operations used by diagnostic clearance checks."""
+
+    def isNull(self) -> bool:
+        """Return whether the shape has no topological content."""
+        ...
+
+    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+        """Test whether a point lies inside the closed native shape."""
+        ...
+
+    def tessellate(
+        self,
+        deflection: float,
+    ) -> tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]:
+        """Return a tessellated vertex and triangle view of the shape."""
+        ...
+
+
+class _NativeMesh(Protocol):
+    """Native FreeCAD mesh topology and containment operations."""
+
+    Topology: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]
+
+    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+        """Test whether a point lies inside the native triangle mesh."""
+        ...
+
+
+class _ViewProvider(Protocol):
+    """Visibility field changed when diagnostic collision geometry is created."""
+
+    Visibility: bool
+
+
+class _SourceFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Avatar or collision feature inspected by the PBD diagnostic helpers."""
+
+    Shape: _NativeShape | None
+    Mesh: _NativeMesh | None
+
+
+class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted target identity and source signature fields recorded by the ladder."""
+
+    SourceObject: FreeCADDocumentObjectProtocol | None
+    TargetType: str
+    CollisionTriangleCount: int
+    CollisionVertexCount: int
+
+
+class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """PatternPiece document link accepted by the diagnostic simulation scene."""
+
+    PieceId: str
+    PatternType: str
+
+
+class _PBDBackend(Protocol):
+    """Deterministic solver state consumed by the diagnostic ladder."""
+
+    solver_collision_surface: CollisionSurface
+
+    def positions(self) -> Sequence[Point3]:
+        """Return the backend's current particle coordinates."""
+        ...
+
+
+class _PBDBase(Protocol):
+    """Native simulation base fields required by collision and seam diagnostics."""
+
+    backend: _PBDBackend
+    collision_surface: CollisionSurface | None
+    panel_triangles: Mapping[str, Sequence[Triangle3]]
+    seam_stitch_pairs: Mapping[str, Sequence[tuple[int, int]]]
+
+
+class _SimulationProxy(Protocol):
+    """Production proxy hook used to restore the current PBD runtime."""
+
+    def _base_or_restore(self) -> _PBDBase:
+        """Return or rebuild the deterministic simulation base."""
+        ...
+
+
+class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted simulation fields assigned or inspected by the ladder helpers."""
+
+    Proxy: _SimulationProxy
+    Steps: int
+    DrapeTarget: _DrapeTargetFeature | None
+    QualityPreset: str
+    ParticleDistance: float
+    SolverIterations: int
+    SolverSubsteps: int
+    TimeStep: float
+    GravityX: float
+    GravityY: float
+    GravityZ: float
+    FabricFriction: float
+    PinMode: str
+    PinSelection: list[str]
+    FabricTransparency: int
+    ClothPieces: list[_PatternPieceFeature]
+    SeamSelection: list[str]
+    StitchSamples: int
+
+
+class _FreeCADDocument(Protocol):
+    """Document recomputation operation captured for a diagnostic checkpoint."""
+
+    def recompute(self) -> None:
+        """Recompute the persisted document after a solver step."""
+        ...
+
+
+class _DiagnosticCube(FreeCADDocumentObjectProtocol, Protocol):
+    """Part feature created as the controlled collision source for a ladder case."""
+
+    Shape: _NativeShape
+    ViewObject: _ViewProvider
+
+
+class _DiagnosticCubeDocument(Protocol):
+    """Document method required to create the controlled collision cube."""
+
+    def addObject(self, object_type: str, name: str) -> _DiagnosticCube:
+        """Create a native document feature with the requested internal name."""
+        ...
+
+    def recompute(self) -> None:
+        """Recompute the document after changing target geometry."""
+        ...
+
+
+class _Viewport(Protocol):
+    """View actions used to orient and capture diagnostic evidence."""
+
+    def setCameraType(self, camera_type: str) -> None:
+        """Select the perspective or orthographic camera mode."""
+        ...
+
+    def fitAll(self) -> None:
+        """Fit the visible document geometry into the active viewport."""
+        ...
+
+    def saveImage(self, path: str, width: int, height: int, background: str) -> None:
+        """Persist a viewport screenshot with explicit dimensions and background."""
+        ...
+
+
+class _ProximityQuery(Protocol):
+    """Nearest-point operation exposed by the optional Trimesh acceleration mesh."""
+
+    def on_surface(
+        self,
+        points: Iterable[Iterable[float]],
+    ) -> tuple[Sequence[Sequence[float]], Sequence[float], Sequence[int]]:
+        """Return nearest surface points, distances, and triangle indices."""
+        ...
+
+
+class _ProximityMesh(Protocol):
+    """Optional accelerated surface mesh used only for diagnostic distance queries."""
+
+    nearest: _ProximityQuery
+
+
+type _PositionConverter = Callable[[_PBDBackend], tuple[tuple[float, ...], ...]]
 
 LADDER_STITCH_SAMPLES = 8
 LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
@@ -181,7 +375,7 @@ def connected_components(vertices, triangles):
 
 def nearest_surface_observation(
     garment_points: Sequence[Point3],
-    surface: object | None,
+    surface: CollisionSurface | None,
 ) -> tuple[float | None, Point3 | None]:
     """Return the nearest target vertex and distance using the shared spatial index.
 
@@ -378,7 +572,7 @@ def nearest_surface_distance(
         return math.sqrt(best_squared) if math.isfinite(best_squared) else None
 
 
-def target_signature(target):
+def target_signature(target: _DrapeTargetFeature) -> JsonObject:
     """Return stable target/source identity and topology metrics for diagnostic evidence."""
     source = getattr(target, "SourceObject", None)
     if source is None:
@@ -412,19 +606,19 @@ def target_signature(target):
 class PBDRuntimeSnapshot(NamedTuple):
     """Validated state shared by avatar and cube diagnostic ladders."""
 
-    base: object
-    collision_surface: object
+    base: _PBDBase
+    collision_surface: CollisionSurface
     solver_triangles: int
     positions: tuple[tuple[float, ...], ...]
     panel_triangles: tuple[tuple[int, ...], ...]
-    target_signature: dict[str, object]
-    source_shape: object | None
+    target_signature: JsonObject
+    source_shape: _NativeShape | None
 
 
 def inspect_pbd_runtime(
-    scene: object,
-    source_object: object,
-    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    scene: _SimulationScene,
+    source_object: _SourceFeature,
+    positions_converter: _PositionConverter,
     case_id: str,
     require_source_shape: bool,
 ) -> PBDRuntimeSnapshot:
@@ -502,15 +696,15 @@ def inspect_pbd_runtime(
 class LadderCheckpointCapture:
     """Capture a diagnostic checkpoint with injected FreeCAD view behavior."""
 
-    scene: object
-    document: object
-    view: object
+    scene: _SimulationScene
+    document: _FreeCADDocument
+    view: _Viewport
     case_id: str
     boot: Callable[[str], None]
     process_events: Callable[[], None]
     orient_view: Callable[[], None]
     reveal_objects: Callable[[], None]
-    capture_image: Callable[[object, Path], None]
+    capture_image: Callable[[_Viewport, Path], None]
 
     def capture(self, step: int, image: Path) -> None:
         """Recompute the requested step and persist its screenshot.
@@ -534,11 +728,11 @@ class LadderCheckpointCapture:
 
 
 def configure_diagnostic_cube_target(
-    doc: object,
-    scene: object,
+    doc: _DiagnosticCubeDocument,
+    scene: _SimulationScene,
     app: ModuleType,
     part: ModuleType,
-) -> object:
+) -> _DiagnosticCube:
     """Create the diagnostic cube and make it the scene's collision target.
 
     Args:
@@ -737,8 +931,8 @@ class LadderCaseMeasurements(NamedTuple):
     """Validated state and measurements collected before a ladder case steps."""
 
     runtime: PBDRuntimeSnapshot
-    seam_pre: list[dict[str, object]]
-    proximity_mesh: object | None
+    seam_pre: list[JsonObject]
+    proximity_mesh: _ProximityMesh | None
     signed_before: float | None
     unsigned_before: float | None
     bounds: dict[str, float]
@@ -751,9 +945,9 @@ def capture_ladder_checkpoints(
     target_name: str,
     case_id: str,
     runtime: PBDRuntimeSnapshot,
-    record_checkpoint: Callable[[int, str, tuple[tuple[float, ...], ...]], dict[str, object]],
+    record_checkpoint: Callable[[int, str, tuple[tuple[float, ...], ...]], JsonObject],
     progress: Callable[[str], None],
-) -> tuple[dict[int, str], list[dict[str, object]]]:
+) -> tuple[dict[int, str], list[JsonObject]]:
     """Capture the shared checkpoint schedule and collect target-specific measurements.
 
     Args:
@@ -769,7 +963,7 @@ def capture_ladder_checkpoints(
         Image paths keyed by solver step and the corresponding checkpoint records.
     """
     images: dict[int, str] = {}
-    checkpoints: list[dict[str, object]] = []
+    checkpoints: list[JsonObject] = []
     for step in LADDER_CHECKPOINTS:
         image = output_directory / f"{target_name}-ladder" / case_id / f"step-{step:03d}.png"
         capture.capture(step, image)
@@ -785,18 +979,18 @@ def build_ladder_case_record(
     *,
     target: str,
     case_id: str,
-    spec: Mapping[str, object],
-    scene: object,
+    spec: Mapping[str, JsonValue],
+    scene: _SimulationScene,
     runtime: PBDRuntimeSnapshot,
     measurements: LadderCaseMeasurements,
     images: Mapping[int, str],
-    checkpoints: Sequence[Mapping[str, object]],
+    checkpoints: Sequence[Mapping[str, JsonValue]],
     started: float,
     target_bounds: Mapping[str, float],
     contact_mode: str,
-    extra_control: Mapping[str, object],
+    extra_control: Mapping[str, JsonValue],
     notes: str,
-) -> dict[str, object]:
+) -> JsonObject:
     """Assemble the canonical evidence record shared by cube and avatar ladders.
 
     Args:
@@ -829,7 +1023,7 @@ def build_ladder_case_record(
         [int(left), int(right)] for pairs in seam_pairs_by_id.values() for left, right in pairs
     ]
     seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
-    case_record: dict[str, object] = {
+    case_record: JsonObject = {
         "rung": int(cast(int, spec["rung"])),
         "id": case_id,
         "target": target,
@@ -838,7 +1032,7 @@ def build_ladder_case_record(
         "seam_mode": str(cast(str, spec["seam_mode"])),
     }
     signature = runtime.target_signature
-    record: dict[str, object] = {
+    record: JsonObject = {
         "case_id": case_id,
         "predecessor_case_id": None,
         "case": case_record,
@@ -901,11 +1095,11 @@ def build_ladder_case_record(
 
 
 def structural_ladder_checks(
-    records: Sequence[Mapping[str, object]],
+    records: Sequence[Mapping[str, JsonValue]],
     ordered_cases: Sequence[tuple[str, int]],
     single_piece_rungs: Sequence[int],
     no_seam_two_piece_rungs: Sequence[int],
-) -> dict[str, object]:
+) -> JsonObject:
     """Validate required rung configurations and stop interpretation at the first failure.
 
     Args:
@@ -917,15 +1111,15 @@ def structural_ladder_checks(
     Returns:
         Validation results and the first failing rung, if any.
     """
-    by_id = {str(cast("Mapping[str, object]", record["case"])["id"]): record for record in records}
-    checks: list[dict[str, object]] = []
+    by_id = {str(cast("JsonObject", record["case"])["id"]): record for record in records}
+    checks: list[JsonObject] = []
     for case_id, rung in ordered_cases:
         record = by_id[case_id]
-        case_data = cast(Mapping[str, object], record["case"])
-        solver = cast("Mapping[str, object]", record["solver"])
-        collision = cast("Mapping[str, object]", record["collision"])
-        pre_step = cast("Mapping[str, object]", record["pre_step"])
-        checkpoints = cast("Sequence[Mapping[str, object]]", record["checkpoints"])
+        case_data = cast(JsonObject, record["case"])
+        solver = cast("JsonObject", record["solver"])
+        collision = cast("JsonObject", record["collision"])
+        pre_step = cast("JsonObject", record["pre_step"])
+        checkpoints = cast("Sequence[JsonObject]", record["checkpoints"])
         ok = (
             bool(record["finite"])
             and int(cast(int, case_data["rung"])) == rung
@@ -939,8 +1133,8 @@ def structural_ladder_checks(
             and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
         )
         piece_count = int(cast(int, case_data["piece_count"]))
-        seams = cast("Sequence[object]", pre_step["seam_pairs"])
-        seam_spans = cast("Sequence[object]", pre_step["seam_world_spans_mm"])
+        seams = cast("Sequence[JsonValue]", pre_step["seam_pairs"])
+        seam_spans = cast("Sequence[JsonValue]", pre_step["seam_world_spans_mm"])
         if rung in single_piece_rungs:
             ok = ok and piece_count == 1 and not seams
         elif rung in no_seam_two_piece_rungs:
@@ -971,7 +1165,7 @@ def write_ladder_manifest(
     ordered_cases: Sequence[tuple[str, int]],
     single_piece_rungs: Sequence[int],
     no_seam_two_piece_rungs: Sequence[int],
-    run_case: Callable[[str], dict[str, object]],
+    run_case: Callable[[str], JsonObject],
     output_directory: Path,
     boot: Callable[[str], None],
     progress: Callable[[str], None],
@@ -1035,10 +1229,10 @@ def write_ladder_manifest(
 
 
 def append_optional_ladder_piece(
-    spec: Mapping[str, object],
-    pieces: list[object],
-    create_right_piece: Callable[[], object],
-    add_seam: Callable[[object, object], None],
+    spec: Mapping[str, JsonValue],
+    pieces: list[_PatternPieceFeature],
+    create_right_piece: Callable[[], _PatternPieceFeature],
+    add_seam: Callable[[_PatternPieceFeature, _PatternPieceFeature], None],
 ) -> None:
     """Append the optional right piece and seam specified by a ladder case.
 
@@ -1063,9 +1257,9 @@ def append_optional_ladder_piece(
 
 
 def configure_ladder_scene(
-    scene: object,
-    pieces: list[object],
-    spec: Mapping[str, object],
+    scene: _SimulationScene,
+    pieces: list[_PatternPieceFeature],
+    spec: Mapping[str, JsonValue],
 ) -> None:
     """Apply common cloth, pinning, seam, and step settings to a ladder scene.
 
@@ -1082,7 +1276,7 @@ def configure_ladder_scene(
     scene.Steps = 0
 
 
-def build_proximity_mesh(collision_surface: object) -> object | None:
+def build_proximity_mesh(collision_surface: CollisionSurface) -> _ProximityMesh | None:
     """Build an optional Trimesh acceleration mesh for surface-distance queries.
 
     Args:
@@ -1136,11 +1330,11 @@ def position_bounds(points: Sequence[Sequence[float]]) -> dict[str, float]:
 
 def surface_signed_clearance(
     points: Sequence[Sequence[float]],
-    source_shape: object | None,
-    collision_surface: object,
-    proximity_mesh: object | None = None,
+    source_shape: _NativeShape | None,
+    collision_surface: CollisionSurface,
+    proximity_mesh: _ProximityMesh | None = None,
     *,
-    vector_factory: Callable[..., object] | None = None,
+    vector_factory: Callable[..., _NativeVector] | None = None,
     trace: Callable[[str], None] | None = None,
 ) -> tuple[float | None, float | None]:
     """Measure mesh distance and use the native target shape to infer its sign.
@@ -1215,13 +1409,13 @@ def surface_signed_clearance(
 
 
 def prepare_ladder_case(
-    scene: object,
-    source_object: object,
-    positions_converter: Callable[[object], tuple[tuple[float, ...], ...]],
+    scene: _SimulationScene,
+    source_object: _SourceFeature,
+    positions_converter: _PositionConverter,
     case_id: str,
     require_source_shape: bool,
     clearance_measure: Callable[
-        [Sequence[Sequence[float]], object | None, object, object | None],
+        [Sequence[Sequence[float]], _NativeShape | None, CollisionSurface, _ProximityMesh | None],
         tuple[float | None, float | None],
     ],
 ) -> LadderCaseMeasurements:
