@@ -760,7 +760,17 @@ def add_sewing_operation(
     piece_b: object,
     name: str = "SewingOperation",
 ) -> _SewingFeature:
-    """Add the requested sewing operation data."""
+    """Add the requested sewing operation data.
+
+Args:
+    doc: FreeCAD document that will own the persistent sewing feature.
+    seam: Persisted seam object whose correspondence and stitch metadata are linked.
+    piece_a: Pattern-piece document object on seam side A.
+    piece_b: Pattern-piece document object on seam side B.
+    name: Stable internal name and initial label for the operation feature.
+
+Returns:
+    Created sewing-operation feature with seam, piece, tolerance, and stitch properties."""
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"
