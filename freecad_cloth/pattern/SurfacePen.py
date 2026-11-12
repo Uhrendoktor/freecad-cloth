@@ -791,18 +791,18 @@ def _add_surface_provenance(piece, surface_draft):
 def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None):
     """Create a native Sketcher-backed PatternPiece from a persisted surface draft.
 
-Args:
-    surface_draft: Persistent Surface Pen feature containing target and anchor data.
-    tolerance_mm: Maximum permitted planar deviation for extraction, in millimetres.
-    name: Optional name assigned to the generated PatternPiece.
+    Args:
+        surface_draft: Persistent Surface Pen feature containing target and anchor data.
+        tolerance_mm: Maximum permitted planar deviation for extraction, in millimetres.
+        name: Optional name assigned to the generated PatternPiece.
 
-Returns:
-    Native PatternPiece document object backed by a Sketcher boundary and retained
-    surface-draft provenance.
+    Returns:
+        Native PatternPiece document object backed by a Sketcher boundary and retained
+        surface-draft provenance.
 
-Raises:
-    ValueError: If target provenance is stale, anchor data is malformed, no active
-        document exists, or the stroke cannot be flattened within tolerance."""
+    Raises:
+        ValueError: If target provenance is stale, anchor data is malformed, no active
+            document exists, or the stroke cannot be flattened within tolerance."""
     import FreeCAD as App
 
     target = getattr(surface_draft, "Target", None)
@@ -939,8 +939,8 @@ class SurfacePenController:
     def set_input_mode(self, value: str) -> None:
         """Switch between point placement, freehand trace, and reference-point modes.
 
-Args:
-    value: Visible mode label selected by the task-panel combo box."""
+        Args:
+            value: Visible mode label selected by the task-panel combo box."""
         label = str(value).lower()
         if "freehand" in label:
             mode = "freehand"
@@ -956,8 +956,8 @@ Args:
     def set_point_kind(self, value: str) -> None:
         """Choose whether the next placed anchor is a corner or curve-through point.
 
-Args:
-    value: Visible label selecting either corner or curve-point semantics."""
+        Args:
+            value: Visible label selecting either corner or curve-point semantics."""
         self.point_kind = "curve" if "curve" in str(value).lower() else "corner"
         self._status(self._stroke_status())
 
@@ -1270,17 +1270,17 @@ Args:
     def finish(self, tolerance_mm=8.0, name=None):
         """Finish the active Surface Pen mode and create its native Sketcher result.
 
-Args:
-    tolerance_mm: Maximum accepted planar deviation in millimetres.
-    name: Optional name assigned to the extracted PatternPiece.
+        Args:
+            tolerance_mm: Maximum accepted planar deviation in millimetres.
+            name: Optional name assigned to the extracted PatternPiece.
 
-Raises:
-    RuntimeError: If there is no active FreeCAD document.
-    ValueError: If the stroke is open, too small, stale, or too curved for
-        the requested planar representation.
+        Raises:
+            RuntimeError: If there is no active FreeCAD document.
+            ValueError: If the stroke is open, too small, stale, or too curved for
+                the requested planar representation.
 
-Returns:
-    Native Sketcher reference-point sketch or extracted PatternPiece feature."""
+        Returns:
+            Native Sketcher reference-point sketch or extracted PatternPiece feature."""
         if self._drawing:
             self._drawing = False
             self._last_screen = None
@@ -1439,8 +1439,8 @@ class SurfacePenTaskPanel:
     def finish(self):
         """Finish the selected Surface Pen mode using the task-panel planar tolerance.
 
-Returns:
-    True when extraction succeeds; False when a recoverable input error is shown."""
+        Returns:
+            True when extraction succeeds; False when a recoverable input error is shown."""
         try:
             result = self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
@@ -1460,8 +1460,8 @@ Returns:
     def accept(self):
         """Close the task panel after committing the current surface draft.
 
-Returns:
-    True after the preview controller is deactivated and the dialog closes."""
+        Returns:
+            True after the preview controller is deactivated and the dialog closes."""
         self.controller.deactivate()
         with contextlib.suppress(AttributeError, RuntimeError):
             self.controller.Gui.Control.closeDialog()
@@ -1470,8 +1470,8 @@ Returns:
     def reject(self):
         """Cancel surface drawing and close the task panel without extraction.
 
-Returns:
-    True after the unfinished stroke is cleared and the dialog closes."""
+        Returns:
+            True after the unfinished stroke is cleared and the dialog closes."""
         self.controller.clear()
         self.controller.deactivate()
         with contextlib.suppress(AttributeError, RuntimeError):

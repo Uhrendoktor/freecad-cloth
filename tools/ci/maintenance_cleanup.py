@@ -136,7 +136,9 @@ def _decode_github_response(connection: http.client.HTTPSConnection) -> ApiJsonV
         raise GitHubApiError(msg) from exc
 
 
-def _request_github_api(method: str, endpoint: str, body: dict[str, str] | None = None) -> ApiJsonValue:
+def _request_github_api(
+    method: str, endpoint: str, body: dict[str, str] | None = None
+) -> ApiJsonValue:
     """Send one authenticated GitHub API request and decode its response.
 
     Args:
@@ -284,9 +286,7 @@ def paginated_api_items(
         page += 1
 
 
-def stale_completed_runs(
-    runs: list[ApiJsonObject], cutoff_epoch: float
-) -> list[ApiJsonObject]:
+def stale_completed_runs(runs: list[ApiJsonObject], cutoff_epoch: float) -> list[ApiJsonObject]:
     """Return runs older than the retention cutoff, oldest first.
 
     Args:

@@ -338,7 +338,7 @@ def analyze_mesh(
         rest_vertices: Reference vertex coordinates before simulation.
         current_vertices: Vertex coordinates from the evaluated cloth mesh.
         triangles: Faces expressed as triples of vertex indices.
-        options: Optional fabric stretch, clearances, fit tolerance, and solver pressure controls.
+        **options: Optional fabric stretch, clearances, fit tolerance, and solver pressure controls.
             Defaults are a 0.02 stretch limit, no clearances, a 5.0 fit tolerance,
             and zero pressure.
 

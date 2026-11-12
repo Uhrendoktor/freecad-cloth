@@ -15,30 +15,30 @@ __all__ = [
 def pattern_pieces_for_2d(objects):
     """Return pattern pieces participating in the sewing 2D focus.
 
-The sewing view is a presentation of the authoritative pattern geometry,
-so PatternPiece objects are included alongside seam/network overlays.
-Preserve document order to keep selection deterministic.
+    The sewing view is a presentation of the authoritative pattern geometry,
+    so PatternPiece objects are included alongside seam/network overlays.
+    Preserve document order to keep selection deterministic.
 
-Args:
-    objects: Document objects in their original presentation order.
+    Args:
+        objects: Document objects in their original presentation order.
 
-Returns:
-    PatternPiece objects selected for the sewing 2D view, preserving document order."""
+    Returns:
+        PatternPiece objects selected for the sewing 2D view, preserving document order."""
     return [obj for obj in objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
 def seam_visual_markers(points_a, points_b):
     """Return deterministic direction/notch/correspondence marker geometry data.
 
-Args:
-    points_a: Ordered sampled seam-A coordinates.
-    points_b: Ordered sampled seam-B coordinates with correspondence to side A.
+    Args:
+        points_a: Ordered sampled seam-A coordinates.
+        points_b: Ordered sampled seam-B coordinates with correspondence to side A.
 
-Returns:
-    Mapping of paired correspondence lines and direction/notch marker vectors.
+    Returns:
+        Mapping of paired correspondence lines and direction/notch marker vectors.
 
-Raises:
-    ValueError: If the two sides contain fewer than two or unequal sample counts."""
+    Raises:
+        ValueError: If the two sides contain fewer than two or unequal sample counts."""
     if len(points_a) != len(points_b) or len(points_a) < 2:
         msg = "seam marker inputs must have equal length >= 2"
         raise ValueError(msg)
@@ -69,18 +69,18 @@ Raises:
 def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
     """Build native presentation geometry for one semantic seam.
 
-Args:
-    piece_a: Pattern-piece document object on seam side A.
-    piece_b: Pattern-piece document object on seam side B.
-    seam: Persistent semantic seam record describing edge ranges and direction.
-    sample_count: Number of edge samples used to build the correspondence shape.
-    world_space: Whether samples are emitted in world coordinates.
+    Args:
+        piece_a: Pattern-piece document object on seam side A.
+        piece_b: Pattern-piece document object on seam side B.
+        seam: Persistent semantic seam record describing edge ranges and direction.
+        sample_count: Number of edge samples used to build the correspondence shape.
+        world_space: Whether samples are emitted in world coordinates.
 
-Returns:
-    Native Part shape containing paired seam lines and correspondence markers.
+    Returns:
+        Native Part shape containing paired seam lines and correspondence markers.
 
-Raises:
-    ValueError: If the seam references or sampled edge geometry cannot be resolved."""
+    Raises:
+        ValueError: If the seam references or sampled edge geometry cannot be resolved."""
     import FreeCAD as App
     import Part
 

@@ -201,8 +201,8 @@ class QualitySimulationProxy:
     def onDocumentRestored(self, obj):
         """Recreate non-serializable solver state after FreeCAD reloads the proxy.
 
-Args:
-    obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""
+        Args:
+            obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""
         self._restore_base()
         self.seam_stitch_pairs = {}
 

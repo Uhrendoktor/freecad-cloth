@@ -69,11 +69,11 @@ class SketchAuthorityProxy:
     def execute(self, obj: object) -> None:
         """Recompute the FreeCAD object from its current source properties.
 
-Args:
-    obj: Persistent pattern-piece feature with a linked Sketcher object.
+        Args:
+            obj: Persistent pattern-piece feature with a linked Sketcher object.
 
-Raises:
-    ValueError: If the feature lacks a Sketcher-authoritative sketch or valid boundary."""
+        Raises:
+            ValueError: If the feature lacks a Sketcher-authoritative sketch or valid boundary."""
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
             msg = "SketchAuthorityProxy requires a linked Sketcher-authoritative Sketch"
@@ -115,12 +115,12 @@ Raises:
 def attach(obj: object, sketch: object) -> object:
     """Attach ``sketch`` as the persistent geometry authority of ``obj``.
 
-Args:
-    obj: Pattern-piece feature that will own the geometry-authority link.
-    sketch: Native Sketcher feature that becomes the boundary authority.
+    Args:
+        obj: Pattern-piece feature that will own the geometry-authority link.
+        sketch: Native Sketcher feature that becomes the boundary authority.
 
-Returns:
-    The same pattern-piece feature after its persistent links and proxy are installed."""
+    Returns:
+        The same pattern-piece feature after its persistent links and proxy are installed."""
     if "Sketch" not in obj.PropertiesList:
         obj.addProperty("App::PropertyLink", "Sketch", "Cloth")
     if "GeometryAuthority" not in obj.PropertiesList:

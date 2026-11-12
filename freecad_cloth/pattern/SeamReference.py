@@ -70,8 +70,8 @@ class EdgeReference:
     def as_dict(self):
         """Serialize this reference to a dictionary.
 
-Returns:
-    A JSON-compatible mapping of the semantic edge identity and signature."""
+        Returns:
+            A JSON-compatible mapping of the semantic edge identity and signature."""
         return {
             "piece_id": self.piece_id,
             "edge_id": self.edge_id,
@@ -82,14 +82,14 @@ Returns:
     def from_dict(cls, value: Mapping[str, object]):
         """Create a reference from a serialized dictionary.
 
-Args:
-    value: Mapping containing the piece ID, edge ID, and native signature.
+        Args:
+            value: Mapping containing the piece ID, edge ID, and native signature.
 
-Returns:
-    Validated immutable edge reference.
+        Returns:
+            Validated immutable edge reference.
 
-Raises:
-    ValueError: If any required identity field is absent or invalid."""
+        Raises:
+            ValueError: If any required identity field is absent or invalid."""
         try:
             return cls(
                 str(value["piece_id"]),
@@ -197,21 +197,21 @@ def resolve_edge_reference(
 ) -> Mapping[str, object]:
     """Resolve a reference against current edges without ordinal retargeting.
 
-Each edge mapping must contain ``id``, ``points``, and native ``provenance``.
-The exact semantic ID is checked against the current provenance signature.
-Missing IDs or changed geometry raise explicit errors rather than returning
-another edge with a coincidentally similar ordinal.
+    Each edge mapping must contain ``id``, ``points``, and native ``provenance``.
+    The exact semantic ID is checked against the current provenance signature.
+    Missing IDs or changed geometry raise explicit errors rather than returning
+    another edge with a coincidentally similar ordinal.
 
-Args:
-    reference: Persisted semantic edge identity and native geometry signature.
-    edges: Current edge records with IDs, sampled points, and provenance.
+    Args:
+        reference: Persisted semantic edge identity and native geometry signature.
+        edges: Current edge records with IDs, sampled points, and provenance.
 
-Returns:
-    Current edge record matching the exact semantic ID and geometry signature.
+    Returns:
+        Current edge record matching the exact semantic ID and geometry signature.
 
-Raises:
-    MissingEdgeReference: If the referenced semantic edge no longer exists.
-    ChangedEdgeReference: If current geometry or provenance differs from the saved signature."""
+    Raises:
+        MissingEdgeReference: If the referenced semantic edge no longer exists.
+        ChangedEdgeReference: If current geometry or provenance differs from the saved signature."""
     candidates = [
         edge
         for edge in edges
@@ -243,12 +243,12 @@ def resolve_edge_reference_status(
 ) -> tuple[bool, str]:
     """Return ``(valid, reason)`` without raising for UI validation paths.
 
-Args:
-    reference: Persisted semantic edge identity and native geometry signature.
-    edges: Current edge records with IDs, sampled points, and provenance.
+    Args:
+        reference: Persisted semantic edge identity and native geometry signature.
+        edges: Current edge records with IDs, sampled points, and provenance.
 
-Returns:
-    Boolean validity and a stable reason label: valid, missing, or changed."""
+    Returns:
+        Boolean validity and a stable reason label: valid, missing, or changed."""
     try:
         resolve_edge_reference(reference, edges)
     except MissingEdgeReference:

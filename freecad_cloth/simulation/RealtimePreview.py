@@ -164,11 +164,11 @@ class _Preview:
 def toggle_realtime_preview() -> bool:
     """Start or stop realtime preview and report whether it is running.
 
-Returns:
-    True when a preview has been started, or False when an active preview was stopped.
+    Returns:
+        True when a preview has been started, or False when an active preview was stopped.
 
-Raises:
-    RuntimeError: If no persistent ClothSimulation scene is available."""
+    Raises:
+        RuntimeError: If no persistent ClothSimulation scene is available."""
     global _PREVIEW
     scene = _scene()
     if scene is None:

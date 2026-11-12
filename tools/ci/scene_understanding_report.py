@@ -384,9 +384,7 @@ def _panel_vertical_bounds(
     return minimum_z, maximum_z, diagnostic_names
 
 
-def _fit_findings(
-    deviations: dict[str, float], review_threshold_mm: float
-) -> list[JsonObject]:
+def _fit_findings(deviations: dict[str, float], review_threshold_mm: float) -> list[JsonObject]:
     """Build review warnings for vertical deviations beyond the existing threshold.
 
     Args:

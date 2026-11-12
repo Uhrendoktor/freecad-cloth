@@ -30,8 +30,8 @@ class SewingMember:
     def validate(self) -> None:
         """Validate the directed edge member and its normalized range.
 
-Raises:
-    ValueError: If the piece ID, edge index, or parameter interval is invalid."""
+        Raises:
+            ValueError: If the piece ID, edge index, or parameter interval is invalid."""
         if not str(self.piece_id).strip():
             msg = "sewing member piece id must not be empty"
             raise ValueError(msg)
@@ -80,26 +80,26 @@ def build_mn_seams(
 ) -> tuple[Seam, ...]:
     """Expand an M:N relationship into deterministic canonical seam segments.
 
-Members are ordered as supplied. Their physical lengths define cumulative
-normalized ranges. Overlapping ranges become canonical seams, so one member
-can deterministically connect to multiple members without a second seam
-representation. ``edge_lengths`` is either ``{(piece, edge): length}`` or a
-callable returning a length in millimetres.
+    Members are ordered as supplied. Their physical lengths define cumulative
+    normalized ranges. Overlapping ranges become canonical seams, so one member
+    can deterministically connect to multiple members without a second seam
+    representation. ``edge_lengths`` is either ``{(piece, edge): length}`` or a
+    callable returning a length in millimetres.
 
-Args:
-    relationship_id: Stable ID shared by all canonical seams in the network.
-    side_a: Ordered directed members that make up side A of the relationship.
-    side_b: Ordered directed members that make up side B of the relationship.
-    edge_lengths: Mapping or callback providing physical length for each piece-edge pair.
-    reversed_b: Whether side B is traversed in reverse.
-    alignment: Correspondence alignment mode for each generated segment.
-    kind: Canonical seam kind assigned to each overlapping range.
+    Args:
+        relationship_id: Stable ID shared by all canonical seams in the network.
+        side_a: Ordered directed members that make up side A of the relationship.
+        side_b: Ordered directed members that make up side B of the relationship.
+        edge_lengths: Mapping or callback providing physical length for each piece-edge pair.
+        reversed_b: Whether side B is traversed in reverse.
+        alignment: Correspondence alignment mode for each generated segment.
+        kind: Canonical seam kind assigned to each overlapping range.
 
-Returns:
-    Canonical seam segments covering every overlap of the two normalized sides.
+    Returns:
+        Canonical seam segments covering every overlap of the two normalized sides.
 
-Raises:
-    ValueError: If IDs, members, lengths, or relationship alignment are invalid."""
+    Raises:
+        ValueError: If IDs, members, lengths, or relationship alignment are invalid."""
     relationship_id = str(relationship_id).strip()
     if not relationship_id:
         msg = "relationship id must not be empty"
@@ -183,15 +183,15 @@ Raises:
 def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
     """Build an edge-length mapping from FreeCAD pattern objects.
 
-Args:
-    pieces: Mapping of persistent pattern-piece IDs to their document objects.
-    members: Directed sewing members whose physical edge lengths are required.
+    Args:
+        pieces: Mapping of persistent pattern-piece IDs to their document objects.
+        members: Directed sewing members whose physical edge lengths are required.
 
-Returns:
-    Mapping keyed by piece ID and edge index with lengths in model units.
+    Returns:
+        Mapping keyed by piece ID and edge index with lengths in model units.
 
-Raises:
-    ValueError: If any member references a missing pattern piece or invalid edge."""
+    Raises:
+        ValueError: If any member references a missing pattern piece or invalid edge."""
     from freecad_cloth.sewing.SewingObjects import _edge_length
 
     result = {}
@@ -233,11 +233,11 @@ def _network_lengths(seams):
 def network_invalid_reason(seams):
     """Return a deterministic user-facing reason when a member seam is invalid.
 
-Args:
-    seams: Persisted seam objects participating in the relationship.
+    Args:
+        seams: Persisted seam objects participating in the relationship.
 
-Returns:
-    Empty text when every seam is valid, otherwise a joined list of invalid seam IDs."""
+    Returns:
+        Empty text when every seam is valid, otherwise a joined list of invalid seam IDs."""
     invalid = []
     for seam in seams:
         status = str(getattr(seam, "Status", "Valid"))
@@ -266,8 +266,8 @@ class SewingNetworkProxy:
     def execute(self, obj):
         """Recompute the FreeCAD object from its current source properties.
 
-Args:
-    obj: Persisted sewing-network feature containing member seam links and tolerances."""
+        Args:
+            obj: Persisted sewing-network feature containing member seam links and tolerances."""
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
@@ -335,17 +335,17 @@ Args:
 def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
     """Persist an M:N relationship as one editable FreeCAD network object.
 
-Args:
-    doc: FreeCAD document that owns the network feature.
-    seams: Persisted canonical seam objects sharing one relationship ID.
-    relationship_id: Stable stitch-group identity shared by all member seams.
-    name: Internal FreeCAD object name for the network feature.
+    Args:
+        doc: FreeCAD document that owns the network feature.
+        seams: Persisted canonical seam objects sharing one relationship ID.
+        relationship_id: Stable stitch-group identity shared by all member seams.
+        name: Internal FreeCAD object name for the network feature.
 
-Returns:
-    Created network feature after its properties and validation proxy are installed.
+    Returns:
+        Created network feature after its properties and validation proxy are installed.
 
-Raises:
-    ValueError: If seams are empty or their stitch groups do not match the relationship ID."""
+    Raises:
+        ValueError: If seams are empty or their stitch groups do not match the relationship ID."""
     seams = tuple(seams)
     relationship_id = str(relationship_id).strip()
     if not seams or not relationship_id:

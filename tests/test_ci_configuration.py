@@ -1053,6 +1053,7 @@ def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
         message="The reviewed host boundary must retain its explicit missing-module policy.",
     )
 
+
 def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
     """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
     config = PYRIGHT_CONFIG.read_text(encoding="utf-8")

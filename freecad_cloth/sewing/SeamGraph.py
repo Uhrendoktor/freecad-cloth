@@ -53,24 +53,24 @@ class Transform3D:
     def identity(cls) -> "Transform3D":
         """Construct the neutral 4x4 identity transform.
 
-Returns:
-    Transform with no translation or rotation."""
+        Returns:
+            Transform with no translation or rotation."""
         return cls()
 
     @classmethod
     def translation(cls, x: float, y: float, z: float = 0.0) -> "Transform3D":
         """Construct a translation-only assembly transform.
 
-Args:
-    x: Translation along the model X axis.
-    y: Translation along the model Y axis.
-    z: Translation along the model Z axis.
+        Args:
+            x: Translation along the model X axis.
+            y: Translation along the model Y axis.
+            z: Translation along the model Z axis.
 
-Returns:
-    Transform whose translation column contains the supplied coordinates.
+        Returns:
+            Transform whose translation column contains the supplied coordinates.
 
-Raises:
-    ValueError: If any translation component is non-finite."""
+        Raises:
+            ValueError: If any translation component is non-finite."""
         values = list(cls().matrix)
         values[3], values[7], values[11] = (
             validate_finite_number(x),
@@ -82,14 +82,14 @@ Raises:
     def apply(self, point: Sequence[float]) -> tuple[float, float, float]:
         """Apply this homogeneous transform to one three-dimensional point.
 
-Args:
-    point: Finite XYZ point in the transform's source coordinate frame.
+        Args:
+            point: Finite XYZ point in the transform's source coordinate frame.
 
-Returns:
-    Transformed XYZ coordinates in the destination frame.
+        Returns:
+            Transformed XYZ coordinates in the destination frame.
 
-Raises:
-    ValueError: If the point or resulting homogeneous scale is invalid."""
+        Raises:
+            ValueError: If the point or resulting homogeneous scale is invalid."""
         x, y, z = validate_points3d((point,))[0]
         m = self.matrix
         w = m[12] * x + m[13] * y + m[14] * z + m[15]
@@ -124,55 +124,55 @@ class SeamPair:
     def id(self) -> str:
         """Return the stable identifier.
 
-Returns:
-    Canonical seam ID shared with the underlying semantic seam."""
+        Returns:
+            Canonical seam ID shared with the underlying semantic seam."""
         return self.seam.id
 
     @property
     def piece_a(self) -> str:
         """Return the first referenced pattern piece.
 
-Returns:
-    Persistent ID of the pattern piece on seam side A."""
+        Returns:
+            Persistent ID of the pattern piece on seam side A."""
         return self.seam.piece_a
 
     @property
     def edge_a(self) -> EdgeRef:
         """Return the first referenced edge.
 
-Returns:
-    Semantic edge reference on seam side A."""
+        Returns:
+            Semantic edge reference on seam side A."""
         return self.seam.edge_a
 
     @property
     def piece_b(self) -> str:
         """Return the second referenced pattern piece.
 
-Returns:
-    Persistent ID of the pattern piece on seam side B."""
+        Returns:
+            Persistent ID of the pattern piece on seam side B."""
         return self.seam.piece_b
 
     @property
     def edge_b(self) -> EdgeRef:
         """Return the second referenced edge.
 
-Returns:
-    Semantic edge reference on seam side B."""
+        Returns:
+            Semantic edge reference on seam side B."""
         return self.seam.edge_b
 
     @property
     def reversed_b(self) -> bool:
         """Read reversal from the canonical seam; never copy it into the pair.
 
-Returns:
-    True when seam side B is explicitly traversed in reverse."""
+        Returns:
+            True when seam side B is explicitly traversed in reverse."""
         return self.seam.reversed_b
 
     def validate(self) -> None:
         """Validate this value against its canonical seam metadata.
 
-Raises:
-    ValueError: If stitch-group or alignment metadata disagrees with the seam."""
+        Raises:
+            ValueError: If stitch-group or alignment metadata disagrees with the seam."""
         self.seam.validate()
         if self.stitch_group != (self.seam.stitch_group or self.seam.id):
             msg = "stitch group disagrees with canonical seam metadata"
@@ -193,11 +193,11 @@ class SeamGraph:
     def add_piece(self, piece: PatternPiece) -> None:
         """Add a validated pattern piece and initialize its assembly transform.
 
-Args:
-    piece: Canonical pattern piece being added to the graph.
+        Args:
+            piece: Canonical pattern piece being added to the graph.
 
-Raises:
-    ValueError: If the piece is invalid or its ID is already present."""
+        Raises:
+            ValueError: If the piece is invalid or its ID is already present."""
         piece.validate()
         if piece.id in self.pieces:
             msg = f"duplicate pattern piece id: {piece.id}"
@@ -210,14 +210,14 @@ Raises:
         # the graph stays independent of their concrete adapter modules.
         """Add a seam relationship and retain its non-semantic presentation metadata.
 
-Args:
-    seam: Canonical seam or adapter exposing the canonical seam conversion.
-    stitch_group: Optional presentation group; the canonical seam remains authoritative.
-    alignment: Optional correspondence alignment mode for the seam.
+        Args:
+            seam: Canonical seam or adapter exposing the canonical seam conversion.
+            stitch_group: Optional presentation group; the canonical seam remains authoritative.
+            alignment: Optional correspondence alignment mode for the seam.
 
-Raises:
-    TypeError: If the supplied value is neither a Seam nor a canonical seam adapter.
-    ValueError: If the seam is invalid, duplicates an existing ID, or references missing pieces."""
+        Raises:
+            TypeError: If the supplied value is neither a Seam nor a canonical seam adapter.
+            ValueError: If the seam is invalid, duplicates an existing ID, or references missing pieces."""
         if not isinstance(seam, Seam):
             to_seam = getattr(seam, "to_seam", None)
             if to_seam is None:
@@ -241,13 +241,13 @@ Raises:
     def set_transform(self, piece_id: str, transform: Transform3D) -> None:
         """Set the assembly transform associated with one pattern piece.
 
-Args:
-    piece_id: Persistent ID of the pattern piece to position.
-    transform: Validated 4x4 assembly transform.
+        Args:
+            piece_id: Persistent ID of the pattern piece to position.
+            transform: Validated 4x4 assembly transform.
 
-Raises:
-    TypeError: If the supplied transform is not a Transform3D.
-    ValueError: If the piece ID is unknown."""
+        Raises:
+            TypeError: If the supplied transform is not a Transform3D.
+            ValueError: If the piece ID is unknown."""
         self._require_piece(piece_id)
         if not isinstance(transform, Transform3D):
             msg = "transform must be a Transform3D"
@@ -257,8 +257,8 @@ Raises:
     def validate(self) -> None:
         """Validate piece, seam, and assembly-transform consistency.
 
-Raises:
-    ValueError: If a piece, seam reference, or required transform is invalid."""
+        Raises:
+            ValueError: If a piece, seam reference, or required transform is invalid."""
         for piece in self.pieces.values():
             piece.validate()
         for pair in self.seams.values():
@@ -277,16 +277,16 @@ Raises:
     ) -> tuple[tuple[int, int], ...]:
         """Return deterministic particle-index stitch pairs for selected seams.
 
-Args:
-    edge_vertices: Mesh vertex indices keyed by piece ID and semantic edge reference.
-    seam_ids: Optional seam IDs to sample; an empty iterable selects all seams.
-    edge_points: Optional sampled edge coordinates used for arc-length correspondence.
+        Args:
+            edge_vertices: Mesh vertex indices keyed by piece ID and semantic edge reference.
+            seam_ids: Optional seam IDs to sample; an empty iterable selects all seams.
+            edge_points: Optional sampled edge coordinates used for arc-length correspondence.
 
-Returns:
-    Ordered particle-index pairs connecting the two sides of each selected seam.
+        Returns:
+            Ordered particle-index pairs connecting the two sides of each selected seam.
 
-Raises:
-    ValueError: If a seam ID, edge lookup, edge point record, or sampled range is invalid."""
+        Raises:
+            ValueError: If a seam ID, edge lookup, edge point record, or sampled range is invalid."""
         requested_seams = tuple(seam_ids)
         selected = requested_seams or tuple(self.seams)
         pairs = []
@@ -331,11 +331,11 @@ Raises:
     def to_metadata(self) -> dict:
         """Return deterministic JSON-friendly document metadata.
 
-Returns:
-    Stable piece IDs, seam semantics, presentation metadata, and assembly transforms.
+        Returns:
+            Stable piece IDs, seam semantics, presentation metadata, and assembly transforms.
 
-Raises:
-    ValueError: If the graph fails canonical piece, seam, or transform validation."""
+        Raises:
+            ValueError: If the graph fails canonical piece, seam, or transform validation."""
         self.validate()
         return {
             "pieces": tuple(sorted(self.pieces)),
