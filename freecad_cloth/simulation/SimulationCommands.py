@@ -232,9 +232,7 @@ def _require_drape_target_ready(
     doc: SimulationDocument,
     *,
     find_target: Callable[[SimulationDocument], _DrapeTargetFeature | None] | None = None,
-    target_status_fn: Callable[
-        [_DrapeTargetFeature | None], Mapping[str, JsonValue]
-    ] | None = None,
+    target_status_fn: Callable[[_DrapeTargetFeature | None], Mapping[str, JsonValue]] | None = None,
 ) -> _DrapeTargetFeature | None:
     """Reject simulation advancement when its persisted drape target is stale.
 
@@ -367,9 +365,7 @@ def reset_simulation(
     *,
     require_simulation_fn: Callable[[], tuple[SimulationDocument, SimulationScene]] | None = None,
     reset_scene_fn: Callable[[SimulationScene], SimulationScene] | None = None,
-    refresh_overlay_fn: Callable[
-        [SimulationDocument], SeamOverlayController | None
-    ] | None = None,
+    refresh_overlay_fn: Callable[[SimulationDocument], SeamOverlayController | None] | None = None,
 ) -> SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
