@@ -1021,39 +1021,46 @@ def test_ruff_command_parser_rejects_and_chained_commands() -> None:
 
 
 def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
-    """Reject narrow includes, excluded paths, or non-strict repository analysis."""
+    """Reject drift from the reviewed staged Pyright inventory and host-boundary policy."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright must include the entire repository root>",),
-        message="A production-only include must not pass repository-wide Pyright policy.",
+        == ("<Pyright include scope differs from the reviewed inventory>",),
+        message="The selected production inventory must not be narrowed or replaced.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["exclude"] = ["tests"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright exclude scope must not hide repository files>",),
-        message="Pyright must not exclude tests or other repository paths.",
+        == ("<Pyright exclude scope differs from the reviewed inventory>",),
+        message="Dynamic host exclusions must remain limited to the reviewed paths.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["typeCheckingMode"] = "standard"
+    config["typeCheckingMode"] = "strict"
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright must use global strict type checking>",),
-        message="Repository-wide standard mode is not an acceptable strict gate.",
+        == ("<Pyright default mode must remain standard outside the strict core>",),
+        message="Only the curated simulation core uses strict Pyright mode.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["reportMissingImports"] = "none"
+    config["reportMissingImports"] = "warning"
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright missing-import diagnostics must remain errors>",),
-        message="Missing import diagnostics must not be suppressed.",
+        == ("<Pyright missing-import policy differs from the reviewed host boundary>",),
+        message="The reviewed host boundary must retain blocking missing-import diagnostics.",
     )
 
+    config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
+    config["reportMissingModuleSource"] = "warning"
+    require(
+        condition=pyright_coverage_contract_violations(json.dumps(config))
+        == ("<Pyright missing-module-source policy differs from the reviewed host boundary>",),
+        message="The reviewed host boundary must retain its explicit missing-module policy.",
+    )
 
 def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
     """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
