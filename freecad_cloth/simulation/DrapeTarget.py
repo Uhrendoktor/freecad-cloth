@@ -7,9 +7,8 @@ from typing import TYPE_CHECKING, ClassVar, NotRequired, Protocol, TypedDict, ca
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.SourceSignature import source_signature
 
