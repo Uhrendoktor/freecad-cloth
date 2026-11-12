@@ -18,8 +18,6 @@ if TYPE_CHECKING:
 
     from freecad_cloth.common.garment_document import _FreeCADDocument
 
-    from freecad_cloth.common.garment_document import _FreeCADDocument
-
 
 class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persisted FreeCAD feature fields written by target lifecycle operations."""
