@@ -112,7 +112,7 @@ class _SewingProxy(Protocol):
         ...
 
 
-type _EdgeRecordReader = Callable[..., JsonObject | None]
+type type _EdgeRecordReader = Callable[..., JsonObject | None]
 
 
 class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
@@ -150,7 +150,7 @@ class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
 class _FreeCADDocument(Protocol):
     """Native document operation required to create a persistent sewing feature."""
 
-    Objects: Sequence[_SewingFeature]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
     def addObject(self, _type_id: str, name: str) -> _SewingFeature:
         """Create a Python-backed sewing feature with the requested internal name."""
