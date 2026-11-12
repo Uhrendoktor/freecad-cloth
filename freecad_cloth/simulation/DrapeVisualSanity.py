@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
-type DrapeSummaryValue = str | int | float | bool | None | tuple[float, ...]
+type DrapeSummaryValue = str | int | float | bool | tuple[float, ...] | None
 
 
 class _ContainmentMesh(Protocol):
