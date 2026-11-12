@@ -105,10 +105,18 @@ class MeshCollisionProjector:
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Return corrected world-mm positions and outward normals for moved points.
 
-        Zero rows in the returned normal array mark positions that did not require a
-        correction. Closest-triangle calculations are vectorized across cloth points
-        and a local set of target faces, avoiding point-by-all-triangles matrices.
-        """
+Zero rows in the returned normal array mark positions that did not require a
+correction. Closest-triangle calculations are vectorized across cloth points
+and a local set of target faces, avoiding point-by-all-triangles matrices.
+
+Args:
+    points_mm: Finite N-by-3 cloth particle positions in world millimetres.
+
+Returns:
+    Corrected N-by-3 positions and N-by-3 outward contact normals.
+
+Raises:
+    ValueError: If the input is not a finite array with shape (N, 3)."""
         points = np.asarray(points_mm, dtype=np.float64)
         if points.ndim != 2 or points.shape[1] != 3:
             msg = "collision projection points must have shape (N, 3)"
@@ -241,18 +249,30 @@ def project_stitched_pairs(
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Close stitch groups after contact projection, including near-shell residuals.
 
-    The native PBD pass projects stitches before the backend's position-level
-    collision response. Independent contact corrections can therefore separate
-    two sewn vertices. Reconcile contact-touched groups at a shared point and
-    project that point to the exterior clearance shell.
+The native PBD pass projects stitches before the backend's position-level
+collision response. Independent contact corrections can therefore separate
+two sewn vertices. Reconcile contact-touched groups at a shared point and
+project that point to the exterior clearance shell.
 
-    A residual stitch can also stall when both endpoints sit just outside the
-    shell on different sides of a curved body. Probe the midpoint of near-closed
-    groups and share it between endpoints: project it to the exterior shell if
-    needed, or use it unchanged when the projector reports that it is already
-    safe. Groups beyond the capture distance and groups containing fixed
-    particles remain unchanged, avoiding early capture of distant stitches.
-    """
+A residual stitch can also stall when both endpoints sit just outside the
+shell on different sides of a curved body. Probe the midpoint of near-closed
+groups and share it between endpoints: project it to the exterior shell if
+needed, or use it unchanged when the projector reports that it is already
+safe. Groups beyond the capture distance and groups containing fixed
+particles remain unchanged, avoiding early capture of distant stitches.
+
+Args:
+    projector: Target-surface projector used for residual contact correction.
+    positions_mm: Current finite cloth particle positions in world millimetres.
+    contact_normals: Per-particle contact normals from the preceding projection.
+    stitches: Particle-index pairs that must remain coincident after contact response.
+    pinned_indices: Particle indices whose positions must not be reconciled.
+
+Returns:
+    Corrected positions and contact normals with eligible stitch groups reconciled.
+
+Raises:
+    ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
     if corrected.ndim != 2 or corrected.shape[1] != 3:
