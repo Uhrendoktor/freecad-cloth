@@ -566,9 +566,12 @@ def configure_diagnostic_cube_target(
     from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
 
     set_drape_target_source(scene, cube, thickness=2.0, deflection=1.0)
-    if previous_source is not None and previous_source is not cube:
-        if hasattr(previous_source, "ViewObject"):
-            previous_source.ViewObject.Visibility = False
+    if (
+        previous_source is not None
+        and previous_source is not cube
+        and hasattr(previous_source, "ViewObject")
+    ):
+        previous_source.ViewObject.Visibility = False
     cube.ViewObject.Visibility = True
     doc.recompute()
     return cube
