@@ -132,6 +132,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         "-m",
         "pytest",
         "-q",
+        "tests/test_avatar_arrangement_contract.py",
         "tests/test_command_runner.py",
         "tests/test_documentation_contract.py",
         "tests/test_garment_document_contract.py",
