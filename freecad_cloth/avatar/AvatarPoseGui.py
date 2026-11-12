@@ -41,7 +41,10 @@ if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+    from freecad_cloth.avatar.avatar_protocols import (
+        AvatarTaskPanelFormProtocol,
+        AvatarTaskPanelProtocol,
+    )
 
 _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
@@ -1099,7 +1102,7 @@ class SkeletonPoseController:
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
-    form: object
+    form: AvatarTaskPanelFormProtocol
 
     PRESETS = (
         ("t_pose", "T-pose"),
