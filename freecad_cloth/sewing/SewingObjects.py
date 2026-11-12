@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 
+from freecad_cloth.common.JsonTypes import JsonObject
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
@@ -40,24 +42,93 @@ class _NativeEdge(Protocol):
 
 
 class _NativePlacement(Protocol):
-    def multVec(self, _vector: _NativePoint) -> _NativePoint: ...
+    """Native FreeCAD placement capable of transforming local sketch points."""
+
+    def multVec(self, _vector: _NativePoint) -> _NativePoint:
+        """Transform one local vector into document coordinates."""
+        ...
 
 
-class _SewingFeature(Protocol):
+class _SketchGeometry(Protocol):
+    """Native Sketcher geometry that can expose its FreeCAD shape edge."""
+
+    def toShape(self) -> _NativeEdge:
+        """Return the native shape edge corresponding to this geometry element."""
+        ...
+
+
+class _SketchShape(Protocol):
+    """Native sketch shape exposing its ordered geometric edges."""
+
+    Edges: Sequence[_NativeEdge]
+
+
+class _PatternSketch(Protocol):
+    """Sketcher fields required to resolve semantic sewing-edge references."""
+
+    Geometry: Sequence[_SketchGeometry]
+    SemanticEdgeIds: Sequence[str]
+    Shape: _SketchShape
+
+
+class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent PatternPiece identity and Sketcher geometry authority."""
+
+    PieceId: str
+    GeometryAuthority: str
+    Sketch: _PatternSketch | None
+    Placement: _NativePlacement
+
+
+class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted semantic seam identity, edge provenance, and correspondence interval."""
+
+    SeamId: str
+    EdgeAId: str
+    EdgeBId: str
+    EdgeASignature: str
+    EdgeBSignature: str
+    StartA: float
+    EndA: float
+    StartB: float
+    EndB: float
+    ReversedB: bool
+    Status: str
+    Alignment: str
+    StitchGroup: str
+
+
+class _PartShape(Protocol):
+    """Native Part shape assigned to a sewing feature after correspondence validation."""
+
+    Edges: Sequence[_NativeEdge]
+
+
+class _SewingProxy(Protocol):
+    """Recompute operation installed as the sewing feature's Python proxy."""
+
+    def execute(self, obj: _SewingFeature) -> None:
+        """Refresh the sewing feature from its current seam and pattern links."""
+        ...
+
+
+type _EdgeRecordReader = Callable[..., JsonObject | None]
+
+
+class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Properties and methods used on a dynamic FreeCAD sewing feature."""
 
-    Label: str
-    Proxy: object
-    Shape: object
+    Proxy: _SewingProxy
+    Shape: _PartShape
     SewingType: str
-    Seam: object | None
+    Seam: _SeamFeature | None
     SeamId: str
-    PieceA: object | None
-    PieceB: object | None
+    PieceA: _PatternPieceFeature | None
+    PieceB: _PatternPieceFeature | None
     StitchGroup: str
     Alignment: str
     ReversedB: bool
-    AssemblyPlacementB: object
+    AssemblyPlacementB: _NativePlacement
     Tolerance: float
     RelativeTolerance: float
     CorrespondenceStatus: str
@@ -77,7 +148,13 @@ class _SewingFeature(Protocol):
 
 
 class _FreeCADDocument(Protocol):
-    def addObject(self, _type_id: str, name: str) -> _SewingFeature: ...
+    """Native document operation required to create a persistent sewing feature."""
+
+    Objects: Sequence[_SewingFeature]
+
+    def addObject(self, _type_id: str, name: str) -> _SewingFeature:
+        """Create a Python-backed sewing feature with the requested internal name."""
+        ...
 
 
 def _edge_endpoint_pair(
@@ -98,10 +175,10 @@ def _edge_endpoint_pair(
 
 
 def _native_edge(
-    piece: object,
+    piece: _PatternPieceFeature,
     edge: int,
     *,
-    native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
+    native_edge_record_fn: _EdgeRecordReader | None = None,
 ) -> _NativeEdge:
     """Resolve an edge through the linked native Sketcher geometry.
 
@@ -187,11 +264,11 @@ def _native_edge(
 
 
 def _edge_polyline(
-    piece: object,
+    piece: _PatternPieceFeature,
     edge: int,
     sample_count: int = 64,
     *,
-    native_edge_record_fn: Callable[..., dict[str, object] | None] | None = None,
+    native_edge_record_fn: _EdgeRecordReader | None = None,
 ) -> list[tuple[float, float]]:
     """Sample a native Sketcher edge for arc-length operations.
 
@@ -285,7 +362,7 @@ def _sample_polyline(points: Sequence[tuple[float, float]], fraction: float) -> 
     return float(sample[0]), float(sample[1])
 
 
-def _edge_length(piece: object, edge: int) -> float:
+def _edge_length(piece: _PatternPieceFeature, edge: int) -> float:
     """Measure a native Sketcher edge by its discretized arc length.
 
     Args:
@@ -303,11 +380,11 @@ def _edge_length(piece: object, edge: int) -> float:
 
 
 def _seam_edge_index(
-    piece: object,
-    seam: object,
+    piece: _PatternPieceFeature,
+    seam: _SeamFeature,
     prefix: str,
     *,
-    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+    resolve_document_edge_fn: _EdgeRecordReader | None = None,
 ) -> int:
     """Resolve a persistent seam ID to its native Sketch.Geometry index.
 
@@ -366,11 +443,11 @@ def _seam_edge_index(
 
 
 def _seam_length(
-    piece: object,
-    seam: object,
+    piece: _PatternPieceFeature,
+    seam: _SeamFeature,
     prefix: str,
     *,
-    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+    resolve_document_edge_fn: _EdgeRecordReader | None = None,
 ) -> float:
     """Measure the selected normalized interval of a semantically referenced edge.
 
@@ -398,7 +475,7 @@ def _seam_length(
 
 
 def _edge_points(
-    piece: object,
+    piece: _PatternPieceFeature,
     edge: int,
     start: float = 0.0,
     end: float = 1.0,
@@ -443,11 +520,11 @@ def _edge_points(
 
 
 def _resolved_edge(
-    piece: object,
-    seam: object,
+    piece: _PatternPieceFeature,
+    seam: _SeamFeature,
     prefix: str,
     *,
-    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+    resolve_document_edge_fn: _EdgeRecordReader | None = None,
 ) -> int:
     """Resolve the semantic seam identity to a native edge index.
 
@@ -464,7 +541,7 @@ def _resolved_edge(
 
 
 def _edge_samples(
-    piece: object,
+    piece: _PatternPieceFeature,
     edge: int,
     start: float,
     end: float,
@@ -517,14 +594,14 @@ def _edge_samples(
 
 
 def _alignment_placement(
-    piece_a: object,
-    piece_b: object,
-    seam: object,
+    piece_a: _PatternPieceFeature,
+    piece_b: _PatternPieceFeature,
+    seam: _SeamFeature,
     *,
     app_module: ModuleType | None = None,
     vector_factory: Callable[..., _NativePoint] | None = None,
-    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
-) -> object:
+    resolve_document_edge_fn: _EdgeRecordReader | None = None,
+) -> _NativePlacement:
     """Calculate the placement that aligns side B with side A's native endpoints.
 
     Args:
@@ -578,14 +655,14 @@ def _alignment_placement(
 
 
 def _seam_correspondence(
-    piece_a: object,
-    piece_b: object,
-    seam: object,
+    piece_a: _PatternPieceFeature,
+    piece_b: _PatternPieceFeature,
+    seam: _SeamFeature,
     count: int,
     alignment: str = "endpoints",
     *,
     vector_factory: Callable[..., _NativePoint] | None = None,
-    resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+    resolve_document_edge_fn: _EdgeRecordReader | None = None,
 ) -> list[tuple[_NativePoint, _NativePoint]]:
     """Build A/B stitch points from native edges and normalized seam ranges.
 
@@ -638,7 +715,7 @@ class SewingOperationProxy:
         app_module: ModuleType | None = None,
         part_module: ModuleType | None = None,
         vector_factory: Callable[..., _NativePoint] | None = None,
-        resolve_document_edge_fn: Callable[..., dict[str, object] | None] | None = None,
+        resolve_document_edge_fn: _EdgeRecordReader | None = None,
     ) -> None:
         """Recompute sewing metrics and shape from the current semantic seam.
 
@@ -755,9 +832,9 @@ class SewingOperationProxy:
 
 def add_sewing_operation(
     doc: _FreeCADDocument,
-    seam: object,
-    piece_a: object,
-    piece_b: object,
+    seam: _SeamFeature,
+    piece_a: _PatternPieceFeature,
+    piece_b: _PatternPieceFeature,
     name: str = "SewingOperation",
 ) -> _SewingFeature:
     """Add the requested sewing operation data.
