@@ -327,13 +327,48 @@ def test_ruff_uses_the_reviewed_rule_set_and_documented_exceptions() -> None:
     config = tomllib.loads(project.read_text(encoding="utf-8"))
     lint = config["tool"]["ruff"]["lint"]
     allowed_select = {
-        "E", "F", "W", "I", "A", "ANN401", "B", "BLE", "C4", "DTZ",
-        "FURB", "G", "LOG", "PERF", "PGH", "PIE", "RET", "RUF", "SIM", "UP", "YTT",
+        "E",
+        "F",
+        "W",
+        "I",
+        "A",
+        "ANN401",
+        "B",
+        "BLE",
+        "C4",
+        "DTZ",
+        "FURB",
+        "G",
+        "LOG",
+        "PERF",
+        "PGH",
+        "PIE",
+        "RET",
+        "RUF",
+        "SIM",
+        "UP",
+        "YTT",
     }
     allowed_ignores = {
-        "E402", "E501", "UP031", "RUF007", "RUF046", "RUF005", "RET501", "RET503",
-        "RET504", "SIM105", "C401", "C408", "C416", "FURB162", "FURB192", "PIE810",
-        "RUF043", "UP017", "UP040",
+        "E402",
+        "E501",
+        "UP031",
+        "RUF007",
+        "RUF046",
+        "RUF005",
+        "RET501",
+        "RET503",
+        "RET504",
+        "SIM105",
+        "C401",
+        "C408",
+        "C416",
+        "FURB162",
+        "FURB192",
+        "PIE810",
+        "RUF043",
+        "UP017",
+        "UP040",
     }
     allowed_per_file = {
         "tests/**/*.py": ["S101"],
@@ -346,10 +381,22 @@ def test_ruff_uses_the_reviewed_rule_set_and_documented_exceptions() -> None:
         "tools/benchmark_workbenches.py": ["BLE001"],
         "tools/ci/python_validation.py": ["BLE001"],
     }
-    _require(condition=set(lint["select"]) == allowed_select, message="Ruff rule selection differs from the reviewed project contract")
-    _require(condition=not lint.get("preview", False), message="Ruff preview rules must not be enabled as a blanket migration policy")
-    _require(condition=set(lint.get("ignore", [])) == allowed_ignores, message="Ruff global ignores differ from the reviewed project contract")
-    _require(condition=lint.get("per-file-ignores") == allowed_per_file, message="Ruff per-file exceptions differ from reviewed host/test boundaries")
+    _require(
+        condition=set(lint["select"]) == allowed_select,
+        message="Ruff rule selection differs from the reviewed project contract",
+    )
+    _require(
+        condition=not lint.get("preview", False),
+        message="Ruff preview rules must not be enabled as a blanket migration policy",
+    )
+    _require(
+        condition=set(lint.get("ignore", [])) == allowed_ignores,
+        message="Ruff global ignores differ from the reviewed project contract",
+    )
+    _require(
+        condition=lint.get("per-file-ignores") == allowed_per_file,
+        message="Ruff per-file exceptions differ from reviewed host/test boundaries",
+    )
 
 
 def _inventory_entries(path: Path) -> tuple[tuple[str, str], ...]:
