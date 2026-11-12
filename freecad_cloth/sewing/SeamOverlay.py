@@ -557,9 +557,7 @@ def _simulation_seam_geometry(
     return {}
 
 
-def _seam_id_at_position(
-    document: object, view: object, position: Sequence[int | float]
-) -> str:
+def _seam_id_at_position(document: object, view: object, position: Sequence[int | float]) -> str:
     """Map a viewport edge hit back to the semantic seam that owns that pattern edge.
 
     Args:
