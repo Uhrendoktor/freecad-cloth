@@ -353,7 +353,7 @@ def test_registered_simulation_command_is_inactive_without_an_active_scene(
     command = registered["ClothSimulation_Run"]
     is_active = cast(
         "Callable[[], bool]",
-        getattr(command, "IsActive"),
+        command.IsActive,
     )
     require(
         condition=not is_active(),
