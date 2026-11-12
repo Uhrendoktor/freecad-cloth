@@ -39,21 +39,33 @@ class CorrespondenceReport:
 
     @property
     def valid(self) -> bool:
-        """Return whether the correspondence is usable for sewing."""
+        """Return whether the correspondence is usable for sewing.
+
+Returns:
+    True for valid or explicitly reversed seam correspondence states."""
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
     @property
     def severity(self) -> str:
-        """Return the shared machine-checkable severity for this report."""
+        """Return the shared machine-checkable severity for this report.
+
+Returns:
+    Error for invalid ranges or mismatched lengths; info for usable states."""
         return "error" if self.status in {STATUS_LENGTH_MISMATCH, STATUS_INVALID_RANGE} else "info"
 
     @property
     def recovery(self) -> str:
-        """Return the shared deterministic recovery guidance."""
+        """Return the shared deterministic recovery guidance.
+
+Returns:
+    Actionable repair instruction associated with this report's status."""
         return correspondence_recovery(self.status)
 
     def evidence(self) -> dict:
-        """Return the shared headless/GUI correspondence evidence contract."""
+        """Return the shared headless/GUI correspondence evidence contract.
+
+Returns:
+    JSON-compatible mapping with status, severity, lengths, reversal, and recovery."""
         return {
             "status": str(self.status),
             "severity": self.severity,
@@ -67,7 +79,13 @@ class CorrespondenceReport:
 
 
 def correspondence_status_label(report: CorrespondenceReport) -> str:
-    """Return the shared persisted Status label for sewing objects."""
+    """Return the shared persisted Status label for sewing objects.
+
+Args:
+    report: Validated correspondence result to translate for a document property.
+
+Returns:
+    Stable UI label such as Valid, Length mismatch, Invalid range, or Invalid."""
     if report.status in {STATUS_VALID, STATUS_REVERSED}:
         return "Valid"
     if report.status == STATUS_LENGTH_MISMATCH:
@@ -78,7 +96,13 @@ def correspondence_status_label(report: CorrespondenceReport) -> str:
 
 
 def correspondence_recovery(status: str) -> str:
-    """Return deterministic recovery guidance for a correspondence status."""
+    """Return deterministic recovery guidance for a correspondence status.
+
+Args:
+    status: Machine-readable correspondence state.
+
+Returns:
+    User-facing next step associated with the state, or a general inspection instruction."""
     return {
         STATUS_VALID: "no repair required",
         STATUS_REVERSED: "keep the explicit B reversal or use Reverse B",
@@ -103,15 +127,27 @@ def analyze_correspondence(
 ) -> CorrespondenceReport:
     """Validate two seam ranges and classify their repair state.
 
-    ``length_a`` and ``length_b`` are the physical lengths of the selected
-    ranges in millimetres (or any common unit).  The comparison is symmetric:
-    a ratio of ``1.05`` and ``0.95238`` represent the same 5% mismatch.
+``length_a`` and ``length_b`` are the physical lengths of the selected
+ranges in millimetres (or any common unit). The comparison is symmetric:
+a ratio of ``1.05`` and ``0.95238`` represent the same 5% mismatch.
 
-    Reversal is a usable state rather than an error.  A task panel can expose
-    it as an orientation/repair action while still allowing the seam to be
-    accepted.  A length mismatch is reported when the relative difference
-    exceeds ``length_tolerance``.
-    """
+Reversal is a usable state rather than an error. A task panel can expose
+it as an orientation/repair action while still allowing the seam to be
+accepted. A length mismatch is reported when the relative difference
+exceeds ``length_tolerance``.
+
+Args:
+    length_a: Physical length of the selected seam-A range in a shared unit.
+    length_b: Physical length of the selected seam-B range in the same unit.
+    start_a: Inclusive normalized start parameter on seam A.
+    end_a: Exclusive normalized end parameter on seam A.
+    start_b: Inclusive normalized start parameter on seam B.
+    end_b: Exclusive normalized end parameter on seam B.
+    reversed_b: Whether seam B is explicitly traversed in reverse.
+    length_tolerance: Maximum permitted relative length difference.
+
+Returns:
+    Correspondence report classifying validity, reversal, mismatch, or invalid ranges."""
     inputs = CorrespondenceAnalysisInput.model_validate(
         {
             "length_a": length_a,
@@ -177,7 +213,20 @@ def arc_length_vertex_indices(
     start: float = 0.0,
     end: float = 1.0,
 ) -> tuple[int, ...]:
-    """Select existing edge vertices by physical arc length over a normalized range."""
+    """Select existing edge vertices by physical arc length over a normalized range.
+
+Args:
+    values: Existing topology indices corresponding one-to-one with the sampled points.
+    points: Ordered XYZ or planar coordinates along the edge.
+    count: Number of distinct existing vertices to select.
+    start: Inclusive normalized start parameter of the selected edge range.
+    end: Exclusive normalized end parameter of the selected edge range.
+
+Returns:
+    Ordered topology indices sampled by physical distance along the requested range.
+
+Raises:
+    ValueError: If the edge length is non-positive or too few distinct vertices are available."""
     inputs = ArcLengthSamplingInput.model_validate(
         {"values": values, "points": points, "count": count, "start": start, "end": end}
     )
@@ -270,7 +319,21 @@ def map_parameter(
     end_b: float = 1.0,
     reversed_b: bool = False,
 ) -> float:
-    """Map a normalized parameter from seam A to seam B deterministically."""
+    """Map a normalized parameter from seam A to seam B deterministically.
+
+Args:
+    parameter_a: Normalized parameter on seam A.
+    start_a: Inclusive normalized start of the selected seam-A range.
+    end_a: Exclusive normalized end of the selected seam-A range.
+    start_b: Inclusive normalized start of the selected seam-B range.
+    end_b: Exclusive normalized end of the selected seam-B range.
+    reversed_b: Whether the normalized seam-B direction is reversed.
+
+Returns:
+    Corresponding normalized parameter on seam B.
+
+Raises:
+    ValueError: If the parameter is non-finite, outside [0, 1], or the ranges are invalid."""
     if not math.isfinite(float(parameter_a)):
         msg = "seam parameter must be finite"
         raise ValueError(msg)
@@ -296,7 +359,18 @@ def correspondence_samples(
     end_b: float = 1.0,
     reversed_b: bool = False,
 ) -> tuple[tuple[float, float], ...]:
-    """Return paired normalized parameters for deterministic mesh sampling."""
+    """Return paired normalized parameters for deterministic mesh sampling.
+
+Args:
+    count: Number of corresponding sample pairs to produce.
+    start_a: Inclusive normalized start parameter on seam A.
+    end_a: Exclusive normalized end parameter on seam A.
+    start_b: Inclusive normalized start parameter on seam B.
+    end_b: Exclusive normalized end parameter on seam B.
+    reversed_b: Whether seam B is traversed in reverse.
+
+Returns:
+    Ordered pairs of normalized parameters for the two seam sides."""
     inputs = CorrespondenceSamplesInput.model_validate(
         {
             "count": count,
