@@ -261,6 +261,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                 "-m",
                 "pytest",
                 "-q",
+                "tests/test_avatar_arrangement_contract.py",
                 "tests/test_command_runner.py",
                 "tests/test_documentation_contract.py",
                 "tests/test_garment_document_contract.py",
