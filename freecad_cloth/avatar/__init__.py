@@ -3,9 +3,21 @@
 
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import freecad_cloth.avatar.AvatarArrangement as AvatarArrangement
+from ._lazy_imports import __getattr__ as __getattr__
 
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    AvatarArrangement: ModuleType
+    AvatarCommands: ModuleType
+    AvatarFitting: ModuleType
+    AvatarGui: ModuleType
+    AvatarModel: ModuleType
+    AvatarProperties: ModuleType
+    AvatarProvider: ModuleType
+    AvatarService: ModuleType
+    FittingCommands: ModuleType
+    SkeletonPose: ModuleType
 
 __all__ = [
     "AvatarArrangement",
