@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from contextlib import suppress
 from hashlib import sha1
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from freecad_cloth.gui import register_workbench_deactivation_callback
 from freecad_cloth.shared.SeamColors import (
@@ -27,7 +27,7 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Sequence
     from types import ModuleType
 
 _ACTIVE_CONTROLLER = None
@@ -171,7 +171,7 @@ def _xyz(point: object) -> tuple[float, float, float]:
     """
     if hasattr(point, "x"):
         return float(point.x), float(point.y), float(point.z)
-    value = tuple(point)  # type: ignore[arg-type]
+    value = tuple(cast("Iterable[float]", point))
     if len(value) != 3:
         msg = "seam overlay points must contain three coordinates"
         raise ValueError(msg)
@@ -557,7 +557,9 @@ def _simulation_seam_geometry(
     return {}
 
 
-def _seam_id_at_position(document: object, view: object, position: object) -> str:
+def _seam_id_at_position(
+    document: object, view: object, position: Sequence[int | float]
+) -> str:
     """Map a viewport edge hit back to the semantic seam that owns that pattern edge.
 
     Args:
@@ -569,7 +571,7 @@ def _seam_id_at_position(document: object, view: object, position: object) -> st
         Matching seam identity, or an empty string when the hit is not a seam edge.
     """
     try:
-        x, y = int(position[0]), int(position[1])  # type: ignore[index]
+        x, y = int(position[0]), int(position[1])
     except (IndexError, TypeError, ValueError):
         return ""
 
