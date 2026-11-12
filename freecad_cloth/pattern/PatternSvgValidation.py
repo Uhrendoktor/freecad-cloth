@@ -62,6 +62,18 @@ def render_svg_for_validation(
     SVG dimensions and viewBox units are checked before rendering. The raster is
     then sized from the declared physical millimetre dimensions and rendered by
     QtSvg, rather than by the application's own path-generation code.
+
+    Args:
+        svg: Complete SVG document text whose physical size is independently validated.
+        dpi: Raster resolution used by the QtSvg renderer, constrained to 36-600.
+        output_path: Optional output destination for the rendered validation image.
+
+    Returns:
+        Validation metadata including physical dimensions and rendered raster properties.
+
+    Raises:
+        ValueError: If the SVG XML, physical sizing, units, or requested DPI is invalid.
+        RuntimeError: If FreeCAD's QtSvg modules cannot be loaded or rendering fails.
     """
     if not isinstance(svg, str) or not svg.strip():
         msg = "SVG content must not be empty"
