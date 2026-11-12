@@ -7,10 +7,10 @@ from types import SimpleNamespace
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
-from freecad_cloth.simulation import SimulationObjects
-from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.SourceSignature import _SignatureValue
+from freecad_cloth.simulation import SimulationObjects
+from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -212,7 +212,9 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
 
         def __init__(self) -> None:
             """Initialize an empty backend-call record."""
-            self.calls: list[tuple[float, int, tuple[float, float, float], CollisionSurface | None]] = []
+            self.calls: list[
+                tuple[float, int, tuple[float, float, float], CollisionSurface | None]
+            ] = []
 
         def step(
             self,
