@@ -846,13 +846,48 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     allowed_select = {
-        "E", "F", "W", "I", "A", "ANN401", "B", "BLE", "C4", "DTZ",
-        "FURB", "G", "LOG", "PERF", "PGH", "PIE", "RET", "RUF", "SIM", "UP", "YTT",
+        "E",
+        "F",
+        "W",
+        "I",
+        "A",
+        "ANN401",
+        "B",
+        "BLE",
+        "C4",
+        "DTZ",
+        "FURB",
+        "G",
+        "LOG",
+        "PERF",
+        "PGH",
+        "PIE",
+        "RET",
+        "RUF",
+        "SIM",
+        "UP",
+        "YTT",
     }
     allowed_ignores = {
-        "E402", "E501", "UP031", "RUF007", "RUF046", "RUF005", "RET501", "RET503",
-        "RET504", "SIM105", "C401", "C408", "C416", "FURB162", "FURB192", "PIE810",
-        "RUF043", "UP017", "UP040",
+        "E402",
+        "E501",
+        "UP031",
+        "RUF007",
+        "RUF046",
+        "RUF005",
+        "RET501",
+        "RET503",
+        "RET504",
+        "SIM105",
+        "C401",
+        "C408",
+        "C416",
+        "FURB162",
+        "FURB192",
+        "PIE810",
+        "RUF043",
+        "UP017",
+        "UP040",
     }
     allowed_per_file = {
         "tests/**/*.py": ["S101"],
@@ -874,11 +909,13 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         message="The tracked Python inventory must contain only .py and .pyi files.",
     )
     require(
-        condition=format_command.arguments == (str(executable), "-m", "ruff", "format", "--check", *tracked_files),
+        condition=format_command.arguments
+        == (str(executable), "-m", "ruff", "format", "--check", *tracked_files),
         message="Ruff formatting must check all tracked Python source and stubs without modifying them.",
     )
     require(
-        condition=lint_command.arguments == (str(executable), "-m", "ruff", "check", *tracked_files),
+        condition=lint_command.arguments
+        == (str(executable), "-m", "ruff", "check", *tracked_files),
         message="Ruff lint must check all tracked Python source and stubs without auto-fixing.",
     )
     require(
