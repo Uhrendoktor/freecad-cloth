@@ -116,6 +116,7 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
             counts[code] += 1
     return dict(counts)
 
+
 def object_annotation_regression(current: int, baseline: int) -> tuple[int, int] | None:
     """Return baseline/current counts when changed code adds generic object annotations."""
     return (baseline, current) if current > baseline else None
