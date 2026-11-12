@@ -906,7 +906,7 @@ def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
     require(condition=config.get("typeCheckingMode") == "standard", message="Pyright standard mode is the reviewed default outside the strict simulation core.")
     require(condition=config.get("reportMissingImports") == "none" and config.get("reportMissingModuleSource") == "none", message="Pyright import diagnostics must follow the reviewed host-boundary profile.")
     quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
-    require(condition='QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
+    require(condition='QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
     require(condition='QualityCommand("Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
 
 def test_ty_warning_diagnostics_remain_blocking() -> None:
@@ -1095,6 +1095,6 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
     }
     assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
     assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
-    assert commands["Strict Pyright"][1:] == ("pyright", "-p", "pyrightconfig.json")
+    assert commands["Pyright production inventory"][1:] == ("pyright", "-p", "pyrightconfig.json")
     assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
     assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")
