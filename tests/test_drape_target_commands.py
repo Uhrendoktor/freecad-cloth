@@ -90,7 +90,9 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
     )
     command = registered_commands["ClothDrape_EnableTarget"]
 
-    assert command.IsActive() is True, "The native IsActive callback must report an active document."
+    assert command.IsActive() is True, (
+        "The native IsActive callback must report an active document."
+    )
     assert command.Activated() is target and target.Enabled is True, (
         "The native Activated callback must enable the persistent target."
     )
