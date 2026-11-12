@@ -138,7 +138,7 @@ def test_selected_pattern_edges_requires_two_different_pieces() -> None:
 
 def test_selected_pattern_edges_rejects_incomplete_selection() -> None:
     """Reject selections that do not contain exactly two valid edges."""
-    gui = SimpleNamespace(Selection=SimpleNamespace(getSelectionEx=lambda: []))
+    gui = SimpleNamespace(Selection=SimpleNamespace(getSelectionEx=list))
     with pytest.raises(ValueError, match="exactly two edges"):
         sewing_commands._selected_pattern_edges(gui=gui)
 
