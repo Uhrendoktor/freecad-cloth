@@ -532,35 +532,6 @@ def _display_path(path: Path) -> str:
 
 
 
-_SUPPRESSION_COMMENT = re.compile(
-    r"\b(?:noqa\b|type\s*:\s*ignore\b|pyright\s*:\s*ignore\b|"
-    r"mypy\s*:\s*ignore\b|ty\s*:\s*ignore\b|pylint\s*:\s*disable\b)",
-    re.IGNORECASE,
-)
-
-
-def suppression_violations(source: str, filename: str = "<memory>") -> list[str]:
-    """Reject inline comments that disable lint or static-type diagnostics.
-
-    Args:
-        source: Complete Python source text.
-        filename: Source label included in the diagnostic.
-
-    Returns:
-        A diagnostic for each suppression comment, ignoring ordinary string literals.
-    """
-    errors: list[str] = []
-    try:
-        for token in tokenize.generate_tokens(io.StringIO(source).readline):
-            if token.type == tokenize.COMMENT and _SUPPRESSION_COMMENT.search(token.string):
-                errors.append(
-                    f"{filename}:{token.start[0]}: inline lint/type suppression comments are prohibited"
-                )
-    except (IndentationError, tokenize.TokenError) as exc:
-        errors.append(f"{filename}: cannot tokenize Python source: {exc}")
-    return errors
-
-
 def _label(filename: str, line: int, name: str) -> str:
     """Format a declaration location for documentation diagnostics.
 
@@ -807,15 +778,14 @@ def suppression_violations(source: str, filename: str = "<memory>") -> list[str]
     """
     errors: list[str] = []
     try:
-        for token in tokenize.generate_tokens(io.StringIO(source).readline):
-            if token.type == tokenize.COMMENT and _SUPPRESSION_COMMENT.search(token.string):
-                errors.append(
-                    f"{filename}:{token.start[0]}: inline lint/type suppression comments are prohibited"
-                )
+        errors.extend(
+            f"{filename}:{token.start[0]}: inline lint/type suppression comments are prohibited"
+            for token in tokenize.generate_tokens(io.StringIO(source).readline)
+            if token.type == tokenize.COMMENT and _SUPPRESSION_COMMENT.search(token.string)
+        )
     except (IndentationError, tokenize.TokenError) as exc:
         errors.append(f"{filename}: cannot tokenize Python source: {exc}")
     return errors
-
 
 def _label(filename: str, line: int, name: str) -> str:
     """Format a declaration location for documentation diagnostics.
