@@ -130,7 +130,8 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     require(
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
         message="The reviewed Pyright production inventory must remain enabled.",
-    )    require(
+    )
+    require(
         condition=any(command[:4] == ("ty", "check", "--output-format", "github") for command in arguments),
         message="The blocking ty simulation-core profile must remain enabled.",
     )
