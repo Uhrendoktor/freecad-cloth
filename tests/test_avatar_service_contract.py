@@ -4,18 +4,20 @@
 import pytest
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
-from freecad_cloth.avatar.AvatarService import AvatarService, _is_avatar_parameters
+from freecad_cloth.avatar.AvatarService import AvatarService, _validate_avatar_parameters
 from tests.support.assertions import require
 
 
 def test_avatar_parameter_runtime_guard_preserves_constructor_boundary() -> None:
     """Recognize canonical avatar parameters and reject unrelated runtime values."""
+    valid_parameters, parameters = _validate_avatar_parameters(AvatarParameters())
+    valid_text, text_value = _validate_avatar_parameters("not-avatar-parameters")
     require(
-        condition=_is_avatar_parameters(AvatarParameters()),
+        condition=valid_parameters and isinstance(parameters, AvatarParameters),
         message="Canonical AvatarParameters values must pass the service guard.",
     )
     require(
-        condition=not _is_avatar_parameters("not-avatar-parameters"),
+        condition=not valid_text and text_value == "not-avatar-parameters",
         message="Unrelated runtime values must fail the service guard.",
     )
 
