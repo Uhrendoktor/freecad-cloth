@@ -3,7 +3,6 @@
 
 import freecad_cloth.avatar as avatar_package
 import freecad_cloth.avatar.avatar_arrangement as implementation_module
-
 from freecad_cloth.avatar.avatar_arrangement import (
     arrangement_point_map,
     arrangement_points_from_landmarks,
