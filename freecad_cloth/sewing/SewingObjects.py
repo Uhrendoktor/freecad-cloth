@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 
-from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
