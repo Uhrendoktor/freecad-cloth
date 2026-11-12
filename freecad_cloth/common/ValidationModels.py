@@ -54,7 +54,7 @@ def _finite_real(value: object) -> float:
     return result
 
 
-def _pydantic_finite_real(value: object) -> float:
+def _pydantic_finite_real(value: Real) -> float:
     """Adapt strict numeric type errors to Pydantic's validation contract.
 
     Args:

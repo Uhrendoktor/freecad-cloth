@@ -1064,7 +1064,9 @@ def _mesh_anchor_local_position(
     if triangle_index < 0 or triangle_index >= len(triangles):
         msg = "anchored mesh triangle no longer exists"
         raise ValueError(msg)
-    weights = tuple(float(value) for value in cast("Iterable[CoordinateValue]", anchor["barycentric"]))
+    weights = tuple(
+        float(value) for value in cast("Iterable[CoordinateValue]", anchor["barycentric"])
+    )
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
         msg = "stored mesh-anchor barycentric coordinates are invalid"
         raise ValueError(msg)
