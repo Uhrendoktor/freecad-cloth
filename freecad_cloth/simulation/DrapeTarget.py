@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING, ClassVar, NotRequired, Protocol, TypedDict, ca
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.shared.SourceSignature import source_signature
@@ -14,13 +16,15 @@ from freecad_cloth.shared.SourceSignature import source_signature
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from freecad_cloth.common.garment_document import _FreeCADDocument
 
-class _DrapeTargetFeature(Protocol):
+
+class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persisted FreeCAD feature fields written by target lifecycle operations."""
 
     Label: str
     TargetType: str
-    SourceObject: object | None
+    SourceObject: FreeCADDocumentObjectProtocol | None
     CollisionDeflection: float
     CollisionThickness: float
     Enabled: bool
@@ -29,7 +33,7 @@ class _DrapeTargetFeature(Protocol):
     SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
-    addProperty: Callable[[str, str, str], object]
+    addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol]
 
 
 class _TargetStatus(TypedDict):
@@ -80,7 +84,7 @@ class DrapeTargetSpec:
 
 
 def collision_surface(
-    target: object,
+    target: FreeCADDocumentObjectProtocol,
     deflection: float = 1.0,
     thickness: float = 0.0,
 ) -> CollisionSurface:
@@ -101,7 +105,7 @@ def collision_surface(
     return surface_from_freecad(target, float(deflection), float(thickness))
 
 
-def _existing_target_prerequisite_status(target: object) -> _TargetStatus | None:
+def _existing_target_prerequisite_status(target: _DrapeTargetFeature) -> _TargetStatus | None:
     """Return a status record when an existing target cannot be simulated.
 
     Args:
@@ -154,7 +158,7 @@ def _existing_target_prerequisite_status(target: object) -> _TargetStatus | None
     return None
 
 
-def target_status(target: object | None) -> _TargetStatus:
+def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
     """Summarize whether the persisted collision cache is current.
 
     Args:
@@ -207,7 +211,7 @@ def target_status(target: object | None) -> _TargetStatus:
     }
 
 
-def refresh_drape_target(target: object) -> object:
+def refresh_drape_target(target: _DrapeTargetFeature) -> _DrapeTargetFeature:
     """Rebuild the persistent target's collision cache from its current source.
 
     Args:
@@ -227,12 +231,12 @@ def refresh_drape_target(target: object) -> object:
 
 
 def create_drape_target(
-    doc: object,
-    source: object | None = None,
+    doc: _FreeCADDocument,
+    source: FreeCADDocumentObjectProtocol | None = None,
     target_type: str = "FreeCAD Geometry",
     deflection: float = 1.0,
     thickness: float = 0.0,
-) -> object:
+) -> _DrapeTargetFeature:
     """Create a persistent DrapeTarget feature and optionally assign its source.
 
     Args:
@@ -257,8 +261,7 @@ def create_drape_target(
     if source is None and target_type != "Mannequin":
         msg = "a FreeCAD Geometry target requires a source object"
         raise ValueError(msg)
-    add_object = cast("Callable[[str, str], object]", doc.addObject)
-    target = cast("_DrapeTargetFeature", add_object("App::FeaturePython", "DrapeTarget"))
+    target = cast("_DrapeTargetFeature", doc.addObject("App::FeaturePython", "DrapeTarget"))
     target.Label = "Drape Target"
     for type_name, name, group in (
         ("App::PropertyString", "TargetType", "Draping"),
@@ -290,10 +293,10 @@ def create_drape_target(
 
 
 def assign_drape_target(
-    target: object,
-    source: object | None,
+    target: _DrapeTargetFeature,
+    source: FreeCADDocumentObjectProtocol | None,
     target_type: str | None = None,
-) -> object:
+) -> _DrapeTargetFeature:
     """Assign a source and refresh the persisted collision-cache metadata.
 
     Args:

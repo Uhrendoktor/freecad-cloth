@@ -8,17 +8,18 @@ from functools import lru_cache
 from itertools import starmap
 from typing import TYPE_CHECKING, Protocol, cast
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
-from freecad_cloth.simulation.simulation_protocols import SimulationScene
+from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+    from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
 
 
-class _SimulationDocument(Protocol):
+class _SimulationDocument(SimulationDocument, Protocol):
     """Document API used by the simulation scene and its mesh outputs."""
-
-    Objects: Sequence[object]
 
     def addObject(self, type_name: str, object_name: str) -> _SimulationFeature:
         """Create a simulation feature in the owning document.
@@ -48,7 +49,54 @@ class _SimulationDocument(Protocol):
         ...
 
 
-class _SimulationFeature(Protocol):
+
+class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
+    """Document identity shared by mesh-bearing FreeCAD objects."""
+
+    Document: _SimulationDocument | None
+
+
+class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent pattern-piece identity consumed by simulation scene construction."""
+
+    PatternType: str
+    PieceId: str
+
+
+class _NativeMeshVector(Protocol):
+    """Coordinate interface accepted by a mutable FreeCAD mesh buffer."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _MeshBuffer(Protocol):
+    """Mutable FreeCAD mesh buffer retained while panel topology stays fixed."""
+
+    CountPoints: int
+    CountFacets: int
+
+    def setPoint(self, index: int, point: _NativeMeshVector) -> None:
+        """Replace one indexed vertex in the cached mesh buffer."""
+        ...
+
+    def addFacets(
+        self,
+        facets: tuple[Sequence[_NativeMeshVector], Sequence[Sequence[int]]],
+        check_manifold: bool = False,
+    ) -> None:
+        """Populate the mutable buffer with its shared vertices and face indices."""
+        ...
+
+
+class _SimulationMeshFeature(_MeshObjectKey, Protocol):
+    """FreeCAD mesh feature written by the simulation visualization adapter."""
+
+    Mesh: _MeshBuffer
+
+
+class _SimulationFeature(_MeshObjectKey, Protocol):
     """Feature properties created and persisted by the simulation factory."""
 
     Label: str
@@ -61,10 +109,10 @@ class _SimulationFeature(Protocol):
     GravityX: float
     GravityY: float
     GravityZ: float
-    ClothPieces: Sequence[object]
-    DrapePanels: Sequence[object]
-    DrapeTarget: object
-    PinMode: str
+    ClothPieces: Sequence[_PatternPieceDocumentObject]
+    DrapePanels: Sequence[_SimulationMeshFeature]
+    DrapeTarget: _DrapeTargetFeature | None
+    PinMode: str | list[str]
     PinSelection: list[str]
     SeamSelection: list[str]
     SimulatedTime: float
@@ -74,7 +122,7 @@ class _SimulationFeature(Protocol):
     CollisionY: float
     CollisionZ: float
     CollisionRadius: float
-    Proxy: object
+    Proxy: SimulationProxy
     Document: _SimulationDocument
 
     def addProperty(self, type_name: str, name: str, group: str) -> _SimulationFeature:
@@ -132,10 +180,10 @@ def _indexed_mesh_topology(
 # indexed topology alongside a separately owned mutable buffer: obj.Mesh exposes
 # an immutable property view, so calling setPoint on that view raises ReferenceError.
 _MESH_OBJECT_TOPOLOGY: dict[tuple[str, str], tuple[tuple[int, int, int], ...]] = {}
-_MESH_OBJECT_BUFFERS: dict[tuple[str, str], object] = {}
+_MESH_OBJECT_BUFFERS: dict[tuple[str, str], _MeshBuffer] = {}
 
 
-def _mesh_object_key(obj: object) -> tuple[str, str]:
+def _mesh_object_key(obj: _MeshObjectKey) -> tuple[str, str]:
     """Return the stable document/object key used by mutable mesh-buffer caches.
 
     Args:
@@ -671,7 +719,7 @@ class SimulationProxy:
         positions = []
         triangles_global = []
         panel_data = {}
-        panels = list(getattr(obj, "DrapePanels", ()))
+        panels = list(obj.DrapePanels)
         for index, piece in enumerate(pieces):
             piece_ir = resolved.piece(str(piece.PieceId))
             vertices, triangles, boundary = mesh_builder(
@@ -859,7 +907,7 @@ class SimulationProxy:
 
 
 def create_simulation_scene(
-    doc: object,
+    doc: _SimulationDocument,
     build: bool = True,
 ) -> _SimulationFeature:
     """Create the persistent simulation feature and its output mesh objects.
@@ -871,7 +919,7 @@ def create_simulation_scene(
     Returns:
         The created simulation feature with its panel links and proxy installed.
     """
-    typed_doc = cast("_SimulationDocument", doc)
+    typed_doc = doc
     scene = typed_doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
@@ -935,8 +983,15 @@ def reset_scene(scene: SimulationScene) -> SimulationScene:
     return scene
 
 
-def create_drape_scene(doc):
-    """Create and return the requested drape scene object."""
+def create_drape_scene(doc: _SimulationDocument) -> _SimulationFeature:
+    """Create and return the requested drape scene object.
+
+    Args:
+        doc: FreeCAD document that will own the persistent drape scene.
+
+    Returns:
+        The simulation feature after its initial preview steps have been applied.
+    """
     scene = create_simulation_scene(doc)
     step_scene(scene, 30)
     return scene
