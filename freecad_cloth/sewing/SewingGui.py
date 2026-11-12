@@ -8,7 +8,9 @@ the task panel is only the interactive frontend.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
+
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     CorrespondenceReport,
@@ -16,7 +18,24 @@ from freecad_cloth.sewing.SewingCorrespondence import (
 )
 
 
-def _gui_modules() -> tuple[object, object, object, object]:
+if TYPE_CHECKING:
+    from types import ModuleType
+
+
+class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted seam fields edited by the sewing task panel."""
+
+    Status: str
+    SeamId: str
+    Alignment: str
+    ReversedB: bool
+    StartA: float
+    EndA: float
+    StartB: float
+    EndB: float
+
+
+def _gui_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     """Load FreeCAD and Qt modules lazily for the task panel.
 
     Returns:
@@ -38,7 +57,7 @@ def _gui_modules() -> tuple[object, object, object, object]:
     return App, Gui, QtCore, QtWidgets
 
 
-def seam_reference_status(seam: object | None) -> str:
+def seam_reference_status(seam: _SeamFeature | None) -> str:
     """Return the display status for a possibly missing seam reference.
 
     Args:
@@ -52,7 +71,7 @@ def seam_reference_status(seam: object | None) -> str:
     return str(getattr(seam, "Status", "Valid")) or "Valid"
 
 
-def validate_seam_for_accept(seam: object | None) -> bool:
+def validate_seam_for_accept(seam: _SeamFeature | None) -> bool:
     """Reject accepting a sewing operation with an invalid seam reference.
 
     Args:
@@ -73,7 +92,7 @@ def validate_seam_for_accept(seam: object | None) -> bool:
 
 
 def correspondence_report(
-    seam: object | None,
+    seam: _SeamFeature | None,
     length_a: float,
     length_b: float,
     tolerance: float = 0.05,
@@ -104,7 +123,7 @@ def correspondence_report(
 
 
 def repair_correspondence_settings(
-    seam: object | None,
+    seam: _SeamFeature | None,
     report: CorrespondenceReport | None,
 ) -> str:
     """Apply only non-destructive semantic repairs to a seam.
