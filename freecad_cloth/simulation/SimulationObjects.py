@@ -9,13 +9,12 @@ from itertools import starmap
 from typing import TYPE_CHECKING, Protocol, Self, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
 from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
 if TYPE_CHECKING:
-    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
     from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
 
 class _SimulationDocument(SimulationDocument, Protocol):
@@ -646,7 +645,11 @@ class SimulationProxy:
         self.collision_surface = None
 
     def execute(self, obj):
-        """Recompute the FreeCAD object from its current source properties."""
+        """Recompute the FreeCAD object from its current source properties.
+
+        Args:
+            obj: Persistent simulation feature whose source state is recomputed.
+        """
         _ensure_state_properties(obj)
         target = getattr(obj, "DrapeTarget", None)
         if target is not None:
@@ -914,10 +917,18 @@ class SimulationProxy:
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
-        return cast("_SimulationMeshFeature", obj) if obj is not None else _mesh_object(doc, name, name)
+        return (
+            cast("_SimulationMeshFeature", obj)
+            if obj is not None
+            else _mesh_object(doc, name, name)
+        )
 
     def reset(self, obj):
-        """Reset the runtime state to its initial values."""
+        """Reset the runtime state to its initial values.
+
+        Args:
+            obj: Persistent simulation feature receiving the reset state.
+        """
         if self.backend is not None:
             self.backend.reset()
         obj.Steps = 0
@@ -982,7 +993,15 @@ def create_simulation_scene(
 
 
 def step_scene(scene, steps=1):
-    """Provide the public step scene operation."""
+    """Advance a persisted simulation scene and recompute its owning document.
+
+    Args:
+        scene: Persistent simulation feature whose solver state is advanced.
+        steps: Number of solver steps added to the stored step counter.
+
+    Returns:
+        The same simulation feature after its document has recomputed.
+    """
     scene.Steps = int(scene.Steps) + int(steps)
     scene.Document.recompute()
     return scene
