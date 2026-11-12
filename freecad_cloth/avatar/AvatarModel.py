@@ -301,7 +301,7 @@ class AvatarParameters:
         """Create a validated copy with updated body measurements.
 
         Args:
-            changes: Measurement names and replacement values in millimetres.
+            **changes: Measurement names and replacement values in millimetres.
 
         Returns:
             A new avatar parameter record with the updates applied.
