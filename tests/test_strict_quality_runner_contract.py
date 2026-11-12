@@ -110,7 +110,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "Source-rewriting policy",
             "Explicit Any policy",
             "Pydantic model policy",
-            "Strict Pyright",
+            "Pyright production inventory",
             "Typed simulation core",
             "Changed Python annotation ratchet",
             "AST-grep rule tests",
