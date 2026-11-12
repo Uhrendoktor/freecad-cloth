@@ -216,10 +216,20 @@ def _seam_edge_id(
 
 
 def refresh_edge_reference_signature(piece, edge_id):
-    """Return the current signature for an existing semantic edge id.
+    """Return a refreshed signature without changing semantic edge identity.
 
     This is an explicit repair primitive: it refreshes a stored reference only
     when the same semantic edge id still exists; it never retargets to another edge.
+
+    Args:
+        piece: PatternPiece document object whose native edge records are inspected.
+        edge_id: Existing semantic edge identifier whose geometry signature is refreshed.
+
+    Returns:
+        Current geometry/provenance signature for the requested semantic edge.
+
+    Raises:
+        MissingEdgeReference: If the identifier is empty or no longer exists on the piece.
     """
     reference_id = str(edge_id or "").strip()
     if not reference_id:
@@ -284,7 +294,16 @@ class PatternPieceProxy:
         app_module: ModuleType | None = None,
         part_module: ModuleType | None = None,
     ):
-        """Recompute the FreeCAD object from its current source properties."""
+        """Recompute the FreeCAD object from its current source properties.
+
+        Args:
+            obj: Persistent PatternPiece feature receiving derived dimensions and shape.
+            app_module: Optional FreeCAD application module supplied by a headless test.
+            part_module: Optional Part module used to construct native boundary geometry.
+
+        Raises:
+            ValueError: If source dimensions, allowance, or custom boundary points are invalid.
+        """
         width = float(obj.Width)
         height = float(obj.Height)
         allowance = float(obj.SeamAllowance)
@@ -320,7 +339,18 @@ class PatternPieceProxy:
 
 
 def add_pattern_piece(doc, piece: PatternPiece):
-    """Create a recomputable native Part feature for a pattern piece."""
+    """Create a recomputable native Part feature for a semantic pattern piece.
+
+    Args:
+        doc: FreeCAD document that will own the persistent Part feature.
+        piece: Validated semantic PatternPiece value supplying dimensions and identity.
+
+    Returns:
+        The native Part feature with its proxy and Garment hierarchy link installed.
+
+    Raises:
+        ValueError: If the semantic pattern piece fails its validation contract.
+    """
     piece.validate()
     width = max(p[0] for p in piece.outline) - min(p[0] for p in piece.outline)
     height = max(p[1] for p in piece.outline) - min(p[1] for p in piece.outline)
@@ -361,7 +391,14 @@ class SeamProxy:
     Type = "ClothSeam"
 
     def execute(self, obj):
-        """Recompute the FreeCAD object from its current source properties."""
+        """Recompute a seam feature from current semantic edge references.
+
+        Args:
+            obj: Persisted seam feature with source-piece links and edge signatures.
+
+        The feature is marked missing or changed when the stored identity no longer
+        resolves; it is never silently retargeted to another edge.
+        """
         import Part
 
         document = getattr(obj, "Document", None)
@@ -412,7 +449,11 @@ class SeamProxy:
         obj.Shape = build_seam_visual_shape(piece_a, piece_b, obj, sample_count=5, world_space=True)
 
     def onDocumentRestored(self, obj):
-        """Reapply canonical seam colors after FreeCAD restores a document proxy."""
+        """Reapply canonical seam colors after FreeCAD restores a document proxy.
+
+        Args:
+            obj: Restored seam feature whose owning document is inspected.
+        """
         document = getattr(obj, "Document", None) if obj is not None else None
         if document is None:
             return
@@ -420,7 +461,19 @@ class SeamProxy:
 
 
 def add_seam(doc, seam: Seam):
-    """Add a seam relationship to this collection."""
+    """Persist one semantic sewing relationship between two pattern pieces.
+
+    Args:
+        doc: FreeCAD document that owns the two source pieces and new seam.
+        seam: Validated semantic sewing contract with stable piece/edge identities.
+
+    Returns:
+        Native seam feature with persistent references, proxy, and Garment link.
+
+    Raises:
+        ValueError: If the semantic seam fails validation before document mutation.
+        MissingEdgeReference: If a requested source edge is absent from either piece.
+    """
     seam.validate()
     piece_a = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_a), None)
     piece_b = next((o for o in doc.Objects if getattr(o, "PieceId", "") == seam.piece_b), None)
@@ -479,7 +532,16 @@ def add_seam(doc, seam: Seam):
 
 
 def add_pattern_mesh(doc, mesh, name="ClothMesh"):
-    """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh."""
+    """Create a native FreeCAD Mesh::Feature from a solver-neutral mesh.
+
+    Args:
+        doc: FreeCAD document that will own the generated mesh feature.
+        mesh: Validated solver-neutral triangle mesh in pattern-local coordinates.
+        name: Stable internal and display name for the new document feature.
+
+    Returns:
+        Mesh::Feature storing the triangulated pattern surface and count metadata.
+    """
     import FreeCAD as App
     import Mesh
 
