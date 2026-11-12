@@ -3,6 +3,8 @@
 
 from typing import TYPE_CHECKING
 
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
+
 
 def _qt():
     import FreeCAD as App
@@ -663,7 +665,7 @@ class SimulationQualityTaskPanel:
 
 
 def show_simulation_quality_task(
-    scene: object | None = None,
+    scene: SimulationScene | None = None,
 ) -> SimulationQualityTaskPanel:
     """Create and show the native simulation-quality task panel.
 
