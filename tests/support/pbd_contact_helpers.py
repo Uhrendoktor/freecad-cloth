@@ -21,7 +21,7 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from types import ModuleType
 
 Point3 = tuple[float, float, float]
