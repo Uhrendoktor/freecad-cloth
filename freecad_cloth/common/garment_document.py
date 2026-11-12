@@ -57,6 +57,18 @@ class _FreeCADDocument(Protocol):
 
     Objects: list[FreeCADDocumentObjectProtocol]
 
+    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
+        """Create a native FreeCAD object inside the document.
+
+        Args:
+            object_type: Native FreeCAD type identifier for the requested object.
+            name: Stable internal name assigned to the newly created object.
+
+        Returns:
+            The new document object exposing FreeCAD identity and properties.
+        """
+        ...
+
     def recompute(self) -> None:
         """Recompute the document after hierarchy changes."""
         ...
