@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-type ApiJsonValue = None | bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue]
+type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
 type ApiJsonObject = dict[str, ApiJsonValue]
 
 import hashlib
