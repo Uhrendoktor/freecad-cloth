@@ -907,7 +907,7 @@ def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
     require(condition=config.get("reportMissingImports") == "none" and config.get("reportMissingModuleSource") == "none", message="Pyright import diagnostics must follow the reviewed host-boundary profile.")
     quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     require(condition='QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
-    require(condition='QualityCommand("Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
+    require(condition='"Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
 
 def test_ty_warning_diagnostics_remain_blocking() -> None:
     """Keep warning-level ty diagnostics fatal for the curated simulation core."""
