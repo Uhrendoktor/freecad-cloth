@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import cast
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+
 TARGET_FPS = 30.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
@@ -21,7 +23,7 @@ FRAME_BUDGET_TOLERANCE_MS = 1e-6
 MIN_PARTICLE_DISTANCE_MM = 40.0
 
 
-def _number(value: object) -> float | None:
+def _number(value: JsonValue) -> float | None:
     """Return a finite real number; reject booleans and malformed metrics.
 
     Args:
@@ -36,7 +38,7 @@ def _number(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
-def _integer(value: object) -> int | None:
+def _integer(value: JsonValue) -> int | None:
     """Return an integer metric without accepting booleans or truncated floats.
 
     Args:
@@ -50,7 +52,7 @@ def _integer(value: object) -> int | None:
     return value
 
 
-def _validate_artifact_identity(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_artifact_identity(metrics: JsonObject, errors: list[str]) -> None:
     """Check schema identity and the required realtime benchmark fixture.
 
     Args:
@@ -65,7 +67,7 @@ def _validate_artifact_identity(metrics: dict[str, object], errors: list[str]) -
         errors.append("fixture must be two-panel-tunic-pattern")
 
 
-def _validate_fixture_size(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_fixture_size(metrics: JsonObject, errors: list[str]) -> None:
     """Check garment-scale particle and collision-surface counts.
 
     Args:
@@ -83,7 +85,7 @@ def _validate_fixture_size(metrics: dict[str, object], errors: list[str]) -> Non
 
 
 def _validate_frame_counts(
-    metrics: dict[str, object],
+    metrics: JsonObject,
     errors: list[str],
 ) -> int | None:
     """Validate requested cadence samples and their matching timer ticks.
@@ -119,7 +121,7 @@ def _validate_frame_counts(
     return frames
 
 
-def _validate_finite_state(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_finite_state(metrics: JsonObject, errors: list[str]) -> None:
     """Require finite solver and published state and reject timeout artifacts.
 
     Args:
@@ -134,7 +136,7 @@ def _validate_finite_state(metrics: dict[str, object], errors: list[str]) -> Non
         errors.append("published_state_finite must be true")
 
 
-def _validate_timing_metrics(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     """Check frame-budget and callback timing values without weakening the FPS gate.
 
     Args:
@@ -165,7 +167,7 @@ def _validate_timing_metrics(metrics: dict[str, object], errors: list[str]) -> N
 
 
 def _validate_stage_timings(
-    metrics: dict[str, object],
+    metrics: JsonObject,
     frames: int | None,
     errors: list[str],
 ) -> None:
@@ -189,13 +191,13 @@ def _validate_stage_timings(
         errors.append("stage_timings must be a JSON object")
         return
 
-    stages = cast("dict[str, object]", stage_value)
+    stages = cast("JsonObject", stage_value)
     for name in required_stages:
         stage_value_for_name = stages.get(name)
         if not isinstance(stage_value_for_name, dict):
             errors.append(f"stage_timings.{name} must be a JSON object")
             continue
-        stage = cast("dict[str, object]", stage_value_for_name)
+        stage = cast("JsonObject", stage_value_for_name)
         samples = _integer(stage.get("samples"))
         if frames is None:
             minimum_samples = MIN_FRAMES
@@ -215,7 +217,7 @@ def _validate_stage_timings(
                 )
 
 
-def _validate_profile(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_profile(metrics: JsonObject, errors: list[str]) -> None:
     """Check the quality settings that make benchmark samples comparable.
 
     Args:
@@ -227,7 +229,7 @@ def _validate_profile(metrics: dict[str, object], errors: list[str]) -> None:
         errors.append("profile must be a JSON object")
         return
 
-    profile = cast("dict[str, object]", profile_value)
+    profile = cast("JsonObject", profile_value)
     if profile.get("quality_preset") != "Fast":
         errors.append("profile.quality_preset must be Fast")
     spacing = _number(profile.get("particle_distance_mm"))
@@ -240,7 +242,7 @@ def _validate_profile(metrics: dict[str, object], errors: list[str]) -> None:
     )
 
 
-def _validate_runtime(metrics: dict[str, object], errors: list[str]) -> None:
+def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
     """Require identifying runtime metadata and a valid CPU count.
 
     Args:
@@ -252,7 +254,7 @@ def _validate_runtime(metrics: dict[str, object], errors: list[str]) -> None:
         errors.append("runtime must be a JSON object")
         return
 
-    runtime = cast("dict[str, object]", runtime_value)
+    runtime = cast("JsonObject", runtime_value)
     for key in ("platform", "python_version", "freecad_version"):
         value = runtime.get(key)
         if not isinstance(value, str) or not value:
@@ -262,7 +264,7 @@ def _validate_runtime(metrics: dict[str, object], errors: list[str]) -> None:
         errors.append("runtime.cpu_count must be a positive integer")
 
 
-def validate_metrics(payload: object) -> list[str]:
+def validate_metrics(payload: JsonValue) -> list[str]:
     """Return all acceptance failures found in a realtime metric artifact.
 
     Args:
@@ -273,7 +275,7 @@ def validate_metrics(payload: object) -> list[str]:
     """
     if not isinstance(payload, dict):
         return ["metrics artifact must contain a JSON object"]
-    metrics = cast("dict[str, object]", payload)
+    metrics = cast("JsonObject", payload)
     errors: list[str] = []
     _validate_artifact_identity(metrics, errors)
     _validate_fixture_size(metrics, errors)
@@ -311,7 +313,7 @@ def main() -> int:
         sys.stdout.flush()
         return 1
 
-    metrics = cast("dict[str, object]", payload)
+    metrics = cast("JsonObject", payload)
     mean_interval = _number(metrics.get("mean_frame_interval_ms"))
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is None or p95_interval is None:
