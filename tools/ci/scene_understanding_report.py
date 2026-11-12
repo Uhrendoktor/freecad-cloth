@@ -23,7 +23,7 @@ from typing import cast
 
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
-type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
 type JsonObject = dict[str, JsonValue]
 type DiagnosticValue = JsonValue | tuple[DiagnosticValue, ...]
 
