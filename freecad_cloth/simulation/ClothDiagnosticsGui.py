@@ -1,8 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, Self, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.simulation_protocols import SimulationScene
@@ -41,7 +43,7 @@ class _DiagnosticMapFeature(FreeCADDocumentObjectProtocol, Protocol):
     Mesh: _DiagnosticMesh
     ViewObject: _DiagnosticViewObject
 
-    def addProperty(self, property_type: str, name: str, group: str) -> FreeCADDocumentObjectProtocol:
+    def addProperty(self, property_type: str, name: str, group: str) -> Self:
         """Register one persistent or transient diagnostic property."""
         ...
 
