@@ -9,8 +9,9 @@ import sys
 from pathlib import Path
 from typing import cast
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from visual_evidence import documented_assets
+
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "tools" / "ci" / "visual_asset_sources.json"
