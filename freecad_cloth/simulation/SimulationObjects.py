@@ -47,8 +47,6 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """Recompute the document after changing persistent simulation state."""
         ...
 
-
-
 class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
     """Shared native document identity and property operations for scene features."""
 
