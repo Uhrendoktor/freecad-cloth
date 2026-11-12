@@ -6,12 +6,21 @@ proxy. It is the only quality runtime implementation.
 """
 
 import weakref
-from collections.abc import Sequence
+from collections.abc import Hashable, Sequence
 from math import ceil
-from typing import Protocol, cast
+from typing import Protocol, Self, cast
 
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
-from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
+from freecad_cloth.simulation.SimulationObjects import (
+    PIN_MODE_NAMES,
+    _PatternPieceDocumentObject,
+    resolve_pin_indices,
+)
+from freecad_cloth.simulation.SimulationQuality import (
+    QUALITY_PRESETS,
+    SimulationQuality,
+    normalize_color_rgb,
+    preset,
+)
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
@@ -37,9 +46,9 @@ class _QualityScene(Protocol):
     FabricTransparency: int
     AvatarSkinOffset: float
     Steps: int
-    ClothPieces: Sequence[object]
+    ClothPieces: Sequence[_PatternPieceDocumentObject]
 
-    def addProperty(self, type_name: str, name: str, group: str) -> object:
+    def addProperty(self, type_name: str, name: str, group: str) -> Self:
         """Register one persistent property on the FreeCAD feature.
 
         Args:
@@ -53,7 +62,7 @@ class _QualityScene(Protocol):
         ...
 
 
-def ensure_quality_properties(scene: object) -> _QualityScene:
+def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
     """Create and validate persistent simulation-quality properties on a scene.
 
     Args:
@@ -62,7 +71,7 @@ def ensure_quality_properties(scene: object) -> _QualityScene:
     Returns:
         The same feature after its quality properties have been initialized and clamped.
     """
-    typed_scene = cast("_QualityScene", scene)
+    typed_scene = scene
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
         ("ParticleDistance", "App::PropertyFloat", "Quality", None, 4.0),
@@ -207,7 +216,7 @@ class QualitySimulationProxy:
         self.seam_stitch_pairs = {}
 
     @staticmethod
-    def _signature(obj: _QualityScene) -> tuple[object, ...]:
+    def _signature(obj: _QualityScene) -> tuple[Hashable, ...]:
         """Return the deterministic inputs that invalidate the derived simulation.
 
         Args:
@@ -277,7 +286,7 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = finite_state
 
-    def execute(self, obj: object) -> None:
+    def execute(self, obj: _QualityScene) -> None:
         """Recompute the FreeCAD object from its current source properties.
 
         Args:
