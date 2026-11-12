@@ -1,17 +1,30 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD commands for selecting and editing a persistent draping/collision target."""
 
+from __future__ import annotations
+
 import contextlib
 from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 
 class _FreeCADDocument(Protocol):
     """FreeCAD document members required by drape-target commands."""
 
-    Objects: Sequence[object]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
+
+    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+        """Find a document object by its internal name."""
+        ...
+
+    def addObject(
+        self, type_id: str, object_name: str
+    ) -> FreeCADDocumentObjectProtocol:
+        """Create a native document object for the requested feature type."""
+        ...
 
     def recompute(self) -> None:
         """Recompute the document after target links are assigned."""
@@ -21,24 +34,60 @@ class _FreeCADDocument(Protocol):
 class _SimulationScene(Protocol):
     """Simulation-scene properties owned by the canonical target model."""
 
-    Document: object
-    DrapeTarget: object
+    Document: _FreeCADDocument
+    DrapeTarget: _DrapeTarget | None
 
 
-class _DrapeTarget(Protocol):
+class _DrapeTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Persistent target fields updated by the drape-target commands."""
 
+    TargetType: str
+    SourceObject: FreeCADDocumentObjectProtocol | None
     CollisionDeflection: float
     CollisionThickness: float
     Enabled: bool
-    Label: str
+    CollisionVertexCount: int
+    CollisionTriangleCount: int
+    SourceSignature: str
+    TargetStatus: str
+    InvalidationReason: str
 
 
-_ACTIVE_DIAGNOSTICS_TASK_PANEL: list[object | None] = [None]
+class _TaskPanelForm(Protocol):
+    """Qt widget operations exposed by native FreeCAD task-panel forms."""
+
+    def close(self) -> bool:
+        """Close the visible task-panel form."""
+        ...
+
+    def show(self) -> None:
+        """Show the task-panel form."""
+        ...
+
+
+class _TaskPanel(Protocol):
+    """Form handle shared by the drape-target and diagnostics task panels."""
+
+    form: _TaskPanelForm
+
+
+class _GuiCommandRegistry(Protocol):
+    """FreeCAD GUI operation used to register command callback objects."""
+
+    def addCommand(self, name: str, command: _DrapeCommand) -> None:
+        """Register one command under its stable internal identifier."""
+        ...
+
+
+type DrapeCommandResult = FreeCADDocumentObjectProtocol | _TaskPanel | None
+type DrapeCommandCallbackResult = DrapeCommandResult | bool | dict[str, str]
+
+
+_ACTIVE_DIAGNOSTICS_TASK_PANEL: list[_TaskPanel | None] = [None]
 _DEFAULT_TARGET_ENABLED = True
 
 
-def get_active_diagnostics_task_panel() -> object | None:
+def get_active_diagnostics_task_panel() -> _TaskPanel | None:
     """Return the diagnostics task panel opened by the public command.
 
     Returns:
@@ -47,7 +96,7 @@ def get_active_diagnostics_task_panel() -> object | None:
     return _ACTIVE_DIAGNOSTICS_TASK_PANEL[0]
 
 
-def _selected_source() -> object:
+def _selected_source() -> FreeCADDocumentObjectProtocol:
     """Return the first selected FreeCAD shape or mesh.
 
     Returns:
@@ -65,7 +114,10 @@ def _selected_source() -> object:
     raise ValueError(msg)
 
 
-def _get_document_object(doc: object, object_name: str) -> object | None:
+def _get_document_object(
+    doc: _FreeCADDocument,
+    object_name: str,
+) -> FreeCADDocumentObjectProtocol | None:
     """Look up a named object through FreeCAD's dynamic document API.
 
     Args:
@@ -75,12 +127,10 @@ def _get_document_object(doc: object, object_name: str) -> object | None:
     Returns:
         The matching document object, or None if it does not exist.
     """
-    getter_attribute = "getObject"
-    get_object = cast("Callable[[str], object | None]", getattr(doc, getter_attribute))
-    return get_object(object_name)
+    return doc.getObject(object_name)
 
 
-def _target(doc: object) -> object | None:
+def _target(doc: _FreeCADDocument) -> _DrapeTarget | None:
     """Find the persistent drape target in a document.
 
     Args:
@@ -89,10 +139,10 @@ def _target(doc: object) -> object | None:
     Returns:
         The existing DrapeTarget object, or None when it has not been created.
     """
-    return _get_document_object(doc, "DrapeTarget")
+    return cast("_DrapeTarget | None", _get_document_object(doc, "DrapeTarget"))
 
 
-def _is_simulation_scene(obj: object) -> bool:
+def _is_simulation_scene(obj: FreeCADDocumentObjectProtocol) -> bool:
     """Return whether an object represents the canonical cloth simulation scene.
 
     Args:
@@ -107,7 +157,7 @@ def _is_simulation_scene(obj: object) -> bool:
     )
 
 
-def _attach_to_simulation(doc: _FreeCADDocument, target: object) -> None:
+def _attach_to_simulation(doc: _FreeCADDocument, target: _DrapeTarget) -> None:
     """Attach the one persistent DrapeTarget to every simulation scene in a document.
 
     Args:
@@ -121,11 +171,11 @@ def _attach_to_simulation(doc: _FreeCADDocument, target: object) -> None:
 
 
 def set_drape_target_source(
-    scene: object | None,
-    source: object | None,
+    scene: _SimulationScene | None,
+    source: FreeCADDocumentObjectProtocol | None,
     thickness: float = 2.0,
     deflection: float = 1.0,
-) -> object:
+) -> FreeCADDocumentObjectProtocol:
     """Assign a persistent collision source through the target-neutral API.
 
     Args:
@@ -178,7 +228,7 @@ def set_drape_target_source(
 def create_drape_target_from_selection(
     deflection: float = 1.0,
     thickness: float = 2.0,
-) -> object:
+) -> _DrapeTarget:
     """Create or update a persistent target from the active selection.
 
     Args:
@@ -209,7 +259,7 @@ def create_drape_target_from_selection(
     return target
 
 
-def create_mannequin_drape_target() -> object:
+def create_mannequin_drape_target() -> _DrapeTarget:
     """Create or update the persistent drape target using the Cloth mannequin.
 
     Returns:
@@ -248,7 +298,7 @@ def create_mannequin_drape_target() -> object:
     return target
 
 
-def edit_drape_target() -> object:
+def edit_drape_target() -> _TaskPanel:
     """Open the native task panel for the current persistent DrapeTarget.
 
     Returns:
@@ -272,7 +322,7 @@ def edit_drape_target() -> object:
     return show_drape_target_task(target)
 
 
-def refresh_drape_target() -> object:
+def refresh_drape_target() -> _DrapeTarget:
     """Rebuild collision metadata from the persistent target source.
 
     Returns:
@@ -294,7 +344,9 @@ def refresh_drape_target() -> object:
     return target
 
 
-def set_drape_target_enabled(enabled: object = _DEFAULT_TARGET_ENABLED) -> object:
+def set_drape_target_enabled(
+    enabled: bool = _DEFAULT_TARGET_ENABLED,
+) -> _DrapeTarget:
     """Enable or disable collision checks for the persistent DrapeTarget.
 
     Args:
@@ -321,7 +373,7 @@ def set_drape_target_enabled(enabled: object = _DEFAULT_TARGET_ENABLED) -> objec
     return target
 
 
-def show_diagnostics() -> object:
+def show_diagnostics() -> _TaskPanel:
     """Open post-simulation stress, strain, fit, and pressure diagnostics.
 
     Returns:
@@ -380,7 +432,7 @@ COMMANDS: list[str] = [
     "ClothDrape_DisableTarget",
     "ClothDrape_Diagnostics",
 ]
-_HANDLERS: dict[str, Callable[[], object]] = {
+_HANDLERS: dict[str, Callable[[], DrapeCommandResult]] = {
     "ClothDrape_CreateTarget": create_drape_target_from_selection,
     "ClothDrape_CreateMannequinTarget": create_mannequin_drape_target,
     "ClothDrape_EditTarget": edit_drape_target,
@@ -408,7 +460,7 @@ class _DrapeCommand:
     def __init__(
         self,
         name: str,
-        function: Callable[[], object],
+        function: Callable[[], DrapeCommandResult],
         active: Callable[[], bool],
         tooltip: str,
     ) -> None:
@@ -425,7 +477,7 @@ class _DrapeCommand:
         self.active = active
         self.tooltip = tooltip
 
-    def activated(self) -> object:
+    def activated(self) -> DrapeCommandResult:
         """Invoke the command action selected by its identifier.
 
         Returns:
@@ -441,7 +493,7 @@ class _DrapeCommand:
         """
         return bool(self.active())
 
-    def get_resources(self) -> dict[str, object]:
+    def get_resources(self) -> dict[str, str]:
         """Return labels, help text, and icon data for the FreeCAD toolbar.
 
         Returns:
@@ -460,7 +512,7 @@ class _DrapeCommand:
             "Pixmap": icon_for_command(self.name),
         }
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Callable[[], DrapeCommandCallbackResult]:
         """Expose the callback spellings required by FreeCAD without duplicate methods.
 
         Args:
@@ -472,7 +524,7 @@ class _DrapeCommand:
         Raises:
             AttributeError: If the requested name is not a supported callback.
         """
-        callbacks: dict[str, Callable[[], object]] = {
+        callbacks: dict[str, Callable[[], DrapeCommandCallbackResult]] = {
             "Activated": self.activated,
             "IsActive": self.is_active,
             "GetResources": self.get_resources,
@@ -483,7 +535,7 @@ class _DrapeCommand:
             raise AttributeError(name) from exc
 
 
-def register_gui_commands(gui: object | None = None) -> bool:
+def register_gui_commands(gui: _GuiCommandRegistry | None = None) -> bool:
     """Register the public drape commands explicitly during workbench initialization.
 
     Args:
@@ -499,7 +551,9 @@ def register_gui_commands(gui: object | None = None) -> bool:
             return False
         gui = Gui
     add_command_attribute = "addCommand"
-    add_command = cast("Callable[[str, object], None]", getattr(gui, add_command_attribute))
+    add_command = cast(
+        "Callable[[str, _DrapeCommand], None]", getattr(gui, add_command_attribute)
+    )
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
         add_command(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
