@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, Self, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
@@ -51,9 +51,25 @@ class _SimulationDocument(SimulationDocument, Protocol):
 
 
 class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
-    """Document identity shared by mesh-bearing FreeCAD objects."""
+    """Shared native document identity and property operations for scene features."""
 
-    Document: _SimulationDocument | None
+    @property
+    def Document(self) -> _SimulationDocument | None:
+        """Return the document that owns this persistent feature."""
+        ...
+
+    def addProperty(self, type_name: str, name: str, group: str) -> Self:
+        """Register one persisted FreeCAD property and return this feature.
+
+        Args:
+            type_name: Native FreeCAD property type identifier.
+            name: Persisted property name to register.
+            group: Property-editor group for the new property.
+
+        Returns:
+            The same feature after registering the requested property.
+        """
+        ...
 
 
 class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
@@ -74,8 +90,15 @@ class _NativeMeshVector(Protocol):
 class _MeshBuffer(Protocol):
     """Mutable FreeCAD mesh buffer retained while panel topology stays fixed."""
 
-    CountPoints: int
-    CountFacets: int
+    @property
+    def CountPoints(self) -> int:
+        """Return the number of vertices in the mutable native mesh."""
+        ...
+
+    @property
+    def CountFacets(self) -> int:
+        """Return the number of facets in the mutable native mesh."""
+        ...
 
     def setPoint(self, index: int, point: _NativeMeshVector) -> None:
         """Replace one indexed vertex in the cached mesh buffer."""
@@ -84,7 +107,7 @@ class _MeshBuffer(Protocol):
     def addFacets(
         self,
         facets: tuple[Sequence[_NativeMeshVector], Sequence[Sequence[int]]],
-        check_manifold: bool = False,
+        _check_manifold: bool = False,
     ) -> None:
         """Populate the mutable buffer with its shared vertices and face indices."""
         ...
@@ -123,20 +146,6 @@ class _SimulationFeature(_MeshObjectKey, Protocol):
     CollisionZ: float
     CollisionRadius: float
     Proxy: SimulationProxy
-    Document: _SimulationDocument
-
-    def addProperty(self, type_name: str, name: str, group: str) -> _SimulationFeature:
-        """Add one native FreeCAD property and return the feature.
-
-        Args:
-            type_name: FreeCAD property type identifier.
-            name: Property name stored on the feature.
-            group: Property group shown in the FreeCAD property editor.
-
-        Returns:
-            The feature object with the new property registered.
-        """
-        ...
 
 
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
@@ -258,7 +267,7 @@ def _write_mesh(obj, positions, triangles):
 
     # The face indices originate from validated panel topology. Avoid repeating
     # the constructor's manifold check on every transient preview mesh rebuild.
-    buffer = Mesh.Mesh()
+    buffer = cast("_MeshBuffer", Mesh.Mesh())
     buffer.addFacets((vertices, list(faces)), False)
     obj.Mesh = buffer
     _MESH_OBJECT_BUFFERS[object_key] = buffer
@@ -535,31 +544,31 @@ def _boundary_vertices(piece_ir, edge_id, panel_data):
     raise ValueError(msg)
 
 
-def _collision_for_scene(obj):
+def _collision_for_scene(obj: _SimulationFeature):
     """Resolve collision strictly from the persistent DrapeTarget."""
-    target = getattr(obj, "DrapeTarget", None)
-    if target is not None:
-        from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    target = obj.DrapeTarget
+    if target is None:
+        return None
 
-        source = getattr(target, "SourceObject", None)
-        managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or str(
-            getattr(source, "Name", "")
-        ) in {"ClothAvatar", "HumanoidAvatar"}
-        if managed:
-            return collision_surface(
-                source,
-                float(getattr(target, "CollisionDeflection", 1.0)),
-                float(getattr(target, "CollisionThickness", 0.0)),
-            )
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    source = target.SourceObject
+    if source is None:
+        raise RuntimeError(target_status(target)["message"])
+
+    managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or source.Name in {
+        "ClothAvatar",
+        "HumanoidAvatar",
+    }
+    if not managed:
         status = target_status(target)
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
             raise RuntimeError(status["message"])
-        return collision_surface(
-            source,
-            float(getattr(target, "CollisionDeflection", 1.0)),
-            float(getattr(target, "CollisionThickness", 0.0)),
-        )
-    return None
+    return collision_surface(
+        source,
+        float(target.CollisionDeflection),
+        float(target.CollisionThickness),
+    )
 
 
 def _ensure_state_properties(obj):
@@ -880,7 +889,7 @@ class SimulationProxy:
         self,
         doc: _SimulationDocument,
         index: int,
-    ) -> _SimulationFeature:
+    ) -> _SimulationMeshFeature:
         """Return the existing panel feature or create its persistent replacement.
 
         Args:
