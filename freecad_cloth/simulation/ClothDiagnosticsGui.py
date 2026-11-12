@@ -1,10 +1,68 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for post-simulation cloth diagnostics."""
 
-from typing import TYPE_CHECKING
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol, cast
+
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
+
+if TYPE_CHECKING:
+    from types import ModuleType
+
+    from freecad_cloth.simulation.ClothDiagnostics import DiagnosticResult
 
 
-def _qt() -> tuple[object, object, object]:
+class _DiagnosticViewObject(Protocol):
+    """Coloring capability required by the derived mesh display object."""
+
+    Coloring: bool
+
+
+class _DiagnosticMesh(Protocol):
+    """Facet topology and copy operation exposed by a native FreeCAD mesh."""
+
+    CountFacets: int
+
+    def copy(self) -> _DiagnosticMesh:
+        """Return an independent mesh copy for diagnostic face coloring."""
+        ...
+
+
+class _DiagnosticPanel(FreeCADDocumentObjectProtocol, Protocol):
+    """Source drape panel with its native mesh topology."""
+
+    Mesh: _DiagnosticMesh
+
+
+class _DiagnosticMapFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Derived mesh object receiving per-face diagnostic colors."""
+
+    Mesh: _DiagnosticMesh
+    ViewObject: _DiagnosticViewObject
+
+    def addProperty(self, property_type: str, name: str, group: str) -> FreeCADDocumentObjectProtocol:
+        """Register one persistent or transient diagnostic property."""
+        ...
+
+
+class _DiagnosticScene(SimulationScene, Protocol):
+    """Simulation scene fields required by the read-only diagnostics panel."""
+
+    FiniteState: bool
+    DrapeTarget: FreeCADDocumentObjectProtocol | None
+    DrapePanels: Sequence[_DiagnosticPanel]
+    FabricStretch: float
+
+
+type _DiagnosticPanelData = tuple[
+    _DiagnosticPanel,
+    tuple[tuple[int, int, int], ...],
+    DiagnosticResult,
+]
+
+
+def _qt() -> tuple[ModuleType, ModuleType, ModuleType]:
     """Load the FreeCAD host and supported Qt widget module.
 
     Returns:
@@ -44,7 +102,7 @@ def _scene(doc):
     )
 
 
-def _simulation_data(scene: object) -> tuple:
+def _simulation_data(scene: _DiagnosticScene) -> list[_DiagnosticPanelData]:
     """Collect validated per-panel diagnostics from the current simulation.
 
     Args:
@@ -137,7 +195,10 @@ def _metric_color(value: float, lo: float, hi: float) -> tuple[float, float, flo
     return (q, 1.0 - q, 0.0)
 
 
-def create_diagnostic_map(scene: object, metric: str = "stress") -> tuple:
+def create_diagnostic_map(
+    scene: _DiagnosticScene,
+    metric: str = "stress",
+) -> list[_DiagnosticMapFeature]:
     """Create a derived Mesh::Feature coloured by one diagnostic metric.
 
     Args:
@@ -162,7 +223,10 @@ def create_diagnostic_map(scene: object, metric: str = "stress") -> tuple:
         source_mesh = getattr(panel, "Mesh", None)
         if source_mesh is None or source_mesh.CountFacets == 0:
             continue
-        obj = scene.Document.addObject("Mesh::Feature", f"ClothDiagnostic_{metric}_{panel.Name}")
+        obj = cast(
+            "_DiagnosticMapFeature",
+            scene.Document.addObject("Mesh::Feature", f"ClothDiagnostic_{metric}_{panel.Name}"),
+        )
         obj.Label = "Diagnostic {}: {}".format(metric.title(), getattr(panel, "Label", panel.Name))
         obj.addProperty(
             "App::PropertyString", "DiagnosticType", "Diagnostics"
@@ -193,7 +257,7 @@ def create_diagnostic_map(scene: object, metric: str = "stress") -> tuple:
 class DiagnosticsTaskPanel:
     """FreeCAD task panel for displaying and exporting cloth diagnostics."""
 
-    def __init__(self, scene):
+    def __init__(self, scene: _DiagnosticScene):
         """Initialize metric selection, status display, and task-panel controls.
 
         Args:
@@ -327,7 +391,7 @@ class DiagnosticsTaskPanel:
         return QtWidgets.QDialogButtonBox.Close
 
 
-def show_diagnostics(scene: object | None = None) -> object:
+def show_diagnostics(scene: _DiagnosticScene | None = None) -> DiagnosticsTaskPanel:
     """Open diagnostics for the supplied or active simulation scene.
 
     Args:
@@ -349,7 +413,7 @@ def show_diagnostics(scene: object | None = None) -> object:
     return panel
 
 
-def _merge_results(panels: tuple) -> object:
+def _merge_results(panels: Sequence[_DiagnosticPanelData]) -> DiagnosticResult:
     """Combine per-panel diagnostics into one aggregate result.
 
     Args:
