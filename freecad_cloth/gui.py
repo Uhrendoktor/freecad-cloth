@@ -16,6 +16,14 @@ except ImportError:  # pragma: no cover - exercised outside FreeCAD
     Gui = None
 
 
+class _CommandIdentifier(Protocol):
+    """Value that can be normalized into a stable FreeCAD command name."""
+
+    def __str__(self) -> str:
+        """Return the command identifier's text representation."""
+        ...
+
+
 class _ActiveWorkbench(Protocol):
     """Describe the workbench information queried during a GUI transition."""
 
@@ -119,7 +127,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
         self.commands: list[str] = []
 
     @staticmethod
-    def normalize_commands(commands: Iterable[str]) -> list[str]:
+    def normalize_commands(commands: Iterable[_CommandIdentifier]) -> list[str]:
         """Return non-empty command names in first-seen order without duplicates.
 
         Args:
@@ -132,7 +140,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     # Compatibility alias for historical callers; new code should use the public name.
     @staticmethod
-    def _normalize_commands(commands: Iterable[str]) -> list[str]:
+    def _normalize_commands(commands: Iterable[_CommandIdentifier]) -> list[str]:
         """Normalize command identifiers using the established public helper.
 
         Args:
@@ -145,9 +153,9 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     def _register_groups(
         self,
-        groups: Iterable[tuple[str | None, Iterable[str]]],
+        groups: Iterable[tuple[str | None, Iterable[_CommandIdentifier]]],
         toolbar_name: str | None = None,
-        toolbar_commands: Iterable[str] | None = None,
+        toolbar_commands: Iterable[_CommandIdentifier] | None = None,
     ) -> None:
         """Register toolbar and menu groups while rejecting duplicate commands.
 
@@ -188,9 +196,9 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     def register(
         self,
-        groups: Iterable[tuple[str | None, Iterable[str]]],
+        groups: Iterable[tuple[str | None, Iterable[_CommandIdentifier]]],
         toolbar_name: str | None = None,
-        toolbar_commands: Iterable[str] | None = None,
+        toolbar_commands: Iterable[_CommandIdentifier] | None = None,
     ) -> None:
         """Register menu and toolbar commands for this workbench.
 
