@@ -4,8 +4,9 @@
 from collections.abc import Callable
 from math import isclose
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
 
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
 from freecad_cloth.simulation.SimulationQualityRuntime import (
     QUALITY_NAMES,
@@ -33,7 +34,14 @@ _COLLISION_SENTINEL = "collision"
 _SEAM_PROVENANCE = {"seam-2": ((2, 3), (4, 5))}
 
 
-def _private_callable(target: object, name: str) -> Callable[..., object]:
+_CallableTarget = TypeVar("_CallableTarget")
+_CallableResult = TypeVar("_CallableResult")
+
+
+def _private_callable(
+    target: _CallableTarget,
+    name: str,
+) -> Callable[..., _CallableResult]:
     """Return one named callable used by the focused runtime contract tests.
 
     Args:
@@ -50,7 +58,7 @@ def _private_callable(target: object, name: str) -> Callable[..., object]:
     if not callable(attribute):
         msg = f"Expected {name!r} to reference a callable."
         raise TypeError(msg)
-    return cast("Callable[..., object]", attribute)
+    return cast("Callable[..., _CallableResult]", attribute)
 
 
 def test_quality_names_and_discretization_are_materially_distinct() -> None:
@@ -151,7 +159,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
         def __init__(self) -> None:
             """Initialize the call log and publication-read count."""
-            self.calls: list[tuple[float, int, tuple[float, float, float], object]] = []
+            self.calls: list[tuple[float, int, tuple[float, float, float], CollisionSurface | str | None]] = []
             self.position_reads = 0
 
         def step(
@@ -159,7 +167,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
             dt: float,
             iterations: int,
             gravity: tuple[float, float, float],
-            surface: object,
+            surface: CollisionSurface | str | None,
         ) -> None:
             """Record a step request without running solver work.
 

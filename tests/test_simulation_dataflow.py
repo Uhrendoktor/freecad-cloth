@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from types import SimpleNamespace
 from math import pi
 from typing import TYPE_CHECKING
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.shared.SourceSignature import _SignatureValue
 from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
@@ -164,6 +167,8 @@ class _Piece:
     """Sketcher-authoritative pattern piece used by the simulation adapter."""
 
     PatternType: str = "PatternPiece"
+    TypeId: str = "App::FeaturePython"
+    PropertiesList: list[str] = []
     GeometryAuthority: str = "Sketcher"
     PieceId: str
     Name: str
@@ -191,6 +196,10 @@ class _Piece:
 class _Seam:
     """Persisted seam fixture joining semantic edges from two pattern pieces."""
 
+    Name: str = SEAM_ID
+    Label: str = SEAM_ID
+    TypeId: str = "App::FeaturePython"
+    PropertiesList: list[str] = []
     SeamId: str
     PieceA: str
     PieceB: str
@@ -229,9 +238,9 @@ class _Seam:
 class _Document:
     """Document fixture containing the canonical pattern seams."""
 
-    Objects: list[object]
+    Objects: list[FreeCADDocumentObjectProtocol]
 
-    def __init__(self, objects: Sequence[object]) -> None:
+    def __init__(self, objects: Sequence[FreeCADDocumentObjectProtocol]) -> None:
         """Store the document objects in their authored order.
 
         Args:
@@ -300,15 +309,15 @@ class _Scene:
 class _RuntimeBase:
     """Lightweight runtime state whose rebuild requests are observable."""
 
-    backend: object | None = object()
-    source_signature: object | None = None
+    backend: SimpleNamespace | None = SimpleNamespace()
+    source_signature: _SignatureValue | None = None
     last_steps: int = 0
-    seam_stitch_pairs: dict[str, tuple[object, ...]]
+    seam_stitch_pairs: dict[str, tuple[tuple[int, int], ...]]
 
 
 def _execution_probe(
     monkeypatch: MonkeyPatch,
-) -> tuple[QualitySimulationProxy, _RuntimeBase, list[object]]:
+) -> tuple[QualitySimulationProxy, _RuntimeBase, list[_SignatureValue]]:
     """Create a proxy that records rebuilds requested by its public execute method.
 
     Args:
@@ -320,7 +329,7 @@ def _execution_probe(
     proxy = QualitySimulationProxy()
     runtime = _RuntimeBase()
     runtime.seam_stitch_pairs = {}
-    rebuilt_signatures: list[object] = []
+    rebuilt_signatures: list[_SignatureValue] = []
 
     def get_runtime_base() -> _RuntimeBase:
         """Return the runtime base used by this isolated execution probe.
@@ -331,9 +340,9 @@ def _execution_probe(
         return runtime
 
     def build_pattern_scene(
-        _scene: object,
-        _pieces: Sequence[object],
-        signature: object,
+        _scene: _Scene,
+        _pieces: Sequence[_Piece],
+        signature: _SignatureValue,
     ) -> None:
         """Record a requested rebuild and retain its source signature.
 
@@ -352,7 +361,7 @@ def _execution_probe(
             _base: Runtime state whose solver stitch provenance would be synchronized.
         """
 
-    def advance(_scene: object, _base: _RuntimeBase, _count: int) -> None:
+    def advance(_scene: _Scene, _base: _RuntimeBase, _count: int) -> None:
         """Avoid advancing a solver while validating source invalidation.
 
         Args:
@@ -361,7 +370,7 @@ def _execution_probe(
             _count: Number of solver steps requested by the public proxy.
         """
 
-    def publish(_scene: object, _base: _RuntimeBase) -> None:
+    def publish(_scene: _Scene, _base: _RuntimeBase) -> None:
         """Avoid publishing mesh state while validating source invalidation.
 
         Args:

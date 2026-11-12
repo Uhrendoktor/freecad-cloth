@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypedDict, cast
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.simulation import SimulationObjects
 from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
+from freecad_cloth.shared.Collision import CollisionSurface
+from freecad_cloth.shared.SourceSignature import _SignatureValue
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -21,15 +23,26 @@ _EXPECTED_SEAM_SAMPLE_COUNT = 3
 _SIMULATION_SIGNATURE_NAME = "_simulation_source_signature"
 _SEAM_PAIR_RECORDS_NAME = "_seam_pair_records"
 
+type _StitchPair = tuple[int, int]
+type _SeamRecord = tuple[str, str, str, tuple[_StitchPair, ...]]
+type _SeamPairRecords = tuple[tuple[_StitchPair, ...], tuple[_SeamRecord, ...]]
 
-def _simulation_signature() -> Callable[[object, list[object]], object]:
+
+class _PanelData(TypedDict):
+    """Per-piece mesh data required to assemble seam stitch provenance."""
+
+    boundary_edges: tuple[tuple[int, ...], ...]
+    positions: tuple[tuple[float, float, float], ...]
+
+
+def _simulation_signature() -> Callable[..., tuple[_SignatureValue, ...]]:
     """Return the private source-signature function for contract testing.
 
     Returns:
         A callable that computes the scene's rebuild signature.
     """
     return cast(
-        "Callable[[object, list[object]], object]",
+        "Callable[..., tuple[_SignatureValue, ...]]",
         getattr(SimulationObjects, _SIMULATION_SIGNATURE_NAME),
     )
 
@@ -152,7 +165,7 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
             ),
         ),
     )
-    panel_data: dict[str, object] = {
+    panel_data: dict[str, _PanelData] = {
         "piece-a": {
             "boundary_edges": ((0, 1, 2),),
             "positions": (
@@ -174,7 +187,7 @@ def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
         },
     }
     seam_pair_records = cast(
-        "Callable[[PatternIR, dict[str, object], int], tuple[object, object]]",
+        "Callable[[PatternIR, dict[str, _PanelData], int], _SeamPairRecords]",
         getattr(SimulationObjects, _SEAM_PAIR_RECORDS_NAME),
     )
     pairs, records = seam_pair_records(
@@ -199,14 +212,14 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
 
         def __init__(self) -> None:
             """Initialize an empty backend-call record."""
-            self.calls: list[tuple[float, int, tuple[float, float, float], object]] = []
+            self.calls: list[tuple[float, int, tuple[float, float, float], CollisionSurface | None]] = []
 
         def step(
             self,
             dt: float,
             iterations: int,
             gravity: tuple[float, float, float],
-            surface: object,
+            surface: CollisionSurface | None,
         ) -> None:
             """Record one proxy simulation step.
 
