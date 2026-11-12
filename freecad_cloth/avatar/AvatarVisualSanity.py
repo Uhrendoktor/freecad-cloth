@@ -44,7 +44,7 @@ class AvatarVisualSanity:
 
 def inspect_avatar_mesh(
     vertices: Sequence[Sequence[float]],
-    triangles: Sequence[Sequence[object]],
+    triangles: Sequence[Sequence[int]],
     *,
     expected_height: float | None = None,
     max_lateral_height_ratio: float = 0.9,
