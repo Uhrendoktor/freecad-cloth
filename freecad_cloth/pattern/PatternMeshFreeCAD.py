@@ -25,7 +25,21 @@ def mesh_from_pattern(
     angular_deflection: float = 0.5,
     curve_samples: int = 32,
 ) -> TriangleMesh:
-    """Mesh a pattern with FreeCAD MeshPart and return the semantic mesh."""
+    """Mesh a pattern with FreeCAD MeshPart and return the semantic mesh.
+
+    Args:
+        pattern: Authored parametric outline and curve definitions to tessellate.
+        linear_deflection: Maximum linear tessellation error in model units.
+        angular_deflection: Maximum angular tessellation error in radians.
+        curve_samples: Sampling count used to approximate each authored curve boundary.
+
+    Returns:
+        TriangleMesh with canonical vertex order, facets, and semantic edge provenance.
+
+    Raises:
+        ValueError: If the deflections, curve sampling, or resulting boundary is invalid.
+        RuntimeError: If FreeCAD MeshPart is unavailable or native tessellation fails.
+    """
     if linear_deflection <= 0 or angular_deflection <= 0:
         msg = "mesh deflections must be positive"
         raise ValueError(msg)
@@ -65,7 +79,20 @@ def mesh_shape_from_outline(
     linear_deflection: float = 1.0,
     angular_deflection: float = 0.5,
 ) -> object:
-    """Compatibility helper returning the native FreeCAD mesh object."""
+    """Return a native FreeCAD mesh generated from a closed planar outline.
+
+    Args:
+        outline: Ordered two-dimensional boundary vertices in model coordinates.
+        linear_deflection: Maximum linear tessellation error in model units.
+        angular_deflection: Maximum angular tessellation error in radians.
+
+    Returns:
+        FreeCAD Mesh object created from the planar outline face.
+
+    Raises:
+        ValueError: If fewer than three outline points are supplied.
+        RuntimeError: If FreeCAD Part or MeshPart cannot construct the mesh.
+    """
     if len(outline) < 3:
         msg = "outline needs at least three points"
         raise ValueError(msg)
@@ -88,7 +115,14 @@ def mesh_shape_from_outline(
 
 
 def boundary_provenance(outline: Sequence[Point]) -> tuple[tuple[int, str], ...]:
-    """Return stable semantic boundary IDs independent of MeshPart face order."""
+    """Return stable semantic boundary IDs independent of MeshPart face order.
+
+    Args:
+        outline: Ordered two-dimensional points defining the authored pattern boundary.
+
+    Returns:
+        Zero-based boundary indices paired with stable edge identity strings.
+    """
     return tuple((i, f"edge:{i}") for i in range(len(outline)))
 
 
