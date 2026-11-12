@@ -40,7 +40,11 @@ class AvatarTaskPanelFormProtocol(Protocol):
     """Visible-widget operations exposed by a FreeCAD avatar task-panel form."""
 
     def isVisible(self) -> bool:
-        """Return whether the task panel form is currently visible."""
+        """Return whether the task panel form is currently visible.
+
+        Returns:
+            True when the form is visible; otherwise False.
+        """
         ...
 
     def show(self) -> None:
