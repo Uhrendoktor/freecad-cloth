@@ -300,9 +300,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
         QualityCommand(
             "Explicit Any policy", (executable, "tools/ci/check_explicit_any_annotations.py")
         ),
-        QualityCommand(
-            "Pydantic model policy", (executable, "tools/ci/check_pydantic_models.py")
-        ),
+        QualityCommand("Pydantic model policy", (executable, "tools/ci/check_pydantic_models.py")),
         QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json")),
         QualityCommand(
             "Typed simulation core",
