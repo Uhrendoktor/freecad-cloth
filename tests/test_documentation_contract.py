@@ -326,8 +326,6 @@ def test_ruff_uses_the_reviewed_rule_set_and_documented_exceptions() -> None:
     assert_reviewed_ruff_policy(project)
 
 
-
-
 def _inventory_entries(path: Path) -> tuple[tuple[str, str], ...]:
     """Read listed repository paths and their goal/usefulness descriptions.
 
