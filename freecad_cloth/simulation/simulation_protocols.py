@@ -59,5 +59,9 @@ class SimulationProxyProtocol(Protocol):
         ...
 
     def reset(self, obj: SimulationScene) -> None:
-        """Reset transient solver state without changing authored inputs."""
+        """Reset transient solver state without changing authored inputs.
+
+        Args:
+            obj: Persisted simulation scene whose runtime state is reset.
+        """
         ...
