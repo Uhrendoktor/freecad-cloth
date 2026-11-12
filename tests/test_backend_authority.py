@@ -5,12 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
+from freecad_cloth.shared.Collision import surface_from_triangles
 from freecad_cloth.simulation.cloth_backend import (
     ClothSimulationBackend,
     validate_pinned_stitch_pairs,
 )
-from freecad_cloth.shared.Collision import surface_from_triangles
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import _pbd_collision_sdf_cache_key
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BACKEND_METHODS = {
