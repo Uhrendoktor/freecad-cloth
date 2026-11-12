@@ -7,6 +7,7 @@ import pytest
 
 from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
 
+
 DEFLECTION_MM = 1.0
 THICKNESS_MM = 2.0
 ALTERNATE_DEFLECTION_MM = 0.5
