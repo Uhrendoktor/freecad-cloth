@@ -13,7 +13,6 @@ from tools.check_documentation_contract import (
     suppression_violations,
 )
 
-
 _EXPECTED_DIRECT_OBJECT_ANNOTATION_COUNT = 4
 _EXPECTED_ALIASED_OBJECT_ANNOTATION_COUNT = 10
 
