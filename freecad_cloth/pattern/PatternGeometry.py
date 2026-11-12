@@ -167,6 +167,9 @@ class PolylineSegment:
 
         Returns:
             Interpolated 2D point at the requested relative arc length.
+
+        Raises:
+            ValueError: If the parameter or the computed polyline length is not finite.
         """
         fraction = min(1.0, max(0.0, validate_finite_number(t)))
         lengths = [0.0]
