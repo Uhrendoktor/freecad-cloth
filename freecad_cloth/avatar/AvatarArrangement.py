@@ -23,6 +23,7 @@ class _StringConvertible(Protocol):
             The serialized arrangement metadata text.
         """
 
+
 ARRANGEMENT_POINT_RECORD_FIELD_COUNT = 5
 ARRANGEMENT_POINT_COORDINATE_COMPONENT_COUNT = 3
 
