@@ -11,7 +11,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-
 from freecad_cloth.sewing.SewingCorrespondence import (
     CorrespondenceReport,
     analyze_correspondence,
