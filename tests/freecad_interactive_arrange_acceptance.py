@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+from itertools import starmap
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,15 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from itertools import starmap
-
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 
-from tests.support.freecad_input import UiGifRecorder
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.simulation_protocols import SimulationDocument
+from tests.support.freecad_input import UiGifRecorder
 
 
 def _assign_drape_source(
