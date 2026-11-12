@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+type ApiJsonValue = None | bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue]
+type ApiJsonObject = dict[str, ApiJsonValue]
+
 import hashlib
 import http.client
 import json
@@ -85,7 +88,7 @@ class PackageCleanupCallbacks:
     """
 
     dockerfile_tags_resolver: Callable[[str, set[str]], set[str]] | None = None
-    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None
+    api_items_loader: Callable[..., Iterator[ApiJsonObject]] | None = None
     delete_resource: Callable[..., None] | None = None
 
 
@@ -99,12 +102,12 @@ class PackageCleanupProgress:
         phase: Package cleanup step active when an operation failed.
     """
 
-    result: dict[str, object]
+    result: ApiJsonObject
     deleted: int = 0
     phase: str = "resolve_protected_tags"
 
 
-def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
+def _decode_github_response(connection: http.client.HTTPSConnection) -> ApiJsonValue:
     """Validate an HTTP response and decode its optional JSON payload.
 
     Args:
@@ -133,7 +136,7 @@ def _decode_github_response(connection: http.client.HTTPSConnection) -> object:
         raise GitHubApiError(msg) from exc
 
 
-def _request_github_api(method: str, endpoint: str, body: dict[str, str] | None = None) -> object:
+def _request_github_api(method: str, endpoint: str, body: dict[str, str] | None = None) -> ApiJsonValue:
     """Send one authenticated GitHub API request and decode its response.
 
     Args:
@@ -177,7 +180,7 @@ def _request_github_api(method: str, endpoint: str, body: dict[str, str] | None 
         connection.close()
 
 
-def gh_json(*args: str) -> object:
+def gh_json(*args: str) -> ApiJsonValue:
     """Fetch JSON from the GitHub API using the workflow token.
 
     Args:
@@ -235,8 +238,8 @@ def paginated_api_items(
     *,
     collection_key: str | None = None,
     page_size: int = PAGE_SIZE,
-    fetch_json: Callable[..., object] | None = None,
-) -> Iterator[dict[str, object]]:
+    fetch_json: Callable[..., ApiJsonValue] | None = None,
+) -> Iterator[ApiJsonObject]:
     """Yield every item from a paginated GitHub API list endpoint.
 
     Args:
@@ -282,8 +285,8 @@ def paginated_api_items(
 
 
 def stale_completed_runs(
-    runs: list[dict[str, object]], cutoff_epoch: float
-) -> list[dict[str, object]]:
+    runs: list[ApiJsonObject], cutoff_epoch: float
+) -> list[ApiJsonObject]:
     """Return runs older than the retention cutoff, oldest first.
 
     Args:
@@ -302,7 +305,7 @@ def stale_completed_runs(
     return stale
 
 
-def branch_activity_epoch(commit_data: dict[str, object]) -> float | None:
+def branch_activity_epoch(commit_data: ApiJsonObject) -> float | None:
     """Return commit activity time, preferring commit creation over original authorship.
 
     Args:
@@ -323,7 +326,7 @@ def _branch_activity_batch(
     owner: str,
     repository_name: str,
     batch: list[str],
-    load_json: Callable[..., object],
+    load_json: Callable[..., ApiJsonValue],
 ) -> dict[str, float]:
     """Resolve activity timestamps for one validated-size commit batch.
 
@@ -392,7 +395,7 @@ def branch_activity_epochs(
     commit_shas: set[str],
     *,
     batch_size: int = BRANCH_COMMIT_QUERY_BATCH_SIZE,
-    fetch_json: Callable[..., object] | None = None,
+    fetch_json: Callable[..., ApiJsonValue] | None = None,
 ) -> dict[str, float]:
     """Resolve commit activity timestamps in bounded GraphQL batches.
 
@@ -428,10 +431,10 @@ def branch_activity_epochs(
 
 
 def closed_pr_head_shas_by_branch(
-    branches: list[dict[str, object]],
+    branches: list[ApiJsonObject],
     lookup: ClosedPullRequestLookup,
     *,
-    api_items_loader: Callable[..., Iterator[dict[str, object]]] | None = None,
+    api_items_loader: Callable[..., Iterator[ApiJsonObject]] | None = None,
 ) -> dict[str, set[str]]:
     """Identify recent branch refs matching a closed pull-request head exactly.
 
@@ -485,11 +488,11 @@ def closed_pr_head_shas_by_branch(
 
 
 def stale_unprotected_branches(
-    branches: list[dict[str, object]],
+    branches: list[ApiJsonObject],
     open_heads: set[str],
     default_branch: str,
     retention: BranchRetentionPolicy,
-) -> list[dict[str, object]]:
+) -> list[ApiJsonObject]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
     Open pull-request heads and branches with missing activity evidence are
@@ -504,7 +507,7 @@ def stale_unprotected_branches(
     Returns:
         Unprotected stale branch records sorted by verified commit activity time.
     """
-    stale: list[tuple[float, dict[str, object]]] = []
+    stale: list[tuple[float, ApiJsonObject]] = []
     for branch in branches:
         name = branch.get("name")
         if (
@@ -542,7 +545,7 @@ def pbd_validation_tag(dockerfile_contents: bytes) -> str:
     return hashlib.sha256(dockerfile_contents).hexdigest()[:32]
 
 
-def package_version_tags(version: dict[str, object]) -> set[str] | None:
+def package_version_tags(version: ApiJsonObject) -> set[str] | None:
     """Return container tags, or None when the API omitted tag metadata.
 
     Args:
@@ -559,7 +562,7 @@ def package_version_tags(version: dict[str, object]) -> set[str] | None:
     return set(tags)
 
 
-def package_version_activity_epoch(version: dict[str, object]) -> float | None:
+def package_version_activity_epoch(version: ApiJsonObject) -> float | None:
     """Use updated_at when present so a recently republished tag gets a grace period.
 
     Args:
@@ -573,8 +576,8 @@ def package_version_activity_epoch(version: dict[str, object]) -> float | None:
 
 
 def stale_package_versions(
-    versions: list[dict[str, object]], protected_tags: set[str], cutoff_epoch: float
-) -> list[dict[str, object]]:
+    versions: list[ApiJsonObject], protected_tags: set[str], cutoff_epoch: float
+) -> list[ApiJsonObject]:
     """Return old package versions whose tags are not used by protected refs or runs.
 
     Args:
@@ -602,7 +605,7 @@ def _dockerfile_tag_batch(
     owner: str,
     repository_name: str,
     batch: list[str],
-    load_json: Callable[..., object],
+    load_json: Callable[..., ApiJsonValue],
 ) -> set[str]:
     """Resolve protected image tags for one bounded batch of commit SHAs.
 
@@ -666,7 +669,7 @@ def dockerfile_tags_for_shas(
     protected_shas: set[str],
     *,
     batch_size: int = DOCKERFILE_TAG_QUERY_BATCH_SIZE,
-    fetch_json: Callable[..., object] | None = None,
+    fetch_json: Callable[..., ApiJsonValue] | None = None,
 ) -> set[str]:
     """Resolve protected Dockerfile tags using bounded GraphQL batches.
 
@@ -704,7 +707,7 @@ def _perform_package_cleanup(
     cutoff_epoch: float,
     adapters: PackageCleanupCallbacks,
     progress: PackageCleanupProgress,
-) -> dict[str, object]:
+) -> ApiJsonObject:
     """Resolve protected tags and delete verified stale package versions.
 
     Args:
@@ -773,7 +776,7 @@ def cleanup_pbd_package_versions(
     protected_shas: set[str],
     cutoff_epoch: float,
     callbacks: PackageCleanupCallbacks | None = None,
-) -> dict[str, object]:
+) -> ApiJsonObject:
     """Prune old PBD image versions unused by main, open PRs, or retained/active runs.
 
     Args:
@@ -858,7 +861,7 @@ def _default_branch_for_repo(repo: str) -> str:
 
 
 def _branch_head_shas(
-    branches: list[dict[str, object]],
+    branches: list[ApiJsonObject],
     open_heads: set[str],
     default_branch: str,
 ) -> set[str]:
@@ -943,7 +946,7 @@ def _cleanup_stale_branches(
 
 def _cleanup_stale_completed_runs(
     repo: str, run_cutoff: float
-) -> tuple[list[dict[str, object]], int, int]:
+) -> tuple[list[ApiJsonObject], int, int]:
     """Delete a bounded set of old completed workflow runs.
 
     Args:
@@ -976,7 +979,7 @@ def _cleanup_stale_completed_runs(
 def _protected_package_shas(
     repo: str,
     protected_shas: set[str],
-    completed_runs: list[dict[str, object]],
+    completed_runs: list[ApiJsonObject],
     run_cutoff: float,
 ) -> set[str]:
     """Collect image tags' protected commits from main and active or retained runs.
