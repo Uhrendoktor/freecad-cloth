@@ -7,8 +7,8 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
 if TYPE_CHECKING:
