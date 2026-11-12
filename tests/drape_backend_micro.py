@@ -14,7 +14,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from freecad_cloth.shared.Collision import CollisionSurface
-
 from freecad_cloth.simulation.ClothSolver import ClothSystem
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
