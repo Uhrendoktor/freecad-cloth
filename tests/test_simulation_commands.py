@@ -100,7 +100,7 @@ def _install_freecad_scene(
 
 def _register_workbench_commands(
     monkeypatch: pytest.MonkeyPatch,
- ) -> tuple[
+) -> tuple[
     ModuleType,
     SimpleNamespace,
     list[str | tuple[str, SimulationScene]],
