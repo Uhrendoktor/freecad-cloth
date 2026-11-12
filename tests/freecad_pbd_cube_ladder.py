@@ -13,9 +13,12 @@ import faulthandler
 import os
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import partial
 from pathlib import Path
+from typing import Protocol
+
+from freecad_cloth.shared.Collision import CollisionSurface
 
 _TEST_DIR = Path(__file__).resolve().parent
 if str(_TEST_DIR) not in sys.path:
@@ -37,11 +40,62 @@ _shutdown_gui = _ladder.make_shutdown_gui(_progress)
 _boot("after-support-helper-import")
 
 
+class _NativeVector(Protocol):
+    """Coordinates exposed by native FreeCAD shape tessellation vertices."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _NativeShape(Protocol):
+    """Native shape methods used by shared PBD signed-clearance diagnostics."""
+
+    def isNull(self) -> bool:
+        """Return whether the shape has no topological content."""
+        ...
+
+    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+        """Test a point against the native shape boundary."""
+        ...
+
+    def tessellate(
+        self,
+        deflection: float,
+    ) -> tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]:
+        """Return the native shape's tessellated vertices and triangle indices."""
+        ...
+
+
+class _ProximityQuery(Protocol):
+    """Nearest-surface query used by the optional Trimesh acceleration mesh."""
+
+    def on_surface(
+        self,
+        points: Iterable[Iterable[float]],
+    ) -> tuple[Sequence[Sequence[float]], Sequence[float], Sequence[int]]:
+        """Return nearest points, distances, and face indices for each query point."""
+        ...
+
+
+class _ProximityMesh(Protocol):
+    """Optional Trimesh surface acceleration interface."""
+
+    nearest: _ProximityQuery
+
+
+class _LadderPatternPiece(Protocol):
+    """Pattern-piece identity consumed by the two-piece diagnostic ladder."""
+
+    PieceId: str
+    PatternType: str
+
+
 def _surface_signed_clearance(
     points: Sequence[Sequence[float]],
-    source_shape: object | None,
-    collision_surface: object,
-    proximity_mesh: object | None = None,
+    source_shape: _NativeShape | None,
+    collision_surface: CollisionSurface,
+    proximity_mesh: _ProximityMesh | None = None,
 ) -> tuple[float | None, float | None]:
     """Measure signed surface clearance through the shared geometry helper.
 
@@ -162,7 +216,7 @@ def _run_ladder_case(case_id):
         )
         pieces = [left]
 
-        def create_right_piece() -> object:
+        def create_right_piece() -> _LadderPatternPiece:
             """Build the optional right cube-ladder cloth panel."""
             return _ladder.build_piece(
                 doc,
