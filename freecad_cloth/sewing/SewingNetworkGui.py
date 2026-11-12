@@ -5,8 +5,15 @@ The panel exposes the persisted M:N relationship directly and refuses to
 silently edit a network whose canonical seam references are invalid.
 """
 
+from __future__ import annotations
+
 from itertools import starmap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
+
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 def _modules():
@@ -28,7 +35,31 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def network_reference_errors(network: object) -> tuple[tuple[str, str], ...]:
+class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted seam fields read and updated by the sewing-network editor."""
+
+    Status: str
+    SeamId: str
+    PieceA: str
+    PieceB: str
+    EdgeA: str
+    EdgeB: str
+    StartA: float
+    EndA: float
+    StartB: float
+    EndB: float
+    Alignment: str
+    ReversedB: bool
+
+
+class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent network identity and its ordered canonical seam members."""
+
+    RelationshipId: str
+    Seams: Sequence[_SeamFeature]
+
+
+def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str, str], ...]:
     """Collect non-valid statuses from canonical sewing-network members.
 
     Args:
@@ -45,7 +76,7 @@ def network_reference_errors(network: object) -> tuple[tuple[str, str], ...]:
     return tuple(errors)
 
 
-def validate_network_for_edit(network: object) -> bool:
+def validate_network_for_edit(network: _SewingNetworkFeature) -> bool:
     """Check whether a persisted network can safely enter the editor.
 
     Args:
@@ -69,7 +100,7 @@ class SewingNetworkTaskPanel:
 
     _TRANSACTION_NAME = "Edit Sewing Network"
 
-    def __init__(self, network: object) -> None:
+    def __init__(self, network: _SewingNetworkFeature) -> None:
         """Initialize the task panel from a persisted sewing network.
 
         Args:
@@ -355,7 +386,7 @@ class SewingNetworkTaskPanel:
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
-def show_sewing_network_task(network: object) -> SewingNetworkTaskPanel:
+def show_sewing_network_task(network: _SewingNetworkFeature) -> SewingNetworkTaskPanel:
     """Display a sewing-network editor for the supplied network.
 
     Args:
