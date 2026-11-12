@@ -12,7 +12,6 @@ import numpy as np
 from pydantic.dataclasses import dataclass
 
 from freecad_cloth.common.JsonTypes import JsonObject
-
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
