@@ -14,14 +14,19 @@ import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
 
+from freecad_cloth.common.JsonTypes import JsonValue
+
 Point = tuple[float, float]
+type _ProvenanceValue = JsonValue | tuple["_ProvenanceValue", ...]
+type _EdgeRecordValue = JsonValue | tuple["_EdgeRecordValue", ...]
+type _EdgeRecord = Mapping[str, _EdgeRecordValue]
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
 
 
-def _normalize_provenance(value, precision=9):
+def _normalize_provenance(value: _ProvenanceValue, precision: int = 9) -> JsonValue:
     """Convert native PatternIR provenance into deterministic JSON data."""
     if isinstance(value, Mapping):
         return {
@@ -79,7 +84,7 @@ class EdgeReference:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, object]):
+    def from_dict(cls, value: Mapping[str, JsonValue]) -> EdgeReference:
         """Create a reference from a serialized dictionary.
 
         Args:
@@ -129,7 +134,7 @@ def semantic_edge_id(piece_id: str, ordinal: int) -> str:
 
 def edge_signature(
     points: Sequence[Point],
-    provenance: object,
+    provenance: _ProvenanceValue,
     precision: int = 9,
 ) -> str:
     """Hash ordered edge coordinates together with required native provenance.
@@ -171,7 +176,7 @@ def capture_edge_reference(
     piece_id: str,
     edge_id: str,
     points: Sequence[Point],
-    provenance: object,
+    provenance: _ProvenanceValue,
 ) -> EdgeReference:
     """Capture semantic identity plus required native Sketcher provenance.
 
@@ -193,8 +198,8 @@ def capture_edge_reference(
 
 def resolve_edge_reference(
     reference: EdgeReference,
-    edges: Iterable[Mapping[str, object]],
-) -> Mapping[str, object]:
+    edges: Iterable[_EdgeRecord],
+) -> _EdgeRecord:
     """Resolve a reference against current edges without ordinal retargeting.
 
     Each edge mapping must contain ``id``, ``points``, and native ``provenance``.
@@ -239,7 +244,7 @@ def resolve_edge_reference(
 
 
 def resolve_edge_reference_status(
-    reference: EdgeReference, edges: Iterable[Mapping[str, object]]
+    reference: EdgeReference, edges: Iterable[_EdgeRecord]
 ) -> tuple[bool, str]:
     """Return ``(valid, reason)`` without raising for UI validation paths.
 
