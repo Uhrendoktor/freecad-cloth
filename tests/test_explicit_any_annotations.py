@@ -47,7 +47,7 @@ def test_ordinary_strings_are_not_parsed_as_type_syntax() -> None:
 
 def test_concrete_types_and_protocols_are_accepted() -> None:
     """Allow concrete aliases and structural Protocols without unrestricted Any."""
-    source = '''
+    source = """
 from typing import Protocol, TypeAlias
 
 JsonValue: TypeAlias = str | int | float | bool | None | list[object] | dict[str, object]
@@ -58,7 +58,7 @@ class Point(Protocol):
 
 def consume(value: object) -> bool:
     return hasattr(value, "x") and hasattr(value, "y")
-'''
+"""
     assert explicit_any_violations(source) == ()
 
 
