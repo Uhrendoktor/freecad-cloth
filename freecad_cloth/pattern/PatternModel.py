@@ -38,7 +38,11 @@ class PatternPiece:
     metadata: dict[str, object] = field(default_factory=_empty_metadata)
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this value and raise ValueError when its state is invalid.
+
+        Raises:
+            ValueError: If the pattern value is incomplete or violates its semantic constraints.
+        """
         if not self.name.strip():
             msg = "pattern piece name must not be empty"
             raise ValueError(msg)
@@ -87,7 +91,11 @@ class Seam:
     kind: str = "plain"
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this value and raise ValueError when its state is invalid.
+
+        Raises:
+            ValueError: If the pattern value is incomplete or violates its semantic constraints.
+        """
         if not self.id.strip():
             msg = "seam id must not be empty"
             raise ValueError(msg)
