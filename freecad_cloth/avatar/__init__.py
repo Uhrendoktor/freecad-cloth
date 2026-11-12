@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Cloth Avatar domain: mannequin models, mesh providers, and GUI commands."""
 
+from __future__ import annotations
+
 from importlib import import_module
 from typing import TYPE_CHECKING
 
