@@ -15,6 +15,10 @@ from tools.ci.run_freecad import configured_timeout_seconds
 from tools.ci.strict_quality import collect_tracked_python_files, quality_commands
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
+    PYRIGHT_EXPECTED_EXCLUDE,
+    PYRIGHT_EXPECTED_INCLUDE,
+    PYRIGHT_EXPECTED_STRICT,
+    TY_CONFIG,
     PYTHON_POLICY_COMMANDS,
     RUFF_COMMANDS,
     TYPECHECK_COMMANDS,
@@ -22,6 +26,7 @@ from tools.ci.validate_ci_structure import (
     missing_ruff_commands,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
+    ty_warnings_are_blocking,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -904,6 +909,17 @@ def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
     require(condition='QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
     require(condition='QualityCommand("Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
 
+def test_ty_warning_diagnostics_remain_blocking() -> None:
+    """Keep warning-level ty diagnostics fatal for the curated simulation core."""
+    config = TY_CONFIG.read_text(encoding="utf-8")
+    require(condition=ty_warnings_are_blocking(config), message="ty warnings must fail validation.")
+    tampered = config.replace("error-on-warning = true", "error-on-warning = false")
+    require(
+        condition=not ty_warnings_are_blocking(tampered),
+        message="Disabling ty warning failures must be detected.",
+    )
+
+
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
     """Verify the main-only gallery generation keeps a bounded avatar fitting budget."""
@@ -1042,7 +1058,7 @@ def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
 def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
     """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
     config = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-    included = ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/new_kernel.py")
+    included = ("freecad_cloth/common/new_model.py", "freecad_cloth/shared/new_contract.py")
     require(
         condition=pyright_coverage_contract_violations(config, included) == (),
         message="Existing reviewed directory coverage must include new modules inside its selected paths.",
