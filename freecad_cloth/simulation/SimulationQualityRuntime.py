@@ -281,7 +281,11 @@ class QualitySimulationProxy:
         self._publish_state(scene, base)
 
     def advance_preview_frame(self, obj):
-        """Advance one interactive frame without triggering a document recompute."""
+        """Advance one interactive frame without triggering a document recompute.
+
+        Args:
+            obj: Persistent quality-simulation feature whose preview state is advanced.
+        """
         ensure_quality_properties(obj)
         base = self._base_or_restore()
         if base.backend is None:
@@ -404,5 +408,9 @@ class QualitySimulationProxy:
                 pass
 
     def reset(self, obj):
-        """Reset the runtime state to its initial values."""
+        """Reset the runtime state to its initial values.
+
+        Args:
+            obj: Persistent quality-simulation feature whose runtime state is reset.
+        """
         self._base_or_restore().reset(obj)
