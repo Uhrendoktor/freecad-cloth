@@ -5,11 +5,13 @@ from __future__ import annotations
 
 from math import dist, isfinite
 from statistics import median
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
+from numpy.typing import NDArray
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.common.JsonTypes import JsonValue
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 from freecad_cloth.simulation.DrapeFailureClassifier import DrapeMetrics
 
@@ -18,6 +20,20 @@ if TYPE_CHECKING:
 
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
+type DrapeSummaryValue = str | int | float | bool | None | tuple[float, ...]
+
+
+class _ContainmentMesh(Protocol):
+    """Watertight mesh capability consumed by the optional containment backend."""
+
+    is_watertight: bool
+
+    def contains(self, points: NDArray[np.float64]) -> NDArray[np.bool_]:
+        """Classify query points against this closed triangle surface."""
+        ...
+
+
+type _MeshContains = Callable[[_ContainmentMesh, NDArray[np.float64]], NDArray[np.bool_]]
 
 
 def maximum_box_penetration(
@@ -140,7 +156,7 @@ def points_inside_closed_mesh(
     *,
     chunk_size: int = 32,
     prefer_trimesh: bool = True,
-    contains_fn: Callable[[object, object], object] | None = None,
+    contains_fn: _MeshContains | None = None,
 ) -> tuple[bool, ...]:
     """Classify points with optional Trimesh acceleration and a vectorized ray fallback.
 
@@ -417,7 +433,7 @@ def inspect_drape(
     )
 
 
-def summarize(metrics: DrapeVisualMetrics) -> dict[str, object]:
+def summarize(metrics: DrapeVisualMetrics) -> dict[str, DrapeSummaryValue]:
     """Convert drape visual metrics into a stable summary mapping.
 
     Args:
