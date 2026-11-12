@@ -168,7 +168,17 @@ def _document_bytes(
 
 
 def from_pdf_metadata(pdf: bytes) -> dict[str, object]:
-    """Read the deterministic Cloth metadata comment embedded in an exported PDF."""
+    """Decode and validate the Cloth metadata comment embedded in an exported PDF.
+
+    Args:
+        pdf: Complete PDF byte stream produced by the deterministic Cloth exporter.
+
+    Returns:
+        Validated metadata mapping containing the authoritative pattern export settings.
+
+    Raises:
+        ValueError: If the input is not a supported PDF or its metadata is absent or invalid.
+    """
     if not isinstance(pdf, bytes) or not pdf.startswith(b"%PDF-1.4"):
         msg = "PDF is not a supported Cloth pattern export"
         raise ValueError(msg)
