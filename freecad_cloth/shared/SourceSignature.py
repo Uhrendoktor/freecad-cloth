@@ -13,19 +13,60 @@ import json
 from collections.abc import Callable, Iterable, Sequence
 from typing import Protocol, cast
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 POINT_COORDINATE_COUNT = 3
+
+type _SignatureValue = str | int | float | bool | None | tuple["_SignatureValue", ...]
 TESSELLATION_COMPONENT_COUNT = 2
 
 
 class _VectorCoordinates(Protocol):
     """Coordinate attributes exposed by FreeCAD vector-like values."""
 
-    x: float
-    y: float
-    z: float
+    @property
+    def x(self) -> float:
+        """Return the X coordinate in model units."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """Return the Y coordinate in model units."""
+        ...
+
+    @property
+    def z(self) -> float:
+        """Return the Z coordinate in model units."""
+        ...
 
 
-def _point_coordinates(point: object) -> tuple[float, float, float]:
+class _FreeCADShape(Protocol):
+    """Native shape capability used for stable geometry signatures."""
+
+    def isNull(self) -> bool:
+        """Return whether the shape contains no geometric content."""
+        ...
+
+    @property
+    def BoundBox(self) -> _BoundBox:
+        """Return the axis-aligned bounds of the native shape."""
+        ...
+
+
+class _BoundBox(Protocol):
+    """Axis-aligned bound coordinates exported by a native FreeCAD shape."""
+
+    XMin: float
+    XMax: float
+    YMin: float
+    YMax: float
+    ZMin: float
+    ZMax: float
+
+
+def _point_coordinates(
+    point: Iterable[float] | _VectorCoordinates,
+) -> tuple[float, float, float]:
     """Normalize iterable or FreeCAD-vector coordinates into a rounded triple.
 
     Args:
@@ -53,7 +94,7 @@ def _point_coordinates(point: object) -> tuple[float, float, float]:
 
 
 def _digest_surface(
-    vertices: Sequence[object],
+    vertices: Sequence[Iterable[float] | _VectorCoordinates],
     triangles: Sequence[Sequence[int]],
 ) -> str:
     """Return a deterministic SHA-256 digest of surface coordinates and topology.
@@ -73,7 +114,7 @@ def _digest_surface(
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _mesh_signature(target: object) -> tuple[object, ...] | None:
+def _mesh_signature(target: FreeCADDocumentObjectProtocol) -> tuple[_SignatureValue, ...] | None:
     """Return the stable authored-avatar or complete mesh-topology signature.
 
     Args:
@@ -109,7 +150,9 @@ def _mesh_signature(target: object) -> tuple[object, ...] | None:
         return None
 
 
-def _brep_signature(exporter: Callable[[], object]) -> tuple[str, str]:
+def _brep_signature(
+    exporter: Callable[[], str | bytes | bytearray | memoryview],
+) -> tuple[str, str]:
     """Hash the serialized BRep payload returned by a shape exporter.
 
     Args:
@@ -132,7 +175,10 @@ def _brep_signature(exporter: Callable[[], object]) -> tuple[str, str]:
     return "BRepHash", hashlib.sha256(encoded).hexdigest()
 
 
-def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[object, ...]:
+def _shape_content_signature(
+    shape: _FreeCADShape,
+    deflection: float = 1.0,
+) -> tuple[_SignatureValue, ...]:
     """Return a deterministic BRep or tessellation signature for a FreeCAD shape.
 
     Args:
@@ -146,7 +192,7 @@ def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[ob
     exporter = getattr(shape, "exportBrepToString", None)
     if callable(exporter):
         try:
-            return _brep_signature(cast("Callable[[], object]", exporter))
+            return _brep_signature(cast("Callable[[], str | bytes | bytearray | memoryview]", exporter))
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
 
@@ -181,7 +227,10 @@ def _shape_content_signature(shape: object, deflection: float = 1.0) -> tuple[ob
     return ("Unknown",)
 
 
-def _geometry_signature(target: object, deflection: float = 1.0) -> tuple[object, ...]:
+def _geometry_signature(
+    target: FreeCADDocumentObjectProtocol,
+    deflection: float = 1.0,
+) -> tuple[_SignatureValue, ...]:
     """Return the strongest available geometry-content signature.
 
     Args:
@@ -221,10 +270,10 @@ def _geometry_signature(target: object, deflection: float = 1.0) -> tuple[object
 
 
 def source_signature(
-    target: object,
+    target: FreeCADDocumentObjectProtocol,
     deflection: float = 1.0,
     thickness: float = 0.0,
-) -> tuple[object, ...]:
+) -> tuple[_SignatureValue, ...]:
     """Build a deterministic signature for geometry, placement, and collision settings.
 
     Args:
