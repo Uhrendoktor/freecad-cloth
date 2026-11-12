@@ -1,11 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing humanoid mesh avatar commands."""
 
+from __future__ import annotations
+
 import json
 from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
@@ -32,24 +34,23 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
     from freecad_cloth.common.CommandAdapter import GuiCommandRegistrar
 
-_MISSING = object()
-ProviderGeometry = Callable[
-    ...,
-    tuple[
-        tuple[tuple[float, float, float], ...],
-        tuple[tuple[int, int, int], ...],
-        tuple[Landmark, ...],
-        str,
-        str,
-        str,
-    ],
-]
+type JsonValue = str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None
+type JsonObject = dict[str, JsonValue]
+
+
+class _MissingProviderSource:
+    """Unique sentinel used when a provider source should be read from persistence."""
+
+
+_MISSING = _MissingProviderSource()
+_RuntimeValue = TypeVar("_RuntimeValue")
 
 
 class _AvatarViewObject(Protocol):
@@ -70,6 +71,26 @@ class _AvatarViewObject(Protocol):
     Visibility: bool
 
 
+class _NativeVector(Protocol):
+    """Coordinate fields exposed by FreeCAD's native vector type."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _NativeAvatarMesh(Protocol):
+    """Indexed native mesh operations required by the avatar builder."""
+
+    def addFacets(
+        self,
+        facets: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]],
+        check_manifold: bool = False,
+    ) -> None:
+        """Populate the mesh with shared vertices and indexed triangular faces."""
+        ...
+
+
 class _AvatarFeatureView(Protocol):
     """FreeCAD feature interface needed to obtain its view provider.
 
@@ -83,23 +104,36 @@ class _AvatarFeatureView(Protocol):
 class _FreeCADDocument(Protocol):
     """Document members used by the persistent avatar command boundary."""
 
-    Objects: Sequence[object]
-    recompute: Callable[[], None]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
+
+    def addObject(
+        self, object_type: str, object_name: str
+    ) -> FreeCADDocumentObjectProtocol:
+        """Create a native feature with the requested type and internal name."""
+        ...
+
+    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+        """Find a native document feature by its internal name."""
+        ...
+
+    def recompute(self) -> None:
+        """Recompute the document after changing persistent avatar state."""
+        ...
 
 
-class _AvatarFeature(_AvatarFeatureView, Protocol):
+class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol):
     """Dynamic FreeCAD avatar properties used by its command lifecycle."""
 
     Label: str
     Document: _FreeCADDocument
-    Mesh: object
+    Mesh: _NativeAvatarMesh
     PosePreset: str
     SkinOffset: float
     JointPoseJSON: str
     ParametersJSON: str
     AvatarStatus: str
     AvatarProviderId: str
-    ProviderSource: object | None
+    ProviderSource: FreeCADDocumentObjectProtocol | None
     AvatarMeshProvider: str
     AvatarMeshSource: str
     AvatarMeshLicense: str
@@ -112,19 +146,50 @@ class _AvatarFeature(_AvatarFeatureView, Protocol):
 
 
 class _FreeCADApplication(Protocol):
-    """Active-document functions dynamically exported by the FreeCAD module."""
+    """Application operations dynamically exported by the FreeCAD module."""
 
     ActiveDocument: _FreeCADDocument | None
 
+    def newDocument(self, name: str) -> _FreeCADDocument:
+        """Create a new document with its stable internal name."""
+        ...
 
-class _DrapeTarget(Protocol):
-    """Writable status fields on the simulation's persistent drape target."""
 
+type ProviderSource = FreeCADDocumentObjectProtocol | _MissingProviderSource | None
+type AvatarGeometry = tuple[
+    tuple[tuple[float, float, float], ...],
+    tuple[tuple[int, int, int], ...],
+    tuple[Landmark, ...],
+    str,
+    str,
+    str,
+]
+type ProviderGeometry = Callable[
+    [_AvatarFeature, AvatarParameters, str | None, ProviderSource],
+    AvatarGeometry,
+]
+
+
+class _DrapeTarget(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted collision fields updated by avatar mesh rebuilds."""
+
+    TargetType: str
+    SourceObject: FreeCADDocumentObjectProtocol | None
+    CollisionDeflection: float
+    CollisionThickness: float
+    Enabled: bool
+    CollisionVertexCount: int
+    CollisionTriangleCount: int
+    SourceSignature: str
     TargetStatus: str
     InvalidationReason: str
+    addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol]
 
 
-def _runtime_attribute(target: object, name: str) -> object:
+def _runtime_attribute(
+    target: _FreeCADDocument | _FreeCADApplication | _AvatarFeature,
+    name: str,
+) -> _RuntimeValue:
     """Read a named API member from a dynamically exposed FreeCAD object.
 
     Args:
@@ -134,7 +199,7 @@ def _runtime_attribute(target: object, name: str) -> object:
     Returns:
         The named runtime member without assuming a statically declared attribute.
     """
-    return getattr(target, name)
+    return cast("_RuntimeValue", getattr(target, name))
 
 
 def _document_add_object(
@@ -159,7 +224,10 @@ def _document_add_object(
     return add_object(object_type, object_name)
 
 
-def _document_get_object(doc: _FreeCADDocument, object_name: str) -> object | None:
+def _document_get_object(
+    doc: _FreeCADDocument,
+    object_name: str,
+) -> FreeCADDocumentObjectProtocol | None:
     """Find a document object using the runtime FreeCAD API.
 
     Args:
@@ -169,8 +237,7 @@ def _document_get_object(doc: _FreeCADDocument, object_name: str) -> object | No
     Returns:
         The matching object, or None when it does not exist.
     """
-    get_object = cast("Callable[[str], object | None]", _runtime_attribute(doc, "getObject"))
-    return get_object(object_name)
+    return doc.getObject(object_name)
 
 
 def _add_feature_property(
@@ -188,7 +255,7 @@ def _add_feature_property(
         group: Property-editor group containing the attribute.
     """
     add_property = cast(
-        "Callable[[str, str, str], object]",
+        "Callable[[str, str, str], FreeCADDocumentObjectProtocol]",
         _runtime_attribute(obj, "addProperty"),
     )
     add_property(kind, name, group)
@@ -226,7 +293,16 @@ def _avatar(doc: _FreeCADDocument) -> _AvatarFeature | None:
     return None
 
 
-def _set_prop(obj: _AvatarFeature, kind: str, name: str, group: str, value: object) -> None:
+type AvatarPropertyValue = str | int | float | bool | list[str] | None
+
+
+def _set_prop(
+    obj: _AvatarFeature,
+    kind: str,
+    name: str,
+    group: str,
+    value: AvatarPropertyValue,
+) -> None:
     """Create a FreeCAD property if needed, then assign its initial value.
 
     Args:
@@ -253,7 +329,7 @@ def _ensure_pose_preset_property(obj: _AvatarFeature) -> None:
     obj.PosePreset = current if current in presets else "standing"
 
 
-def _is_legacy_pose_schema(stored_data: dict[str, object]) -> bool:
+def _is_legacy_pose_schema(stored_data: JsonObject) -> bool:
     """Return whether serialized parameters use the original pose-angle schema.
 
     Args:
@@ -270,7 +346,7 @@ def _is_legacy_pose_schema(stored_data: dict[str, object]) -> bool:
     return schema_version == 1
 
 
-def _legacy_pose_data(payload: str) -> dict[str, object] | None:
+def _legacy_pose_data(payload: str) -> JsonObject | None:
     """Decode legacy pose data only when its payload uses schema version one.
 
     Args:
@@ -282,15 +358,18 @@ def _legacy_pose_data(payload: str) -> dict[str, object] | None:
     if not payload:
         return None
     try:
-        stored_data = json.loads(payload)
+        decoded = cast("JsonValue", json.loads(payload))
     except (TypeError, ValueError):
         return None
-    if not isinstance(stored_data, dict) or not _is_legacy_pose_schema(stored_data):
+    if not isinstance(decoded, dict):
+        return None
+    stored_data = cast("JsonObject", decoded)
+    if not _is_legacy_pose_schema(stored_data):
         return None
     stored_pose_data = stored_data.get("pose", {})
     if not isinstance(stored_pose_data, dict):
         return None
-    return cast("dict[str, object]", stored_pose_data)
+    return cast("JsonObject", stored_pose_data)
 
 
 def _migrate_legacy_pose_angles(
@@ -324,7 +403,7 @@ def _migrate_legacy_pose_angles(
 
 def _stored_avatar_shape_parameters(
     payload: str,
-) -> tuple[dict[str, object], dict[str, float], dict[str, float], float | None]:
+) -> tuple[JsonObject, dict[str, float], dict[str, float], float | None]:
     """Read optional shape overrides from a current-schema avatar payload.
 
     Legacy schema-one payloads predate shape overrides, so they return empty
@@ -338,14 +417,15 @@ def _stored_avatar_shape_parameters(
     """
     if not payload:
         return {}, {}, {}, None
-    decoded = json.loads(payload)
-    if _is_legacy_pose_schema(decoded):
+    decoded = cast("JsonValue", json.loads(payload))
+    if not isinstance(decoded, dict):
+        return {}, {}, {}, None
+    decoded_object = cast("JsonObject", decoded)
+    if _is_legacy_pose_schema(decoded_object):
         return {}, {}, {}, None
     stored_parameters = AvatarParameters.from_json(payload)
-    shape_values = decoded.get("shape", {}) if isinstance(decoded, dict) else {}
-    shape_payload = (
-        cast("dict[str, object]", shape_values) if isinstance(shape_values, dict) else {}
-    )
+    shape_values = decoded_object.get("shape", {})
+    shape_payload = cast("JsonObject", shape_values) if isinstance(shape_values, dict) else {}
     return (
         shape_payload,
         dict(stored_parameters.phenotype_overrides),
@@ -354,7 +434,7 @@ def _stored_avatar_shape_parameters(
     )
 
 
-def _shape_float(value: object, *, name: str) -> float:
+def _shape_float(value: JsonValue, *, name: str) -> float:
     """Convert a persisted shape control after validating its JSON-compatible type.
 
     Args:
@@ -473,7 +553,7 @@ def _mesh_data(
     *,
     app_module: ModuleType | None = None,
     mesh_module: ModuleType | None = None,
-) -> object:
+) -> _NativeAvatarMesh:
     """Build the native FreeCAD mesh directly from the selected provider topology.
 
     Args:
@@ -524,7 +604,7 @@ def _provider_geometry(
     obj: _AvatarFeature,
     params: AvatarParameters,
     provider_id: str | None = None,
-    provider_source: object = _MISSING,
+    provider_source: ProviderSource = _MISSING,
 ) -> tuple[
     tuple[tuple[float, float, float], ...],
     tuple[tuple[int, int, int], ...],
@@ -602,7 +682,7 @@ def _rebuild(
     obj: _AvatarFeature,
     params: AvatarParameters | None = None,
     provider_id: str | None = None,
-    provider_source: object = _MISSING,
+    provider_source: ProviderSource = _MISSING,
     *,
     provider_geometry_fn: ProviderGeometry | None = None,
 ) -> _AvatarFeature:
@@ -685,7 +765,7 @@ def _rebuild(
     return obj
 
 
-def _ensure_drape_target(obj: _AvatarFeature) -> object:
+def _ensure_drape_target(obj: _AvatarFeature) -> _DrapeTarget:
     """Attach the humanoid mesh to the target-neutral collision API.
 
     Args:
@@ -760,7 +840,7 @@ def _initialize_avatar_properties(obj: _AvatarFeature) -> None:
 
 
 def create_avatar(
-    doc: object | None = None,
+    doc: _FreeCADDocument | None = None,
     object_name: str = "ClothAvatar",
     params: AvatarParameters | None = None,
     *,
@@ -801,10 +881,10 @@ def create_avatar(
 
 
 def apply_avatar_parameters(
-    obj: object,
+    obj: _AvatarFeature,
     params: AvatarParameters,
     provider_id: str | None = None,
-    provider_source: object = _MISSING,
+    provider_source: ProviderSource = _MISSING,
     *,
     provider_geometry_fn: ProviderGeometry | None = None,
 ) -> _AvatarFeature:
@@ -981,7 +1061,7 @@ def set_avatar_pose(pose: str) -> _AvatarFeature:
 
 def set_avatar_joint(
     bone: str, x: float = 0.0, y: float = 0.0, z: float = 0.0, *, mirror: bool = False
-) -> object:
+) -> _AvatarFeature:
     """Persist one manual FK joint rotation and rebuild the mannequin.
 
     Args:
@@ -1033,7 +1113,10 @@ def set_avatar_joint(
     return apply_avatar_parameters(obj, candidate)
 
 
-def set_avatar_provider(provider_id: str, source: object | None = None) -> _AvatarFeature:
+def set_avatar_provider(
+    provider_id: str,
+    source: FreeCADDocumentObjectProtocol | None = None,
+) -> _AvatarFeature:
     """Swap geometry providers without replacing the avatar object or garment links.
 
     Args:
@@ -1134,7 +1217,7 @@ def avatar_measurement(name: str) -> float:
     return _parameters(avatar).measurement(str(name))
 
 
-def avatar_arrangement_points() -> object:
+def avatar_arrangement_points() -> list[str]:
     """Return persisted local fitting points for the active avatar mesh.
 
     Returns:
