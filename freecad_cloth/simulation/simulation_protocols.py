@@ -14,12 +14,12 @@ class SimulationDocument(Protocol):
 
     Objects: list[FreeCADDocumentObjectProtocol]
 
-    def addObject(self, type_name: str, object_name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
 
         Args:
-            type_name: Native FreeCAD feature type identifier.
-            object_name: Stable internal name assigned to the feature.
+            object_type: Native FreeCAD feature type identifier.
+            name: Stable internal name assigned to the feature.
 
         Returns:
             The newly created feature object.
