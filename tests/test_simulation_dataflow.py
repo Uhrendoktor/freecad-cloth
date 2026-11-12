@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from types import SimpleNamespace
 from math import pi
-from typing import TYPE_CHECKING
+from types import SimpleNamespace
+from typing import TYPE_CHECKING, ClassVar
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.SourceSignature import _SignatureValue
@@ -168,7 +168,7 @@ class _Piece:
 
     PatternType: str = "PatternPiece"
     TypeId: str = "App::FeaturePython"
-    PropertiesList: list[str] = []
+    PropertiesList: ClassVar[list[str]] = []
     GeometryAuthority: str = "Sketcher"
     PieceId: str
     Name: str
