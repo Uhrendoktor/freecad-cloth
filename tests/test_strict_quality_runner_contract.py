@@ -133,6 +133,10 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         "pytest",
         "-q",
         "tests/test_avatar_arrangement_contract.py",
+        (
+            "tests/test_ci_configuration.py::"
+            "test_ruff_covers_every_tracked_python_file_without_auto_fixing"
+        ),
         "tests/test_avatar_service_contract.py",
         "tests/test_command_runner.py",
         "tests/test_documentation_contract.py",
