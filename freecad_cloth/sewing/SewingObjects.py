@@ -112,7 +112,7 @@ class _SewingProxy(Protocol):
         ...
 
 
-type type _EdgeRecordReader = Callable[..., JsonObject | None]
+type _EdgeRecordReader = Callable[..., JsonObject | None]
 
 
 class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
