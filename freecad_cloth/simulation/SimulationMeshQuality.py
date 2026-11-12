@@ -22,7 +22,20 @@ def quality_piece_mesh(
     particle_distance: float,
     piece_ir: PieceIR | None = None,
 ) -> QualityPieceMesh:
-    """Provide the public quality piece mesh operation."""
+    """Build a quality-controlled triangulation for one persistent pattern piece.
+
+    Args:
+        piece: FreeCAD pattern-piece object providing the source placement.
+        start_height: Initial mesh height in model coordinates.
+        particle_distance: Target maximum particle spacing for the triangulation.
+        piece_ir: Optional already-resolved semantic PatternIR for the piece.
+
+    Returns:
+        World-space mesh vertices, triangle indices, and ordered semantic boundary chains.
+
+    Raises:
+        ValueError: If the source boundary or resulting semantic mesh is invalid.
+    """
     inputs = SimulationMeshQualityInput.model_validate(
         {"start_height": start_height, "particle_distance": particle_distance}
     )
