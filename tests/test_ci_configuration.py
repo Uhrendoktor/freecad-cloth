@@ -9,7 +9,6 @@ from hashlib import sha256
 from pathlib import Path
 
 from tests.support.assertions import require
-
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
 from tools.ci.strict_quality import collect_tracked_python_files, quality_commands
@@ -18,9 +17,9 @@ from tools.ci.validate_ci_structure import (
     PYRIGHT_EXPECTED_EXCLUDE,
     PYRIGHT_EXPECTED_INCLUDE,
     PYRIGHT_EXPECTED_STRICT,
-    TY_CONFIG,
     PYTHON_POLICY_COMMANDS,
     RUFF_COMMANDS,
+    TY_CONFIG,
     TYPECHECK_COMMANDS,
     missing_python_policy_commands,
     missing_ruff_commands,
