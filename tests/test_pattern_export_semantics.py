@@ -9,11 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Protocol, TypedDict, cast
 
+from defusedxml import ElementTree
+
 import pytest
 
 from freecad_cloth.common.JsonTypes import JsonValue
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-from defusedxml import ElementTree
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
