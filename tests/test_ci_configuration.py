@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
 
+from freecad_cloth.common.JsonTypes import JsonObject
 from tests.support.assertions import require
 from tests.support.ruff_contract import assert_reviewed_ruff_policy
 from tools.ci import maintenance_cleanup
@@ -252,7 +253,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
     }
     queries = []
 
-    def fake_gh_json(*args: str) -> dict[str, object]:
+    def fake_gh_json(*args: str) -> JsonObject:
         """Return a mock GraphQL response for protected Dockerfile blobs.
 
         Args:
@@ -301,7 +302,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
         AssertionError: If cleanup accepts a missing protected Dockerfile blob.
     """
 
-    def fake_gh_json(*args: str) -> dict[str, object]:
+    def fake_gh_json(*args: str) -> JsonObject:
         """Return a mock GraphQL response for a missing protected Dockerfile blob.
 
         Args:
@@ -349,7 +350,7 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         assert protected_shas == {"1" * 40}, 'Expected protected_shas == {"1" * 40}.'
         return {"protected-dockerfile-tag"}
 
-    def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
+    def fake_load_items(endpoint: str) -> Iterator[JsonObject]:
         """Return mocked API records for the requested endpoint.
 
         Args:
@@ -448,7 +449,7 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
         """
         return {"current-tag"}
 
-    def fake_load_items(requested_endpoint: str) -> Iterator[dict[str, object]]:
+    def fake_load_items(requested_endpoint: str) -> Iterator[JsonObject]:
         """Record a request and provide the configured stale package version.
 
         Args:
@@ -548,7 +549,7 @@ def test_maintenance_cleanup_paginates_until_a_short_page() -> None:
 
 def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> None:
     """Prefer a commit's committer date when determining branch activity age."""
-    commit_data: dict[str, object] = {
+    commit_data: JsonObject = {
         "author": {"date": "2020-01-01T00:00:00Z"},
         "committer": {"date": "2026-10-01T00:00:00Z"},
     }
@@ -562,7 +563,7 @@ def test_maintenance_cleanup_prefers_committer_date_for_branch_activity() -> Non
 
 def test_maintenance_cleanup_falls_back_to_author_date_when_needed() -> None:
     """Use the author date when the committer date cannot be parsed."""
-    commit_data: dict[str, object] = {"author": {"date": "2026-10-01T00:00:00Z"}}
+    commit_data: JsonObject = {"author": {"date": "2026-10-01T00:00:00Z"}}
 
     assert maintenance_cleanup.branch_activity_epoch(commit_data) == maintenance_cleanup.epoch(
         "2026-10-01T00:00:00Z"
@@ -598,7 +599,7 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
     }
     query_batches: list[str] = []
 
-    def fake_gh_json(*args: str) -> dict[str, object]:
+    def fake_gh_json(*args: str) -> JsonObject:
         """Return mocked commit activity data for a batch query.
 
         Args:
@@ -616,7 +617,7 @@ def test_branch_activity_epochs_resolve_unique_heads_in_bounded_batches() -> Non
         aliases = re.findall(r'(commit\d+): object\(expression: "([0-9a-f]{40})"\)', query)
         assert bool(aliases), "Expected bool(aliases)."
         query_batches.append(query)
-        repository_data: dict[str, object] = {alias: dates_by_sha[sha] for alias, sha in aliases}
+        repository_data: JsonObject = {alias: dates_by_sha[sha] for alias, sha in aliases}
         return {"data": {"repository": repository_data}}
 
     shas = set(dates_by_sha)
@@ -650,7 +651,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
         AssertionError: If missing commit activity is accepted.
     """
 
-    def fake_gh_json(*args: str) -> dict[str, object]:
+    def fake_gh_json(*args: str) -> JsonObject:
         """Return a mock response that omits a requested commit object.
 
         Args:
@@ -685,7 +686,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
         "2" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
         "3" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
     }
-    branches: list[dict[str, object]] = [
+    branches: list[JsonObject] = [
         {"name": "main", "protected": True, "commit": {"sha": "1" * 40}},
         {
             "name": "simulation-evidence/pr-2500",
@@ -705,7 +706,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
     ]
     endpoints: list[str] = []
 
-    def fake_load_items(endpoint: str) -> Iterator[dict[str, object]]:
+    def fake_load_items(endpoint: str) -> Iterator[JsonObject]:
         """Return mock closed pull requests for the supplied API endpoint.
 
         Args:
@@ -757,7 +758,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
 def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs() -> None:
     """Keep live and protected references while selecting stale unprotected branches."""
     cutoff = maintenance_cleanup.epoch("2026-10-01T00:00:00Z")
-    branches: list[dict[str, object]] = [
+    branches: list[JsonObject] = [
         {
             "name": "main",
             "protected": True,
