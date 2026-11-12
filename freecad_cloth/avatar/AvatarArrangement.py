@@ -9,8 +9,10 @@ anchor foundation needed by later CLO-like garment placement interactions.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 class _StringConvertible(Protocol):
@@ -22,6 +24,7 @@ class _StringConvertible(Protocol):
         Returns:
             The serialized arrangement metadata text.
         """
+        ...
 
 
 ARRANGEMENT_POINT_RECORD_FIELD_COUNT = 5
