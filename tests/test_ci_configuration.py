@@ -865,8 +865,6 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     assert_reviewed_ruff_policy(ROOT / "pyproject.toml")
 
 
-
-
 def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
     """Keep standard analysis broad within reviewed core paths and strict on solver kernels."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
