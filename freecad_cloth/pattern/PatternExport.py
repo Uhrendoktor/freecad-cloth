@@ -13,6 +13,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from shapely.geometry import Point as ShapelyPoint
 from shapely.geometry import Polygon
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
     Notch,
@@ -43,7 +44,7 @@ class _ExportValidation(TypedDict):
 
     format: str
     valid: bool
-    metadata: dict[str, object]
+    metadata: JsonObject
 
 
 def _fmt(value: float) -> str:
@@ -367,7 +368,7 @@ def _metadata(
     seam_ids: Iterable[str] = (),
     derived: DerivedPattern | None = None,
     seam_allowance: float = 0.0,
-) -> dict[str, object]:
+) -> JsonObject:
     """Build complete current-schema metadata for the authoritative pattern.
 
     Args:
@@ -395,7 +396,7 @@ def _metadata(
     }
 
 
-def _validate_metadata(data: object) -> dict[str, object]:
+def _validate_metadata(data: JsonValue) -> JsonObject:
     """Validate the current semantic metadata schema for every export format.
 
     Args:
@@ -641,7 +642,7 @@ def to_dxf(
     return "\n".join(lines)
 
 
-def from_dxf_metadata(dxf: str) -> dict[str, object]:
+def from_dxf_metadata(dxf: str) -> JsonObject:
     """Read and validate canonical semantic metadata embedded in a DXF.
 
     Args:
@@ -666,7 +667,7 @@ def from_dxf_metadata(dxf: str) -> dict[str, object]:
     return _validate_metadata(data)
 
 
-def from_svg_metadata(svg: str) -> dict[str, object]:
+def from_svg_metadata(svg: str) -> JsonObject:
     """Read and validate canonical semantic metadata embedded in an SVG.
 
     Args:
@@ -760,7 +761,7 @@ def validate_svg_export(
     *,
     dpi: int = 96,
     output_path: str | Path | None = None,
-) -> dict[str, object]:
+) -> JsonObject:
     """Validate SVG structure and render it with an independent QtSvg backend.
 
     Args:
@@ -978,7 +979,7 @@ def export_pattern_piece(
     paper_size: str = "A4",
     margin_mm: float = 10.0,
     overlap_mm: float = 10.0,
-) -> Mapping[str, object]:
+) -> Mapping[str, JsonValue]:
     """Write and validate an export derived from authoritative piece geometry.
 
     Args:
