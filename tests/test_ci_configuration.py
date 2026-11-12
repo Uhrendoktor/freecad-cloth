@@ -1133,7 +1133,8 @@ def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
     )
     uncovered = ("freecad_cloth/avatar/NewFeature.py",)
     require(
-        condition=pyright_coverage_contract_violations(config, uncovered) == (
+        condition=pyright_coverage_contract_violations(config, uncovered)
+        == (
             "<new Python module is outside Pyright include/exclude scope: freecad_cloth/avatar/NewFeature.py>",
         ),
         message="New production modules outside the reviewed Pyright inventory require deliberate inclusion.",
