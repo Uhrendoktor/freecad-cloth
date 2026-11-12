@@ -261,7 +261,7 @@ def cast_target(value: str) -> str:
     """
     return cast(object, value)
 '''
-    errors = check_source(source, "sample.py")
+    errors = list(object_annotation_violations(source, "sample.py"))
     violations = [
         error for error in errors if "generic object type annotations are prohibited" in error
     ]
