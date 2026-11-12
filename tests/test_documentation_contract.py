@@ -317,7 +317,7 @@ def test_syntax_errors_fail_closed() -> None:
     )
 
 
-def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
+def test_ruff_selects_all_rules_with_only_documented_exceptions_ignored() -> None:
     """Protect the full lint policy from silent rule or exemption removal."""
     project = Path(__file__).resolve().parents[1] / "pyproject.toml"
     config = tomllib.loads(project.read_text(encoding="utf-8"))
@@ -337,6 +337,7 @@ def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
         "Q004",
         "COM812",
         "COM819",
+        "PLC0415",
     }
     _require(
         condition=lint["select"] == ["ALL"],
@@ -345,7 +346,7 @@ def test_ruff_selects_all_rules_with_only_formatter_conflicts_ignored() -> None:
     _require(condition=lint["preview"] is True, message="Ruff preview rules must remain enabled")
     _require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="Only formatter-conflicting rules may be ignored",
+        message="Only formatter conflicts and the documented FreeCAD lazy-import exception may be ignored",
     )
     _require(
         condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
