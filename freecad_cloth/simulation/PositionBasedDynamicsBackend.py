@@ -990,7 +990,18 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         gravity: Sequence[float] = (0.0, 0.0, -9810.0),
         surface: CollisionSurface | None = None,
     ) -> None:
-        """Advance PositionBasedDynamics by one time step."""
+        """Advance PositionBasedDynamics by one time step.
+
+        Args:
+            dt: Finite positive duration of the requested time step in seconds.
+            iterations: Number of solver iterations applied during the step.
+            gravity: Finite XYZ acceleration vector expressed in model-space units.
+            surface: Optional collision surface, which must match the construction surface.
+
+        Raises:
+            ValueError: If the time-step input or solver iteration count is invalid.
+            RuntimeError: If a different collision surface is supplied after construction.
+        """
         step_input = PBDStepInput.model_validate(
             {"dt": dt, "iterations": iterations, "gravity": gravity}
         )
