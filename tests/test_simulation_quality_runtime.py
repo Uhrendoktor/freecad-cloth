@@ -4,7 +4,7 @@
 from collections.abc import Callable
 from math import isclose
 from types import SimpleNamespace
-from typing import TYPE_CHECKING, ClassVar, TypeVar, cast
+from typing import TYPE_CHECKING, ClassVar, cast
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.SimulationQuality import FabricMaterial, preset
@@ -34,14 +34,10 @@ _COLLISION_SENTINEL = "collision"
 _SEAM_PROVENANCE = {"seam-2": ((2, 3), (4, 5))}
 
 
-_CallableTarget = TypeVar("_CallableTarget")
-_CallableResult = TypeVar("_CallableResult")
-
-
-def _private_callable(
-    target: _CallableTarget,
+def _private_callable[CallableTarget, CallableResult](
+    target: CallableTarget,
     name: str,
-) -> Callable[..., _CallableResult]:
+) -> Callable[..., CallableResult]:
     """Return one named callable used by the focused runtime contract tests.
 
     Args:
@@ -58,7 +54,7 @@ def _private_callable(
     if not callable(attribute):
         msg = f"Expected {name!r} to reference a callable."
         raise TypeError(msg)
-    return cast("Callable[..., _CallableResult]", attribute)
+    return cast("Callable[..., CallableResult]", attribute)
 
 
 def test_quality_names_and_discretization_are_materially_distinct() -> None:
@@ -159,7 +155,9 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
         def __init__(self) -> None:
             """Initialize the call log and publication-read count."""
-            self.calls: list[tuple[float, int, tuple[float, float, float], CollisionSurface | str | None]] = []
+            self.calls: list[
+                tuple[float, int, tuple[float, float, float], CollisionSurface | str | None]
+            ] = []
             self.position_reads = 0
 
         def step(
