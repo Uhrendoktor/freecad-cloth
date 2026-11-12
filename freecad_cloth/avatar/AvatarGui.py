@@ -1086,7 +1086,7 @@ class AvatarTaskPanel:
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 
 
-def show_avatar_task(avatar=None) -> "AvatarTaskPanelProtocol":
+def show_avatar_task(avatar=None) -> AvatarTaskPanelProtocol:
     """Open the native FreeCAD task panel for a mannequin.
 
     Args:
