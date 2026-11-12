@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import register_commands
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -25,10 +26,10 @@ _COLLISION_DEFLECTION_MM = 1.0
 class _FreeCADDocument(Protocol):
     """Describe the document methods used by the fitting handoff."""
 
-    Objects: Sequence[object]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
-    def getObject(self, name: str) -> object | None:
-        """Look up an object by its internal document name."""
+    def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
+        """Look up a native document feature by its internal name."""
         ...
 
     def recompute(self) -> None:
@@ -49,24 +50,32 @@ class _FreeCADApplication(Protocol):
 class _FreeCADSelection(Protocol):
     """Describe the selection operations used by the fitting handoff."""
 
-    def getSelection(self) -> Sequence[object]:
-        """Return the objects selected in the active document."""
+    def getSelection(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the native features selected in the active document."""
         ...
 
     def clearSelection(self) -> None:
         """Clear the current selection."""
         ...
 
-    def addSelection(self, obj: object) -> None:
-        """Add one document object to the current selection."""
+    def addSelection(self, obj: FreeCADDocumentObjectProtocol) -> None:
+        """Add one native document feature to the current selection."""
+        ...
+
+
+class _TaskPanelDialog(Protocol):
+    """Truth-testable task-panel dialog returned by FreeCAD's control API."""
+
+    def __bool__(self) -> bool:
+        """Return whether a task-panel dialog is currently active."""
         ...
 
 
 class _FreeCADControl(Protocol):
     """Describe the active task-panel operations exposed by FreeCAD."""
 
-    def activeDialog(self) -> object | None:
-        """Return the current task-panel object, if one exists."""
+    def activeDialog(self) -> _TaskPanelDialog | None:
+        """Return the current task-panel dialog, if one exists."""
         ...
 
     def closeDialog(self) -> None:
@@ -85,29 +94,60 @@ class _FreeCADGui(Protocol):
         ...
 
 
-class _DrapeTarget(Protocol):
-    """Describe collision settings on the persisted drape target."""
+class _NativeVector(Protocol):
+    """Translation coordinates used by persisted pattern-piece placements."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _NativeRotation(Protocol):
+    """Rotation data used by persisted pattern-piece placements."""
+
+    Angle: float
+    Axis: _NativeVector
+
+
+class _NativePlacement(Protocol):
+    """Native placement fields exposed by FreeCAD document features."""
+
+    Base: _NativeVector
+    Rotation: _NativeRotation
+
+
+class _PatternPiece(FreeCADDocumentObjectProtocol, Protocol):
+    """Native Sketcher PatternPiece fields shared by fitting and simulation."""
+
+    PieceId: str
+    PatternType: str
+    Placement: _NativePlacement
+
+
+class _DrapeTarget(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted collision source and settings on the drape target."""
 
     CollisionDeflection: float
     CollisionThickness: float
+    SourceObject: FreeCADDocumentObjectProtocol | None
 
 
 class _FittingScene(Protocol):
     """Describe mutable fields on a persisted fitting scene."""
 
-    ArrangementPoints: Sequence[object]
+    ArrangementPoints: Sequence[str]
     FitStatus: str
-    HomePlacements: Sequence[object]
-    PatternPieces: Sequence[object]
-    PiecePlacements: Sequence[object]
+    HomePlacements: Sequence[str]
+    PatternPieces: Sequence[_PatternPiece]
+    PiecePlacements: Sequence[str]
 
 
 class _SimulationScene(Protocol):
     """Describe the simulation fields consumed or updated by this bridge."""
 
-    ClothPieces: Sequence[object]
+    ClothPieces: Sequence[_PatternPiece]
     Document: _FreeCADDocument | None
-    DrapeTarget: object | None
+    DrapeTarget: _DrapeTarget | None
 
 
 def _fitting_scene(doc: _FreeCADDocument | None) -> _FittingScene | None:
@@ -127,7 +167,9 @@ def _fitting_scene(doc: _FreeCADDocument | None) -> _FittingScene | None:
     return None
 
 
-def assign_avatar_source(source: object | None = None) -> object:
+def assign_avatar_source(
+    source: FreeCADDocumentObjectProtocol | None = None,
+) -> _FittingScene:
     """Assign selected geometry as the fitting scene's collision target.
 
     Args:
@@ -194,7 +236,7 @@ def assign_avatar_source(source: object | None = None) -> object:
     return scene
 
 
-def create_simulation_from_fitting() -> object:
+def create_simulation_from_fitting() -> _SimulationScene:
     """Create a simulation scene from authored fitting pieces and avatar target.
 
     Returns:
@@ -244,7 +286,7 @@ FITTING_HANDOFF_COMMAND_HANDLERS: dict[str, CommandCallable] = {
 }
 
 
-def register_fitting_handoff_commands(gui: object) -> None:
+def register_fitting_handoff_commands(gui: GuiCommandRegistrar) -> None:
     """Register the simulation-owned fitting commands in FreeCAD's GUI.
 
     Args:
@@ -256,7 +298,7 @@ def register_fitting_handoff_commands(gui: object) -> None:
     )
 
 
-def fitting_stage_status(simulation: object | None) -> tuple[str, bool]:
+def fitting_stage_status(simulation: _SimulationScene | None) -> tuple[str, bool]:
     """Return the visible fitting state and whether Reset is available.
 
     Args:
@@ -284,7 +326,7 @@ def fitting_stage_status(simulation: object | None) -> tuple[str, bool]:
     return message, bool(tuple(fitting.HomePlacements))
 
 
-def open_arrange_fit_from_simulation(simulation: object) -> object:
+def open_arrange_fit_from_simulation(simulation: _SimulationScene) -> _FittingScene:
     """Open the existing fitting stage for a simulation's pieces and target.
 
     Args:
@@ -325,7 +367,7 @@ def open_arrange_fit_from_simulation(simulation: object) -> object:
     return fitting
 
 
-def reset_arrangement_from_simulation() -> object:
+def reset_arrangement_from_simulation() -> _FittingScene:
     """Reset the existing fitting scene to its saved home placements.
 
     Returns:
