@@ -18,7 +18,10 @@ if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+    from freecad_cloth.avatar.avatar_protocols import (
+        AvatarTaskPanelFormProtocol,
+        AvatarTaskPanelProtocol,
+    )
 
 
 class _WidgetLayout(Protocol):
@@ -51,7 +54,7 @@ def _modules():
 class AvatarTaskPanel:
     """CLO-like grouped mannequin editor with staged Apply/Cancel semantics."""
 
-    form: object
+    form: AvatarTaskPanelFormProtocol
 
     PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_PROPERTY_MAP)
     SHAPE_PROPERTY_MAP: ClassVar[dict[str, str]] = dict(AVATAR_SHAPE_PROPERTY_MAP)
