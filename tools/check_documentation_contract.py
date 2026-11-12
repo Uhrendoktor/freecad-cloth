@@ -717,14 +717,18 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
             f"{label}: non-descriptive parameter descriptions for {', '.join(vague_parameters)}"
         )
 
-    has_result = node.returns is not None and not (
-        isinstance(node.returns, ast.Constant) and node.returns.value is None
-    ) and not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
+    has_result = (
+        node.returns is not None
+        and not (isinstance(node.returns, ast.Constant) and node.returns.value is None)
+        and not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
+    )
     if not has_result:
         pending = list(node.body)
         while pending and not has_result:
             current = pending.pop()
-            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            if isinstance(
+                current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+            ):
                 continue
             if isinstance(current, ast.Return) and current.value is not None:
                 has_result = True
@@ -750,9 +754,7 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
             name for name, description in raises_entries.items() if not _is_descriptive(description)
         )
         if vague_raises:
-            errors.append(
-                f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}"
-            )
+            errors.append(f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}")
     return errors
 
 
@@ -971,14 +973,18 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
             f"{label}: non-descriptive parameter descriptions for {', '.join(vague_parameters)}"
         )
 
-    has_result = node.returns is not None and not (
-        isinstance(node.returns, ast.Constant) and node.returns.value is None
-    ) and not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
+    has_result = (
+        node.returns is not None
+        and not (isinstance(node.returns, ast.Constant) and node.returns.value is None)
+        and not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
+    )
     if not has_result:
         pending = list(node.body)
         while pending and not has_result:
             current = pending.pop()
-            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            if isinstance(
+                current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)
+            ):
                 continue
             if isinstance(current, ast.Return) and current.value is not None:
                 has_result = True
@@ -1009,9 +1015,7 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
             name for name, description in raises_entries.items() if not _is_descriptive(description)
         )
         if vague_raises:
-            errors.append(
-                f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}"
-            )
+            errors.append(f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}")
     return errors
 
 
