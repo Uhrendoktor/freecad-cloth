@@ -101,7 +101,7 @@ def test_measurement_properties_are_generated_from_model_measurements() -> None:
         name: "_".join(part.capitalize() for part in name.split("_"))
         for name in DEFAULT_MEASUREMENTS
     }
-    assert PROPERTY_MAP == expected, (
+    assert expected == PROPERTY_MAP, (
         "measurement property names must derive from the AvatarParameters keys"
     )
 
@@ -116,7 +116,7 @@ def test_shape_properties_are_generated_from_model_field_metadata() -> None:
     assert expected == {"gender": "Gender", "breast_size": "BreastSize"}, (
         "shape fields must carry stable FreeCAD grouping metadata on the model."
     )
-    assert SHAPE_PROPERTY_MAP == expected, (
+    assert expected == SHAPE_PROPERTY_MAP, (
         "shape property names must be derived from AvatarParameters field metadata."
     )
 
@@ -128,6 +128,6 @@ def test_pose_properties_cover_all_pose_angle_fields() -> None:
         for field in fields(Pose)
         if field.name.endswith("_angle")
     }
-    assert POSE_PROPERTY_MAP == expected, (
+    assert expected == POSE_PROPERTY_MAP, (
         "pose property names must derive from the Pose angle fields"
     )
