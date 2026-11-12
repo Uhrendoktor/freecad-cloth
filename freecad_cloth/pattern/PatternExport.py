@@ -1028,7 +1028,7 @@ def export_pattern_piece(
             PdfExportOptions,
             to_pdf,
             validate_pdf_export,
-        )  # ruff: ignore[PLC0415]
+        )
 
         options = PdfExportOptions(
             curve_samples=curve_samples,
