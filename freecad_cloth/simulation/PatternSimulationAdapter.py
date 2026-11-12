@@ -11,6 +11,7 @@ from typing import Literal, Protocol
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, PolylineSegment
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
@@ -30,10 +31,56 @@ DEFAULT_ROTATION_AXIS_Y = 0.0
 DEFAULT_ROTATION_AXIS_Z = 1.0
 
 
+type _SignatureValue = str | int | float | bool | None | tuple["_SignatureValue", ...]
+
+
+class _NativeVector(Protocol):
+    """Coordinate fields exposed by a FreeCAD placement vector."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _NativeRotation(Protocol):
+    """Rotation fields used to construct a stable placement signature."""
+
+    Angle: float
+    Axis: _NativeVector
+
+
+class _NativePlacement(Protocol):
+    """Translation and rotation members exposed by FreeCAD placements."""
+
+    Base: _NativeVector
+    Rotation: _NativeRotation
+
+
+class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent PatternPiece fields consumed by the simulation adapter."""
+
+    PieceId: str
+    GeometryAuthority: str
+    Sketch: FreeCADDocumentObjectProtocol | None
+    SeamAllowance: float
+    GrainlineAngle: float
+    Placement: _NativePlacement | None
+
+
+class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted semantic seam identity and side-specific edge provenance."""
+
+    SeamId: str
+    EdgeAId: str
+    EdgeBId: str
+    EdgeASignature: str
+    EdgeBSignature: str
+
+
 class _PatternDocument(Protocol):
     """Minimal document interface required by simulation pattern resolution."""
 
-    Objects: Sequence[object]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
 
 @pydantic_dataclass(frozen=True)
@@ -47,8 +94,8 @@ class ResolvedSimulationPattern:
     """
 
     pattern: PatternIR
-    pieces: Mapping[str, object]
-    signature: tuple[object, ...]
+    pieces: Mapping[str, _PatternPieceFeature]
+    signature: tuple[_SignatureValue, ...]
 
     def piece(self, piece_id: str) -> PieceIR:
         """Return one pattern piece by its stable semantic identifier.
@@ -65,7 +112,7 @@ class ResolvedSimulationPattern:
         return self.pattern.piece(piece_id)
 
 
-def is_sketch_authoritative(piece: object) -> bool:
+def is_sketch_authoritative(piece: _PatternPieceFeature) -> bool:
     """Return whether a document feature declares native Sketcher authority.
 
     Args:
@@ -79,7 +126,7 @@ def is_sketch_authoritative(piece: object) -> bool:
 
 def resolve_simulation_pattern(
     doc: _PatternDocument | None,
-    pieces: Sequence[object],
+    pieces: Sequence[_PatternPieceFeature],
     curve_samples: int = CURVE_SAMPLES,
 ) -> ResolvedSimulationPattern:
     """Resolve document PatternPieces and canonical seams into one PatternIR.
@@ -102,7 +149,7 @@ def resolve_simulation_pattern(
         raise ValueError(msg)
 
     selected_pieces = tuple(pieces)
-    piece_objects: dict[str, object] = {}
+    piece_objects: dict[str, _PatternPieceFeature] = {}
     piece_irs: list[PieceIR] = []
     for piece in selected_pieces:
         piece_id = str(getattr(piece, "PieceId", "")).strip()
@@ -154,7 +201,7 @@ def resolve_simulation_pattern(
 
     pattern = PatternIR(tuple(piece_irs), tuple(seams))
     pattern.validate()
-    signature: tuple[object, ...] = (
+    signature: tuple[_SignatureValue, ...] = (
         tuple(
             (
                 piece_id,
@@ -194,7 +241,7 @@ def resolve_simulation_pattern(
     return ResolvedSimulationPattern(pattern, piece_objects, signature)
 
 
-def resolve_piece_ir(piece: object, curve_samples: int = CURVE_SAMPLES) -> PieceIR:
+def resolve_piece_ir(piece: _PatternPieceFeature, curve_samples: int = CURVE_SAMPLES) -> PieceIR:
     """Resolve one Sketcher-authoritative document PatternPiece.
 
     Args:
@@ -233,7 +280,7 @@ def geometry_from_piece_ir(piece_ir: PieceIR) -> ParametricPattern:
     return ParametricPattern(segments)
 
 
-def _resolve_piece_ir(piece: object, curve_samples: int) -> PieceIR:
+def _resolve_piece_ir(piece: _PatternPieceFeature, curve_samples: int) -> PieceIR:
     """Build one solver-neutral piece from a native authoritative sketch.
 
     Args:
@@ -268,7 +315,7 @@ def _resolve_piece_ir(piece: object, curve_samples: int) -> PieceIR:
     ).piece(model.id)
 
 
-def _piece_model(piece: object) -> PatternPiece:
+def _piece_model(piece: _PatternPieceFeature) -> PatternPiece:
     """Build PatternIR metadata while native Sketcher geometry supplies boundaries.
 
     Args:
@@ -289,8 +336,8 @@ def _piece_model(piece: object) -> PatternPiece:
 
 
 def _resolve_seam_edge(
-    piece: object,
-    seam_obj: object,
+    piece: _PatternPieceFeature,
+    seam_obj: _SeamFeature,
     prefix: Literal["A", "B"],
     piece_ir: PieceIR,
 ) -> str:
@@ -343,8 +390,8 @@ def _resolve_seam_edge(
 
 
 def _validate_edge_signature(
-    piece: object,
-    seam_obj: object,
+    piece: _PatternPieceFeature,
+    seam_obj: _SeamFeature,
     edge_id: str,
     boundary: BoundaryIR,
     signature_attribute: Literal["EdgeASignature", "EdgeBSignature"],
@@ -395,7 +442,7 @@ def _validate_edge_signature(
         raise ChangedEdgeReference(msg)
 
 
-def _numeric_attribute(value: object, name: str, default: float) -> float:
+def _numeric_attribute(value: _NativeVector | _NativeRotation | None, name: str, default: float) -> float:
     """Read a numeric FreeCAD placement field without accepting malformed values.
 
     Args:
@@ -412,7 +459,7 @@ def _numeric_attribute(value: object, name: str, default: float) -> float:
     return default
 
 
-def _placement_signature(piece: object) -> tuple[float, ...]:
+def _placement_signature(piece: _PatternPieceFeature) -> tuple[float, ...]:
     """Return the native placement fields used by the simulation source signature.
 
     Args:
