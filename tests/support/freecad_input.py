@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, TypeAlias, cast
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
     from types import ModuleType, TracebackType
 
     from PIL.Image import Image as PillowImage
@@ -22,8 +22,139 @@ QtInputValue: TypeAlias = int | Enum
 
 
 class _QtPoint(Protocol):
-    def x(self) -> int: ...
-    def y(self) -> int: ...
+    """Integer point returned by Qt widget geometry and coordinate mapping."""
+
+    def x(self) -> int:
+        """Return the horizontal pixel coordinate."""
+        ...
+
+    def y(self) -> int:
+        """Return the vertical pixel coordinate."""
+        ...
+
+
+class _QtMetaObject(Protocol):
+    """Runtime widget metadata used to identify the actual viewport surface."""
+
+    def className(self) -> str:
+        """Return the Qt meta-object class name."""
+        ...
+
+
+class _QtRect(Protocol):
+    """Widget rectangle operations needed to target its center."""
+
+    def center(self) -> _QtPoint:
+        """Return the center point in widget-local coordinates."""
+        ...
+
+
+class _QtWidget(Protocol):
+    """Qt widget operations used by the shared mouse and keyboard drivers."""
+
+    def isVisible(self) -> bool:
+        """Return whether the widget is visible in its parent hierarchy."""
+        ...
+
+    def isEnabled(self) -> bool:
+        """Return whether the widget can receive user input."""
+        ...
+
+    def width(self) -> int:
+        """Return the widget's current width in pixels."""
+        ...
+
+    def height(self) -> int:
+        """Return the widget's current height in pixels."""
+        ...
+
+    def metaObject(self) -> _QtMetaObject:
+        """Return the runtime Qt class metadata."""
+        ...
+
+    def objectName(self) -> str:
+        """Return the widget's Qt object name."""
+        ...
+
+    def parentWidget(self) -> _QtWidget | None:
+        """Return the containing widget, if one exists."""
+        ...
+
+    def mapToGlobal(self, point: _QtPoint) -> _QtPoint:
+        """Convert a widget-local point to display-global coordinates."""
+        ...
+
+    def rect(self) -> _QtRect:
+        """Return the widget-local geometry rectangle."""
+        ...
+
+    def setFocus(self, reason: QtInputValue | None = None) -> None:
+        """Give keyboard focus to this widget."""
+        ...
+
+    def selectAll(self) -> None:
+        """Select the widget's editable text or list contents."""
+        ...
+
+    def window(self) -> _QtWindow:
+        """Return the top-level window that contains this widget."""
+        ...
+
+    def hasFocus(self) -> bool:
+        """Return whether the widget currently owns keyboard focus."""
+        ...
+
+
+class _QtWindow(_QtWidget, Protocol):
+    """Top-level Qt window operations required by FreeCAD UI acceptance helpers."""
+
+    def show(self) -> None:
+        """Show the top-level FreeCAD window."""
+        ...
+
+    def resize(self, width: int, height: int) -> None:
+        """Resize the FreeCAD main window to a known acceptance-test geometry."""
+        ...
+
+    def raise_(self) -> None:
+        """Raise the window above other desktop windows."""
+        ...
+
+    def activateWindow(self) -> None:
+        """Request keyboard activation for the window."""
+        ...
+
+    def findChildren(self, widget_type: type[_QtWidget]) -> Sequence[_QtWidget]:
+        """Find child widgets matching the requested Qt type."""
+        ...
+
+    def winId(self) -> int:
+        """Return the native window-system identifier used for screenshot capture."""
+        ...
+
+    def mapFromGlobal(self, point: _QtPoint) -> _QtPoint:
+        """Convert a display-global cursor point into window-local coordinates."""
+        ...
+
+
+class _WorldPoint(Protocol):
+    """Native FreeCAD world point accepted by viewport projection."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _QtView(Protocol):
+    """FreeCAD viewport operations needed by cursor input and point projection."""
+
+    def getSize(self) -> Sequence[int]:
+        """Return the viewport dimensions in pixels."""
+        ...
+
+    def getPointOnScreen(self, point: _WorldPoint) -> Sequence[float]:
+        """Project a model-space point into viewport pixel coordinates."""
+        ...
 
 
 def _qt_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
@@ -45,7 +176,7 @@ def wait_for_gui_ready(
     gui: ModuleType,
     process_events: Callable[[], None],
     timeout_seconds: float = 15.0,
-) -> object:
+) -> _QtWindow:
     """Wait until the FreeCAD main window is visible.
 
     Args:
@@ -101,7 +232,7 @@ def wait_for_task_dialog_close(
     raise failure_type(failure_message)
 
 
-def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> object:
+def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> _QtWindow:
     """Show and focus the FreeCAD main window before injecting GUI events."""
     _QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
@@ -122,7 +253,7 @@ def focus_main_window(gui: ModuleType, size: tuple[int, int] | None = None) -> o
     return window
 
 
-def viewport_widget(gui: ModuleType, view: object | None = None) -> object:
+def viewport_widget(gui: ModuleType, view: _QtView | None = None) -> _QtWidget:
     """Find the Qt widget that owns the active FreeCAD 3D viewport."""
     _QtCore, _QtGui, _QtTest, QtWidgets = _qt_modules()
     window = gui.getMainWindow()
@@ -352,7 +483,7 @@ def _modifier_keysyms(QtCore: ModuleType, modifiers: QtInputValue | None) -> lis
     return result
 
 
-def _global_position(widget: object, position: tuple[float, float]) -> tuple[int, int]:
+def _global_position(widget: _QtWidget, position: tuple[float, float]) -> tuple[int, int]:
     """Convert local widget coordinates into real display-global coordinates."""
     QtCore, _QtGui, _QtTest, _QtWidgets = _qt_modules()
     point = widget.mapToGlobal(_position(QtCore, position))
@@ -404,7 +535,7 @@ def _button_and_modifiers(
 
 
 def mouse_press(
-    widget: object,
+    widget: _QtWidget,
     position: tuple[float, float],
     button: QtInputValue | None = None,
     modifiers: QtInputValue | None = None,
@@ -425,7 +556,7 @@ def mouse_press(
 
 
 def mouse_move(
-    widget: object,
+    widget: _QtWidget,
     position: tuple[float, float],
     delay_ms: int = 20,
     buttons_down: bool = False,
@@ -441,7 +572,7 @@ def mouse_move(
 
 
 def mouse_release(
-    widget: object,
+    widget: _QtWidget,
     position: tuple[float, float],
     button: QtInputValue | None = None,
     modifiers: QtInputValue | None = None,
@@ -463,7 +594,7 @@ def mouse_release(
 
 
 def click_viewport(
-    widget: object,
+    widget: _QtWidget,
     position: tuple[float, float],
     gui: ModuleType,
     additive: bool = False,
@@ -482,7 +613,7 @@ def click_viewport(
 
 
 def click_widget(
-    widget: object, button: QtInputValue | None = None, modifiers: QtInputValue | None = None
+    widget: _QtWidget, button: QtInputValue | None = None, modifiers: QtInputValue | None = None
 ) -> None:
     """Click a visible Qt control through QtTest and move the visible OS cursor there."""
     QtCore, _QtGui, QtTest, QtWidgets = _qt_modules()
@@ -507,7 +638,7 @@ def click_widget(
 
 
 def drag_viewport(
-    widget: object,
+    widget: _QtWidget,
     start: tuple[float, float],
     end: tuple[float, float],
     steps: int = 16,
@@ -544,7 +675,7 @@ def _resolve_key(QtCore: ModuleType, key: str | QtInputValue) -> QtInputValue:
 
 
 def key_press(
-    widget: object,
+    widget: _QtWidget,
     key: str | QtInputValue,
     modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
@@ -556,7 +687,7 @@ def key_press(
 
 
 def type_text(
-    widget: object,
+    widget: _QtWidget,
     text: str,
     *,
     replace_selection: bool = True,
@@ -586,7 +717,7 @@ def type_text(
 
 
 def key_release(
-    widget: object,
+    widget: _QtWidget,
     key: str | QtInputValue,
     modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
@@ -598,7 +729,7 @@ def key_release(
 
 
 def key_click(
-    widget: object,
+    widget: _QtWidget,
     key: str | QtInputValue,
     modifiers: QtInputValue | None = None,
     delay_ms: int = 20,
@@ -637,7 +768,7 @@ def key_click(
     QtTest.QTest.qWait(30)
 
 
-def project_point(view: object, point: object) -> tuple[float, float]:
+def project_point(view: _QtView, point: _WorldPoint) -> tuple[float, float]:
     """Project a FreeCAD world point to the viewport's top-left coordinate system."""
     projected = view.getPointOnScreen(point)
     size = view.getSize()
@@ -711,7 +842,7 @@ class UiGifRecorder:
         self,
         path: str | Path,
         gui: ModuleType,
-        window: object | None = None,
+        window: _QtWindow | None = None,
         fps: int = 7,
         scale: float = 0.5,
         max_frames: int = 120,
