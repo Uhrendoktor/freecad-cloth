@@ -1,10 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Enforce descriptive public API docs and expose generic-object annotation inspection.
+"""Enforce descriptive API documentation and expose generic-object AST inspection.
 
-Every tracked Python source and stub is checked. Ruff enforces annotation syntax and the full
-compatible lint rule set; this contract verifies documentation prose and prohibits object as a
-generic annotation escape hatch. Use concrete types, structural Protocols, TypedDicts, or
-recursive JSON value unions instead.
+The prose contract checks repository implementation modules and tooling. Generic-object
+annotation locations are exposed separately so changed-file ratchets can compare them with
+the merge base rather than grandfathering a permanent repository-wide baseline.
 """
 
 from __future__ import annotations
