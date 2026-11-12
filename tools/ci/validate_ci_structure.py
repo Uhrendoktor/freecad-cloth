@@ -85,12 +85,23 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/MeshCollisionProjector.py",
     "freecad_cloth/avatar/make_human_targets.py",
     "freecad_cloth/avatar/AnnyAvatarBackend.py",
+    "freecad_cloth/avatar/AvatarArrangement",
+    "freecad_cloth/avatar/AvatarProperties.py",
+    "freecad_cloth/avatar/SkeletonTypes.py",
+    "freecad_cloth/avatar/avatar_arrangement.py",
+    "freecad_cloth/avatar/avatar_defaults.py",
+    "freecad_cloth/avatar/avatar_protocols.py",
+    "freecad_cloth/simulation/MeshBoundary.py",
+    "freecad_cloth/simulation/simulation_protocols.py",
 )
 PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Gui.py",
     "**/*Commands.py",
     "**/workbench.py",
     "freecad_cloth/bootstrap.py",
+    "freecad_cloth/avatar/_lazy_imports.py",
+    "freecad_cloth/avatar/avatar_commands.py",
+    "freecad_cloth/simulation/_cloth_backend_compat.py",
 )
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
