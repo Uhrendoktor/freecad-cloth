@@ -386,7 +386,7 @@ class SimulationTaskPanel:
             self.Gui.Control.closeDialog()
         return True
 
-    def getStandardButtons(self) -> object:
+    def getStandardButtons(self) -> int:
         """Return the native OK and Cancel buttons for FreeCAD's task-panel host.
 
         Returns:
