@@ -4,7 +4,7 @@
 from types import SimpleNamespace
 from typing import cast
 
-from freecad_cloth.shared.SourceSignature import source_signature
+from freecad_cloth.shared.SourceSignature import _SignatureValue, source_signature
 
 _TRIANGLES: tuple[tuple[int, int, int], ...] = ((0, 1, 2),)
 _COORDINATES: tuple[tuple[float, float, float], ...] = (
@@ -64,8 +64,8 @@ def test_shape_signature_falls_back_to_tessellation_after_invalid_brep() -> None
         tessellate=lambda _deflection: (_COORDINATES, _TRIANGLES),
     )
     signature = source_signature(SimpleNamespace(Name="ShapeBody", Mesh=None, Shape=shape))
-    geometry = cast("tuple[object, ...]", signature[1])
-    shape_content = cast("tuple[object, ...]", geometry[-1])
+    geometry = cast("tuple[_SignatureValue, ...]", signature[1])
+    shape_content = cast("tuple[_SignatureValue, ...]", geometry[-1])
 
     assert shape_content[0] == "TessellatedShape", (
         "Invalid BRep output must fall back to the tessellated geometry signature."

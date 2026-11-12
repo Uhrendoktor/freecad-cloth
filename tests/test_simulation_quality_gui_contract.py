@@ -3,10 +3,11 @@
 
 from collections.abc import Callable
 from types import SimpleNamespace
-from typing import cast
+from typing import TypeVar, cast
 
 import pytest
 
+from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.simulation.SimulationQualityGui import SimulationQualityTaskPanel
 from tests.support.assertions import require, require_not_none
 
@@ -17,7 +18,7 @@ def _scene() -> SimpleNamespace:
     Returns:
         A namespace with deterministic snapshot values and a fake document.
     """
-    values: dict[str, object] = dict(
+    values: dict[str, int | SimpleNamespace] = dict(
         zip(
             SimulationQualityTaskPanel.SNAPSHOT_PROPERTIES,
             range(1, len(SimulationQualityTaskPanel.SNAPSHOT_PROPERTIES) + 1),
@@ -28,10 +29,13 @@ def _scene() -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
+_MethodResult = TypeVar("_MethodResult")
+
+
 def _panel_method(
     panel: SimulationQualityTaskPanel,
     name: str,
-) -> Callable[..., object]:
+) -> Callable[..., _MethodResult]:
     """Retrieve a panel method by name for behavior-focused contract tests.
 
     Args:
@@ -41,10 +45,10 @@ def _panel_method(
     Returns:
         The bound panel method as a callable.
     """
-    return cast("Callable[[], object]", getattr(panel, name))
+    return cast("Callable[..., _MethodResult]", getattr(panel, name))
 
 
-def _snapshot(panel: SimulationQualityTaskPanel) -> dict[str, object]:
+def _snapshot(panel: SimulationQualityTaskPanel) -> JsonObject:
     """Return the panel's captured values for snapshot contract checks.
 
     Args:
@@ -54,7 +58,7 @@ def _snapshot(panel: SimulationQualityTaskPanel) -> dict[str, object]:
         The captured snapshot mapping.
 
     """
-    snapshot = cast("dict[str, object] | None", getattr(panel, "_snapshot", None))
+    snapshot = cast("JsonObject | None", getattr(panel, "_snapshot", None))
     return require_not_none(
         snapshot,
         message="Snapshot capture must initialize the snapshot state.",
@@ -193,21 +197,21 @@ def test_reject_restores_snapshot_before_closing_dialog(
         """Record snapshot restoration in the fake panel."""
         calls.append("restore")
 
-    def active_document() -> object:
+    def active_document() -> SimpleNamespace:
         """Return a non-null fake active document.
 
         Returns:
             A truthy stand-in representing the active FreeCAD document.
         """
-        return object()
+        return SimpleNamespace()
 
-    def active_dialog() -> object:
+    def active_dialog() -> SimpleNamespace:
         """Return a non-null fake active dialog.
 
         Returns:
             A truthy stand-in representing the active FreeCAD task-panel dialog.
         """
-        return object()
+        return SimpleNamespace()
 
     def close_dialog() -> None:
         """Record closing the fake task-panel dialog."""

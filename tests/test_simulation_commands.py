@@ -4,13 +4,12 @@
 import importlib
 import sys
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, TypedDict, cast
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
+from typing import TypedDict, cast
 
 import pytest
 
+from freecad_cloth.common.CommandAdapter import FunctionCommand
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.sewing import SeamOverlay
 from freecad_cloth.simulation import DrapeTarget, SimulationCommands
 from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
@@ -18,9 +17,6 @@ from tests.support.assertions import require
 
 DEFAULT_SIMULATION_STEPS = 30
 EXPLICIT_SIMULATION_STEPS = 7
-_FREECAD_ACTIVATED_METHOD = "Activated"
-_FREECAD_GET_RESOURCES_METHOD = "GetResources"
-_FREECAD_IS_ACTIVE_METHOD = "IsActive"
 
 
 class _TargetStatus(TypedDict):
@@ -32,7 +28,7 @@ class _TargetStatus(TypedDict):
     reason: str
 
 
-def _ready_target_status(_target: object | None) -> _TargetStatus:
+def _ready_target_status(_target: SimpleNamespace | None) -> _TargetStatus:
     """Describe a target whose collision surface is ready for simulation.
 
     Args:
@@ -44,7 +40,7 @@ def _ready_target_status(_target: object | None) -> _TargetStatus:
     return {"state": "ready", "message": "ok", "stale": False, "reason": ""}
 
 
-def _blocked_target_status(_target: object | None) -> _TargetStatus:
+def _blocked_target_status(_target: SimpleNamespace | None) -> _TargetStatus:
     """Describe a stale target that must block simulation advancement.
 
     Args:
@@ -85,7 +81,7 @@ def _install_freecad_scene(
     monkeypatch.setitem(sys.modules, "FreeCAD", app_module)
     monkeypatch.setattr(DrapeTarget, "target_status", _ready_target_status)
 
-    def record_overlay_refresh(_document: object) -> None:
+    def record_overlay_refresh(_document: SimpleNamespace) -> None:
         """Record a seam-overlay refresh requested by a public command.
 
         Args:
@@ -103,7 +99,7 @@ def _install_freecad_scene(
 
 def _register_workbench_commands(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[ModuleType, SimpleNamespace, list[str], dict[str, object]]:
+) -> tuple[ModuleType, SimpleNamespace, list[str | tuple[str, SimulationScene]], dict[str, FunctionCommand]]:
     """Capture command objects registered through the public FreeCAD GUI boundary.
 
     Args:
@@ -113,10 +109,10 @@ def _register_workbench_commands(
         The fake FreeCAD module, simulation scene, callback log, and registered commands.
     """
     app_module, scene, calls = _install_freecad_scene(monkeypatch)
-    registered: dict[str, object] = {}
+    registered: dict[str, FunctionCommand] = {}
     gui_module = ModuleType("FreeCADGui")
 
-    def add_command(command_name: str, command: object) -> None:
+    def add_command(command_name: str, command: FunctionCommand) -> None:
         """Record a command registered by the Simulation workbench.
 
         Args:
@@ -220,9 +216,9 @@ def test_simulate_selected_blocks_a_stale_target_before_advancing_the_scene(
 
 def test_reset_simulation_resets_scene_and_recomputes() -> None:
     """Reset the scene and recompute its document exactly once."""
-    calls: list[object] = []
+    calls: list[str | tuple[str, SimulationScene]] = []
 
-    def add_object(_type_name: str, _object_name: str) -> object:
+    def add_object(_type_name: str, _object_name: str) -> FreeCADDocumentObjectProtocol:
         """Provide the document feature-creation operation required by the protocol.
 
         Args:
@@ -232,9 +228,14 @@ def test_reset_simulation_resets_scene_and_recomputes() -> None:
         Returns:
             A distinct object instance representing the requested FreeCAD feature.
         """
-        return object()
+        return SimpleNamespace(
+            Name=_object_name,
+            Label=_object_name,
+            TypeId=_type_name,
+            PropertiesList=[],
+        )
 
-    def get_object(_object_name: str) -> object | None:
+    def get_object(_object_name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return no existing feature from the empty document fixture.
 
         Args:
@@ -267,7 +268,7 @@ def test_reset_simulation_resets_scene_and_recomputes() -> None:
         """
         return document, scene
 
-    def reset_scene(value: object) -> None:
+    def reset_scene(value: SimulationScene) -> None:
         """Record the scene passed to the reset operation.
 
         Args:
@@ -302,27 +303,15 @@ def test_simulation_command_resources_and_activation_are_runtime_objects(
     """
     _app_module, scene, calls, registered = _register_workbench_commands(monkeypatch)
     command = registered["ClothSimulation_Run"]
-    is_active = cast(
-        "Callable[[], bool]",
-        getattr(command, _FREECAD_IS_ACTIVE_METHOD),
-    )
-    activate = cast(
-        "Callable[[], object]",
-        getattr(command, _FREECAD_ACTIVATED_METHOD),
-    )
-    get_resources = cast(
-        "Callable[[], dict[str, object]]",
-        getattr(command, _FREECAD_GET_RESOURCES_METHOD),
-    )
     require(
-        condition=is_active(),
+        condition=command.IsActive(),
         message="An active simulation must enable the run command.",
     )
     require(
-        condition=activate() is scene,
+        condition=command.Activated() is scene,
         message="Run-command activation must return the selected simulation scene.",
     )
-    resources = get_resources()
+    resources = command.GetResources()
     require(
         condition=resources["MenuText"] == "Run Simulation",
         message="The command menu text must match its configured label.",

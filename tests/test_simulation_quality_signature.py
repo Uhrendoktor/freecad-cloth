@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
+from freecad_cloth.shared.SourceSignature import _SignatureValue
 from tests.support.assertions import require
 
 
@@ -41,7 +42,7 @@ def _scene() -> SimpleNamespace:
 
 def _execution_probe(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[QualitySimulationProxy, SimpleNamespace, list[object]]:
+) -> tuple[QualitySimulationProxy, SimpleNamespace, list[_SignatureValue]]:
     """Create a proxy fixture that records rebuilds requested by public execute calls.
 
     Args:
@@ -53,12 +54,12 @@ def _execution_probe(
     scene = _scene()
     proxy = QualitySimulationProxy()
     base = SimpleNamespace(
-        backend=object(),
+        backend=SimpleNamespace(),
         source_signature=None,
         last_steps=0,
         seam_stitch_pairs={},
     )
-    rebuilt_signatures: list[object] = []
+    rebuilt_signatures: list[_SignatureValue] = []
 
     def get_base() -> SimpleNamespace:
         """Return the synthetic runtime state used by the execution probe.
@@ -68,14 +69,14 @@ def _execution_probe(
         """
         return base
 
-    def synchronize_provenance(_base: object) -> None:
+    def synchronize_provenance(_base: SimpleNamespace) -> None:
         """Keep seam provenance synchronization outside this signature-only probe.
 
         Args:
             _base: Synthetic runtime state passed by the proxy.
         """
 
-    def advance(_scene: object, _base: object, _count: int) -> None:
+    def advance(_scene: SimpleNamespace, _base: SimpleNamespace, _count: int) -> None:
         """Avoid stepping a solver while checking source-signature invalidation.
 
         Args:
@@ -84,7 +85,7 @@ def _execution_probe(
             _count: Requested solver step count.
         """
 
-    def publish(_scene: object, _base: object) -> None:
+    def publish(_scene: SimpleNamespace, _base: SimpleNamespace) -> None:
         """Avoid publishing mesh output while checking source-signature invalidation.
 
         Args:
@@ -94,7 +95,7 @@ def _execution_probe(
 
     monkeypatch.setattr(proxy, "_base_or_restore", get_base)
 
-    def build_demo(_scene: object, signature: object) -> None:
+    def build_demo(_scene: SimpleNamespace, signature: _SignatureValue) -> None:
         """Record a derived-scene rebuild and retain its new source signature.
 
         Args:
