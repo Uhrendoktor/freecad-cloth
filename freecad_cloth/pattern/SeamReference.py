@@ -13,6 +13,7 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
+from typing import Self
 
 from freecad_cloth.common.JsonTypes import JsonValue
 
@@ -84,7 +85,7 @@ class EdgeReference:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, JsonValue]) -> EdgeReference:
+    def from_dict(cls, value: Mapping[str, JsonValue]) -> Self:
         """Create a reference from a serialized dictionary.
 
         Args:
