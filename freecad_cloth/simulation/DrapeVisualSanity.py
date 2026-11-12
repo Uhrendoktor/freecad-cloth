@@ -11,7 +11,6 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
-from freecad_cloth.common.JsonTypes import JsonValue
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
 from freecad_cloth.simulation.DrapeFailureClassifier import DrapeMetrics
 
