@@ -3,6 +3,7 @@
 
 import sys
 from types import ModuleType, SimpleNamespace
+
 import pytest
 
 from freecad_cloth.common.CommandAdapter import FunctionCommand
