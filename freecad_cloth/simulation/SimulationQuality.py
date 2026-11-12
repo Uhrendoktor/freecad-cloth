@@ -38,7 +38,17 @@ QUALITY_PRESETS = {
 
 
 def normalize_color_rgb(value: Iterable[object]) -> tuple[float, float, float]:
-    """Normalize FreeCAD/Python color representations to three RGB floats."""
+    """Normalize FreeCAD/Python color representations to three RGB floats.
+
+    Args:
+        value: Iterable containing three RGB channel values.
+
+    Returns:
+        Three normalized channel values in the inclusive range from zero to one.
+
+    Raises:
+        ValueError: If fewer than three channels are provided or a channel is out of range.
+    """
     try:
         values = tuple(validate_finite_number(item) for item in value)
     except (TypeError, ValueError):
@@ -71,7 +81,14 @@ class FabricMaterial:
     transparency: float = 0.0
 
     def validate(self) -> FabricMaterial:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this value and raise ValueError when its state is invalid.
+
+        Returns:
+            This immutable material after all physical and presentation fields pass validation.
+
+        Raises:
+            ValueError: If a physical coefficient or presentation value is outside its valid range.
+        """
         if not isfinite(self.density_g_m2) or self.density_g_m2 <= 0:
             msg = "density must be positive and finite"
             raise ValueError(msg)
@@ -101,12 +118,26 @@ class FabricMaterial:
     @property
     def mass_per_area_kg_mm2(self) -> float:
         # g/m^2 -> kg/mm^2
-        """Provide the public mass per area kg mm2 operation."""
+        """Return the fabric mass per unit area in kilograms per square millimetre.
+
+        Returns:
+            Surface mass converted from the authored grams per square metre.
+        """
         return self.density_g_m2 * 1e-9
 
 
 def preset(name: str) -> SimulationQuality:
-    """Provide the public preset operation."""
+    """Return one of the named, immutable simulation-quality profiles.
+
+    Args:
+        name: Case-sensitive preset name from the supported quality catalogue.
+
+    Returns:
+        The requested quality profile with its default tessellation and solver settings.
+
+    Raises:
+        ValueError: If the requested name is not a supported quality preset.
+    """
     try:
         return QUALITY_PRESETS[str(name)]
     except KeyError as exc:
@@ -120,7 +151,19 @@ def apply_quality(
     iterations: int | None = None,
     substeps: int | None = None,
 ) -> SimulationQuality:
-    """Return a validated quality profile with explicit overrides."""
+    """Return a validated quality profile with explicit solver overrides.
+
+    Args:
+        quality: Preset name or previously constructed quality profile.
+        iterations: Optional replacement solver-iteration count.
+        substeps: Optional replacement substep count per simulation frame.
+
+    Returns:
+        A new profile containing the selected preset and supplied overrides.
+
+    Raises:
+        ValueError: If the named preset does not exist or an override cannot be converted.
+    """
     q = preset(quality.name) if isinstance(quality, SimulationQuality) else preset(quality)
     return replace(
         q,
@@ -132,7 +175,18 @@ def apply_quality(
 def solver_parameters(
     quality: SimulationQuality, material: FabricMaterial
 ) -> dict[str, float | int]:
-    """Provide the public solver parameters operation."""
+    """Build the numeric solver configuration from a quality/material pair.
+
+    Args:
+        quality: Authored tessellation and iteration profile.
+        material: Validated fabric properties consumed by the solver.
+
+    Returns:
+        Mapping of particle spacing, solver settings, and material coefficients.
+
+    Raises:
+        ValueError: If the fabric material or requested quality profile is invalid.
+    """
     material.validate()
     quality = apply_quality(quality)
     return {
