@@ -195,7 +195,9 @@ class _Sketch:
     Geometry: Sequence[LineSegment | _NativeCurve]
     SemanticEdgeIds: Sequence[str]
 
-    def __init__(self, geometry: Sequence[LineSegment | _NativeCurve], semantic_ids: Sequence[str]) -> None:
+    def __init__(
+        self, geometry: Sequence[LineSegment | _NativeCurve], semantic_ids: Sequence[str]
+    ) -> None:
         """Retain the ordered geometry and optional persistent IDs for each edge.
 
         Args:
