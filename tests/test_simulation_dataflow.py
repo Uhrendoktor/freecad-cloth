@@ -104,7 +104,7 @@ class _Sketch:
             f"{prefix}:top",
             f"{prefix}:left",
         )
-        setattr(self, "getConstruction", _is_not_construction)
+        self.getConstruction = _is_not_construction
 
 
 def _is_not_construction(_index: int) -> bool:
