@@ -1,12 +1,12 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-
-from __future__ import annotations
 """FreeCAD task-panel frontend for the parametric Cloth mannequin.
 
 Anthropometric edits are staged in the UI and applied atomically through the
 existing AvatarCommands rebuild path. AvatarParameters remains authoritative
 for validation and AvatarService remains the solver-neutral downstream API.
 """
+
+from __future__ import annotations
 
 import contextlib
 from typing import TYPE_CHECKING, ClassVar, Protocol
