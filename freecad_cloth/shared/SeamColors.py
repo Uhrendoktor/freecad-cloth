@@ -13,19 +13,41 @@ _SEAM_COLOR_HASH_SCALE = float(1 << 64)
 _NEUTRAL_SEAM_COLOR = (0.48, 0.48, 0.48)
 
 
+class _SeamRefreshDocument(Protocol):
+    """Document refresh operation required by the presentation callback."""
+
+    def recompute(self) -> None:
+        """Refresh the document after seam colors have changed."""
+        ...
+
+
+class _SeamViewObject(Protocol):
+    """Line-color property exposed by a seam's native view provider."""
+
+    LineColor: tuple[float, float, float]
+
+
+class _SeamFeature(Protocol):
+    """Persisted seam identity and optional view/document links used for coloring."""
+
+    SeamId: str
+    ViewObject: _SeamViewObject | None
+    Document: _SeamRefreshDocument | None
+
+
 @dataclass
 class _SeamColorState:
     """Mutable display configuration shared by seam-color operations."""
 
     highlights_enabled: bool = True
-    refresh_callback: Callable[[object | None], None] | None = None
+    refresh_callback: Callable[[_SeamRefreshDocument], None] | None = None
 
 
 _SEAM_COLOR_STATE = _SeamColorState()
 
 
 def register_seam_refresh_callback(
-    callback: Callable[[object | None], None] | None,
+    callback: Callable[[_SeamRefreshDocument], None] | None,
 ) -> None:
     """Register an optional GUI-layer refresh without reversing module dependencies.
 
@@ -35,7 +57,7 @@ def register_seam_refresh_callback(
     _SEAM_COLOR_STATE.refresh_callback = callback
 
 
-def set_seam_color_highlighting_enabled(enabled: object) -> None:
+def set_seam_color_highlighting_enabled(enabled: bool) -> None:
     """Choose identity colors or neutral linework for native seam view objects.
 
     Args:
@@ -53,7 +75,7 @@ def seam_color_highlighting_enabled() -> bool:
     return _SEAM_COLOR_STATE.highlights_enabled
 
 
-def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
+def _seam_color_for_id(seam_id: str) -> tuple[float, float, float]:
     """Return a stable presentation color derived only from semantic seam identity.
 
     Args:
@@ -75,7 +97,7 @@ def _seam_color_for_id(seam_id: object) -> tuple[float, float, float]:
     return round(rgb[0], 6), round(rgb[1], 6), round(rgb[2], 6)
 
 
-def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, float]]:
+def seam_color_map(seam_ids: Iterable[str]) -> dict[str, tuple[float, float, float]]:
     """Return deterministic seam colors keyed only by non-empty semantic IDs.
 
     Args:
@@ -95,7 +117,7 @@ def seam_color_map(seam_ids: Iterable[object]) -> dict[str, tuple[float, float, 
     return {seam_id: _seam_color_for_id(seam_id) for seam_id in ids}
 
 
-def apply_seam_colors(objects: Iterable[object]) -> dict[str, tuple[float, float, float]]:
+def apply_seam_colors(objects: Iterable[_SeamFeature]) -> dict[str, tuple[float, float, float]]:
     """Apply deterministic colors to document seam objects.
 
     Args:
