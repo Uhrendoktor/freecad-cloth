@@ -49,7 +49,7 @@ class _Shape:
 def test_persisted_provider_ids_are_generated_from_registered_provider_metadata() -> None:
     """Keep the FreeCAD selector synchronized with the built-in provider registry."""
     expected = tuple(provider.info.provider_id for provider in BUILTIN_AVATAR_PROVIDER_CLASSES)
-    assert PROVIDER_IDS == expected
+    assert expected == PROVIDER_IDS
     assert len(PROVIDER_IDS) == len(set(PROVIDER_IDS))
 
 
