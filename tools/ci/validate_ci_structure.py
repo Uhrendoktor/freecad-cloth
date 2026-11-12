@@ -75,7 +75,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/sewing/SeamGraph.py",
     "freecad_cloth/sewing/SewingCorrespondence.py",
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/cloth_backend.py",
     "freecad_cloth/simulation/ClothSolver.py",
     "freecad_cloth/simulation/DrapeTarget.py",
     "freecad_cloth/simulation/SimulationQuality.py",
@@ -83,7 +83,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/SimulationQualityRuntime.py",
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
     "freecad_cloth/simulation/MeshCollisionProjector.py",
-    "freecad_cloth/avatar/MakeHumanTargets.py",
+    "freecad_cloth/avatar/make_human_targets.py",
     "freecad_cloth/avatar/AnnyAvatarBackend.py",
 )
 PYRIGHT_EXPECTED_EXCLUDE = (
@@ -102,6 +102,7 @@ QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"
 TYPECHECK_COMMANDS = QUALITY_RUNNER_COMMANDS
 PYTHON_POLICY_COMMANDS = QUALITY_RUNNER_COMMANDS
 RUFF_COMMANDS = QUALITY_RUNNER_COMMANDS
+
 
 def missing_typecheck_commands(workflow_text: str) -> tuple[str, ...]:
     """Return the blocking quality-runner command when it is not standalone.
@@ -255,9 +256,7 @@ def pyright_coverage_contract_violations(
         )
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
-    violations.extend(
-        f"<Pyright inventory path does not exist: {path}>" for path in missing_paths
-    )
+    violations.extend(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
 
     uncovered_modules = tuple(
         path

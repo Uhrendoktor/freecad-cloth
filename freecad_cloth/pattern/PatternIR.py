@@ -629,7 +629,7 @@ def _point_sort_key(point: Point3) -> tuple[float, float, float]:
     Returns:
         Coordinate tuple rounded to twelve decimal places for stable sorting.
     """
-    return tuple(round(value, 12) for value in point)
+    return (round(point[0], 12), round(point[1], 12), round(point[2], 12))
 
 
 def _orient_boundary(boundary, edge_vertices, start_vertex):

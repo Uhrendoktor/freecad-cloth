@@ -46,6 +46,7 @@ class _SurfaceQuery(Protocol):
         Returns:
             Nearest points, their distances, and source triangle indices.
         """
+        ...
 
 
 class _TrimeshMesh(Protocol):
@@ -57,7 +58,7 @@ class _TrimeshMesh(Protocol):
     is_watertight: bool
     nearest: _SurfaceQuery
 
-    def split(self, _only_watertight: bool = False) -> Sequence[object]:
+    def split(self, _only_watertight: bool = False) -> Sequence[_TrimeshMesh]:
         """Split this mesh into disconnected components.
 
         Args:
@@ -66,6 +67,7 @@ class _TrimeshMesh(Protocol):
         Returns:
             The connected mesh components.
         """
+        ...
 
 
 MeshValidationResult = MeshHealthMetrics

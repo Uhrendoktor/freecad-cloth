@@ -1,16 +1,20 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Shared typing contracts for FreeCAD simulation document operations."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import Protocol
+
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 
 class SimulationDocument(Protocol):
     """FreeCAD document operations required by simulation commands."""
 
-    Objects: Sequence[object]
+    Objects: list[FreeCADDocumentObjectProtocol]
 
-    def addObject(self, type_name: str, object_name: str) -> object:
+    def addObject(self, type_name: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
 
         Args:
@@ -22,7 +26,7 @@ class SimulationDocument(Protocol):
         """
         ...
 
-    def getObject(self, object_name: str) -> object | None:
+    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
         """Find a feature by its stable internal name.
 
         Args:
@@ -43,5 +47,17 @@ class SimulationScene(Protocol):
 
     Steps: int
     Document: SimulationDocument
-    ClothPieces: Sequence[object]
-    Proxy: object
+    ClothPieces: Sequence[FreeCADDocumentObjectProtocol]
+    Proxy: SimulationProxyProtocol
+
+
+class SimulationProxyProtocol(Protocol):
+    """Lifecycle methods available on the simulation feature proxy."""
+
+    def execute(self, obj: SimulationScene) -> None:
+        """Recompute the persisted simulation state."""
+        ...
+
+    def reset(self, obj: SimulationScene) -> None:
+        """Reset transient solver state without changing authored inputs."""
+        ...

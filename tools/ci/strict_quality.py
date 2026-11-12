@@ -312,7 +312,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                 "--output-format",
                 "github",
                 "freecad_cloth/simulation/DrapeFailureClassifier.py",
-                "freecad_cloth/simulation/ClothBackend.py",
+                "freecad_cloth/simulation/cloth_backend.py",
                 "freecad_cloth/simulation/ClothSolver.py",
             ),
         ),
