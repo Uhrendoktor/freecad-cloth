@@ -31,7 +31,7 @@ DEFAULT_ROTATION_AXIS_Y = 0.0
 DEFAULT_ROTATION_AXIS_Z = 1.0
 
 
-type _SignatureValue = str | int | float | bool | None | tuple["_SignatureValue", ...]
+type _SignatureValue = str | int | float | bool | tuple["_SignatureValue", ...] | None
 
 
 class _NativeVector(Protocol):
@@ -442,7 +442,9 @@ def _validate_edge_signature(
         raise ChangedEdgeReference(msg)
 
 
-def _numeric_attribute(value: _NativeVector | _NativeRotation | None, name: str, default: float) -> float:
+def _numeric_attribute(
+    value: _NativeVector | _NativeRotation | None, name: str, default: float
+) -> float:
     """Read a numeric FreeCAD placement field without accepting malformed values.
 
     Args:
