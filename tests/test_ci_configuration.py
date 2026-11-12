@@ -922,7 +922,10 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         condition=set(lint.get("select", [])) == allowed_select,
         message="Ruff selection must match the reviewed correctness/security/import/type policy.",
     )
-    require(condition=not lint.get("preview", False), message="Blanket Ruff preview selection is not permitted.")
+    require(
+        condition=not lint.get("preview", False),
+        message="Blanket Ruff preview selection is not permitted.",
+    )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
         message="Ruff ignores must match the reviewed rule-specific policy.",
@@ -936,14 +939,37 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
 def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
     """Keep standard analysis broad within reviewed core paths and strict on solver kernels."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
-    require(condition=config.get("include") == list(PYRIGHT_EXPECTED_INCLUDE), message="Pyright include inventory differs from reviewed production modules.")
-    require(condition=config.get("exclude") == list(PYRIGHT_EXPECTED_EXCLUDE), message="Pyright exclusions differ from documented dynamic host adapters.")
-    require(condition=config.get("strict") == list(PYRIGHT_EXPECTED_STRICT), message="Only the three deterministic simulation kernels may remain globally strict.")
-    require(condition=config.get("typeCheckingMode") == "standard", message="Pyright standard mode is the reviewed default outside the strict simulation core.")
-    require(condition=config.get("reportMissingImports") == "none" and config.get("reportMissingModuleSource") == "none", message="Pyright import diagnostics must follow the reviewed host-boundary profile.")
+    require(
+        condition=config.get("include") == list(PYRIGHT_EXPECTED_INCLUDE),
+        message="Pyright include inventory differs from reviewed production modules.",
+    )
+    require(
+        condition=config.get("exclude") == list(PYRIGHT_EXPECTED_EXCLUDE),
+        message="Pyright exclusions differ from documented dynamic host adapters.",
+    )
+    require(
+        condition=config.get("strict") == list(PYRIGHT_EXPECTED_STRICT),
+        message="Only the three deterministic simulation kernels may remain globally strict.",
+    )
+    require(
+        condition=config.get("typeCheckingMode") == "standard",
+        message="Pyright standard mode is the reviewed default outside the strict simulation core.",
+    )
+    require(
+        condition=config.get("reportMissingImports") == "none"
+        and config.get("reportMissingModuleSource") == "none",
+        message="Pyright import diagnostics must follow the reviewed host-boundary profile.",
+    )
     quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
-    require(condition='QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
-    require(condition='"Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
+    require(
+        condition='QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json"))'
+        in quality_runner,
+        message="The canonical strict-quality runner must retain one blocking Pyright profile.",
+    )
+    require(
+        condition='"Typed simulation core"' in quality_runner,
+        message="The ty core gate must remain independently blocking.",
+    )
 
 def test_ty_warning_diagnostics_remain_blocking() -> None:
     """Keep warning-level ty diagnostics fatal for the curated simulation core."""
@@ -954,7 +980,6 @@ def test_ty_warning_diagnostics_remain_blocking() -> None:
         condition=not ty_warnings_are_blocking(tampered),
         message="Disabling ty warning failures must be detected.",
     )
-
 
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
