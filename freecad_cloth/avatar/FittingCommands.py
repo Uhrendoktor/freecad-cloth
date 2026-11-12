@@ -299,7 +299,7 @@ def _geometry_round(value: float, digits: int = 5) -> float:
         The rounded scalar, with both positive and negative zero represented as 0.0.
     """
     rounded = round(float(value), digits)
-    return rounded if rounded else 0.0
+    return rounded or 0.0
 
 
 def _points_in_local_space(
