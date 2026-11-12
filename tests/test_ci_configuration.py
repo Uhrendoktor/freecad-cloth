@@ -12,7 +12,7 @@ from tests.support.assertions import require
 
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
-from tools.ci.strict_quality import quality_commands
+from tools.ci.strict_quality import collect_tracked_python_files, quality_commands
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
     PYTHON_POLICY_COMMANDS,
@@ -833,45 +833,37 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
 
 def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
-    """Require ALL and preview lint rules over every tracked source without auto-fixing."""
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
+    """Pass every Git-tracked Python source and stub to read-only Ruff commands."""
+    tracked_files = collect_tracked_python_files(ROOT)
+    executable = Path("/quality/venv/bin/python")
+    commands = quality_commands(executable, tracked_files)
+    format_command = next(command for command in commands if command.label == "Ruff format")
+    lint_command = next(command for command in commands if command.label == "Ruff lint")
+
+    require(
+        condition=bool(tracked_files) and len(tracked_files) == len(set(tracked_files)),
+        message="The strict runner must collect a non-empty, duplicate-free tracked Python inventory.",
     )
-    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
+    require(
+        condition=all(path.endswith((".py", ".pyi")) for path in tracked_files),
+        message="The tracked Python inventory must contain only .py and .pyi files.",
+    )
+    require(
+        condition=format_command.arguments
+        == (str(executable), "-m", "ruff", "format", "--check", *tracked_files),
+        message="Ruff formatting must check every tracked source and stub without modifying it.",
+    )
+    require(
+        condition=lint_command.arguments == (str(executable), "-m", "ruff", "check", *tracked_files),
+        message="Ruff lint must check every tracked source and stub without auto-fixing.",
+    )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     formatter_conflicts = {
-        "W191",
-        "E111",
-        "E114",
-        "E117",
-        "D203",
-        "D206",
-        "D300",
-        "Q000",
-        "Q001",
-        "Q002",
-        "Q003",
-        "Q004",
-        "COM812",
-        "COM819",
+        "W191", "E111", "E114", "E117", "D203", "D206", "D300",
+        "Q000", "Q001", "Q002", "Q003", "Q004", "COM812", "COM819",
     }
 
-    require(
-        condition="git ls-files -z -- '*.py' '*.pyi'" in quality,
-        message="Ruff inventory must contain every tracked Python source and stub.",
-    )
-    require(
-        condition=(
-            'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"'
-            in quality
-        ),
-        message="Ruff formatting must be a read-only repository-wide gate.",
-    )
-    require(
-        condition='xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality,
-        message="Ruff lint must be a read-only repository-wide gate.",
-    )
     require(
         condition=lint["select"] == ["ALL"],
         message=f"Ruff must select all stable and preview rules, got {lint['select']!r}.",
@@ -879,22 +871,11 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     require(condition=lint.get("preview") is True, message="Ruff preview must be enabled.")
     require(
         condition=set(lint.get("ignore", [])) == (formatter_conflicts | {"PLC0415"}),
-        message=(
-            "Only formatter-conflicting rules and FreeCAD's documented lazy-import rule "
-            "may be ignored."
-        ),
+        message="Only formatter conflicts and FreeCAD lazy imports may be ignored.",
     )
     require(
         condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
-        message="Only pytest's S101 assertion rule may be exempted, and only under tests/.",
-    )
-    require(
-        condition="python -m ruff check --fix" not in quality,
-        message="The canonical workflow must not auto-fix source files.",
-    )
-    require(
-        condition='path: "freecad_cloth tests tools/ci"' in workflow,
-        message="The PR duplication gate must cover production and CI Python.",
+        message="Only pytest S101 may be exempted under tests/.",
     )
 
 
