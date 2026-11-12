@@ -17,7 +17,6 @@ from freecad_cloth.simulation.SimulationObjects import (
 )
 from freecad_cloth.simulation.SimulationQuality import (
     QUALITY_PRESETS,
-    SimulationQuality,
     normalize_color_rgb,
     preset,
 )
