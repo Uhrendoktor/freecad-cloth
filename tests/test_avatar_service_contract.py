@@ -10,10 +10,11 @@ from tests.support.assertions import require
 
 def test_avatar_parameter_runtime_guard_preserves_constructor_boundary() -> None:
     """Recognize canonical avatar parameters and reject unrelated runtime values."""
-    valid_parameters, parameters = _validate_avatar_parameters(AvatarParameters())
+    expected_parameters = AvatarParameters()
+    valid_parameters, parameters = _validate_avatar_parameters(expected_parameters)
     valid_text, text_value = _validate_avatar_parameters("not-avatar-parameters")
     require(
-        condition=valid_parameters and isinstance(parameters, AvatarParameters),
+        condition=valid_parameters and parameters is expected_parameters,
         message="Canonical AvatarParameters values must pass the service guard.",
     )
     require(
