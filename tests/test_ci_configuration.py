@@ -878,8 +878,11 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     )
     require(condition=lint.get("preview") is True, message="Ruff preview must be enabled.")
     require(
-        condition=set(lint.get("ignore", [])) == formatter_conflicts,
-        message="Only formatter-conflicting Ruff rules may be ignored.",
+        condition=set(lint.get("ignore", [])) == (formatter_conflicts | {"PLC0415"}),
+        message=(
+            "Only formatter-conflicting rules and FreeCAD's documented lazy-import rule "
+            "may be ignored."
+        ),
     )
     require(
         condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
