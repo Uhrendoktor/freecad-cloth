@@ -136,15 +136,15 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         message="The blocking ty simulation-core profile must remain enabled.",
     )
     require(
-        condition=any("check_changed_python_types.py" in command for command in arguments),
+        condition=any(any("check_changed_python_types.py" in item for item in command) for command in arguments),
         message="Changed Python annotation/object debt must not increase.",
     )
     require(
-        condition=any("check_explicit_any_annotations.py" in command for command in arguments),
+        condition=any(any("check_explicit_any_annotations.py" in item for item in command) for command in arguments),
         message="The repository-wide explicit-Any policy must remain enabled.",
     )
     require(
-        condition=any("check_pydantic_models.py" in command for command in arguments),
+        condition=any(any("check_pydantic_models.py" in item for item in command) for command in arguments),
         message="Pydantic model boundary validation must remain enabled.",
     )
     focused_regression_command = (
