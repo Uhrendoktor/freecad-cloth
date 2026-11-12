@@ -176,7 +176,14 @@ def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
     prerequisite_status = _existing_target_prerequisite_status(target)
     if prerequisite_status is not None:
         return prerequisite_status
-    source = getattr(target, "SourceObject", None)
+    source = target.SourceObject
+    if source is None:
+        return {
+            "state": "unassigned",
+            "message": "Drape target source is missing",
+            "stale": True,
+            "reason": "source missing",
+        }
     try:
         current = repr(
             source_signature(
