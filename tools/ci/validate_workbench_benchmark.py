@@ -10,12 +10,14 @@ import sys
 from pathlib import Path
 from typing import cast
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+
 WORKBENCH_NAMES = ("Pattern", "Sewing", "Simulation")
 BENCHMARK_SCHEMA_VERSION = 2
 MINIMUM_REPEATS = 3
 
 
-def _integer(value: object) -> int | None:
+def _integer(value: JsonValue) -> int | None:
     """Return an integer metric while rejecting booleans and floats.
 
     Args:
@@ -29,7 +31,7 @@ def _integer(value: object) -> int | None:
     return value
 
 
-def _number(value: object) -> float | None:
+def _number(value: JsonValue) -> float | None:
     """Return a finite numeric metric while rejecting booleans and malformed values.
 
     Args:
@@ -45,7 +47,7 @@ def _number(value: object) -> float | None:
 
 
 def _validate_header_metrics(
-    metrics: dict[str, object],
+    metrics: JsonObject,
     errors: list[str],
 ) -> int | None:
     """Validate artifact schema metadata and return the declared repeat count.
@@ -79,10 +81,10 @@ def _validate_header_metrics(
 
 
 def _selected_benchmark(
-    metrics: dict[str, object],
+    metrics: JsonObject,
     expected_workbench: str,
     errors: list[str],
-) -> dict[str, object] | None:
+) -> JsonObject | None:
     """Return selected workbench metrics after checking their container shape.
 
     Args:
@@ -98,7 +100,7 @@ def _selected_benchmark(
         errors.append("workbenches must be a JSON object")
         return None
 
-    workbenches = cast("dict[str, object]", workbenches_value)
+    workbenches = cast("JsonObject", workbenches_value)
     if set(workbenches) != {expected_workbench}:
         errors.append(f"workbenches must contain only {expected_workbench!r}")
 
@@ -106,10 +108,10 @@ def _selected_benchmark(
     if not isinstance(benchmark_value, dict):
         errors.append(f"workbenches.{expected_workbench} must be a JSON object")
         return None
-    return cast("dict[str, object]", benchmark_value)
+    return cast("JsonObject", benchmark_value)
 
 
-def _validate_benchmark_inventory(benchmark: dict[str, object], errors: list[str]) -> None:
+def _validate_benchmark_inventory(benchmark: JsonObject, errors: list[str]) -> None:
     """Validate source inventory and related-test fields.
 
     Args:
@@ -142,7 +144,7 @@ def _validate_benchmark_inventory(benchmark: dict[str, object], errors: list[str
 
 
 def _validate_benchmark_measurements(
-    benchmark: dict[str, object],
+    benchmark: JsonObject,
     repeats: int | None,
     errors: list[str],
 ) -> None:
@@ -169,7 +171,7 @@ def _validate_benchmark_measurements(
         errors.append("initialize_samples must equal repeats")
 
 
-def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
+def validate_metrics(payload: JsonValue, expected_workbench: str) -> list[str]:
     """Return schema, workbench identity, and measurement errors for one benchmark artifact.
 
     Args:
@@ -184,7 +186,7 @@ def validate_metrics(payload: object, expected_workbench: str) -> list[str]:
     if not isinstance(payload, dict):
         return ["benchmark artifact must contain a JSON object"]
 
-    metrics = cast("dict[str, object]", payload)
+    metrics = cast("JsonObject", payload)
     errors: list[str] = []
     repeats = _validate_header_metrics(metrics, errors)
     benchmark = _selected_benchmark(metrics, expected_workbench, errors)
@@ -219,9 +221,9 @@ def main() -> int:
             sys.stdout.write(f"workbench-benchmark=failed reason={error}\n")
         return 1
 
-    metrics = cast("dict[str, object]", payload)
-    workbench_value = cast("dict[str, object]", metrics["workbenches"])
-    benchmark = cast("dict[str, object]", workbench_value[args.workbench])
+    metrics = cast("JsonObject", payload)
+    workbench_value = cast("JsonObject", metrics["workbenches"])
+    benchmark = cast("JsonObject", workbench_value[args.workbench])
     sys.stdout.write(
         "workbench-benchmark=passed "
         f"workbench={args.workbench} repeats={metrics['repeats']} "
