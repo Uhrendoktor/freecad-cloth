@@ -108,7 +108,11 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "CI structure",
             "Import architecture",
             "Source-rewriting policy",
+            "Explicit Any policy",
+            "Pydantic model policy",
             "Strict Pyright",
+            "Typed simulation core",
+            "Changed Python annotation ratchet",
             "AST-grep rule tests",
             "AST-grep repository contracts",
             "Dead-code contract",
@@ -125,7 +129,22 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
     require(
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
-        message="The strict whole-repository Pyright command must remain enabled.",
+        message="The reviewed Pyright production inventory must remain enabled.",
+    )    require(
+        condition=any(command[:4] == ("ty", "check", "--output-format", "github") for command in arguments),
+        message="The blocking ty simulation-core profile must remain enabled.",
+    )
+    require(
+        condition=any("check_changed_python_types.py" in command for command in arguments),
+        message="Changed Python annotation/object debt must not increase.",
+    )
+    require(
+        condition=any("check_explicit_any_annotations.py" in command for command in arguments),
+        message="The repository-wide explicit-Any policy must remain enabled.",
+    )
+    require(
+        condition=any("check_pydantic_models.py" in command for command in arguments),
+        message="Pydantic model boundary validation must remain enabled.",
     )
     focused_regression_command = (
         str(python),
@@ -137,10 +156,22 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "tests/test_ci_configuration.py::"
             "test_ruff_covers_every_tracked_python_file_without_auto_fixing"
         ),
+        (
+            "tests/test_ci_configuration.py::"
+            "test_pyright_uses_the_reviewed_staged_production_inventory"
+        ),
+        (
+            "tests/test_ci_configuration.py::"
+            "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
+        ),
         "tests/test_avatar_service_contract.py",
+        "tests/test_changed_python_types.py",
         "tests/test_command_runner.py",
         "tests/test_documentation_contract.py",
+        "tests/test_explicit_any_annotations.py",
         "tests/test_garment_document_contract.py",
+        "tests/test_no_source_rewriting.py",
+        "tests/test_pydantic_models_policy.py",
         "tests/test_sewing_creation_session.py",
         "tests/test_strict_quality_runner_contract.py",
     )
