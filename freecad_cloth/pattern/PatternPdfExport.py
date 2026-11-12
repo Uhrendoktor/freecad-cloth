@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from pydantic.dataclasses import dataclass
 
+from freecad_cloth.common.JsonTypes import JsonObject
+
 from freecad_cloth.pattern.PatternDerivedGeometry import DerivedPattern, PatternMark, mark_point
 from freecad_cloth.pattern.PatternExport import (
     _cut_contour_with_notches,
@@ -93,7 +95,7 @@ def _document_bytes(
     page_streams: list[bytes],
     paper_width_mm: float,
     paper_height_mm: float,
-    metadata: dict[str, object],
+    metadata: JsonObject,
 ) -> bytes:
     """Build a small deterministic PDF 1.4 document with native vector streams."""
     encoded_metadata = json.dumps(
@@ -167,7 +169,7 @@ def _document_bytes(
     return bytes(output)
 
 
-def from_pdf_metadata(pdf: bytes) -> dict[str, object]:
+def from_pdf_metadata(pdf: bytes) -> JsonObject:
     """Decode and validate the Cloth metadata comment embedded in an exported PDF.
 
     Args:
@@ -500,7 +502,7 @@ def validate_pdf_export(
     pattern: ParametricPattern,
     exported: bytes,
     options: PdfExportOptions | None = None,
-) -> dict[str, object]:
+) -> JsonObject:
     """Validate the PDF against a deterministic rerender with identical options.
 
     Args:
