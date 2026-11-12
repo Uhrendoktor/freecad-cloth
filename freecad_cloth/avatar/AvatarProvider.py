@@ -11,6 +11,7 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark
 from freecad_cloth.avatar.AvatarService import AvatarService, AvatarSurface
 from freecad_cloth.common.FreeCADCollision import surface_from_freecad
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.ValidationModels import validate_finite_number
 from freecad_cloth.shared.Collision import CollisionSurface, surface_from_triangles
 
@@ -135,7 +136,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
 
     def __init__(
         self,
-        source: object | None,
+        source: FreeCADDocumentObjectProtocol | None,
         deflection: float = 1.0,
         thickness: float = 0.0,
     ) -> None:
@@ -210,7 +211,7 @@ FREECAD_GEOMETRY_PROVIDER_ID = FreeCADGeometryAvatarProvider.info.provider_id
 
 
 def provider_from_target(
-    source: object | None,
+    source: FreeCADDocumentObjectProtocol | None,
     target_type: str = "FreeCAD Geometry",
     parameters: AvatarParameters | None = None,
     deflection: float = 1.0,
