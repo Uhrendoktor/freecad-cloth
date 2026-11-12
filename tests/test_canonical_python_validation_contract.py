@@ -9,6 +9,7 @@ from typing import cast
 
 import pytest
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from tools.ci import (
     pytest_collection_contract,
     validate_acceptance,
@@ -23,7 +24,7 @@ EXPECTED_SURFACE_PEN_FRAMES = 4
 EXPECTED_AVATAR_SHAPE_GIFS = 2
 
 
-def _require_mapping(value: object, *, label: str) -> dict[str, object]:
+def _require_mapping(value: JsonValue, *, label: str) -> JsonObject:
     """Return a fixture mapping after checking its runtime shape.
 
     Args:
@@ -39,7 +40,7 @@ def _require_mapping(value: object, *, label: str) -> dict[str, object]:
     if not isinstance(value, dict):
         msg = f"{label} must be a dictionary"
         raise TypeError(msg)
-    return cast("dict[str, object]", value)
+    return cast(JsonObject, value)
 
 
 def test_collection_plugin_accepts_all_expected_modules() -> None:
@@ -158,7 +159,7 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     assert "collection_command" not in runner, "canonical CI contract"
 
 
-def _valid_realtime_benchmark_metrics() -> dict[str, object]:
+def _valid_realtime_benchmark_metrics() -> JsonObject:
     """Build a sample that satisfies the sustained 30 FPS metrics contract.
 
     Returns:
