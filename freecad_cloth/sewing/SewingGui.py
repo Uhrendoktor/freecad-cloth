@@ -9,7 +9,7 @@ the task panel is only the interactive frontend.
 from __future__ import annotations
 
 from types import ModuleType
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.sewing.SewingCorrespondence import (
