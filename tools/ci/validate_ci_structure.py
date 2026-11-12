@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 if __package__:
@@ -33,6 +34,7 @@ WORKFLOW_FILES = tuple(
 )
 PYRIGHT_CONFIG = ROOT / "pyrightconfig.json"
 PYRIGHT_LEGACY_CONFIG = ROOT / "pyrightconfig.agent-strict.json"
+TY_CONFIG = ROOT / "ty.toml"
 MAX_REUSABLE_WORKFLOW_LINES = 750
 MAX_CI_TIMEOUT_SECONDS = 180
 REQUIRED = (
@@ -41,7 +43,6 @@ REQUIRED = (
     ROOT / ".github/actions/pbd-image/action.yml",
     ROOT / ".github/actions/publish-visual-evidence/action.yml",
     ROOT / "tools/ci/run_freecad.py",
-    ROOT / "tools/ci/command_runner.py",
     ROOT / "tools/ci/command_runner.py",
     ROOT / "tools/ci/python_validation.py",
     ROOT / "tools/ci/validate_acceptance.py",
@@ -52,6 +53,10 @@ REQUIRED = (
     ROOT / "tools/ci/check_artifact_budget.py",
     ROOT / "tools/ci/create_agent_observation_bundle.py",
     ROOT / "tools/ci/check_no_source_rewriting.py",
+    ROOT / "tools/ci/check_explicit_any_annotations.py",
+    ROOT / "tools/ci/check_changed_python_types.py",
+    ROOT / "tools/ci/check_pydantic_models.py",
+    TY_CONFIG,
     ROOT / "tools/check_documentation_contract.py",
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
@@ -267,6 +272,23 @@ def pyright_coverage_contract_violations(
     return tuple(violations)
 
 
+def ty_warnings_are_blocking(config_text: str) -> bool:
+    """Require the curated ty core profile to fail on warning-level diagnostics.
+
+    Args:
+        config_text: TOML text from the repository's ty configuration.
+
+    Returns:
+        True when warning-level type diagnostics remain blocking.
+    """
+    try:
+        config = tomllib.loads(config_text)
+    except tomllib.TOMLDecodeError:
+        return False
+    terminal = config.get("terminal", {})
+    return terminal.get("error-on-warning") is True
+
+
 def _validate_workflow_dispatch_contract(text: str) -> None:
     """Validate the shared workflow's size and trigger boundaries.
 
@@ -402,17 +424,19 @@ def _validate_python_quality_contracts(text: str) -> None:
     if PYRIGHT_LEGACY_CONFIG.exists():
         msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
         raise SystemExit(msg)
-    try:
-        pyright_config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as error:
-        msg = "pyrightconfig.json must be valid JSON"
-        raise SystemExit(msg) from error
-    if pyright_config.get("typeCheckingMode") != "strict":
-        msg = "pyrightconfig.json must apply strict type checking repository-wide"
+    if PYRIGHT_LEGACY_CONFIG.exists():
+        msg = "duplicate Pyright config must be removed; maintain only pyrightconfig.json"
         raise SystemExit(msg)
-    if pyright_config.get("strict", []):
-        msg = "pyrightconfig.json must not replace global strict mode with a path allowlist"
-        raise SystemExit(msg)
+    coverage_violations = pyright_coverage_contract_violations(
+        PYRIGHT_CONFIG.read_text(encoding="utf-8")
+    )
+    if coverage_violations:
+        raise SystemExit(
+            "Pyright production-module coverage policy is invalid: "
+            + ", ".join(coverage_violations)
+        )
+    if not ty_warnings_are_blocking(TY_CONFIG.read_text(encoding="utf-8")):
+        raise SystemExit("ty.toml must make warning-level diagnostics blocking")
     missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
         raise SystemExit(
