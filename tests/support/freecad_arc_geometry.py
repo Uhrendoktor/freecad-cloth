@@ -24,6 +24,18 @@ class _Point2D(Protocol):
     y: float
 
 
+class _NativeCurve(Protocol):
+    """Native FreeCAD circular curve with a parameter-space point evaluator."""
+
+    def valueAt(self, parameter_value: float) -> _Point2D:
+        """Evaluate the curve at one native parameter."""
+        ...
+
+    def value(self, parameter_value: float) -> _Point2D:
+        """Evaluate the curve through the legacy native parameter API."""
+        ...
+
+
 _AxisPair = tuple[tuple[float, float], tuple[float, float]]
 
 
@@ -54,7 +66,7 @@ class _CircleSweep:
         middle_sweep: Midpoint's angular offset from the selected start.
     """
 
-    circle: object
+    circle: _NativeCurve
     normal_z: float
     start_angle: float
     sweep: float
@@ -105,7 +117,7 @@ def _circle_geometry(start: _Point2D, end: _Point2D, midpoint: _Point2D) -> _Cir
     return _CircleGeometry(center_x, center_y, radius)
 
 
-def _native_curve_value(curve: object, parameter_value: float) -> _Point2D:
+def _native_curve_value(curve: _NativeCurve, parameter_value: float) -> _Point2D:
     """Evaluate a native circle or arc at one parameter.
 
     Args:
@@ -127,7 +139,7 @@ def _native_curve_value(curve: object, parameter_value: float) -> _Point2D:
     return cast("_Point2D", getter(float(parameter_value)))
 
 
-def _circle_axes(circle: object, geometry: _CircleGeometry) -> _AxisPair:
+def _circle_axes(circle: _NativeCurve, geometry: _CircleGeometry) -> _AxisPair:
     """Read unit axes from the native circle's own parameter basis.
 
     Args:
@@ -218,7 +230,7 @@ def arc_through_midpoint(
     start: _Point2D,
     end: _Point2D,
     midpoint: _Point2D,
-) -> object:
+) -> _NativeCurve:
     """Construct the minor native circular arc through three authored points.
 
     Args:
