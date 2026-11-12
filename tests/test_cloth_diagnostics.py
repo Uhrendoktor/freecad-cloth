@@ -4,6 +4,7 @@
 import inspect
 import math
 from pathlib import Path
+
 import pytest
 
 from freecad_cloth.simulation.ClothDiagnostics import (
@@ -108,7 +109,7 @@ def test_unknown_mesh_option_fails_closed() -> None:
             _triangle(),
             _triangle(),
             ((0, 1, 2),),
-            **{"stretch_limt": 0.02},
+            stretch_limt=0.02,
         )
 
 
