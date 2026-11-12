@@ -4,6 +4,7 @@
 from collections.abc import Callable, Iterable
 from colorsys import hsv_to_rgb
 from hashlib import sha512
+from typing import Protocol
 
 from pydantic.dataclasses import dataclass
 
