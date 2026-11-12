@@ -131,10 +131,7 @@ def normalize_joint_rotations(
     """
     values: dict[str, JointRotation] = {}
     for rotation in rotations or ():
-        if isinstance(rotation, JointRotation):
-            item = rotation
-        else:
-            item = JointRotation(**rotation)
+        item = rotation if isinstance(rotation, JointRotation) else JointRotation(**rotation)
         item.validate()
         values[item.bone] = item
     return tuple(values[name] for name in CONTROLLABLE_BONES if name in values)
