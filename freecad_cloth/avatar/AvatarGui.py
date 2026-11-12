@@ -1,4 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+
+from __future__ import annotations
 """FreeCAD task-panel frontend for the parametric Cloth mannequin.
 
 Anthropometric edits are staged in the UI and applied atomically through the
@@ -27,7 +29,7 @@ if TYPE_CHECKING:
 class _WidgetLayout(Protocol):
     """Minimal layout contract needed by the dynamically loaded PySide UI."""
 
-    def addWidget(self, widget: object) -> None:
+    def addWidget(self, widget: _QT_TYPE_QtWidgets.QWidget) -> None:
         """Define the minimal layout protocol used by the measurement panel."""
         ...
 
