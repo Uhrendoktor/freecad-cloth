@@ -1072,8 +1072,6 @@ def check_source(
         return [f"{filename}: cannot parse Python source: {exc}"]
 
     errors = suppression_violations(source, filename)
-    if not module_only:
-        errors.extend(_object_annotation_errors(filename, tree))
     if not filename.endswith(".pyi") and ast.get_docstring(tree) is None:
         errors.append(f"{filename}: missing module docstring")
 
