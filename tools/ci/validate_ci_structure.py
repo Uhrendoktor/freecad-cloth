@@ -94,7 +94,7 @@ PYRIGHT_EXPECTED_EXCLUDE = (
 )
 PYRIGHT_EXPECTED_STRICT = (
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/ClothBackend.py",
+    "freecad_cloth/simulation/cloth_backend.py",
     "freecad_cloth/simulation/ClothSolver.py",
 )
 
