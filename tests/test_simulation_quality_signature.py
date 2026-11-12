@@ -6,8 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from freecad_cloth.shared.SourceSignature import _SignatureValue
+from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
 
 
