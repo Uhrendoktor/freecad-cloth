@@ -787,6 +787,7 @@ def suppression_violations(source: str, filename: str = "<memory>") -> list[str]
         errors.append(f"{filename}: cannot tokenize Python source: {exc}")
     return errors
 
+
 def _label(filename: str, line: int, name: str) -> str:
     """Format a declaration location for documentation diagnostics.
 
