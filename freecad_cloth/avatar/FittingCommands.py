@@ -36,7 +36,7 @@ class _NativePlacement(Protocol):
     Base: _NativeVector
     Rotation: _NativeRotation
 
-    def inverse(self) -> "_NativePlacement":
+    def inverse(self) -> _NativePlacement:
         """Return the inverse placement transform.
 
         Returns:
@@ -78,7 +78,7 @@ class _ArrangementPointRef(Protocol):
         """Validate the point's numeric and semantic fitting contract."""
         ...
 
-    def mirrored(self) -> "_ArrangementPointRef":
+    def mirrored(self) -> _ArrangementPointRef:
         """Return the point reflected across its authored symmetry plane.
 
         Returns:
@@ -91,7 +91,7 @@ class _FittingAnchorTarget(Protocol):
     """Native target fields needed to persist a surface-local arrangement anchor."""
 
     Name: str
-    Document: "_FittingDocument | None"
+    Document: _FittingDocument | None
     Placement: _NativePlacement
 
 
@@ -117,7 +117,7 @@ class _FittingSceneFeature(_NativePropertyAdder, Protocol):
 
     Name: str
     Label: str
-    Document: "_FittingDocument"
+    Document: _FittingDocument
     FittingType: str
     MeasurementData: str
     MeasurementUnit: str
@@ -299,7 +299,7 @@ def _geometry_round(value: float, digits: int = 5) -> float:
         The rounded scalar, with both positive and negative zero represented as 0.0.
     """
     rounded = round(float(value), digits)
-    return 0.0 if not rounded else rounded
+    return rounded if rounded else 0.0
 
 
 def _points_in_local_space(
