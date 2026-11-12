@@ -4,6 +4,7 @@
 from pathlib import Path
 
 import pytest
+
 from freecad_cloth.shared.Collision import surface_from_triangles
 from freecad_cloth.simulation.cloth_backend import (
     ClothSimulationBackend,
