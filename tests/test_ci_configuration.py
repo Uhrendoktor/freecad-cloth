@@ -971,6 +971,7 @@ def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
         message="The ty core gate must remain independently blocking.",
     )
 
+
 def test_ty_warning_diagnostics_remain_blocking() -> None:
     """Keep warning-level ty diagnostics fatal for the curated simulation core."""
     config = TY_CONFIG.read_text(encoding="utf-8")
