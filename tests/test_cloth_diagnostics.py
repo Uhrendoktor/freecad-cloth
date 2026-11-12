@@ -16,6 +16,7 @@ from freecad_cloth.simulation.ClothDiagnostics import (
     summarize,
 )
 
+
 def _triangle(scale: float = 1.0, z: float = 0.0) -> list[tuple[float, float, float]]:
     """Build a right-triangle mesh fixture in the XY plane.
 
