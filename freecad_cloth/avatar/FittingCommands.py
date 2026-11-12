@@ -7,9 +7,18 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Protocol, SupportsFloat, SupportsInt, cast
+from typing import Literal, Protocol, SupportsFloat, SupportsInt, SupportsStr, cast
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
+
+type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
+type CoordinateValue = SupportsFloat | str | bytes
+type NativePoint = _NativeVector | Sequence[CoordinateValue]
+type MeshTopologyInput = tuple[
+    Sequence[NativePoint], Sequence[Sequence[SupportsInt | str | bytes]]
+]
 
 Point3 = tuple[float, float, float]
 Triangle = tuple[int, int, int]
@@ -22,6 +31,88 @@ class _NativeVector(Protocol):
     x: float
     y: float
     z: float
+
+
+class _NativeMatrix(Protocol):
+    """Numeric matrix fields consumed by FreeCAD's native shape transform."""
+
+    A11: float
+    A12: float
+    A13: float
+    A14: float
+    A21: float
+    A22: float
+    A23: float
+    A24: float
+    A31: float
+    A32: float
+    A33: float
+    A34: float
+    A41: float
+    A42: float
+    A43: float
+    A44: float
+
+
+class _NativeShapeVertex(Protocol):
+    """Vertex record exposing its native three-dimensional point."""
+
+    Point: _NativeVector
+
+
+class _NativeShapeEdge(Protocol):
+    """Edge values used when calculating stable local geometry signatures."""
+
+    Length: float
+    CenterOfMass: _NativeVector
+
+
+class _NativeShapeFace(Protocol):
+    """Face values used when calculating stable local geometry signatures."""
+
+    Surface: SupportsStr
+    Area: float
+    CenterOfMass: _NativeVector
+    Edges: Sequence[_NativeShapeEdge]
+
+
+class _NativeShapeSolid(Protocol):
+    """Solid component counted in the normalized shape signature."""
+
+    Volume: float
+
+
+class _NativeBoundBox(Protocol):
+    """Axis-aligned bounds returned by a normalized native FreeCAD shape."""
+
+    XMin: float
+    XMax: float
+    YMin: float
+    YMax: float
+    ZMin: float
+    ZMax: float
+
+
+class _NativeShape(Protocol):
+    """Part shape operations and topology consumed by fitting surface anchors."""
+
+    Vertexes: Sequence[_NativeShapeVertex]
+    Edges: Sequence[_NativeShapeEdge]
+    Faces: Sequence[_NativeShapeFace]
+    Solids: Sequence[_NativeShapeSolid]
+    BoundBox: _NativeBoundBox
+
+    def copy(self) -> _NativeShape:
+        """Return an independent shape suitable for local-space normalization."""
+        ...
+
+    def transformShape(self, matrix: _NativeMatrix) -> None:
+        """Apply the supplied matrix to this shape's geometry."""
+        ...
+
+    def isNull(self) -> bool:
+        """Return whether the shape contains no valid geometric representation."""
+        ...
 
 
 class _NativeRotation(Protocol):
@@ -44,7 +135,11 @@ class _NativePlacement(Protocol):
         """
         ...
 
-    def multVec(self, vector: object) -> _NativeVector:
+    def toMatrix(self) -> _NativeMatrix:
+        """Return the homogeneous matrix for this placement."""
+        ...
+
+    def multVec(self, vector: _NativeVector) -> _NativeVector:
         """Transform a vector through the placement into the target coordinate frame.
 
         Args:
@@ -73,6 +168,11 @@ class _ArrangementPointRef(Protocol):
     offset: float
     wrap_direction: str
     rotation_z: float
+    symmetry_group: str
+
+    def to_string(self) -> str:
+        """Serialize the validated arrangement point for document persistence."""
+        ...
 
     def validate(self) -> None:
         """Validate the point's numeric and semantic fitting contract."""
@@ -87,7 +187,23 @@ class _ArrangementPointRef(Protocol):
         ...
 
 
-class _FittingAnchorTarget(Protocol):
+class _BoundingVolumeRef(Protocol):
+    """Validated bounding-volume fields persisted by the fitting scene."""
+
+    name: str
+    center: Point3
+    size: Point3
+
+    def validate(self) -> None:
+        """Validate the volume's name and positive extents."""
+        ...
+
+    def to_string(self) -> str:
+        """Serialize the bounding volume for document persistence."""
+        ...
+
+
+class _FittingAnchorTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Native target fields needed to persist a surface-local arrangement anchor."""
 
     Name: str
@@ -98,7 +214,9 @@ class _FittingAnchorTarget(Protocol):
 class _NativePropertyAdder(Protocol):
     """Native document-object contract for registering persistent FreeCAD properties."""
 
-    def addProperty(self, property_type: str, name: str, group: str = "") -> object:
+    def addProperty(
+        self, property_type: str, name: str, group: str = ""
+    ) -> FreeCADDocumentObjectProtocol:
         """Register a typed custom property on a host document object.
 
         Args:
@@ -112,7 +230,7 @@ class _NativePropertyAdder(Protocol):
         ...
 
 
-class _FittingSceneFeature(_NativePropertyAdder, Protocol):
+class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
     Name: str
@@ -131,8 +249,22 @@ class _FittingSceneFeature(_NativePropertyAdder, Protocol):
     BoundingVolumeObjects: list[str]
     SymmetryEnabled: bool
     FitStatus: str
-    AvatarProxy: object | None
-    Proxy: object
+    AvatarProxy: FreeCADDocumentObjectProtocol | None
+
+
+class _SimulationSceneResult(FreeCADDocumentObjectProtocol, Protocol):
+    """Simulation feature fields returned by the fitting-to-simulation command."""
+
+    Steps: int
+    ClothPieces: Sequence[_PatternPieceRef]
+
+
+class _FittingTaskPanel(Protocol):
+    """Task-panel action required by the viewport arrangement workflow."""
+
+    def start_anchor_pick(self) -> None:
+        """Arm the native viewport surface-pick action."""
+        ...
 
 
 class _FittingVisualView(Protocol):
@@ -144,14 +276,14 @@ class _FittingVisualView(Protocol):
     LineWidth: float
 
 
-class _FittingVisualFeature(_NativePropertyAdder, Protocol):
+class _FittingVisualFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Native display object contract for generated fitting point/volume markers."""
 
     Name: str
     Label: str
     FittingType: str
     ViewObject: _FittingVisualView
-    Shape: object
+    Shape: _NativeShape
     PointName: str
     WrapDirection: str
     SymmetryGroup: str
@@ -159,17 +291,19 @@ class _FittingVisualFeature(_NativePropertyAdder, Protocol):
     Y: float
     Offset: float
     RotationZ: float
-    AnchorTarget: object | None
+    AnchorTarget: _FittingAnchorTarget | None
     AnchorSubelement: str
-    AnchorLocalPoint: object
+    AnchorLocalPoint: _NativeVector
     AnchorGeometrySignature: str
     AnchorStatus: str
     VolumeName: str
-    Center: object
-    Size: object
+    Center: _NativeVector
+    Size: _NativeVector
 
 
-def _drape_target_source(doc: _FittingDocument | None) -> object | None:
+def _drape_target_source(
+    doc: _FittingDocument | None,
+) -> FreeCADDocumentObjectProtocol | None:
     """Return the source object linked by the document's persistent drape target.
 
     Args:
@@ -201,7 +335,7 @@ def _scene(doc: _FittingDocument | None) -> _FittingSceneFeature | None:
     return cast("_FittingSceneFeature | None", selected)
 
 
-def _safe_name(value: object) -> str:
+def _safe_name(value: str) -> str:
     """Convert an arbitrary label to a stable FreeCAD object-name fragment.
 
     Args:
@@ -213,7 +347,7 @@ def _safe_name(value: object) -> str:
     return "".join(character if character.isalnum() else "_" for character in str(value)) or "Item"
 
 
-def _ensure_anchor_property(scene: object) -> None:
+def _ensure_anchor_property(scene: _FittingSceneFeature) -> None:
     """Ensure a fitting scene exposes its persistent surface-anchor property.
 
     Args:
@@ -227,7 +361,7 @@ def _ensure_anchor_property(scene: object) -> None:
         scene.ArrangementAnchorData = []
 
 
-def _anchor_records(scene: object) -> dict[str, dict[str, object]]:
+def _anchor_records(scene: _FittingSceneFeature) -> dict[str, JsonObject]:
     """Decode persistent anchor records indexed by arrangement-point name.
 
     Args:
@@ -237,23 +371,23 @@ def _anchor_records(scene: object) -> dict[str, dict[str, object]]:
         Valid JSON-object records keyed by their nonempty arrangement-point names.
     """
     _ensure_anchor_property(scene)
-    result: dict[str, dict[str, object]] = {}
+    result: dict[str, JsonObject] = {}
     for value in tuple(getattr(scene, "ArrangementAnchorData", ()) or ()):
         try:
-            decoded: object = json.loads(str(value))
+            decoded = cast("JsonValue", json.loads(str(value)))
             if not isinstance(decoded, dict):
                 continue
             name = str(decoded.get("name", ""))
             if name:
-                result[name] = cast("dict[str, object]", decoded)
+                result[name] = cast("JsonObject", decoded)
         except (AttributeError, TypeError, ValueError):
             continue
     return result
 
 
 def _store_anchor_records(
-    scene: object,
-    records: Mapping[str, Mapping[str, object]],
+    scene: _FittingSceneFeature,
+    records: Mapping[str, JsonObject],
 ) -> None:
     """Persist anchor references in a stable key-sorted JSON representation.
 
@@ -268,7 +402,7 @@ def _store_anchor_records(
     ]
 
 
-def _point_xyz(point: object) -> Point3:
+def _point_xyz(point: NativePoint) -> Point3:
     """Normalize a tuple-like coordinate or FreeCAD vector to an XYZ triple.
 
     Args:
@@ -278,14 +412,11 @@ def _point_xyz(point: object) -> Point3:
         The first three coordinates converted to floats.
     """
     try:
-        values = cast("Sequence[SupportsFloat | str | bytes]", point)
+        values = cast("Sequence[CoordinateValue]", point)
         return cast("Point3", tuple(float(value) for value in values[:3]))
     except (TypeError, ValueError, IndexError):
-        return (
-            float(point.x),
-            float(point.y),
-            float(point.z),
-        )
+        vector = cast("_NativeVector", point)
+        return (float(vector.x), float(vector.y), float(vector.z))
 
 
 def _geometry_round(value: float, digits: int = 5) -> float:
@@ -304,8 +435,8 @@ def _geometry_round(value: float, digits: int = 5) -> float:
 
 def _points_in_local_space(
     points: tuple[Point3, ...],
-    placement: object,
-    vector_factory: Callable[..., object] | None,
+    placement: _NativePlacement,
+    vector_factory: Callable[[float, float, float], _NativeVector] | None,
 ) -> tuple[Point3, ...]:
     """Undo an object's placement for points read from a placed mesh.
 
@@ -326,10 +457,11 @@ def _points_in_local_space(
         if host_module is None:
             msg = "FreeCAD must be loaded when converting placed mesh coordinates"
             raise ImportError(msg)
-        make_vector = cast("Callable[..., object]", host_module.Vector)
-    inverse = cast("Callable[[], object]", placement.inverse)()
-    transform = cast("Callable[[object], object]", inverse.multVec)
-    return tuple(_point_xyz(transform(make_vector(*point))) for point in points)
+        make_vector = cast(
+            "Callable[[float, float, float], _NativeVector]", host_module.Vector
+        )
+    inverse = placement.inverse()
+    return tuple(_point_xyz(inverse.multVec(make_vector(*point))) for point in points)
 
 
 def _validated_mesh_topology(
@@ -359,10 +491,10 @@ def _validated_mesh_topology(
 
 
 def _mesh_topology_from_parts(
-    target: object,
-    vertices: Sequence[object],
-    triangles: Sequence[Sequence[object]],
-    vector_factory: Callable[..., object] | None,
+    target: _FittingAnchorTarget,
+    vertices: Sequence[NativePoint],
+    triangles: Sequence[Sequence[SupportsInt | str | bytes]],
+    vector_factory: Callable[[float, float, float], _NativeVector] | None,
 ) -> MeshTopology:
     """Convert raw FreeCAD topology into validated object-local mesh arrays.
 
@@ -393,9 +525,9 @@ def _mesh_topology_from_parts(
 
 
 def _mesh_topology(
-    target: object,
+    target: _FittingAnchorTarget,
     *,
-    vector_factory: Callable[..., object] | None = None,
+    vector_factory: Callable[[float, float, float], _NativeVector] | None = None,
 ) -> MeshTopology | None:
     """Return validated object-local vertices and triangle indices for a mesh target.
 
@@ -415,7 +547,7 @@ def _mesh_topology(
     if topology is None:
         return None
     try:
-        vertices, triangles = cast("tuple[Sequence[object], Sequence[Sequence[object]]]", topology)
+        vertices, triangles = cast("MeshTopologyInput", topology)
         return _mesh_topology_from_parts(target, vertices, triangles, vector_factory)
     except (TypeError, ValueError, AttributeError) as exc:
         msg = "the selected target has unusable mesh topology"
@@ -423,7 +555,7 @@ def _mesh_topology(
 
 
 def _mesh_target_signature(
-    target: object,
+    target: _FittingAnchorTarget,
     vertices: tuple[Point3, ...],
     triangles: tuple[Triangle, ...],
 ) -> str:
@@ -467,7 +599,10 @@ def _mesh_target_signature(
     return "mesh-topology:" + hashlib.sha256(payload).hexdigest()
 
 
-def _normalized_shape_copy(target: object, shape: object) -> object:
+def _normalized_shape_copy(
+    target: _FittingAnchorTarget,
+    shape: _NativeShape,
+) -> _NativeShape:
     """Copy a BRep and remove object placement before geometry is signed.
 
     Args:
@@ -481,13 +616,12 @@ def _normalized_shape_copy(target: object, shape: object) -> object:
         ValueError: If the copy cannot be normalized or the resulting shape is null.
     """
     try:
-        normalized = cast("Callable[[], object]", shape.copy)()
+        normalized = shape.copy()
         placement = getattr(target, "Placement", None)
         if placement is not None:
-            inverse = cast("Callable[[], object]", placement.inverse)()
-            matrix = cast("Callable[[], object]", inverse.toMatrix)()
-            cast("Callable[[object], object]", normalized.transformShape)(matrix)
-        if bool(cast("Callable[[], object]", normalized.isNull)()):
+            matrix = placement.inverse().toMatrix()
+            normalized.transformShape(matrix)
+        if normalized.isNull():
             msg = "the selected target shape is null"
             raise ValueError(msg)
     except (AttributeError, TypeError, ValueError, RuntimeError) as exc:
@@ -496,7 +630,7 @@ def _normalized_shape_copy(target: object, shape: object) -> object:
     return normalized
 
 
-def _rounded_point(point: object) -> Point3:
+def _rounded_point(point: NativePoint) -> Point3:
     """Round a point to the geometry-signature precision.
 
     Args:
@@ -508,14 +642,27 @@ def _rounded_point(point: object) -> Point3:
     return cast("Point3", tuple(_geometry_round(value) for value in _point_xyz(point)))
 
 
-def _shape_signature_components(
-    shape: object,
-) -> tuple[
-    tuple[Point3, ...],
-    tuple[tuple[float, Point3], ...],
-    tuple[tuple[str, float, Point3, int], ...],
-    tuple[object, ...],
-]:
+type ShapeVertices = tuple[Point3, ...]
+type ShapeEdges = tuple[tuple[float, Point3], ...]
+type ShapeFaces = tuple[tuple[str, float, Point3, int], ...]
+type ShapeSignature = tuple[
+    str,
+    int,
+    int,
+    ShapeVertices,
+    ShapeEdges,
+    ShapeFaces,
+    float,
+    float,
+    float,
+    float,
+    float,
+    float,
+]
+type ShapeSignatureComponents = tuple[ShapeVertices, ShapeEdges, ShapeFaces, ShapeSignature]
+
+
+def _shape_signature_components(shape: _NativeShape) -> ShapeSignatureComponents:
     """Compute sorted vertex, edge, face, and bounding-box signature components.
 
     Args:
@@ -525,7 +672,7 @@ def _shape_signature_components(
         Sorted geometry components and the combined local-shape signature tuple.
     """
     vertices = tuple(
-        sorted(_rounded_point(vertex.Point) for vertex in cast("Sequence[object]", shape.Vertexes))
+        sorted(_rounded_point(vertex.Point) for vertex in shape.Vertexes)
     )
     edges = tuple(
         sorted(
@@ -533,7 +680,7 @@ def _shape_signature_components(
                 _geometry_round(float(edge.Length)),
                 _rounded_point(edge.CenterOfMass),
             )
-            for edge in cast("Sequence[object]", shape.Edges)
+            for edge in shape.Edges
         )
     )
     faces = tuple(
@@ -542,15 +689,15 @@ def _shape_signature_components(
                 type(face.Surface).__name__,
                 _geometry_round(float(face.Area)),
                 _rounded_point(face.CenterOfMass),
-                len(tuple(cast("Sequence[object]", face.Edges))),
+                len(tuple(face.Edges)),
             )
-            for face in cast("Sequence[object]", shape.Faces)
+            for face in shape.Faces
         )
     )
     box = shape.BoundBox
     signature = (
         "ShapeLocal",
-        len(tuple(cast("Sequence[object]", shape.Solids))),
+        len(tuple(shape.Solids)),
         len(vertices),
         vertices,
         edges,
@@ -565,7 +712,10 @@ def _shape_signature_components(
     return vertices, edges, faces, signature
 
 
-def _shape_geometry_signature(target: object, shape: object) -> str:
+def _shape_geometry_signature(
+    target: _FittingAnchorTarget,
+    shape: _NativeShape,
+) -> str:
     """Create a local-geometry signature for a supported non-mesh target.
 
     Args:
@@ -590,7 +740,7 @@ def _shape_geometry_signature(target: object, shape: object) -> str:
     return repr(("shape-geometry", signature))
 
 
-def _target_signature(target: object) -> str:
+def _target_signature(target: _FittingAnchorTarget) -> str:
     """Sign local geometry/topology, deliberately excluding object placement and vertices.
 
     Mesh anchors use stable triangle connectivity plus barycentric coordinates. This lets a
@@ -890,10 +1040,10 @@ def _weighted_triangle_point(
 
 
 def _mesh_anchor_local_position(
-    target: object,
-    anchor: Mapping[str, object],
+    target: _FittingAnchorTarget,
+    anchor: JsonObject,
     *,
-    vector_factory: Callable[..., object] | None = None,
+    vector_factory: Callable[[float, float, float], _NativeVector] | None = None,
 ) -> Point3:
     """Resolve a mesh anchor against current vertices, preserving its material location.
 
@@ -911,7 +1061,7 @@ def _mesh_anchor_local_position(
     topology = _mesh_topology(target, vector_factory=vector_factory)
     if topology is None or "triangle_index" not in anchor or "barycentric" not in anchor:
         values = cast(
-            "Iterable[SupportsFloat | str | bytes]",
+            "Iterable[CoordinateValue]",
             anchor.get("local_point", (0.0, 0.0, 0.0)),
         )
         return cast("Point3", tuple(float(value) for value in values))
@@ -922,7 +1072,7 @@ def _mesh_anchor_local_position(
         raise ValueError(msg)
     weights = tuple(
         float(value)
-        for value in cast("Iterable[SupportsFloat | str | bytes]", anchor["barycentric"])
+        for value in cast("Iterable[CoordinateValue]", anchor["barycentric"])
     )
     if len(weights) != 3 or abs(sum(weights) - 1.0) > 1e-5:
         msg = "stored mesh-anchor barycentric coordinates are invalid"
@@ -931,10 +1081,10 @@ def _mesh_anchor_local_position(
 
 
 def _mesh_anchor_coordinates(
-    target: object,
+    target: _FittingAnchorTarget,
     local_point: Point3,
     *,
-    vector_factory: Callable[..., object] | None = None,
+    vector_factory: Callable[[float, float, float], _NativeVector] | None = None,
 ) -> tuple[int, Point3, Point3] | None:
     """Find the closest mesh triangle and retain its barycentric hit coordinate.
 
@@ -972,8 +1122,8 @@ def _mesh_anchor_coordinates(
 
 def _anchor_record_status(
     scene: _FittingSceneFeature | None,
-    target: object | None,
-    anchor: Mapping[str, object],
+    target: _FittingAnchorTarget | None,
+    anchor: JsonObject,
     document: _FittingDocument | None = None,
 ) -> str:
     """Classify whether a saved surface anchor can still be used.
@@ -1007,7 +1157,10 @@ def _anchor_record_status(
         return "invalid"
 
 
-def _anchor_world_position(target: object, anchor: Mapping[str, object]) -> Point3:
+def _anchor_world_position(
+    target: _FittingAnchorTarget,
+    anchor: JsonObject,
+) -> Point3:
     """Resolve a persistent local or mesh anchor into world coordinates.
 
     Args:
@@ -1117,7 +1270,7 @@ def _refresh_anchor_positions(
     return tuple(name for name, _point in changed)
 
 
-def arrangement_anchor_status(point: object) -> str:
+def arrangement_anchor_status(point: _FittingVisualFeature) -> str:
     """Report whether a snap point's persisted surface reference is still current.
 
     Args:
@@ -1141,15 +1294,15 @@ _FITTING_MARKER_GROUP_NAME = "ClothFittingMarkers"
 _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 
 
-class _FittingMarkerGroup(Protocol):
+class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
     """Small structural interface for the FreeCAD presentation group."""
 
     TypeId: str
     Label: str
     Name: str
-    Group: Sequence[object]
+    Group: Sequence[FreeCADDocumentObjectProtocol]
 
-    def addObject(self, obj: object) -> None:
+    def addObject(self, obj: FreeCADDocumentObjectProtocol) -> None:
         """Add a generated marker to the document's presentation group.
 
         Args:
@@ -1162,9 +1315,9 @@ class _FittingDocument(Protocol):
     """Document API used to organize generated marker features."""
 
     Name: str
-    Objects: Sequence[object]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
-    def getObject(self, name: str) -> object | None:
+    def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return the named native object, or None when it is not in the document.
 
         Args:
@@ -1175,7 +1328,9 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def addObject(self, type_id: str, name: str) -> object:
+    def addObject(
+        self, type_id: str, name: str
+    ) -> FreeCADDocumentObjectProtocol:
         """Create a native document object with the supplied type and internal name.
 
         Args:
@@ -1200,7 +1355,10 @@ class _FittingDocument(Protocol):
         ...
 
 
-def refresh_avatar_anchor_positions(document: object, avatar: object) -> tuple[str, ...]:
+def refresh_avatar_anchor_positions(
+    document: _FittingDocument,
+    avatar: FreeCADDocumentObjectProtocol,
+) -> tuple[str, ...]:
     """Refresh fitting anchors when the persistent drape target belongs to an avatar.
 
     Args:
@@ -1493,7 +1651,9 @@ def set_body_measurements(
     return scene
 
 
-def assign_avatar_source(source: object | None = None) -> object:
+def assign_avatar_source(
+    source: FreeCADDocumentObjectProtocol | None = None,
+) -> _FittingSceneFeature:
     """Assign a selected body or mannequin as the fitting scene's avatar source.
 
     Args:
@@ -1608,7 +1768,7 @@ def position_piece(
     y: float,
     z: float = 0.0,
     rotation_z: float = 0.0,
-) -> object:
+) -> _PatternPieceRef:
     """Place a Cloth PatternPiece and update its persistent home/current placement record.
 
     Args:
@@ -1658,7 +1818,7 @@ def create_arrangement_point(
     rotation_z: float = 0.0,
     symmetry_group: str = "",
     mirror: bool = False,
-) -> object:
+) -> _ArrangementPointRef:
     """Create an arrangement point and optionally create its symmetric mate.
 
     Args:
@@ -1719,7 +1879,7 @@ def set_arrangement_point(
     wrap_direction: str | None = None,
     rotation_z: float | None = None,
     symmetry_group: str | None = None,
-) -> object:
+) -> _ArrangementPointRef:
     """Update selected fields of an existing arrangement point and invalidate its anchor.
 
     Args:
@@ -1812,7 +1972,7 @@ def create_bounding_volume(
     name: str,
     center: Sequence[float] = (0.0, 0.0, 0.0),
     size: Sequence[float] = (100.0, 100.0, 100.0),
-) -> object:
+) -> _BoundingVolumeRef:
     """Create and persist a validated bounding volume for garment arrangement.
 
     Args:
@@ -1993,7 +2153,7 @@ def reset_arrangement() -> _FittingSceneFeature:
     return scene
 
 
-def create_simulation_from_fitting() -> object:
+def create_simulation_from_fitting() -> _SimulationSceneResult:
     """Create the canonical quality simulation from the current fitting scene.
 
     Returns:
@@ -2030,7 +2190,7 @@ def create_simulation_from_fitting() -> object:
 
 def open_interactive_arrange(
     scene: _FittingSceneFeature | None = None,
-) -> object:
+) -> _FittingTaskPanel:
     """Open the direct-manipulation fitting panel for the active fitting scene.
 
     Args:
@@ -2058,7 +2218,7 @@ def open_interactive_arrange(
     return panel
 
 
-def create_arrangement_point_from_viewport() -> object:
+def create_arrangement_point_from_viewport() -> _FittingTaskPanel:
     """Open Interactive Arrange and arm the viewport surface-pick workflow.
 
     Returns:
@@ -2072,11 +2232,11 @@ def create_arrangement_point_from_viewport() -> object:
 def create_arrangement_anchor(
     name: str,
     target: _FittingAnchorTarget | None,
-    world_point: object,
+    world_point: NativePoint,
     subelement: str = "Face",
     wrap_direction: str = "front",
     rotation_z: float = 0.0,
-) -> object:
+) -> _ArrangementPointRef:
     """Create a named snap point from a pick on persistent target geometry.
 
     The saved target-local position and geometry signature allow the anchor to follow
@@ -2130,7 +2290,7 @@ def create_arrangement_anchor(
 
     local_vector = cast("_NativeVector", local)
     local_coords = (float(local_vector.x), float(local_vector.y), float(local_vector.z))
-    anchor = {
+    anchor: JsonObject = {
         "name": str(name),
         "target": str(target.Name),
         "subelement": str(subelement),
@@ -2222,7 +2382,7 @@ _COMMAND_HANDLERS = {
 }
 
 
-def _apply_selected_arrangement() -> object:
+def _apply_selected_arrangement() -> _PatternPieceRef:
     """Apply the selected arrangement point to the selected pattern piece.
 
     Returns:
