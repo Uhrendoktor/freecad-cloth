@@ -31,6 +31,7 @@ else:
         except ImportError:
             _QtWidgets = None
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.UiDesign import apply_panel_style as _apply_panel_style
 from freecad_cloth.common.UiDesign import mark_button as _mark_button
 from freecad_cloth.common.UiDesign import set_status as _set_status_label
@@ -47,8 +48,8 @@ if TYPE_CHECKING:
 class _FreeCADDocument(Protocol):
     """Document operations and object inventory used by the task panel."""
 
-    Objects: Sequence[object]
-    getObject: Callable[[str], object | None]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    getObject: Callable[[str], FreeCADDocumentObjectProtocol | None]
     recompute: Callable[[], None]
 
 
@@ -58,38 +59,91 @@ class _FreeCADApplication(Protocol):
     ActiveDocument: _FreeCADDocument | None
 
 
+class _TaskPanelDialog(Protocol):
+    """Truth-testable task-panel dialog returned by FreeCAD's control API."""
+
+    def __bool__(self) -> bool:
+        """Return whether a task-panel dialog is currently active."""
+        ...
+
+
 class _FreeCADControl(Protocol):
     """Native task-panel callbacks used by the FreeCAD GUI controller."""
 
-    activeDialog: Callable[[], object | None]
+    activeDialog: Callable[[], _TaskPanelDialog | None]
     closeDialog: Callable[[], None]
-    showDialog: Callable[[object], None]
+    showDialog: Callable[[DrapeTargetTaskPanel], None]
+
+
+class _GuiDocument(Protocol):
+    """Truth-testable active GUI document handle returned by FreeCADGui."""
+
+    def __bool__(self) -> bool:
+        """Return whether a GUI document is currently active."""
+        ...
 
 
 class _FreeCADGui(Protocol):
     """FreeCAD GUI operations used by the target task panel."""
 
     Control: _FreeCADControl
-    activeDocument: Callable[[], object | None]
+    activeDocument: Callable[[], _GuiDocument | None]
+
+
+class _PanelWidget(Protocol):
+    """Qt widget operations shared by the task-panel's group and status controls."""
+
+    def setProperty(self, name: str, value: str) -> None:
+        """Set a semantic style property consumed by the panel stylesheet."""
+        ...
+
+    def setObjectName(self, name: str) -> None:
+        """Assign a stable object name for host integration and tests."""
+        ...
+
+    def setToolTip(self, text: str) -> None:
+        """Set the explanatory tooltip shown by the control."""
+        ...
+
+    def setWordWrap(self, enabled: bool) -> None:
+        """Control whether the status label wraps long messages."""
+        ...
+
+    def setEnabled(self, enabled: bool) -> None:
+        """Enable or disable user interaction with the widget."""
+        ...
 
 
 class _WidgetLayout(Protocol):
     """Layout operations required to assemble the target panel."""
 
-    addWidget: Callable[[object], None]
-    addLayout: Callable[[object], None]
+    def addWidget(self, widget: _PanelWidget) -> None:
+        """Add one widget to the current layout."""
+        ...
+
+    def addLayout(self, layout: _WidgetLayout) -> None:
+        """Add a nested layout to the current layout."""
+        ...
 
 
-class _DrapeTargetFeature(Protocol):
+class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persisted target properties staged and updated by the editor."""
 
     TargetType: str
-    SourceObject: object | None
+    SourceObject: FreeCADDocumentObjectProtocol | None
     CollisionDeflection: float
     CollisionThickness: float
     Enabled: bool
     TargetStatus: str
     InvalidationReason: str
+    addProperty: Callable[[str, str, str], FreeCADDocumentObjectProtocol]
+
+
+type _AssignDrapeTarget = Callable[
+    [_DrapeTargetFeature, FreeCADDocumentObjectProtocol, str],
+    _DrapeTargetFeature,
+]
+type _QtSignalValue = str | float | bool
 
 
 def _modules() -> tuple[_FreeCADApplication, _FreeCADGui, ModuleType]:
@@ -116,8 +170,8 @@ class DrapeTargetTaskPanel:
 
     App: _FreeCADApplication
     Gui: _FreeCADGui
-    doc: object | None
-    target: object | None
+    doc: _FreeCADDocument | None
+    target: _DrapeTargetFeature | None
 
     PRESETS: ClassVar[tuple[tuple[str, float], ...]] = (
         ("Preview", 2.5),
@@ -125,7 +179,7 @@ class DrapeTargetTaskPanel:
         ("Final", 0.35),
     )
 
-    def __init__(self, target: object | None = None) -> None:
+    def __init__(self, target: _DrapeTargetFeature | None = None) -> None:
         """Build the staged collision-target editor.
 
         Args:
@@ -151,7 +205,7 @@ class DrapeTargetTaskPanel:
         self._connect_callbacks()
         _apply_panel_style(self.form)
 
-    def _build_source_group(self, qt_widgets: ModuleType) -> object:
+    def _build_source_group(self, qt_widgets: ModuleType) -> _PanelWidget:
         """Create the source-provider selector group.
 
         Args:
@@ -165,13 +219,13 @@ class DrapeTargetTaskPanel:
         self.target_type = qt_widgets.QComboBox()
         self.target_type.addItems(("Mannequin", "FreeCAD Geometry"))
         self.source = qt_widgets.QComboBox()
-        self._source_objects: list[object] = []
+        self._source_objects: list[FreeCADDocumentObjectProtocol] = []
         self._populate_sources()
         layout.addRow("Provider", self.target_type)
         layout.addRow("Source", self.source)
         return group
 
-    def _build_quality_group(self, qt_widgets: ModuleType) -> object:
+    def _build_quality_group(self, qt_widgets: ModuleType) -> _PanelWidget:
         """Create the staged collision-quality controls.
 
         Args:
@@ -197,7 +251,7 @@ class DrapeTargetTaskPanel:
         layout.addRow("Collision thickness", self.thickness)
         return group
 
-    def _build_state_group(self, qt_widgets: ModuleType) -> object:
+    def _build_state_group(self, qt_widgets: ModuleType) -> _PanelWidget:
         """Create the target enabled-state checkbox.
 
         Args:
@@ -258,7 +312,7 @@ class DrapeTargetTaskPanel:
         """
         _set_status_label(self.status, text, state=state)
 
-    def _find_target(self) -> object | None:
+    def _find_target(self) -> _DrapeTargetFeature | None:
         """Find the existing persistent target in the active document.
 
         Returns:
@@ -350,7 +404,7 @@ class DrapeTargetTaskPanel:
                 break
         self._preview_status()
 
-    def _preview_status(self, *_args: object) -> None:
+    def _preview_status(self, *_args: _QtSignalValue) -> None:
         """Explain that target changes remain staged until explicit acceptance.
 
         Args:
@@ -381,7 +435,7 @@ class DrapeTargetTaskPanel:
             else "info",
         )
 
-    def _selected_source(self) -> object | None:
+    def _selected_source(self) -> FreeCADDocumentObjectProtocol | None:
         """Return the currently selected collision source.
 
         Returns:
@@ -392,7 +446,7 @@ class DrapeTargetTaskPanel:
             return None
         return self._source_objects[index]
 
-    def _apply(self, *, assign_target: Callable[..., object] | None = None) -> bool:
+    def _apply(self, *, assign_target: _AssignDrapeTarget | None = None) -> bool:
         """Commit staged target settings and rebuild the collision representation.
 
         Args:
@@ -443,16 +497,16 @@ class DrapeTargetTaskPanel:
         return True
 
     @staticmethod
-    def _standard_buttons() -> object:
+    def _standard_buttons() -> int:
         """Return the native OK and Cancel button flags for the task panel.
 
         Returns:
             The combined Qt button flags used to accept or cancel editing.
         """
         _app_module, _gui_module, qt_widgets = _modules()
-        return qt_widgets.QDialogButtonBox.Ok | qt_widgets.QDialogButtonBox.Cancel
+        return int(qt_widgets.QDialogButtonBox.Ok | qt_widgets.QDialogButtonBox.Cancel)
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Callable[[], int]:
         """Expose native FreeCAD callback spelling for the task-panel button API.
 
         Args:
@@ -469,7 +523,7 @@ class DrapeTargetTaskPanel:
         raise AttributeError(name)
 
 
-def show_drape_target_task(target: object | None = None) -> DrapeTargetTaskPanel:
+def show_drape_target_task(target: _DrapeTargetFeature | None = None) -> DrapeTargetTaskPanel:
     """Open the native FreeCAD task panel for a DrapeTarget.
 
     Args:
