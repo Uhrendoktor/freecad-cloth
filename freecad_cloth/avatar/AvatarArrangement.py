@@ -9,10 +9,18 @@ anchor foundation needed by later CLO-like garment placement interactions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Iterable
+from typing import Protocol
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
+
+class _StringConvertible(Protocol):
+    """Record values whose string representation carries serialized metadata."""
+
+    def __str__(self) -> str:
+        """Return the serialized representation of the record."""
+
+ARRANGEMENT_POINT_RECORD_FIELD_COUNT = 5
+ARRANGEMENT_POINT_COORDINATE_COMPONENT_COUNT = 3
 
 ARRANGEMENT_POINT_NAMES = (
     "neck",
@@ -26,7 +34,7 @@ ARRANGEMENT_POINT_NAMES = (
 )
 
 
-def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> list[str]:
+def arrangement_points_from_landmarks(landmarks: Iterable[_StringConvertible] | None) -> list[str]:
     """Normalize landmark records into the stable public arrangement-point order.
 
     Args:
@@ -35,7 +43,7 @@ def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> lis
     Returns:
         Known landmarks serialized in the current five-field arrangement-point format.
     """
-    by_name = {}
+    by_name: dict[str, str] = {}
     for record in landmarks or ():
         try:
             name, coords = str(record).split("|", 1)
@@ -46,7 +54,7 @@ def arrangement_points_from_landmarks(landmarks: Iterable[object] | None) -> lis
     return [by_name[name] for name in ARRANGEMENT_POINT_NAMES if name in by_name]
 
 
-def arrangement_point_map(records: Iterable[object] | None) -> dict[str, str]:
+def arrangement_point_map(records: Iterable[_StringConvertible] | None) -> dict[str, str]:
     """Return current-format arrangement coordinates indexed by point name.
 
     Args:
@@ -55,10 +63,10 @@ def arrangement_point_map(records: Iterable[object] | None) -> dict[str, str]:
     Returns:
         Mapping from known arrangement-point names to their coordinate strings.
     """
-    result = {}
+    result: dict[str, str] = {}
     for record in records or ():
         parts = str(record).split("|")
-        if len(parts) != 5:
+        if len(parts) != ARRANGEMENT_POINT_RECORD_FIELD_COUNT:
             continue
         name, coordinates, wrap_direction, rotation, symmetry_group = parts
         if (
@@ -72,6 +80,6 @@ def arrangement_point_map(records: Iterable[object] | None) -> dict[str, str]:
             float(rotation)
         except ValueError:
             continue
-        if len(values) == 3:
+        if len(values) == ARRANGEMENT_POINT_COORDINATE_COMPONENT_COUNT:
             result[name] = coordinates
     return result
