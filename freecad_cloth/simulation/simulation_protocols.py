@@ -55,7 +55,11 @@ class SimulationProxyProtocol(Protocol):
     """Lifecycle methods available on the simulation feature proxy."""
 
     def execute(self, obj: SimulationScene) -> None:
-        """Recompute the persisted simulation state."""
+        """Recompute the persisted simulation state.
+
+        Args:
+            obj: Persisted simulation scene whose inputs and derived state are recomputed.
+        """
         ...
 
     def reset(self, obj: SimulationScene) -> None:
