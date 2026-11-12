@@ -117,7 +117,18 @@ def _validate_properties(scene: _QualityScene) -> None:
 
 
 def apply_quality_preset(scene, name=None):
-    """Apply a named quality preset and return its normalized profile."""
+    """Apply a named quality preset and return its normalized profile.
+
+    Args:
+        scene: Persistent FreeCAD simulation feature receiving the profile values.
+        name: Optional preset name; the scene's stored selection is used by default.
+
+    Returns:
+        The selected immutable profile after its persisted values have been updated.
+
+    Raises:
+        ValueError: If the requested preset name is not supported.
+    """
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
     scene.QualityPreset = quality.name
@@ -131,7 +142,19 @@ def apply_quality_preset(scene, name=None):
 
 
 def quality_discretization(point_count, perimeter, particle_distance):
-    """Return the sample count required by the requested particle spacing."""
+    """Return the sample count required by the requested particle spacing.
+
+    Args:
+        point_count: Minimum sample count required by the authored boundary.
+        perimeter: Total boundary length in model units.
+        particle_distance: Requested maximum particle spacing in model units.
+
+    Returns:
+        An integer sample count no smaller than the supplied boundary minimum.
+
+    Raises:
+        ValueError: If the boundary minimum contains fewer than three points.
+    """
     if int(point_count) < 3:
         msg = "point_count must be at least three"
         raise ValueError(msg)
