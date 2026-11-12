@@ -199,7 +199,7 @@ class _Seam:
     Name: str = SEAM_ID
     Label: str = SEAM_ID
     TypeId: str = "App::FeaturePython"
-    PropertiesList: list[str] = []
+    PropertiesList: ClassVar[list[str]] = []
     SeamId: str
     PieceA: str
     PieceB: str
