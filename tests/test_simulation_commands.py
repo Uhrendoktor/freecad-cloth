@@ -3,6 +3,7 @@
 
 import importlib
 import sys
+from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 from typing import TypedDict, cast
 
@@ -99,7 +100,12 @@ def _install_freecad_scene(
 
 def _register_workbench_commands(
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[ModuleType, SimpleNamespace, list[str | tuple[str, SimulationScene]], dict[str, FunctionCommand]]:
+ ) -> tuple[
+    ModuleType,
+    SimpleNamespace,
+    list[str | tuple[str, SimulationScene]],
+    dict[str, FunctionCommand],
+]:
     """Capture command objects registered through the public FreeCAD GUI boundary.
 
     Args:
@@ -347,7 +353,7 @@ def test_registered_simulation_command_is_inactive_without_an_active_scene(
     command = registered["ClothSimulation_Run"]
     is_active = cast(
         "Callable[[], bool]",
-        getattr(command, _FREECAD_IS_ACTIVE_METHOD),
+        getattr(command, "IsActive"),
     )
     require(
         condition=not is_active(),
