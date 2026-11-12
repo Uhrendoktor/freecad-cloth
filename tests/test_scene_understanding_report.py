@@ -56,10 +56,7 @@ def _expect_list(value: object, *, message: str) -> list[object]:
     """
     if not isinstance(value, list):
         raise AssertionError(message)
-    normalized: list[object] = []
-    for item in value:
-        normalized.append(item)
-    return normalized
+    return list(value)
 
 
 def test_float_value_accepts_integer_and_float_literals() -> None:
