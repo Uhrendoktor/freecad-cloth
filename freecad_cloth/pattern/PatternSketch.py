@@ -131,7 +131,20 @@ def create_sketch_for_piece(
     document=None,
     geometry_segments: Sequence[tuple[str, Sequence[tuple[float, float]]]] | None = None,
 ):
-    """Create or return the native Sketcher representation for ``piece``."""
+    """Create or update the native Sketcher representation for one pattern piece.
+
+    Args:
+        piece: Semantic pattern value supplying the boundary and stable piece identity.
+        document: Optional owning FreeCAD document; the active document is the default.
+        geometry_segments: Optional connected line/B-spline boundary definitions.
+
+    Returns:
+        Native Sketcher object linked to the semantic pattern-piece document object.
+
+    Raises:
+        RuntimeError: If FreeCAD is unavailable or no sketch document can be created.
+        ValueError: If the source piece or supplied native geometry is invalid.
+    """
     try:
         import FreeCAD as App
     except ImportError as exc:
@@ -204,7 +217,18 @@ def _attach(sketch, piece, document):
 
 
 def sync_sketch_from_piece(sketch, piece):
-    """Replace sketch geometry from a PatternPiece for migration/repair only."""
+    """Replace sketch geometry from a PatternPiece for migration or repair only.
+
+    Args:
+        sketch: Native Sketcher object whose existing geometry is replaced.
+        piece: Validated semantic pattern piece that owns the replacement boundary.
+
+    Returns:
+        The same Sketcher object after its geometry and semantic edge IDs are refreshed.
+
+    Raises:
+        ValueError: If the sketch belongs to a different pattern piece.
+    """
     piece.validate()
     if getattr(sketch, "PatternPieceId", None) != piece.id:
         msg = "sketch does not belong to pattern piece"
