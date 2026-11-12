@@ -6,21 +6,19 @@ Document adapters and simulation providers share one typed mesh and landmark
 contract without depending on Part or OpenCascade.
 """
 
-from typing import TypeGuard
-
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark, Pose, generate_mesh
 
 
-def _is_avatar_parameters[T](value: T) -> TypeGuard[AvatarParameters]:
-    """Determine whether a dynamically supplied value is an avatar parameter state.
+def _validate_avatar_parameters[T](value: T) -> tuple[bool, T]:
+    """Validate a runtime avatar parameter candidate without widening its type.
 
     Args:
         value: Runtime value checked at the service construction boundary.
 
     Returns:
-        Whether the value is an instance of the canonical avatar parameter model.
+        A validity flag paired with the original value and its inferred type.
     """
-    return isinstance(value, AvatarParameters)
+    return isinstance(value, AvatarParameters), value
 
 
 Point3 = tuple[float, float, float]
@@ -41,9 +39,11 @@ class AvatarService:
             TypeError: If parameters is not an AvatarParameters instance.
         """
         self._parameters = parameters if parameters is not None else AvatarParameters()
-        if not _is_avatar_parameters(self._parameters):
+        is_valid, parameters_value = _validate_avatar_parameters(self._parameters)
+        if not is_valid:
             msg = "AvatarService requires AvatarParameters"
             raise TypeError(msg)
+        self._parameters = parameters_value
 
     def parameters(self) -> AvatarParameters:
         """Return the authoritative parameter state.
