@@ -17,7 +17,7 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 POINT_COORDINATE_COUNT = 3
 
-type _SignatureValue = str | int | float | bool | None | tuple["_SignatureValue", ...]
+type _SignatureValue = str | int | float | bool | tuple["_SignatureValue", ...] | None
 TESSELLATION_COMPONENT_COUNT = 2
 
 
@@ -192,7 +192,9 @@ def _shape_content_signature(
     exporter = getattr(shape, "exportBrepToString", None)
     if callable(exporter):
         try:
-            return _brep_signature(cast("Callable[[], str | bytes | bytearray | memoryview]", exporter))
+            return _brep_signature(
+                cast("Callable[[], str | bytes | bytearray | memoryview]", exporter)
+            )
         except (TypeError, ValueError, AttributeError, RuntimeError):
             pass
 
