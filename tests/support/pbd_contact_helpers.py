@@ -16,8 +16,8 @@ from numbers import Real
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
