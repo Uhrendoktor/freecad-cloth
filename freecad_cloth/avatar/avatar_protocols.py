@@ -36,7 +36,31 @@ class AvatarParametersProtocol(Protocol):
         ...
 
 
+class AvatarTaskPanelFormProtocol(Protocol):
+    """Visible-widget operations exposed by a FreeCAD avatar task-panel form."""
+
+    def isVisible(self) -> bool:
+        """Return whether the task panel form is currently visible."""
+        ...
+
+    def show(self) -> None:
+        """Show the task panel form."""
+        ...
+
+    def setVisible(self, visible: bool) -> None:
+        """Set the task panel form's visibility.
+
+        Args:
+            visible: True to show the form, or False to hide it.
+        """
+        ...
+
+    def raise_(self) -> None:
+        """Raise the task panel form above peer windows."""
+        ...
+
+
 class AvatarTaskPanelProtocol(Protocol):
     """Minimal handle for a FreeCAD avatar task panel."""
 
-    form: object
+    form: AvatarTaskPanelFormProtocol
