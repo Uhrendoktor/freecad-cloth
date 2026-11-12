@@ -786,6 +786,267 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
     return errors
 
 
+
+_SUPPRESSION_COMMENT = re.compile(
+    r"\b(?:noqa\b|ruff\s*:\s*(?:ignore| noqa)\b|type\s*:\s*ignore\b|"
+    r"pyright\s*:\s*ignore\b|mypy\s*:\s*ignore\b|ty\s*:\s*ignore\b|"
+    r"pylint\s*:\s*disable\b)",
+    re.IGNORECASE,
+)
+
+
+def suppression_violations(source: str, filename: str = "<memory>") -> list[str]:
+    """Reject inline comments that disable lint or static-type diagnostics.
+
+    Args:
+        source: Complete Python source text.
+        filename: Source label included in the diagnostic.
+
+    Returns:
+        A diagnostic for each suppression comment, ignoring ordinary string literals.
+    """
+    errors: list[str] = []
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type == tokenize.COMMENT and _SUPPRESSION_COMMENT.search(token.string):
+                errors.append(
+                    f"{filename}:{token.start[0]}: inline lint/type suppression comments are prohibited"
+                )
+    except (IndentationError, tokenize.TokenError) as exc:
+        errors.append(f"{filename}: cannot tokenize Python source: {exc}")
+    return errors
+
+
+def _label(filename: str, line: int, name: str) -> str:
+    """Format a declaration location for documentation diagnostics.
+
+    Args:
+        filename: Source file name shown to the developer.
+        line: One-based declaration line.
+        name: Declared class or function name.
+
+    Returns:
+        Stable path, line, and symbol label.
+    """
+    return f"{filename}:{line}: {name}"
+
+
+def _summary_errors(label: str, name: str, docstring: str) -> list[str]:
+    """Require a descriptive summary instead of a name-only or placeholder phrase.
+
+    Args:
+        label: Declaration location used in emitted diagnostics.
+        name: Declared symbol name.
+        docstring: Cleaned declaration docstring.
+
+    Returns:
+        Summary diagnostics, or an empty list for useful prose.
+    """
+    lines = docstring.strip().splitlines()
+    if not lines or not lines[0].strip():
+        return [f"{label}: missing descriptive summary"]
+    summary = lines[0].strip()
+    words = DESCRIPTION_WORD.findall(summary)
+    normalized = summary.rstrip(".:").strip().casefold()
+    if (
+        len(words) < MIN_DESCRIPTION_WORDS
+        or PLACEHOLDER.search(summary)
+        or normalized in {name.casefold(), f"{name}()".casefold()}
+    ):
+        return [f"{label}: non-descriptive summary"]
+    return []
+
+
+def _docstring_sections(docstring: str) -> dict[str, list[str]]:
+    """Split a cleaned Google-style docstring into its named sections.
+
+    Args:
+        docstring: Cleaned docstring text.
+
+    Returns:
+        Section body lines keyed by the original section header.
+    """
+    sections: dict[str, list[str]] = {}
+    active: str | None = None
+    for line in docstring.splitlines()[1:]:
+        match = SECTION_HEADER.fullmatch(line.strip())
+        if match is not None:
+            active = match.group(1)
+            sections.setdefault(active, [])
+        elif active is not None:
+            sections[active].append(line)
+    return sections
+
+
+def _parameter_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[str, ...]:
+    """Return documented parameters, excluding the implicit instance receiver.
+
+    Args:
+        node: Function or method declaration being checked.
+
+    Returns:
+        Positional, keyword-only, variadic, and keyword-variadic parameter names.
+    """
+    positional = [*node.args.posonlyargs, *node.args.args]
+    if positional and positional[0].arg in {"self", "cls"}:
+        positional = positional[1:]
+    names = [argument.arg for argument in positional]
+    if node.args.vararg is not None:
+        names.append(f"*{node.args.vararg.arg}")
+    names.extend(argument.arg for argument in node.args.kwonlyargs)
+    if node.args.kwarg is not None:
+        names.append(f"**{node.args.kwarg.arg}")
+    return tuple(names)
+
+
+def _exception_name(expression: ast.expr) -> str | None:
+    """Resolve the named exception class in a raise expression.
+
+    Args:
+        expression: Exception instance or constructor expression.
+
+    Returns:
+        Exception class name, or None for a dynamic expression.
+    """
+    target = expression.func if isinstance(expression, ast.Call) else expression
+    if isinstance(target, ast.Name):
+        return target.id
+    if isinstance(target, ast.Attribute):
+        return target.attr
+    return None
+
+
+def _raised_exception_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[str, ...]:
+    """Collect exception classes directly raised in a function body.
+
+    Args:
+        node: Function or async function to inspect.
+
+    Returns:
+        Sorted unique names of statically identifiable raised exception classes.
+    """
+    names: set[str] = set()
+    pending = list(node.body)
+    while pending:
+        current = pending.pop()
+        if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+            continue
+        if isinstance(current, ast.Raise) and current.exc is not None:
+            name = _exception_name(current.exc)
+            if name is not None:
+                names.add(name)
+        pending.extend(ast.iter_child_nodes(current))
+    return tuple(sorted(names))
+
+
+def _section_description(lines: list[str]) -> str:
+    """Combine non-empty prose lines from one documentation section.
+
+    Args:
+        lines: Raw lines belonging to a Google-style section.
+
+    Returns:
+        Flattened description text for validation.
+    """
+    return " ".join(line.strip() for line in lines if line.strip())
+
+
+def _is_descriptive(description: str) -> bool:
+    """Reject names, placeholders, and overly short descriptions.
+
+    Args:
+        description: Candidate prose entry.
+
+    Returns:
+        True when the entry contains multiple descriptive words.
+    """
+    return (
+        len(DESCRIPTION_WORD.findall(description)) >= MIN_DESCRIPTION_WORDS
+        and PLACEHOLDER.search(description) is None
+    )
+
+
+def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef) -> list[str]:
+    """Validate a function's summary, parameter documentation, result, and exceptions.
+
+    Args:
+        filename: Source file label used in diagnostics.
+        node: Function or method declaration to validate.
+
+    Returns:
+        All documentation violations found for this declaration.
+    """
+    docstring = ast.get_docstring(node)
+    label = _label(filename, node.lineno, node.name)
+    if docstring is None:
+        return [f"{label}: missing docstring"]
+
+    errors = _summary_errors(label, node.name, docstring)
+    sections = _docstring_sections(docstring)
+    args_body = sections.get("Args", sections.get("Arguments", sections.get("Parameters", [])))
+    described: dict[str, str] = {}
+    for line in args_body:
+        match = PARAMETER_LINE.match(line)
+        if match is not None:
+            described[match.group(1)] = match.group(2).strip()
+
+    missing_parameters = sorted(set(_parameter_names(node)) - set(described))
+    if missing_parameters:
+        errors.append(
+            f"{label}: missing parameter descriptions for {', '.join(missing_parameters)}"
+        )
+    vague_parameters = sorted(
+        name for name, description in described.items() if not _is_descriptive(description)
+    )
+    if vague_parameters:
+        errors.append(
+            f"{label}: non-descriptive parameter descriptions for {', '.join(vague_parameters)}"
+        )
+
+    has_result = node.returns is not None and not (
+        isinstance(node.returns, ast.Constant) and node.returns.value is None
+    ) and not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
+    if not has_result:
+        pending = list(node.body)
+        while pending and not has_result:
+            current = pending.pop()
+            if isinstance(current, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                continue
+            if isinstance(current, ast.Return) and current.value is not None:
+                has_result = True
+            pending.extend(ast.iter_child_nodes(current))
+
+    returns_body = sections.get("Returns", [])
+    if has_result and not returns_body:
+        errors.append(f"{label}: missing descriptive Returns section")
+    elif returns_body and not _is_descriptive(_section_description(returns_body)):
+        errors.append(f"{label}: Returns description is too vague or contains a placeholder")
+
+    raised = set(_raised_exception_names(node))
+    raises_body = sections.get("Raises", [])
+    raises_entries: dict[str, str] = {}
+    for line in raises_body:
+        match = EXCEPTION_LINE.match(line)
+        if match is not None:
+            raises_entries[match.group(1)] = match.group(2).strip()
+    if raised and not raises_body:
+        errors.append(f"{label}: missing descriptive Raises section")
+    else:
+        missing_raises = sorted(raised - set(raises_entries))
+        if missing_raises:
+            errors.append(
+                f"{label}: missing exception descriptions for {', '.join(missing_raises)}"
+            )
+        vague_raises = sorted(
+            name for name, description in raises_entries.items() if not _is_descriptive(description)
+        )
+        if vague_raises:
+            errors.append(
+                f"{label}: non-descriptive Raises entries for {', '.join(vague_raises)}"
+            )
+    return errors
+
+
 def check_source(
     source: str,
     filename: str = "<memory>",
@@ -811,6 +1072,8 @@ def check_source(
         return [f"{filename}: cannot parse Python source: {exc}"]
 
     errors = suppression_violations(source, filename)
+    if not module_only:
+        errors.extend(_object_annotation_errors(filename, tree))
     if not module_only:
         errors.extend(_object_annotation_errors(filename, tree))
     if not filename.endswith(".pyi") and ast.get_docstring(tree) is None:

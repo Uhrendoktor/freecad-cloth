@@ -146,7 +146,7 @@ def _mesh_object(
     doc: _SimulationDocument,
     name: str,
     label: str,
-) -> _SimulationFeature:
+) -> _SimulationMeshFeature:
     """Create one persistent FreeCAD mesh feature for simulation visualization.
 
     Args:
@@ -157,7 +157,7 @@ def _mesh_object(
     Returns:
         New Mesh::Feature with its ClothMeshType property initialized.
     """
-    obj = doc.addObject("Mesh::Feature", name)
+    obj = cast("_SimulationMeshFeature", doc.addObject("Mesh::Feature", name))
     obj.Label = label
     obj.addProperty(
         "App::PropertyString", "ClothMeshType", "Simulation"
@@ -893,7 +893,7 @@ class SimulationProxy:
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
-        return obj if obj is not None else _mesh_object(doc, name, name)
+        return cast("_SimulationMeshFeature", obj) if obj is not None else _mesh_object(doc, name, name)
 
     def reset(self, obj):
         """Reset the runtime state to its initial values."""
