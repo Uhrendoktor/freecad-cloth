@@ -19,7 +19,6 @@ class _SeamRefreshDocument(Protocol):
 
     def recompute(self) -> None:
         """Refresh the document after seam colors have changed."""
-        ...
 
 
 class _SeamViewObject(Protocol):
