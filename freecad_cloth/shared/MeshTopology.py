@@ -6,9 +6,11 @@ from functools import lru_cache
 
 import numpy as np
 
+type _TriangleIndexCandidate = int | float | bool | str | None
+
 
 def triangle_indices_are_valid(
-    triangles: Sequence[Sequence[object]],
+    triangles: Sequence[Sequence[_TriangleIndexCandidate]],
     vertex_count: int,
 ) -> bool:
     """Return whether triangle connectivity is valid for the supplied vertices.
