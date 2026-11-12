@@ -2,7 +2,6 @@
 """FreeCAD GUI acceptance and animated evidence for avatar shape editing."""
 
 from __future__ import annotations
-from typing import TYPE_CHECKING
 
 import contextlib
 import math
@@ -11,6 +10,7 @@ import re
 import sys
 import traceback
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
