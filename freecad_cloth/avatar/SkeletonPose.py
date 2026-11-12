@@ -10,12 +10,14 @@ from __future__ import annotations
 
 import json
 import math
-from typing import TYPE_CHECKING, NotRequired, SupportsFloat, TypedDict, cast
+from typing import TYPE_CHECKING, NotRequired, SupportsFloat, TypeAlias, TypedDict, cast
 
 import numpy as np
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.SkeletonTypes import SkeletonData
+
+JSONValue: TypeAlias = str | int | float | bool | list["JSONValue"] | dict[str, "JSONValue"] | None
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
@@ -194,11 +196,11 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
         ValueError: If the payload is invalid JSON or uses an unsupported schema.
         TypeError: If the JSON root or joints member has the wrong type.
     """
-    decoded: object = json.loads(payload)
+    decoded: JSONValue = json.loads(payload)
     if not isinstance(decoded, dict):
         msg = "mannequin joint pose JSON must be an object"
         raise TypeError(msg)
-    data = cast("dict[str, object]", decoded)
+    data = cast("dict[str, JSONValue]", decoded)
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         msg = "unsupported mannequin joint-pose schema version"
         raise ValueError(msg)
@@ -209,13 +211,13 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
     if not isinstance(joints, dict):
         msg = "mannequin joint pose JSON must contain a joints object"
         raise TypeError(msg)
-    joint_values = cast("dict[str, object]", joints)
+    joint_values = cast("dict[str, JSONValue]", joints)
     rotations: list[JointRotation] = []
     for bone, values in joint_values.items():
         if not isinstance(values, dict):
             msg = f"joint pose for {bone} must be an object"
             raise TypeError(msg)
-        axes = cast("dict[str, object]", values)
+        axes = cast("dict[str, JSONValue]", values)
         rotations.append(
             JointRotation(
                 bone,
