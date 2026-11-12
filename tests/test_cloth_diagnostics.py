@@ -4,8 +4,6 @@
 import inspect
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
-
 import pytest
 
 from freecad_cloth.simulation.ClothDiagnostics import (
@@ -16,10 +14,6 @@ from freecad_cloth.simulation.ClothDiagnostics import (
     metric_definition,
     summarize,
 )
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 
 def _triangle(scale: float = 1.0, z: float = 0.0) -> list[tuple[float, float, float]]:
     """Build a right-triangle mesh fixture in the XY plane.
@@ -106,16 +100,15 @@ def test_pressure_length_must_match_faces() -> None:
 
 def test_unknown_mesh_option_fails_closed() -> None:
     """Reject unsupported keyword names instead of silently ignoring caller typos."""
-    runtime_analyze = cast("Callable[..., object]", analyze_mesh)
     with pytest.raises(
         TypeError,
         match=r"unexpected keyword argument 'stretch_limt'",
     ):
-        runtime_analyze(
+        analyze_mesh(
             _triangle(),
             _triangle(),
             ((0, 1, 2),),
-            stretch_limt=0.02,
+            **{"stretch_limt": 0.02},
         )
 
 

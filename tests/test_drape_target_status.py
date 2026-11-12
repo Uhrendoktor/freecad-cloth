@@ -3,6 +3,7 @@
 
 from types import SimpleNamespace
 
+from freecad_cloth.common.JsonTypes import JsonValue
 from freecad_cloth.simulation.DrapeTarget import source_signature, target_status
 
 DEFLECTION_MM = 1.0
@@ -46,7 +47,7 @@ def _shape(value: int) -> SimpleNamespace:
     return shape
 
 
-def _target(source: object, **overrides: object) -> SimpleNamespace:
+def _target(source: SimpleNamespace, **overrides: JsonValue) -> SimpleNamespace:
     """Build a current target record with optional persisted-property overrides.
 
     Args:
@@ -56,7 +57,7 @@ def _target(source: object, **overrides: object) -> SimpleNamespace:
     Returns:
         A SimpleNamespace representing the persistent target feature.
     """
-    values: dict[str, object] = {
+    values: dict[str, JsonValue | SimpleNamespace] = {
         "Enabled": True,
         "TargetType": TARGET_TYPE,
         "SourceObject": source,

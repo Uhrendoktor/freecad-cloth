@@ -3,13 +3,9 @@
 
 import sys
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, cast
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
 import pytest
 
+from freecad_cloth.common.CommandAdapter import FunctionCommand
 from freecad_cloth.simulation import DrapeCommands
 
 
@@ -76,9 +72,9 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
     freecad_module.__dict__["ActiveDocument"] = document
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
-    registered_commands: dict[str, object] = {}
+    registered_commands: dict[str, FunctionCommand] = {}
 
-    def add_command(name: str, command: object) -> None:
+    def add_command(name: str, command: FunctionCommand) -> None:
         """Capture a command adapter passed to the public registration API.
 
         Args:
@@ -92,18 +88,12 @@ def test_drape_command_exposes_freecad_callback_names(monkeypatch: pytest.Monkey
         "Command registration must accept the supported FreeCAD GUI boundary."
     )
     command = registered_commands["ClothDrape_EnableTarget"]
-    activated_name = "Activated"
-    is_active_name = "IsActive"
-    resources_name = "GetResources"
-    activated = cast("Callable[[], object]", getattr(command, activated_name))
-    is_active = cast("Callable[[], bool]", getattr(command, is_active_name))
-    get_resources = cast("Callable[[], dict[str, object]]", getattr(command, resources_name))
 
-    assert is_active() is True, "The native IsActive callback must report an active document."
-    assert activated() is target and target.Enabled is True, (
+    assert command.IsActive() is True, "The native IsActive callback must report an active document."
+    assert command.Activated() is target and target.Enabled is True, (
         "The native Activated callback must enable the persistent target."
     )
-    resources = get_resources()
+    resources = command.GetResources()
     assert resources["MenuText"] == "Enable Target", (
         "The native GetResources callback must retain the command label."
     )

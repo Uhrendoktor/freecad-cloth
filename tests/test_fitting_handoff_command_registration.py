@@ -16,9 +16,9 @@ _EXPECTED_HANDOFF_COMMANDS = frozenset(
 
 def test_fitting_handoff_registers_both_simulation_owned_command_ids() -> None:
     """Keep the two fitting-to-simulation GUI commands registered by Simulation."""
-    registered: dict[str, object] = {}
+    registered: dict[str, FunctionCommand] = {}
 
-    def add_command(name: str, command: object) -> None:
+    def add_command(name: str, command: FunctionCommand) -> None:
         """Capture one GUI command registration for the contract check.
 
         Args:
