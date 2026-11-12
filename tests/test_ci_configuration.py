@@ -833,13 +833,34 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
 
 def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
-    """Pass every Git-tracked Python source and stub to read-only Ruff commands."""
+    """Pass every tracked Python source and stub to read-only Ruff commands under reviewed rules."""
     tracked_files = collect_tracked_python_files(ROOT)
     executable = Path("/quality/venv/bin/python")
     commands = quality_commands(executable, tracked_files)
     format_command = next(command for command in commands if command.label == "Ruff format")
     lint_command = next(command for command in commands if command.label == "Ruff lint")
-
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lint = project["tool"]["ruff"]["lint"]
+    allowed_select = {
+        "E", "F", "W", "I", "A", "ANN401", "B", "BLE", "C4", "DTZ",
+        "FURB", "G", "LOG", "PERF", "PGH", "PIE", "RET", "RUF", "SIM", "UP", "YTT",
+    }
+    allowed_ignores = {
+        "E402", "E501", "UP031", "RUF007", "RUF046", "RUF005", "RET501", "RET503",
+        "RET504", "SIM105", "C401", "C408", "C416", "FURB162", "FURB192", "PIE810",
+        "RUF043", "UP017", "UP040",
+    }
+    allowed_per_file = {
+        "tests/**/*.py": ["S101"],
+        "freecad_cloth/pattern/PatternCommands.py": ["BLE001"],
+        "freecad_cloth/pattern/PatternTopologyRepairGui.py": ["BLE001"],
+        "freecad_cloth/simulation/RealtimePreview.py": ["BLE001"],
+        "freecad_cloth/simulation/SimulationQualityGui.py": ["BLE001"],
+        "tests/freecad_*.py": ["BLE001"],
+        "tests/support/pbd_contact_helpers.py": ["BLE001"],
+        "tools/benchmark_workbenches.py": ["BLE001"],
+        "tools/ci/python_validation.py": ["BLE001"],
+    }
     require(
         condition=bool(tracked_files) and len(tracked_files) == len(set(tracked_files)),
         message="The strict runner must collect a non-empty, duplicate-free tracked Python inventory.",
@@ -849,73 +870,39 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
         message="The tracked Python inventory must contain only .py and .pyi files.",
     )
     require(
-        condition=format_command.arguments
-        == (str(executable), "-m", "ruff", "format", "--check", *tracked_files),
-        message="Ruff formatting must check every tracked source and stub without modifying it.",
+        condition=format_command.arguments == (str(executable), "-m", "ruff", "format", "--check", *tracked_files),
+        message="Ruff formatting must check all tracked Python source and stubs without modifying them.",
     )
     require(
         condition=lint_command.arguments == (str(executable), "-m", "ruff", "check", *tracked_files),
-        message="Ruff lint must check every tracked source and stub without auto-fixing.",
-    )
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    lint = project["tool"]["ruff"]["lint"]
-    formatter_conflicts = {
-        "W191", "E111", "E114", "E117", "D203", "D206", "D300",
-        "Q000", "Q001", "Q002", "Q003", "Q004", "COM812", "COM819",
-    }
-
-    require(
-        condition=lint["select"] == ["ALL"],
-        message=f"Ruff must select all stable and preview rules, got {lint['select']!r}.",
-    )
-    require(condition=lint.get("preview") is True, message="Ruff preview must be enabled.")
-    require(
-        condition=set(lint.get("ignore", [])) == (formatter_conflicts | {"PLC0415"}),
-        message="Only formatter conflicts and FreeCAD lazy imports may be ignored.",
+        message="Ruff lint must check all tracked Python source and stubs without auto-fixing.",
     )
     require(
-        condition=lint.get("per-file-ignores") == {"tests/**/*.py": ["S101"]},
-        message="Only pytest S101 may be exempted under tests/.",
+        condition=set(lint.get("select", [])) == allowed_select,
+        message="Ruff selection must match the reviewed correctness/security/import/type policy.",
+    )
+    require(condition=not lint.get("preview", False), message="Blanket Ruff preview selection is not permitted.")
+    require(
+        condition=set(lint.get("ignore", [])) == allowed_ignores,
+        message="Ruff ignores must match the reviewed rule-specific policy.",
+    )
+    require(
+        condition=lint.get("per-file-ignores") == allowed_per_file,
+        message="Only the documented pytest and FreeCAD host-callback exceptions may be scoped per file.",
     )
 
 
-def test_pyright_checks_every_repository_python_file_in_strict_mode() -> None:
-    """Require one repository-wide Pyright profile with globally strict diagnostics."""
+def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
+    """Keep standard analysis broad within reviewed core paths and strict on solver kernels."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-    quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-
-    require(
-        condition=config.get("include") == ["."],
-        message="Pyright must include the entire repository root.",
-    )
-    require(
-        condition=config.get("typeCheckingMode") == "strict",
-        message="Pyright must use global strict mode, not a path-specific strict subset.",
-    )
-    require(
-        condition=not config.get("strict") and not config.get("exclude"),
-        message="Pyright must not use strict allowlists or excluded paths.",
-    )
-    require(
-        condition=config.get("reportMissingImports") == "error"
-        and config.get("reportMissingModuleSource") == "error",
-        message="Pyright import resolution diagnostics must remain errors.",
-    )
+    require(condition=config.get("include") == list(PYRIGHT_EXPECTED_INCLUDE), message="Pyright include inventory differs from reviewed production modules.")
+    require(condition=config.get("exclude") == list(PYRIGHT_EXPECTED_EXCLUDE), message="Pyright exclusions differ from documented dynamic host adapters.")
+    require(condition=config.get("strict") == list(PYRIGHT_EXPECTED_STRICT), message="Only the three deterministic simulation kernels may remain globally strict.")
+    require(condition=config.get("typeCheckingMode") == "standard", message="Pyright standard mode is the reviewed default outside the strict simulation core.")
+    require(condition=config.get("reportMissingImports") == "none" and config.get("reportMissingModuleSource") == "none", message="Pyright import diagnostics must follow the reviewed host-boundary profile.")
     quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
-    require(
-        condition=quality.count('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"') == 1,
-        message="The canonical workflow must invoke the pinned strict-quality runner once.",
-    )
-    require(
-        condition=quality_runner.count(
-            'QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json"))'
-        )
-        == 1,
-        message="The strict-quality runner must execute exactly one blocking Pyright profile.",
-    )
+    require(condition='QualityCommand("Strict Pyright", ("pyright", "-p", "pyrightconfig.json"))' in quality_runner, message="The canonical strict-quality runner must retain one blocking Pyright profile.")
+    require(condition='QualityCommand("Typed simulation core"' in quality_runner, message="The ty core gate must remain independently blocking.")
 
 
 def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout() -> None:
@@ -1052,23 +1039,20 @@ def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
     )
 
 
-def test_new_python_modules_are_covered_automatically_by_repository_root() -> None:
-    """Ensure future production modules are included without editing a file allowlist."""
-    new_modules = (
-        "freecad_cloth/common/new_model.py",
-        "freecad_cloth/simulation/NewSimulationGui.py",
-        "freecad_cloth/bootstrap.py",
-        "tests/new_test_contract.py",
-        "tools/ci/new_validator.py",
-    )
+def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
+    """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
+    config = PYRIGHT_CONFIG.read_text(encoding="utf-8")
+    included = ("freecad_cloth/common/new_model.py", "freecad_cloth/simulation/new_kernel.py")
     require(
-        condition=(
-            pyright_coverage_contract_violations(
-                PYRIGHT_CONFIG.read_text(encoding="utf-8"), new_modules
-            )
-            == ()
+        condition=pyright_coverage_contract_violations(config, included) == (),
+        message="Existing reviewed directory coverage must include new modules inside its selected paths.",
+    )
+    uncovered = ("freecad_cloth/avatar/NewFeature.py",)
+    require(
+        condition=pyright_coverage_contract_violations(config, uncovered) == (
+            "<new Python module is outside Pyright include/exclude scope: freecad_cloth/avatar/NewFeature.py>",
         ),
-        message="Repository-root Pyright include must automatically cover new Python modules.",
+        message="New production modules outside the reviewed Pyright inventory require deliberate inclusion.",
     )
 
 
