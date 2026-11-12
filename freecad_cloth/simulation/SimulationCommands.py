@@ -1,17 +1,18 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Commands for the Cloth Simulation workbench."""
 
+from __future__ import annotations
+
 from collections.abc import Callable, Mapping, Sequence
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
-
-class _FreeCADAvatarFeature(Protocol):
-    """Avatar feature members needed by simulation-scene setup."""
-
-    Label: str
+if TYPE_CHECKING:
+    from freecad_cloth.sewing.SeamOverlay import SeamOverlayController
 
 
 class _FreeCADViewObject(Protocol):
@@ -20,10 +21,72 @@ class _FreeCADViewObject(Protocol):
     Visibility: bool
 
 
+class _FreeCADAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Avatar feature members needed by simulation-scene setup."""
+
+    AvatarType: str
+    Label: str
+    ViewObject: _FreeCADViewObject
+
+
+class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """PatternPiece identity required when transferring pieces into a simulation."""
+
+    PieceId: str
+    PatternType: str
+
+
+class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
+    """Persisted target source and readiness fields used before simulation advancement."""
+
+    TargetType: str
+    SourceObject: FreeCADDocumentObjectProtocol | None
+    CollisionDeflection: float
+    CollisionThickness: float
+    Enabled: bool
+
+
+class _SimulationQualityTaskPanel(Protocol):
+    """Native task-panel actions returned by the simulation quality editor."""
+
+    def accept(self) -> bool:
+        """Accept staged quality changes."""
+        ...
+
+    def reject(self) -> bool:
+        """Reject staged quality changes."""
+        ...
+
+    def getStandardButtons(self) -> int:
+        """Return the native OK/Cancel button flags."""
+        ...
+
+
+type _SimulationResult = (
+    JsonValue | FreeCADDocumentObjectProtocol | SimulationScene | _SimulationQualityTaskPanel
+)
+
+
+class _WorkbenchCommand(Protocol):
+    """Command methods registered with the native FreeCAD GUI."""
+
+    def Activated(self) -> _SimulationResult:
+        """Run the command and return its user-visible result."""
+        ...
+
+    def GetResources(self) -> dict[str, str]:
+        """Return menu, tooltip, and icon resources for the command."""
+        ...
+
+    def IsActive(self) -> bool:
+        """Return whether the command is available in the active document."""
+        ...
+
+
 class _FreeCADGui(Protocol):
     """Minimal FreeCAD GUI command-registration API."""
 
-    def addCommand(self, command_name: str, command: object) -> None:
+    def addCommand(self, command_name: str, command: _WorkbenchCommand) -> None:
         """Register one Python workbench command.
 
         Args:
@@ -33,7 +96,7 @@ class _FreeCADGui(Protocol):
         ...
 
 
-def create_simulation() -> object:
+def create_simulation() -> SimulationScene:
     """Create a quality-aware simulation in the active document.
 
     Returns:
@@ -51,9 +114,9 @@ def create_simulation() -> object:
 def create_quality_simulation_scene(
     doc: SimulationDocument,
     *,
-    avatar_source: object | None = None,
-    cloth_pieces: Sequence[object] = (),
-) -> object:
+    avatar_source: FreeCADDocumentObjectProtocol | None = None,
+    cloth_pieces: Sequence[_PatternPieceFeature] = (),
+) -> SimulationScene:
     """Create one quality-controlled simulation from the supplied source state.
 
     Args:
@@ -100,7 +163,7 @@ def create_quality_simulation_scene(
     return scene
 
 
-def create_drape_scene() -> object:
+def create_drape_scene() -> SimulationScene:
     """Create a drape scene with its default mannequin collision target.
 
     Returns:
@@ -115,7 +178,7 @@ def create_drape_scene() -> object:
     return create_quality_simulation_scene(doc)
 
 
-def _is_simulation_scene(obj: object) -> bool:
+def _is_simulation_scene(obj: FreeCADDocumentObjectProtocol) -> bool:
     """Identify simulation objects by their persisted name or proxy type.
 
     Args:
@@ -145,7 +208,7 @@ def _find_simulation(doc: SimulationDocument) -> SimulationScene | None:
     )
 
 
-def _find_drape_target(doc: SimulationDocument) -> object | None:
+def _find_drape_target(doc: SimulationDocument) -> _DrapeTargetFeature | None:
     """Find the persistent drape target in a FreeCAD document.
 
     Args:
@@ -156,7 +219,7 @@ def _find_drape_target(doc: SimulationDocument) -> object | None:
     """
     return next(
         (
-            obj
+            cast("_DrapeTargetFeature", obj)
             for obj in doc.Objects
             if getattr(obj, "Name", "") == "DrapeTarget"
             or getattr(obj, "TargetType", None) is not None
@@ -168,9 +231,11 @@ def _find_drape_target(doc: SimulationDocument) -> object | None:
 def _require_drape_target_ready(
     doc: SimulationDocument,
     *,
-    find_target: Callable[..., object | None] | None = None,
-    target_status_fn: Callable[[object | None], Mapping[str, object]] | None = None,
-) -> object | None:
+    find_target: Callable[[SimulationDocument], _DrapeTargetFeature | None] | None = None,
+    target_status_fn: Callable[
+        [_DrapeTargetFeature | None], Mapping[str, JsonValue]
+    ] | None = None,
+) -> _DrapeTargetFeature | None:
     """Reject simulation advancement when its persisted drape target is stale.
 
     Args:
@@ -194,14 +259,14 @@ def _require_drape_target_ready(
     target = find_target(doc)
     status = target_status_fn(target)
     if status["state"] != "ready":
-        raise RuntimeError(status["message"])
+        raise RuntimeError(str(status["message"]))
     return target
 
 
-_active_simulation_quality_task_panel: object | None = None
+_active_simulation_quality_task_panel: _SimulationQualityTaskPanel | None = None
 
 
-def get_active_simulation_quality_task_panel() -> object | None:
+def get_active_simulation_quality_task_panel() -> _SimulationQualityTaskPanel | None:
     """Return the task panel opened by the public simulation controls command.
 
     Returns:
@@ -210,7 +275,7 @@ def get_active_simulation_quality_task_panel() -> object | None:
     return _active_simulation_quality_task_panel
 
 
-def edit_simulation() -> object:
+def edit_simulation() -> _SimulationQualityTaskPanel:
     """Open the native simulation quality controls task panel.
 
     Returns:
@@ -253,7 +318,7 @@ def _require_simulation() -> tuple[SimulationDocument, SimulationScene]:
     return doc, scene
 
 
-def simulate_selected(steps: int | None = None) -> object:
+def simulate_selected(steps: int | None = None) -> FreeCADDocumentObjectProtocol | SimulationScene:
     """Advance the selected native simulation through its document proxy.
 
     Args:
@@ -277,14 +342,14 @@ def simulate_selected(steps: int | None = None) -> object:
 
     refresh_seam_overlay(doc)
     panels = tuple(getattr(scene, "DrapePanels", ()))
-    return panels[0] if panels else scene
+    return cast("FreeCADDocumentObjectProtocol", panels[0]) if panels else scene
 
 
 def run_simulation(
     steps: int = 30,
     *,
-    simulate: Callable[..., object] | None = None,
-) -> object:
+    simulate: Callable[[int], _SimulationResult] | None = None,
+) -> _SimulationResult:
     """Run an explicit batch of simulation steps on the active scene.
 
     Args:
@@ -301,8 +366,10 @@ def run_simulation(
 def reset_simulation(
     *,
     require_simulation_fn: Callable[[], tuple[SimulationDocument, SimulationScene]] | None = None,
-    reset_scene_fn: Callable[[SimulationScene], object] | None = None,
-    refresh_overlay_fn: Callable[[SimulationDocument], object] | None = None,
+    reset_scene_fn: Callable[[SimulationScene], SimulationScene] | None = None,
+    refresh_overlay_fn: Callable[
+        [SimulationDocument], SeamOverlayController | None
+    ] | None = None,
 ) -> SimulationScene:
     """Reset the active simulation state without changing its authored settings.
 
@@ -328,14 +395,14 @@ def reset_simulation(
         from freecad_cloth.sewing.SeamOverlay import refresh_seam_overlay
 
         refresh_overlay_fn = cast(
-            "Callable[[SimulationDocument], object]",
+            "Callable[[SimulationDocument], SeamOverlayController | None]",
             refresh_seam_overlay,
         )
     refresh_overlay_fn(scene.Document)
     return scene
 
 
-def simulation_status():
+def simulation_status() -> JsonObject:
     """Return a deterministic, UI-friendly lifecycle/status summary."""
     try:
         doc, scene = _require_simulation()
@@ -381,7 +448,7 @@ class _FunctionCommand:
 
     def __init__(
         self,
-        fn: Callable[[], object],
+        fn: Callable[[], _SimulationResult],
         text: str,
         tip: str,
         command_name: str,
@@ -404,7 +471,7 @@ class _FunctionCommand:
             active,
         )
 
-    def Activated(self) -> object:
+    def Activated(self) -> _SimulationResult:
         """Invoke the registered command action.
 
         Returns:
