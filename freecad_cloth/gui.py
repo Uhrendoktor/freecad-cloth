@@ -29,14 +29,24 @@ class _ActiveWorkbench(Protocol):
 
 
 class _WorkbenchGui(Protocol):
-    """Describe the subset of the FreeCAD GUI API used for transition checks."""
+    """Describe the subset of the FreeCAD GUI API used for workbench registration."""
 
-    def active_workbench(self) -> _ActiveWorkbench:
-        """Return the workbench currently active in the FreeCAD GUI.
+    MenuText: str
 
-        Returns:
-            Object representing FreeCAD's active workbench.
-        """
+    def activeWorkbench(self) -> _ActiveWorkbench:
+        """Return the workbench currently active in the FreeCAD GUI."""
+        ...
+
+    def appendToolbar(self, name: str, commands: list[str]) -> None:
+        """Register command identifiers in a named toolbar."""
+        ...
+
+    def appendMenu(self, menu_path: list[str], commands: list[str]) -> None:
+        """Register command identifiers under a menu path."""
+        ...
+
+    def appendContextMenu(self, menu_name: str, commands: list[str]) -> None:
+        """Register command identifiers in a context menu."""
         ...
 
 
@@ -79,8 +89,8 @@ def _defer_workbench_transition(callback: Callable[[], None]) -> None:
     callback()
 
 
-_WORKBENCH_BASE: type[object] = (
-    cast("type[object]", getattr(Gui, "Workbench", object)) if Gui is not None else object
+_WORKBENCH_BASE: type = (
+    cast("type", getattr(Gui, "Workbench", object)) if Gui is not None else object
 )
 
 
@@ -90,9 +100,9 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
     def __init__(
         self,
         *,
-        gui: object | None = None,
-        toolbar_sink: Callable[..., object] | None = None,
-        menu_sink: Callable[..., object] | None = None,
+        gui: _WorkbenchGui | None = None,
+        toolbar_sink: Callable[[str, list[str]], None] | None = None,
+        menu_sink: Callable[[list[str], list[str]], None] | None = None,
     ) -> None:
         """Initialize command registration and optional injectable GUI sinks.
 
@@ -109,7 +119,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
         self.commands: list[str] = []
 
     @staticmethod
-    def normalize_commands(commands: Iterable[object]) -> list[str]:
+    def normalize_commands(commands: Iterable[str]) -> list[str]:
         """Return non-empty command names in first-seen order without duplicates.
 
         Args:
@@ -122,7 +132,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     # Compatibility alias for historical callers; new code should use the public name.
     @staticmethod
-    def _normalize_commands(commands: Iterable[object]) -> list[str]:
+    def _normalize_commands(commands: Iterable[str]) -> list[str]:
         """Normalize command identifiers using the established public helper.
 
         Args:
@@ -135,9 +145,9 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     def _register_groups(
         self,
-        groups: Iterable[tuple[str | None, Iterable[object]]],
+        groups: Iterable[tuple[str | None, Iterable[str]]],
         toolbar_name: str | None = None,
-        toolbar_commands: Iterable[object] | None = None,
+        toolbar_commands: Iterable[str] | None = None,
     ) -> None:
         """Register toolbar and menu groups while rejecting duplicate commands.
 
@@ -178,9 +188,9 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
 
     def register(
         self,
-        groups: Iterable[tuple[str | None, Iterable[object]]],
+        groups: Iterable[tuple[str | None, Iterable[str]]],
         toolbar_name: str | None = None,
-        toolbar_commands: Iterable[object] | None = None,
+        toolbar_commands: Iterable[str] | None = None,
     ) -> None:
         """Register menu and toolbar commands for this workbench.
 
