@@ -3,7 +3,7 @@
 
 import math
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import ClassVar, TypedDict
 
@@ -118,6 +118,9 @@ class LineSegment:
         self.EndPoint = _Point(*end)
 
 
+type _NativeAttribute = Callable[[float], _Point] | Callable[[int], bool]
+
+
 class _NativeCurve:
     """Curved Sketcher stand-in supporting native parameterized point evaluation."""
 
@@ -157,7 +160,7 @@ class _NativeCurve:
             y += dx * offset
         return _Point(x, y)
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> _NativeAttribute:
         """Expose the native curve evaluator name expected by FreeCAD adapters.
 
         Args:
@@ -189,10 +192,10 @@ class BezierCurve(_NativeCurve):
 class _Sketch:
     """Sketcher-like fixture exposing native geometry and semantic edge identities."""
 
-    Geometry: Sequence[object]
+    Geometry: Sequence[LineSegment | _NativeCurve]
     SemanticEdgeIds: Sequence[str]
 
-    def __init__(self, geometry: Sequence[object], semantic_ids: Sequence[str]) -> None:
+    def __init__(self, geometry: Sequence[LineSegment | _NativeCurve], semantic_ids: Sequence[str]) -> None:
         """Retain the ordered geometry and optional persistent IDs for each edge.
 
         Args:
@@ -214,7 +217,7 @@ class _Sketch:
         """
         return False
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Callable[[int], bool]:
         """Expose the native construction-query name used by Sketcher adapters.
 
         Args:
@@ -245,7 +248,7 @@ def _sketch_graph(curve: _NativeCurve, edge_id: str) -> tuple[SeamGraph, _Sketch
     graph.add_piece(PatternPiece("piece", [(0, 0), (10, 0), (10, 10), (0, 10)], id="piece"))
     graph.add_piece(PatternPiece("other", [(0, 0), (10, 0), (10, 10), (0, 10)], id="other"))
     graph.add_seam(Seam("piece", edge_id, "other", "other:edge:0", id="seam"))
-    geometry: tuple[object, ...] = (
+    geometry: tuple[LineSegment | _NativeCurve, ...] = (
         LineSegment((0, 0), (10, 0)),
         curve,
         LineSegment((10, 10), (0, 10)),

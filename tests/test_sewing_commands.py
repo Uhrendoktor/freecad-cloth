@@ -22,7 +22,7 @@ THIRD_EDGE_INDEX = 2
 FOURTH_EDGE_INDEX = 3
 REPAIR_EDGE_LENGTH_OFFSET = 10.0
 
-type EdgeLength = Callable[[object, int], float]
+type EdgeLength = Callable[[SimpleNamespace, int], float]
 type RepairContext = tuple[
     SimpleNamespace,
     SimpleNamespace,
@@ -179,7 +179,7 @@ def test_selected_pattern_edges_preserves_unique_mn_members_in_selection_order()
 
 
 def _repair_test_modules(
-    pieces: tuple[object, ...] = (),
+    pieces: tuple[SimpleNamespace, ...] = (),
 ) -> RepairContext:
     """Build isolated seam-repair collaborators for deterministic command tests."""
     seam = SimpleNamespace(
@@ -229,7 +229,7 @@ def _pattern_piece(piece_id: str) -> SimpleNamespace:
 def test_repair_selected_seam_wraps_missing_piece_with_actionable_context() -> None:
     """Report missing pattern pieces with actionable repair context."""
 
-    def edge_length(_piece: object, _edge: int) -> float:
+    def edge_length(_piece: SimpleNamespace, _edge: int) -> float:
         msg = "edge lookup must not run when the piece is missing"
         raise AssertionError(msg)
 
@@ -245,7 +245,7 @@ def test_repair_selected_seam_wraps_missing_piece_with_actionable_context() -> N
 def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause() -> None:
     """Preserve the invalid edge failure as a repair exception cause."""
 
-    def edge_length(_piece: object, edge: int) -> float:
+    def edge_length(_piece: SimpleNamespace, edge: int) -> float:
         msg = f"seam edge {edge} is outside the pattern boundary"
         raise ValueError(msg)
 
@@ -261,7 +261,7 @@ def test_repair_selected_seam_wraps_invalid_edge_without_losing_cause() -> None:
 def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error() -> None:
     """Propagate unexpected runtime errors instead of swallowing them."""
 
-    def edge_length(_piece: object, _edge: int) -> float:
+    def edge_length(_piece: SimpleNamespace, _edge: int) -> float:
         msg = "unexpected solver/runtime failure"
         raise RuntimeError(msg)
 
@@ -274,7 +274,7 @@ def test_repair_selected_seam_does_not_swallow_unexpected_runtime_error() -> Non
 def test_repair_selected_seam_successful_repair_refreshes_existing_semantic_edges() -> None:
     """Refresh stable semantic edge identifiers after successful repair."""
 
-    def edge_length(_piece: object, edge: int) -> float:
+    def edge_length(_piece: SimpleNamespace, edge: int) -> float:
         return REPAIR_EDGE_LENGTH_OFFSET + edge
 
     pieces = (_pattern_piece("piece-a"), _pattern_piece("piece-b"))

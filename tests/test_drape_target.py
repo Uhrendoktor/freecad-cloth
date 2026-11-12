@@ -2,6 +2,7 @@
 """Regression contracts for target-neutral drape identity and persistence state."""
 
 from types import SimpleNamespace
+from typing import TypeVar
 
 import pytest
 
@@ -33,8 +34,14 @@ TARGET_LABEL = "Chair target"
 MESH_TARGET_NAME = "MeshTarget"
 MESH_TARGET_LABEL = "Mesh target"
 
+_RuntimeAttribute = TypeVar("_RuntimeAttribute")
 
-def _set_runtime_attribute(target: object, name: str, value: object) -> None:
+
+def _set_runtime_attribute(
+    target: SimpleNamespace,
+    name: str,
+    value: _RuntimeAttribute,
+) -> None:
     """Update a host-style dynamic attribute without narrowing its test fixture type.
 
     Args:
@@ -177,7 +184,7 @@ def _mesh_target(
     )
 
 
-def _persistent_target(source: object | None = None) -> SimpleNamespace:
+def _persistent_target(source: SimpleNamespace | None = None) -> SimpleNamespace:
     """Build a persisted-target stand-in with an up-to-date collision signature.
 
     Args:

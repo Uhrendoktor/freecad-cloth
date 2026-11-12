@@ -2,7 +2,7 @@
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, NoReturn, cast
+from typing import TYPE_CHECKING, Never, NoReturn, cast
 
 import pytest
 
@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 def test_surface_distance_fallback_uses_spatial_index() -> None:
     """Missing exact point-to-triangle queries must not fall back to a quadratic Python loop."""
 
-    def unavailable(*_args: object, **_kwargs: object) -> NoReturn:
+    def unavailable(*_args: Never, **_kwargs: Never) -> NoReturn:
         """Simulate an unavailable query so spatial-index fallback behavior is tested.
 
         Args:
@@ -91,10 +91,10 @@ def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -
 
 def test_ladder_scene_helpers_add_only_requested_pieces_and_keep_scene_state_coherent() -> None:
     """Configure common cloth state and add a second panel only for two-piece cases."""
-    left = object()
-    right = object()
+    left = SimpleNamespace()
+    right = SimpleNamespace()
     pieces = [left]
-    seams: list[tuple[object, object]] = []
+    seams: list[tuple[SimpleNamespace, SimpleNamespace]] = []
     append_optional_ladder_piece(
         spec={"piece_count": 2, "seam_mode": "large"},
         pieces=pieces,

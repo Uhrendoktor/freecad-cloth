@@ -2,6 +2,7 @@
 """Behavioral contracts for the native DrapeTarget task-panel frontend."""
 
 from types import SimpleNamespace
+from typing import TypeAlias
 
 import pytest
 
@@ -20,6 +21,8 @@ EXPECTED_APPLIED_THICKNESS_MM = 3.0
 NORMAL_PRESET_INDEX = 1
 FINAL_PRESET_INDEX = 2
 EXPECTED_SOURCE_TYPE = "FreeCAD Geometry"
+
+type _ScalarValue = bool | float | int
 STAGED_PREVIEW_MESSAGE = (
     "Staged target edits. Apply & Refresh to rebuild collision geometry; "
     "Cancel leaves the document unchanged."
@@ -96,7 +99,7 @@ def _combo(index: int = -1) -> SimpleNamespace:
     return combo
 
 
-def _scalar(value: object = 0.0) -> SimpleNamespace:
+def _scalar(value: _ScalarValue = 0.0) -> SimpleNamespace:
     """Build a numeric or checkbox stand-in for a Qt scalar control.
 
     Args:
@@ -107,11 +110,11 @@ def _scalar(value: object = 0.0) -> SimpleNamespace:
     """
     scalar = SimpleNamespace(_value=value)
 
-    def current_value() -> object:
+    def current_value() -> _ScalarValue:
         """Return the staged value."""
         return scalar._value
 
-    def set_value(new_value: object) -> None:
+    def set_value(new_value: _ScalarValue) -> None:
         """Update the staged value.
 
         Args:
@@ -154,7 +157,7 @@ def _status() -> SimpleNamespace:
     """
     status = SimpleNamespace(text="", properties={})
 
-    def set_text(value: object) -> None:
+    def set_text(value: str) -> None:
         """Store the visible status text.
 
         Args:
@@ -199,7 +202,7 @@ def _panel() -> DrapeGui.DrapeTargetTaskPanel:
         Task-panel instance whose UI elements are simple in-memory stand-ins.
     """
     panel = DrapeGui.DrapeTargetTaskPanel.__new__(DrapeGui.DrapeTargetTaskPanel)
-    panel.target = object()
+    panel.target = SimpleNamespace()
     panel.source = _combo()
     panel.target_type = _combo(0)
     panel.target_type.items = [EXPECTED_SOURCE_TYPE]
@@ -225,8 +228,8 @@ def test_populate_sources_keeps_only_collision_capable_objects() -> None:
     """List mannequins, shapes, and meshes while excluding unrelated objects."""
     panel = _panel()
     avatar = SimpleNamespace(AvatarType="ClothAvatar", Label="Avatar")
-    shape = SimpleNamespace(Shape=object(), Label="Shape")
-    mesh = SimpleNamespace(Mesh=object(), Label="Mesh")
+    shape = SimpleNamespace(Shape=SimpleNamespace(), Label="Shape")
+    mesh = SimpleNamespace(Mesh=SimpleNamespace(), Label="Mesh")
     ignored = SimpleNamespace(Label="Ignored")
     panel.doc = SimpleNamespace(Objects=(panel.target, avatar, shape, mesh, ignored))
 
@@ -243,7 +246,7 @@ def test_populate_sources_keeps_only_collision_capable_objects() -> None:
 def test_source_selection_is_bounds_checked() -> None:
     """Return a source only for an index within the source inventory."""
     panel = _panel()
-    source = object()
+    source = SimpleNamespace()
     panel._source_objects = [source]
 
     panel.source.index = 0
@@ -298,14 +301,14 @@ def test_missing_target_disables_apply_and_reports_action() -> None:
 def test_apply_persists_target_values_and_recomputes() -> None:
     """Commit the staged values, assign the selected source, and recompute once."""
     panel = _panel()
-    source = object()
+    source = SimpleNamespace()
     target = SimpleNamespace(
         CollisionDeflection=DEFAULT_DEFLECTION_MM,
         CollisionThickness=DEFAULT_THICKNESS_MM,
         Enabled=True,
     )
     document_calls: list[str] = []
-    assigned: list[tuple[object, object, str]] = []
+    assigned: list[tuple[SimpleNamespace, SimpleNamespace, str]] = []
 
     panel.target = target
     panel.source = _combo(0)
@@ -318,7 +321,7 @@ def test_apply_persists_target_values_and_recomputes() -> None:
     panel._source_objects = [source]
     panel.doc = SimpleNamespace(recompute=lambda: document_calls.append("recompute"))
 
-    def assign_target(target_obj: object, source_obj: object, target_type: str) -> None:
+    def assign_target(target_obj: SimpleNamespace, source_obj: SimpleNamespace, target_type: str) -> None:
         """Capture the assignment requested by the editor.
 
         Args:
@@ -387,9 +390,9 @@ def test_reject_closes_active_dialog() -> None:
     panel = _panel()
     calls: list[str] = []
     panel.Gui = SimpleNamespace(
-        activeDocument=lambda: object(),
+        activeDocument=lambda: SimpleNamespace(),
         Control=SimpleNamespace(
-            activeDialog=lambda: object(), closeDialog=lambda: calls.append("close")
+            activeDialog=lambda: SimpleNamespace(), closeDialog=lambda: calls.append("close")
         ),
     )
 
