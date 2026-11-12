@@ -274,10 +274,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                     "tests/test_ci_configuration.py::"
                     "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
                 ),
-                (
-                    "tests/test_ci_configuration.py::"
-                    "test_ty_warning_diagnostics_remain_blocking"
-                ),
+                ("tests/test_ci_configuration.py::test_ty_warning_diagnostics_remain_blocking"),
                 "tests/test_avatar_service_contract.py",
                 "tests/test_changed_python_types.py",
                 "tests/test_command_runner.py",
