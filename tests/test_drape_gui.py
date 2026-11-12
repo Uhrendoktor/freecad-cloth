@@ -2,7 +2,6 @@
 """Behavioral contracts for the native DrapeTarget task-panel frontend."""
 
 from types import SimpleNamespace
-from typing import TypeAlias
 
 import pytest
 
