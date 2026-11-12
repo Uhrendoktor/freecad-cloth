@@ -9,7 +9,7 @@ import pathlib
 import sys
 import traceback
 from collections.abc import Callable, Sequence
-from typing import Protocol, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
