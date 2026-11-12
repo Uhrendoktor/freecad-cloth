@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Enforce descriptive Python docs and reject generic object type annotations.
+"""Enforce descriptive public API docs and expose generic-object annotation inspection.
 
 Every tracked Python source and stub is checked. Ruff enforces annotation syntax and the full
 compatible lint rule set; this contract verifies documentation prose and prohibits object as a
@@ -538,6 +538,7 @@ def check_source(
     filename: str = "<memory>",
     *,
     public_api_only: bool = False,
+    module_only: bool = False,
 ) -> list[str]:
     """Validate documentation prose and suppression policy for one Python source.
 
@@ -545,7 +546,8 @@ def check_source(
         source: Complete Python source text.
         filename: File label shown in diagnostic messages.
         public_api_only: Limit declaration checks to public module-level APIs and methods
-            on public classes, while always requiring a module docstring for .py files.
+            on public classes.
+        module_only: Skip declaration checks while retaining module and suppression checks.
 
     Returns:
         All documentation and suppression violations found.
@@ -559,8 +561,10 @@ def check_source(
     if not filename.endswith(".pyi") and ast.get_docstring(tree) is None:
         errors.append(f"{filename}: missing module docstring")
 
-    if public_api_only:
+    if module_only:
         declarations: list[ast.AST] = []
+    elif public_api_only:
+        declarations = []
         for node in tree.body:
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_"):
                 declarations.append(node)
@@ -606,7 +610,12 @@ def check(path: Path) -> list[str]:
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeError) as exc:
         return [f"{filename}: cannot read Python source: {exc}"]
-    return check_source(source, filename, public_api_only=_requires_api_docs(path))
+    return check_source(
+        source,
+        filename,
+        public_api_only=_requires_api_docs(path),
+        module_only=not _requires_api_docs(path),
+    )
 
 
 def main() -> int:
