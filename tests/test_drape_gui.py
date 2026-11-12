@@ -320,7 +320,9 @@ def test_apply_persists_target_values_and_recomputes() -> None:
     panel._source_objects = [source]
     panel.doc = SimpleNamespace(recompute=lambda: document_calls.append("recompute"))
 
-    def assign_target(target_obj: SimpleNamespace, source_obj: SimpleNamespace, target_type: str) -> None:
+    def assign_target(
+        target_obj: SimpleNamespace, source_obj: SimpleNamespace, target_type: str
+    ) -> None:
         """Capture the assignment requested by the editor.
 
         Args:
