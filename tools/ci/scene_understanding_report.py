@@ -23,6 +23,10 @@ from typing import cast
 
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
+type JsonValue = None | bool | int | float | str | list[JsonValue] | dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
+type DiagnosticValue = JsonValue | tuple[DiagnosticValue, ...]
+
 TWO_DIMENSIONAL_COORDINATE_COUNT = 2
 TOPOLOGY_BOUNDARY_SAMPLE_FIELD_COUNT = 6
 NEAR_CROSSING_RECORD_FIELD_COUNT = 5
@@ -71,10 +75,10 @@ class WorkflowAssessment:
         next_action: Guidance for the next diagnostic or repair step.
     """
 
-    topology_records: list[dict[str, object]]
-    invalid_native: list[dict[str, object]]
-    invalid_derived: list[dict[str, object]]
-    invalid_geometry: list[dict[str, object]]
+    topology_records: list[JsonObject]
+    invalid_native: list[JsonObject]
+    invalid_derived: list[JsonObject]
+    invalid_geometry: list[JsonObject]
     failure_text: str | None
     failure_unknown: bool
     result: str
@@ -99,12 +103,12 @@ class ProgressEvidence:
         has_simulation_start: Whether simulation startup was observed.
     """
 
-    topology_by_piece: dict[str, dict[str, object]] = field(default_factory=dict)
-    armholes_by_index: dict[int, dict[str, object]] = field(default_factory=dict)
-    placements_by_side: dict[str, dict[str, object]] = field(default_factory=dict)
+    topology_by_piece: dict[str, JsonObject] = field(default_factory=dict)
+    armholes_by_index: dict[int, JsonObject] = field(default_factory=dict)
+    placements_by_side: dict[str, JsonObject] = field(default_factory=dict)
     pose: dict[str, float] | None = None
-    screenshot_states: dict[str, dict[str, object]] = field(default_factory=dict)
-    drape_records: list[dict[str, object]] = field(default_factory=list)
+    screenshot_states: dict[str, JsonObject] = field(default_factory=dict)
+    drape_records: list[JsonObject] = field(default_factory=list)
     failure_lines: list[str] = field(default_factory=list)
     has_scenario_pass: bool = False
     has_simulation_start: bool = False
@@ -127,7 +131,7 @@ class _ScreenshotPresence:
     drape: bool
 
 
-def _literal_tuple(value: str) -> tuple[object, ...]:
+def _literal_tuple(value: str) -> tuple[DiagnosticValue, ...]:
     """Safely parse a tuple-like value written by Python's diagnostic repr.
 
     Args:
@@ -143,10 +147,10 @@ def _literal_tuple(value: str) -> tuple[object, ...]:
     if not isinstance(parsed, tuple):
         msg = "expected a tuple in the workflow diagnostic"
         raise TypeError(msg)
-    return cast("tuple[object, ...]", parsed)
+    return cast("tuple[DiagnosticValue, ...]", parsed)
 
 
-def _float_value(value: object) -> float:
+def _float_value(value: DiagnosticValue) -> float:
     """Normalize one validated numeric literal to a floating-point value.
 
     Args:
@@ -164,7 +168,7 @@ def _float_value(value: object) -> float:
     return float(value)
 
 
-def _int_value(value: object) -> int:
+def _int_value(value: DiagnosticValue) -> int:
     """Validate an exact integer literal parsed from diagnostics.
 
     Args:
@@ -182,7 +186,7 @@ def _int_value(value: object) -> int:
     return value
 
 
-def _point(value: object) -> list[float]:
+def _point(value: DiagnosticValue) -> list[float]:
     """Normalize a 2D point to a JSON-safe list of finite floats.
 
     Args:
@@ -216,7 +220,7 @@ def _pair(value: str) -> list[float]:
     return _point(_literal_tuple(value))
 
 
-def _parse_topology(line: str) -> dict[str, object] | None:
+def _parse_topology(line: str) -> JsonObject | None:
     """Extract the authoritative sampled boundary and nearest crossing segments.
 
     Args:
@@ -229,13 +233,13 @@ def _parse_topology(line: str) -> dict[str, object] | None:
     if match is None:
         return None
     raw_boundaries = _literal_tuple(match.group(8))
-    boundaries: list[dict[str, object]] = []
+    boundaries: list[JsonObject] = []
     for item in raw_boundaries:
         if not isinstance(item, tuple) or len(item) not in {5, 6}:
             continue
         edge_name = str(item[0])
         edge_match = re.search(r":edge:(\d+)$", edge_name)
-        boundary: dict[str, object] = {
+        boundary: JsonObject = {
             "id": edge_name,
             "edge_index": int(edge_match.group(1)) if edge_match else None,
             "kind": str(item[1]),
@@ -247,7 +251,7 @@ def _parse_topology(line: str) -> dict[str, object] | None:
             boundary["samples_local_mm"] = [_point(point) for point in item[5]]
         boundaries.append(boundary)
     raw_nearby = _literal_tuple(match.group(9))
-    nearby: list[dict[str, object]] = []
+    nearby: list[JsonObject] = []
     for item in raw_nearby:
         if not isinstance(item, tuple) or len(item) != NEAR_CROSSING_RECORD_FIELD_COUNT:
             continue
@@ -280,7 +284,7 @@ def _parse_topology(line: str) -> dict[str, object] | None:
     }
 
 
-def _parse_armhole(line: str) -> dict[str, object] | None:
+def _parse_armhole(line: str) -> JsonObject | None:
     """Extract the native curve class, parameter interval, and sampled local shape.
 
     Args:
@@ -305,7 +309,7 @@ def _parse_armhole(line: str) -> dict[str, object] | None:
     }
 
 
-def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, object]]:
+def _image_inventory(output_root: Path, workspace: Path) -> list[JsonObject]:
     """Hash rendered evidence already emitted by the run; never modify source images.
 
     Args:
@@ -315,7 +319,7 @@ def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, objec
     Returns:
         Image inventory records with relative paths, sizes, and SHA-256 digests.
     """
-    records: list[dict[str, object]] = []
+    records: list[JsonObject] = []
     for path in sorted(output_root.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
             continue
@@ -335,7 +339,7 @@ def _image_inventory(output_root: Path, workspace: Path) -> list[dict[str, objec
     return records
 
 
-def _finite_metric_number(value: object) -> float | None:
+def _finite_metric_number(value: JsonValue) -> float | None:
     """Convert a valid numeric metric to a finite float, excluding booleans.
 
     Args:
@@ -351,7 +355,7 @@ def _finite_metric_number(value: object) -> float | None:
 
 
 def _panel_vertical_bounds(
-    panels: list[object],
+    panels: list[JsonValue],
 ) -> tuple[list[float], list[float], set[str]]:
     """Collect finite panel Z bounds and named diagnostic flags.
 
@@ -382,7 +386,7 @@ def _panel_vertical_bounds(
 
 def _fit_findings(
     deviations: dict[str, float], review_threshold_mm: float
-) -> list[dict[str, object]]:
+) -> list[JsonObject]:
     """Build review warnings for vertical deviations beyond the existing threshold.
 
     Args:
@@ -414,7 +418,7 @@ def _fit_findings(
             "lowest final cloth point ends materially above the declared hem level",
         ),
     )
-    findings: list[dict[str, object]] = []
+    findings: list[JsonObject] = []
     for kind, deviation_key, message in finding_specs:
         observed_mm = deviations[deviation_key]
         if observed_mm > review_threshold_mm:
@@ -430,7 +434,7 @@ def _fit_findings(
     return findings
 
 
-def _fit_assessment(metrics_payload: object) -> dict[str, object]:
+def _fit_assessment(metrics_payload: JsonValue) -> JsonObject:
     """Screen garment vertical coverage separately from execution/contact success.
 
     The shoulder reference currently comes from the audit's avatar-bounds heuristic,
@@ -608,7 +612,7 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             except json.JSONDecodeError:
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
-                parsed.drape_records.append(cast("dict[str, object]", parsed_metrics))
+                parsed.drape_records.append(cast("JsonObject", parsed_metrics))
         if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
             parsed.has_scenario_pass = True
         if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
@@ -774,8 +778,8 @@ def _derive_stage_states(
 
 
 def _build_issues(
-    invalid_geometry: list[dict[str, object]],
-) -> list[dict[str, object]]:
+    invalid_geometry: list[JsonObject],
+) -> list[JsonObject]:
     """Describe invalid pattern topology while preserving source and measured edge evidence.
 
     Args:
@@ -784,11 +788,11 @@ def _build_issues(
     Returns:
         Blocking pattern findings in report-schema form.
     """
-    issues: list[dict[str, object]] = []
+    issues: list[JsonObject] = []
     for topology in invalid_geometry:
         native_invalid = not bool(topology["ir_valid"])
         reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
-        nearby = cast("list[dict[str, object]]", topology["near_crossing"])
+        nearby = cast("list[JsonObject]", topology["near_crossing"])
         touching = list(
             dict.fromkeys(
                 str(item["edge_id"])
@@ -830,8 +834,8 @@ def _build_issues(
 
 
 def _crossing_summary(
-    invalid_geometry: list[dict[str, object]],
-) -> list[dict[str, object]]:
+    invalid_geometry: list[JsonObject],
+) -> list[JsonObject]:
     """Summarize each observed crossing with local point and touching edge identifiers.
 
     Args:
@@ -846,7 +850,7 @@ def _crossing_summary(
             "point_local_mm": record["crossing_local_mm"],
             "edge_ids": [
                 item["edge_id"]
-                for item in cast("list[dict[str, object]]", record["near_crossing"])
+                for item in cast("list[JsonObject]", record["near_crossing"])
                 if _float_value(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             ],
         }
@@ -855,7 +859,7 @@ def _crossing_summary(
     ]
 
 
-def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
+def build_report(progress_path: Path, output_root: Path, workspace: Path) -> JsonObject:
     """Build a machine-readable diagnosis using only the completed workflow files.
 
     Args:
@@ -892,7 +896,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     issues = _build_issues(assessment.invalid_geometry)
     image_inventory = _image_inventory(output_root, workspace)
     metrics_path = output_root / "drape-visual-metrics.json"
-    metrics_payload: object = None
+    metrics_payload: JsonValue = None
     if metrics_path.is_file():
         try:
             metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
@@ -981,7 +985,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> dic
     }
 
 
-def _as_dict(value: object) -> dict[str, object]:
+def _as_dict(value: JsonValue) -> JsonObject:
     """Return a dict for a previously validated report section.
 
     Args:
@@ -990,10 +994,10 @@ def _as_dict(value: object) -> dict[str, object]:
     Returns:
         Dictionary representation, or an empty mapping for non-dictionaries.
     """
-    return cast("dict[str, object]", value) if isinstance(value, dict) else {}
+    return cast("JsonObject", value) if isinstance(value, dict) else {}
 
 
-def _as_list(value: object) -> list[object]:
+def _as_list(value: JsonValue) -> list[JsonValue]:
     """Return a list for a previously validated report section.
 
     Args:
@@ -1002,12 +1006,12 @@ def _as_list(value: object) -> list[object]:
     Returns:
         List representation, or an empty list for non-lists.
     """
-    return cast("list[object]", value) if isinstance(value, list) else []
+    return cast("list[JsonValue]", value) if isinstance(value, list) else []
 
 
 def _boundary_edge_shape(
-    boundary: dict[str, object],
-    armholes: dict[int, dict[str, object]],
+    boundary: JsonObject,
+    armholes: dict[int, JsonObject],
 ) -> tuple[int | None, list[list[float]], str]:
     """Resolve the sample points and label for a native pattern boundary.
 
@@ -1041,8 +1045,8 @@ def _boundary_edge_shape(
 
 
 def _piece_boundary_geometry(
-    boundaries: list[object],
-    armholes: dict[int, dict[str, object]],
+    boundaries: list[JsonValue],
+    armholes: dict[int, JsonObject],
 ) -> tuple[list[list[float]], list[tuple[int | None, list[list[float]], str]]]:
     """Collect a piece's connected outline and individual sampled edges.
 
@@ -1082,7 +1086,7 @@ def _svg_transform_point(point: list[float], *, origin_x: float) -> tuple[float,
     return origin_x + point[0] * 0.70, 600.0 - point[1] * 0.70
 
 
-def _crossing_edge_colors(value: object) -> dict[int, str]:
+def _crossing_edge_colors(value: JsonValue) -> dict[int, str]:
     """Choose diagnostic colors for edges near a measured outline crossing.
 
     Args:
@@ -1175,7 +1179,7 @@ def _render_edge_shapes(
     return rendered
 
 
-def _render_crossing_marker(crossing: object, origin_x: float) -> list[str]:
+def _render_crossing_marker(crossing: JsonValue, origin_x: float) -> list[str]:
     """Render a measured crossing crosshair when the report has local coordinates.
 
     Args:
@@ -1207,7 +1211,7 @@ def _render_crossing_marker(crossing: object, origin_x: float) -> list[str]:
 
 
 def _render_piece_status(
-    record: dict[str, object],
+    record: JsonObject,
     piece_name: str,
     origin_x: float,
     title_color: str,
@@ -1254,9 +1258,9 @@ def _render_piece_status(
 
 
 def _render_pattern_piece(
-    raw_piece: dict[str, object],
+    raw_piece: JsonObject,
     piece_number: int,
-    armholes: dict[int, dict[str, object]],
+    armholes: dict[int, JsonObject],
 ) -> list[str]:
     """Render the outline, edge markers, and state labels for one garment piece.
 
@@ -1284,7 +1288,7 @@ def _render_pattern_piece(
     return rendered
 
 
-def render_pattern_svg(report: dict[str, object]) -> str:
+def render_pattern_svg(report: JsonObject) -> str:
     """Render the reported outline and highlight any measured self-intersection.
 
     Args:
@@ -1304,7 +1308,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
     for piece_number, raw_piece in enumerate(pieces[:2]):
         if isinstance(raw_piece, dict):
             pieces_rendered.extend(
-                _render_pattern_piece(cast("dict[str, object]", raw_piece), piece_number, armholes)
+                _render_pattern_piece(cast("JsonObject", raw_piece), piece_number, armholes)
             )
     if not pieces_rendered:
         pieces_rendered.append(
@@ -1326,7 +1330,7 @@ def render_pattern_svg(report: dict[str, object]) -> str:
     )
 
 
-def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
+def _render_fit_section(lines: list[str], report: JsonObject) -> None:
     """Render the fit-screening section without promoting heuristic warnings to failures.
 
     Args:
@@ -1361,7 +1365,7 @@ def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
         for raw_finding in fit_findings:
             if not isinstance(raw_finding, dict):
                 continue
-            finding = cast("dict[str, object]", raw_finding)
+            finding = cast("JsonObject", raw_finding)
             lines.append(
                 f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
                 f"({finding.get('observed_mm')} mm; heuristic review threshold "
@@ -1379,7 +1383,7 @@ def _render_fit_section(lines: list[str], report: dict[str, object]) -> None:
     lines.append(f"Next action: {fit.get('next_action', report.get('next_action'))}")
 
 
-def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None:
+def _render_geometry_issues(lines: list[str], report: JsonObject) -> None:
     """Render measured blocking pattern findings and their first repair action.
 
     Args:
@@ -1392,7 +1396,7 @@ def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None
         for raw_issue in issues:
             if not isinstance(raw_issue, dict):
                 continue
-            issue = cast("dict[str, object]", raw_issue)
+            issue = cast("JsonObject", raw_issue)
             point = issue.get("point_local_mm")
             point_text = (
                 f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
@@ -1428,7 +1432,7 @@ def _render_geometry_issues(lines: list[str], report: dict[str, object]) -> None
         )
 
 
-def _render_placement_section(lines: list[str], report: dict[str, object]) -> None:
+def _render_placement_section(lines: list[str], report: JsonObject) -> None:
     """Render observed panel placement values or the missing-evidence note.
 
     Args:
@@ -1443,7 +1447,7 @@ def _render_placement_section(lines: list[str], report: dict[str, object]) -> No
             raw_panel = panels[side]
             if not isinstance(raw_panel, dict):
                 continue
-            panel = cast("dict[str, object]", raw_panel)
+            panel = cast("JsonObject", raw_panel)
             lines.append(
                 f"- **{side}:** panel origin Y = {panel.get('panel_origin_y_mm')} mm; "
                 f"clearance used = {panel.get('configured_clearance_mm')} mm; "
@@ -1453,7 +1457,7 @@ def _render_placement_section(lines: list[str], report: dict[str, object]) -> No
         lines.append("No explicit target-relative panel placement was observed.")
 
 
-def _render_evidence_section(lines: list[str], report: dict[str, object]) -> None:
+def _render_evidence_section(lines: list[str], report: JsonObject) -> None:
     """Render expected outputs and hashes for captured evidence.
 
     Args:
@@ -1471,14 +1475,14 @@ def _render_evidence_section(lines: list[str], report: dict[str, object]) -> Non
         for raw_image in image_records:
             if not isinstance(raw_image, dict):
                 continue
-            image = cast("dict[str, object]", raw_image)
+            image = cast("JsonObject", raw_image)
             lines.append(
                 f"- {image.get('path')} — {image.get('size_bytes')} bytes; "
                 f"SHA-256 hash: {image.get('sha256')}"
             )
 
 
-def render_markdown(report: dict[str, object]) -> str:
+def render_markdown(report: JsonObject) -> str:
     """Generate a readable summary that leads with the blocker, not solver metrics.
 
     Args:
@@ -1543,7 +1547,7 @@ def render_markdown(report: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
-def write_report(progress_path: Path, output_root: Path, workspace: Path) -> dict[str, object]:
+def write_report(progress_path: Path, output_root: Path, workspace: Path) -> JsonObject:
     """Write JSON, Markdown, and annotated SVG reports into the uploaded artifact directory.
 
     Args:
