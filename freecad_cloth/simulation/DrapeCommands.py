@@ -20,9 +20,7 @@ class _FreeCADDocument(Protocol):
         """Find a document object by its internal name."""
         ...
 
-    def addObject(
-        self, type_id: str, object_name: str
-    ) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, type_id: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native document object for the requested feature type."""
         ...
 
@@ -551,9 +549,7 @@ def register_gui_commands(gui: _GuiCommandRegistry | None = None) -> bool:
             return False
         gui = Gui
     add_command_attribute = "addCommand"
-    add_command = cast(
-        "Callable[[str, _DrapeCommand], None]", getattr(gui, add_command_attribute)
-    )
+    add_command = cast("Callable[[str, _DrapeCommand], None]", getattr(gui, add_command_attribute))
     for name, function in _HANDLERS.items():
         active = _has_source_selection if name == "ClothDrape_CreateTarget" else _has_document
         add_command(name, _DrapeCommand(name, function, active, _TOOLTIPS[name]))
