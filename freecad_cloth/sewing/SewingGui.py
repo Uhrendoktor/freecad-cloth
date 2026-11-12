@@ -8,17 +8,14 @@ the task panel is only the interactive frontend.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from types import ModuleType
+from typing import Protocol
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.sewing.SewingCorrespondence import (
     CorrespondenceReport,
     analyze_correspondence,
 )
-
-
-if TYPE_CHECKING:
-    from types import ModuleType
 
 
 class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
