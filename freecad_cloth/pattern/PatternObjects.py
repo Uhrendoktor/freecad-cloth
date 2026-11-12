@@ -5,6 +5,7 @@ import ast
 from collections.abc import Callable, Sequence
 from types import ModuleType
 
+from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
@@ -123,7 +124,7 @@ def _native_edge_record_for_sketch_index(
     piece,
     edge,
     *,
-    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
 ):
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
@@ -153,7 +154,7 @@ def _native_edge_record_for_sketch_index(
 def _edge_records(
     piece,
     *,
-    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
 ):
     """Return edge records derived only from the authoritative native Sketcher boundary.
 
@@ -188,7 +189,7 @@ def _seam_edge_id(
     edge,
     prefix,
     *,
-    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
 ):
     """Return the semantic edge id and captured signature for a seam side."""
     if isinstance(edge, int):
@@ -256,7 +257,7 @@ def _resolve_document_edge(
     edge_id,
     signature,
     *,
-    native_edge_records_fn: Callable[..., Sequence[dict[str, object]] | None] | None = None,
+    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
 ):
     """Resolve a stored semantic seam reference against current Sketcher provenance.
 
