@@ -28,9 +28,9 @@ if str(_HELPER_DIR) not in sys.path:
 if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
-from freecad_cloth.shared.Collision import CollisionSurface
-
 from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint
+
+from freecad_cloth.shared.Collision import CollisionSurface
 
 _BOOTSTRAP = bootstrap_ladder(__file__, "cube")
 OUT = _BOOTSTRAP.output_directory

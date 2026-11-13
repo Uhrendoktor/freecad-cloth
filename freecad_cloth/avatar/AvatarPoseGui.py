@@ -1736,7 +1736,7 @@ class AvatarPoseTaskPanel:
             ok.setText("Apply & Rebuild")
 
 
-def show_avatar_pose_task(avatar=None) -> "AvatarTaskPanelProtocol":
+def show_avatar_pose_task(avatar=None) -> AvatarTaskPanelProtocol:
     """Open the focused Pose Mode task panel.
 
     Args:

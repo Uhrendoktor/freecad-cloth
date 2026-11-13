@@ -278,7 +278,7 @@ class AvatarTaskPanel:
     def _open_pose_mode(self) -> AvatarTaskPanelProtocol | None:
         """Open the pose editor for the current mannequin."""
         if self.avatar is None:
-            return
+            return None
         with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
         from freecad_cloth.avatar.AvatarCommands import pose_avatar
