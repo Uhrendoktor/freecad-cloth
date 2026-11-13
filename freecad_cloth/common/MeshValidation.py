@@ -58,7 +58,7 @@ class _TrimeshMesh(Protocol):
     is_watertight: bool
     nearest: _SurfaceQuery
 
-    def split(self, _only_watertight: bool = False) -> Sequence[_TrimeshMesh]:
+    def split(self, *, only_watertight: bool = False) -> Sequence[_TrimeshMesh]:
         """Split this mesh into disconnected components.
 
         Args:
@@ -265,7 +265,7 @@ def _trimesh_metrics(
     return MeshValidationResult(
         vertices=len(vertices),
         faces=len(triangles),
-        components=len(mesh.split(False)),
+        components=len(mesh.split(only_watertight=False)),
         bounds=(
             float(bounds[0][0]),
             float(bounds[1][0]),

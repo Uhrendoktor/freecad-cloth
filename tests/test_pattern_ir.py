@@ -499,7 +499,7 @@ def test_unresolvable_string_reference_fails_closed() -> None:
     graph.add_piece(PatternPiece("front", [(0, 0), (10, 0), (0, 10)], id="front"))
     graph.add_piece(PatternPiece("back", [(0, 0), (10, 0), (0, 10)], id="back"))
     graph.add_seam(Seam("front", "missing", "back", 0, id="bad"))
-    with pytest.raises(ValueError, match="unknown boundary"):
+    with pytest.raises(ValueError, match="unresolvable seam edge reference"):
         PatternIR.from_graph(graph)
 
 

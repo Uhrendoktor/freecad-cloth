@@ -9,9 +9,9 @@ import sys
 from pathlib import Path
 
 if __package__:
-    from tools.ci.command_runner import run_command
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 
 def main() -> int:
@@ -35,10 +35,11 @@ def main() -> int:
 
     result = run_command(
         [docker, "run", "--rm", args.image, "bash", "-lc", "cat /opt/pypbd-provenance.txt"],
-        check=True,
-        capture_output=True,
-        timeout=20,
+        options=CommandOptions(check=True, capture_output=True, timeout=20),
     )
+    if result.stdout is None:
+        msg = "Docker provenance command did not capture standard output"
+        raise RuntimeError(msg)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(result.stdout, encoding="utf-8")
     if not args.output.stat().st_size:

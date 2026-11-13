@@ -217,7 +217,9 @@ def test_quality_seam_edges_have_interior_particles() -> None:
     """Populate refined seam boundaries with interior edge particles."""
     piece = PatternPiece("Test", [(0, 0), (120, 0), (120, 60), (0, 60)], id="test")
     piece_obj = _quality_piece_object(piece)
-    positions, _triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 20.0)
+    positions, _triangles, boundary = quality_piece_mesh(
+        piece_obj, 100.0, 20.0, piece_ir=_quality_piece_ir(piece)
+    )
     assert len(boundary) == _EXPECTED_BOUNDARY_EDGE_COUNT, (
         "Refined seam edges must contain interior particles within the spacing budget."
     )
