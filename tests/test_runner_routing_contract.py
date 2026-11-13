@@ -94,7 +94,7 @@ def test_local_readiness_gates_quality_and_image_work() -> None:
     quality = _job_block(source, "agent-quality")
     image = _job_block(source, "pbd_validation_image")
     readiness = _job_block(source, "local_runner_readiness")
-    assert "needs: [local_runner_readiness]" in quality
+    assert "needs: [local_runner_readiness, pbd_validation_image]" in quality
     assert "needs: [local_runner_readiness]" in image
     assert "docker info" in readiness
     assert "github.event_name == 'merge_group'" in readiness
@@ -135,7 +135,9 @@ def test_reusable_dependency_environments_and_docker_images_are_persistent() -> 
     assert "PIP_CACHE_DIR" in wrapper
     assert "PRE_COMMIT_HOME" in wrapper
     assert "docker image inspect" in wrapper
-    assert "docker run" in wrapper
+    assert "docker create" in wrapper
+    assert "docker cp" in wrapper
+    assert "docker start --attach" in wrapper
     assert "--system-site-packages" in runner
     assert "torch==2.8.0+cpu" in runner
     assert "ready_marker_is_current" in runner

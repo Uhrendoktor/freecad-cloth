@@ -410,7 +410,7 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
-        condition=("freecad-test@" in gui),
+        condition=("uses: ./.github/actions/freecad-test" in gui),
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
@@ -501,7 +501,7 @@ def test_freecad_runner_uses_native_app_run_and_optional_mod_staging() -> None:
         message="FreeCAD must pass the bounded staging paths via -M and -P.",
     )
     require(
-        condition=("command.append(str(args.test_script))" in source),
+        condition=("command.append(str(test_script))" in source),
         message="test_freecad_runner_uses_native_a...: required condition failed",
     )
     require(
@@ -527,11 +527,11 @@ def test_freecad_runner_preserves_script_owned_logs() -> None:
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
-        condition=("args.log_file.is_file()" in source),
+        condition=("log_file.is_file" in source),
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
-        condition=("args.log_file.read_text(" in source),
+        condition=("log_file.read_text" in source),
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
@@ -539,7 +539,7 @@ def test_freecad_runner_preserves_script_owned_logs() -> None:
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
-        condition=('args.log_file.write_text(output, encoding="utf-8")' in source),
+        condition=("log_file.write_text" in source and "existing_log.strip()" in source),
         message="test_freecad_runner_preserves_scr...: required condition failed",
     )
     require(
