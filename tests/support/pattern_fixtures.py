@@ -68,6 +68,8 @@ def sketcher_pattern_piece(
         GeometryAuthority="Sketcher",
         GeometryMode="Sketch",
         Sketch=sketch,
+        DraftingBoundary=repr(vertices),
+        SewingOutline=repr(vertices),
         Placement=placement,
         SeamAllowance=0.0,
         GrainlineAngle=0.0,
