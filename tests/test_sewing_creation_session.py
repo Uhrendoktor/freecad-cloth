@@ -36,6 +36,62 @@ class _PatternPiece:
 type SelectionEntry = _PatternPiece | _SewingObject
 
 
+class _SubelementSelection:
+    """Minimal selection adapter that retains native edge subelement labels."""
+
+    def __init__(self, entries: Sequence[tuple[_PatternPiece, str]] = ()) -> None:
+        """Initialize the selected edge references.
+
+        Args:
+            entries: Initial feature and edge-index pairs.
+        """
+        self.entries = list(entries)
+
+    def clearSelection(self) -> None:
+        """Clear every selected subelement."""
+        self.entries.clear()
+
+    def addSelection(self, obj: _PatternPiece, subelement: str) -> None:
+        """Add one feature subelement to the selection.
+
+        Args:
+            obj: Pattern feature owning the selected edge.
+            subelement: Native FreeCAD edge label.
+        """
+        self.entries.append((obj, subelement))
+
+
+def _task_panel_with_edges(
+    monkeypatch: pytest.MonkeyPatch,
+    selection: _SubelementSelection,
+    initial_selection: tuple[tuple[_PatternPiece, int], ...],
+    current_edges: tuple[tuple[_PatternPiece, int], ...],
+) -> SewingCreationTaskPanel:
+    """Build a task panel with controlled initial and current edge selection.
+
+    Args:
+        monkeypatch: Fixture used to replace the selected-edge collector.
+        selection: Mutable selection adapter exposed as the panel's GUI selection.
+        initial_selection: Edges captured when the task panel was opened.
+        current_edges: Edges reported by the active selection collector.
+
+    Returns:
+        An uninitialized task panel with only the selection state configured.
+    """
+    from freecad_cloth.sewing import SewingCommands
+
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.Gui = SimpleNamespace(Selection=selection)
+    panel._viewport_picks = []
+    panel._initial_selection = initial_selection
+    monkeypatch.setattr(
+        SewingCommands,
+        "_collect_selected_pattern_edges",
+        lambda: current_edges,
+    )
+    return panel
+
+
 class _Selection:
     """In-memory selection adapter exposing the FreeCAD callback names."""
 
@@ -293,30 +349,14 @@ def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_c
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Restore both semantic seam edges when a task panel leaves only one selected."""
-    from freecad_cloth.sewing import SewingCommands
-
     first_piece = _PatternPiece(Name="Front")
     second_piece = _PatternPiece(Name="Back")
-
-    class SubelementSelection:
-        def __init__(self) -> None:
-            self.entries: list[tuple[_PatternPiece, str]] = []
-
-        def clearSelection(self) -> None:
-            self.entries.clear()
-
-        def addSelection(self, obj: _PatternPiece, subelement: str) -> None:
-            self.entries.append((obj, subelement))
-
-    selection = SubelementSelection()
-    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
-    panel.Gui = SimpleNamespace(Selection=selection)
-    panel._viewport_picks = []
-    panel._initial_selection = ((first_piece, 0), (second_piece, 2))
-    monkeypatch.setattr(
-        SewingCommands,
-        "_collect_selected_pattern_edges",
-        lambda: ((first_piece, 0),),
+    selection = _SubelementSelection()
+    panel = _task_panel_with_edges(
+        monkeypatch,
+        selection,
+        ((first_piece, 0), (second_piece, 2)),
+        ((first_piece, 0),),
     )
 
     panel._restore_initial_pattern_selection()
@@ -332,33 +372,15 @@ def test_task_panel_preserves_a_new_selection_outside_the_initial_edges(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Do not replace a deliberate new selection with the captured initial edges."""
-    from freecad_cloth.sewing import SewingCommands
-
     first_piece = _PatternPiece(Name="Front")
     second_piece = _PatternPiece(Name="Back")
     selected_piece = _PatternPiece(Name="Sleeve")
-
-    class SubelementSelection:
-        def __init__(self) -> None:
-            self.entries: list[tuple[_PatternPiece, str]] = [
-                (selected_piece, "Edge5"),
-            ]
-
-        def clearSelection(self) -> None:
-            self.entries.clear()
-
-        def addSelection(self, obj: _PatternPiece, subelement: str) -> None:
-            self.entries.append((obj, subelement))
-
-    selection = SubelementSelection()
-    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
-    panel.Gui = SimpleNamespace(Selection=selection)
-    panel._viewport_picks = []
-    panel._initial_selection = ((first_piece, 0), (second_piece, 2))
-    monkeypatch.setattr(
-        SewingCommands,
-        "_collect_selected_pattern_edges",
-        lambda: ((selected_piece, 4),),
+    selection = _SubelementSelection(((selected_piece, "Edge5"),))
+    panel = _task_panel_with_edges(
+        monkeypatch,
+        selection,
+        ((first_piece, 0), (second_piece, 2)),
+        ((selected_piece, 4),),
     )
 
     panel._restore_initial_pattern_selection()

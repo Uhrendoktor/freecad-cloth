@@ -52,7 +52,7 @@ def test_pose_mode_uses_canonical_pose_and_skeleton_catalogues():
         ("sitting", "Sitting"),
     )
     assert tuple(JOINT_LABELS.items()) == CONTROLLABLE_JOINTS
-    assert CONTROLLABLE_BONES == tuple(bone for bone, _label in CONTROLLABLE_JOINTS)
+    assert tuple(bone for bone, _label in CONTROLLABLE_JOINTS) == CONTROLLABLE_BONES
 
 
 def test_pose_mode_helpers_are_runtime_importable_without_freecad_gui():

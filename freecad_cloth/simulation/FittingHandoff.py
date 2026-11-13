@@ -349,3 +349,18 @@ def reset_arrangement_from_simulation() -> _FittingScene:
     from freecad_cloth.avatar import FittingCommands as fitting_commands
 
     return fitting_commands.reset_arrangement()
+
+
+FITTING_HANDOFF_COMMAND_HANDLERS: dict[str, CommandCallable] = {
+    "ClothFitting_AssignAvatar": assign_avatar_source,
+    "ClothFitting_CreateSimulation": create_simulation_from_fitting,
+}
+
+
+def register_fitting_handoff_commands(gui: GuiCommandRegistrar) -> None:
+    """Register the simulation-owned fitting handoff commands with FreeCAD.
+
+    Args:
+        gui: FreeCAD GUI object implementing the command registrar protocol.
+    """
+    register_commands(gui, FITTING_HANDOFF_COMMAND_HANDLERS)

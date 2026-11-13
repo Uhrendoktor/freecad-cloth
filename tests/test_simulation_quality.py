@@ -85,9 +85,7 @@ def _quality_piece_ir(piece: PatternPiece) -> PieceIR:
             kind="line",
             samples=((start[0], start[1], 0.0), (end[0], end[1], 0.0)),
         )
-        for index, (start, end) in enumerate(
-            zip(outline, (*outline[1:], outline[0]), strict=True)
-        )
+        for index, (start, end) in enumerate(zip(outline, (*outline[1:], outline[0]), strict=True))
     )
     result = PieceIR(id=piece.id, name="Test", boundaries=boundaries)
     result.validate()
@@ -239,7 +237,9 @@ def test_refinement_preserves_authored_boundary_and_materially_tessellates() -> 
     """Preserve authored edge endpoints while refining faces and vertices."""
     piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
     piece_obj = _quality_piece_object(piece)
-    positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0, piece_ir=_quality_piece_ir(piece))
+    positions, triangles, boundary = quality_piece_mesh(
+        piece_obj, 100.0, 2.0, piece_ir=_quality_piece_ir(piece)
+    )
     # Constrained Delaunay preserves the authored outline as semantic
     # boundary chains; refinement adds interior vertices and triangles.
     assert len(boundary) == len(piece.outline), _BOUNDARY_CONTRACT_MESSAGE

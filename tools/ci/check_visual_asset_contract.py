@@ -6,7 +6,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 from typing import cast
 
 from repository_paths import add_repository_root
@@ -15,6 +14,7 @@ from visual_evidence import documented_assets
 ROOT = add_repository_root(__file__)
 
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+
 MANIFEST = ROOT / "tools" / "ci" / "visual_asset_sources.json"
 WORKFLOW = ROOT / ".github" / "workflows" / "canonical-execution.yml"
 PUBLISH_ACTION = ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml"

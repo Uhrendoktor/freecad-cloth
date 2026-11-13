@@ -68,7 +68,6 @@ def test_shared_bootstrap_registers_handoff_commands_before_workbench_activation
     )
 
 
-
 def test_fitting_handoff_creates_the_quality_controlled_simulation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -89,10 +88,17 @@ def test_fitting_handoff_creates_the_quality_controlled_simulation(
     freecad_module.ActiveDocument = doc
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
-    calls = []
+    calls: list[
+        tuple[SimpleNamespace, SimpleNamespace | None, tuple[SimpleNamespace, ...]]
+    ] = []
     expected_scene = SimpleNamespace()
 
-    def create_quality_scene(document, *, avatar_source, cloth_pieces):
+    def create_quality_scene(
+        document: SimpleNamespace,
+        *,
+        avatar_source: SimpleNamespace | None,
+        cloth_pieces: tuple[SimpleNamespace, ...],
+    ) -> SimpleNamespace:
         calls.append((document, avatar_source, tuple(cloth_pieces)))
         return expected_scene
 
