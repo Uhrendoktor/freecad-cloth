@@ -137,7 +137,6 @@ class _FittingScene(Protocol):
 
     ArrangementPoints: Sequence[str]
     FitStatus: str
-    AvatarProxy: FreeCADDocumentObjectProtocol | None
     HomePlacements: Sequence[str]
     PatternPieces: Sequence[_PatternPiece]
     PiecePlacements: Sequence[str]
@@ -232,7 +231,6 @@ def assign_avatar_source(
         drape_target.CollisionThickness = target_thickness
         drape_target_api.assign_drape_target(drape_target, source, target_type)
 
-    scene.AvatarProxy = source
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
@@ -263,9 +261,7 @@ def create_simulation_from_fitting() -> _SimulationScene:
         raise ValueError(msg)
 
     doc_target = doc.getObject("DrapeTarget")
-    avatar_source = scene.AvatarProxy
-    if avatar_source is None:
-        avatar_source = getattr(doc_target, "SourceObject", None)
+    avatar_source = getattr(doc_target, "SourceObject", None)
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     return create_quality_simulation_scene(

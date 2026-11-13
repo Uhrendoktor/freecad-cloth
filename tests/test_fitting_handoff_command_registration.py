@@ -78,11 +78,11 @@ def test_fitting_handoff_creates_the_quality_controlled_simulation(
     fitting = SimpleNamespace(
         FittingType="FittingScene",
         PatternPieces=(piece,),
-        AvatarProxy=avatar,
     )
+    drape_target = SimpleNamespace(SourceObject=avatar)
     doc = SimpleNamespace(
-        Objects=(fitting,),
-        getObject=lambda _name: None,
+        Objects=(fitting, drape_target),
+        getObject=lambda name: drape_target if name == "DrapeTarget" else None,
         recompute=lambda: None,
     )
     freecad_module = ModuleType("FreeCAD")
