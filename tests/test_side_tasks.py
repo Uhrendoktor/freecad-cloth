@@ -34,6 +34,60 @@ SAMPLE_PATTERN_WIDTH_MM = 100
 SAMPLE_PATTERN_HEIGHT_MM = 50
 EXPECTED_SEAM_COUNT = 3
 EXPECTED_EDGE_LENGTH_MM = 5.0
+
+
+class _SketchEdge:
+    """Native Sketcher-edge stand-in with an explicit shape discretization API."""
+
+    def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+        """Store one line segment's local endpoints.
+
+        Args:
+            start: Local two-dimensional start coordinate.
+            end: Local two-dimensional end coordinate.
+        """
+        self.points = (_Vector(*start), _Vector(*end))
+
+    def toShape(self) -> _SketchEdge:
+        """Return the native edge value used by the FreeCAD adapter."""
+        return self
+
+    def discretize(self, count: int) -> tuple[_Vector, ...]:
+        """Return the sampled line endpoints for the requested subdivision.
+
+        Args:
+            count: Requested sample count from the edge adapter.
+
+        Returns:
+            Ordered local endpoint vectors; this fixture models a straight edge.
+        """
+        del count
+        return self.points
+
+
+def _sketch_piece(
+    points: Sequence[tuple[float, float]],
+    *,
+    placement: SimpleNamespace | None = None,
+) -> SimpleNamespace:
+    """Build a Sketcher-authoritative piece with closed straight-edge topology.
+
+    Args:
+        points: Ordered local pattern boundary coordinates.
+        placement: Optional native placement transform.
+
+    Returns:
+        Document-object stand-in exposing native Sketcher geometry authority.
+    """
+    geometry = tuple(
+        _SketchEdge(start, points[(index + 1) % len(points)])
+        for index, start in enumerate(points)
+    )
+    return SimpleNamespace(
+        GeometryAuthority="Sketcher",
+        Sketch=SimpleNamespace(Geometry=geometry),
+        Placement=placement,
+    )
 EXPECTED_START_POINT = (10.0, -1.0, 2.2)
 EXPECTED_END_POINT = (7.0, -1.0, 2.2)
 EXPECTED_COLLISION_CENTER = (1 / 3, 1 / 3, 0.0)
@@ -149,10 +203,16 @@ def test_pattern_construction_and_dxf_export() -> None:
     assert "8\nSEWING" in dxf, "DXF export must retain the sewing layer."
     assert "8\nCUT" in dxf, "DXF export must retain the cut layer."
     assert from_dxf_metadata(dxf) == {
-        "version": 1,
+        "version": 2,
         "units": "mm",
         "edge_ids": ["bottom", "right", "top", "left"],
-    }, "DXF export must round-trip canonical unit and edge metadata."
+        "piece_id": "",
+        "seam_ids": [],
+        "scale": 1.0,
+        "seam_allowance_mm": 0.0,
+        "notch_ids": ["waist"],
+        "mark_ids": ["grain"],
+    }, "DXF export must round-trip the complete canonical semantic metadata."
 
 
 def test_invalid_pattern_mark_reference_is_rejected() -> None:
@@ -166,11 +226,7 @@ def test_invalid_pattern_mark_reference_is_rejected() -> None:
 
 def test_closed_sewing_outline_edge_wraps_to_first_vertex() -> None:
     """Measure the closing edge back to the first vertex of the outline."""
-    piece = SimpleNamespace(
-        Width=999.0,
-        Height=999.0,
-        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
-    )
+    piece = _sketch_piece(((0, 0), (4, 0), (4, 3)))
     assert _edge_length(piece, 2) == EXPECTED_EDGE_LENGTH_MM, (
         "The last outline edge must wrap to the first vertex."
     )
@@ -178,11 +234,9 @@ def test_closed_sewing_outline_edge_wraps_to_first_vertex() -> None:
 
 def test_sewing_edge_points_apply_rotated_piece_placement_once() -> None:
     """Apply a rotated piece placement exactly once to the requested seam edge."""
-    piece = SimpleNamespace(
-        Width=4.0,
-        Height=3.0,
-        SewingOutline=repr([(0, 0), (4, 0), (4, 3)]),
-        Placement=SimpleNamespace(multVec=_transform_vector),
+    piece = _sketch_piece(
+        ((0, 0), (4, 0), (4, 3)),
+        placement=SimpleNamespace(multVec=_transform_vector),
     )
     raw_start, raw_end = _edge_points(
         piece,
