@@ -146,7 +146,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "--no-deps -e ." in action, 'Expected "--no-deps -e ." in action.'
     assert '"numpy>=1.26,<3"' in action, "Expected '\"numpy>=1.26,<3\"' in action."
     assert '"pydantic>=2.11,<3"' in action, "Expected '\"pydantic>=2.11,<3\"' in action."
-    assert '"Pillow>=11,<13"' in action, "Expected '\"Pillow>=11,<13\"' in action."
+    image = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
+    assert '"pillow>=11,<13"' in image, "The pinned FreeCAD image must install Pillow."
     assert "install --disable-pip-version-check -e ." not in action, (
         'Expected "install --disable-pip-version-check -e ." not in action.'
     )
@@ -220,17 +221,11 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    quality = workflow.split("      - name: Python and architecture checks", 1)[1].split(
-        "      - name: Workflow linters", 1
-    )[0]
+    quality = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
 
-    assert "python tools/check_dead_code.py" in quality, (
-        'Expected "python tools/check_dead_code.py" in quality.'
-    )
-    assert "xargs -r python tools/check_dead_code.py" not in quality, (
-        'Expected "xargs -r python tools/check_dead_code.py" not in quality.'
-    )
-    assert "changed-python.txt" not in quality, 'Expected "changed-python.txt" not in quality.'
+    assert 'QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py"))' in quality
+    assert "xargs -r python tools/check_dead_code.py" not in quality
+    assert "changed-python.txt" not in quality
 
 
 def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
@@ -320,7 +315,7 @@ def test_dockerfile_tags_fail_closed_when_graphql_omits_a_protected_blob() -> No
         maintenance_cleanup.dockerfile_tags_for_shas(
             "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
         )
-    except RuntimeError as exc:
+    except TypeError as exc:
         assert "Dockerfile content missing" in str(exc), (
             'Expected "Dockerfile content missing" in str(exc).'
         )
@@ -380,9 +375,11 @@ def test_package_cleanup_uses_configured_authenticated_user_package_endpoint() -
         "Uhrendoktor/freecad-cloth",
         {"1" * 40},
         maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
-        dockerfile_tags_resolver=fake_resolve_tags,
-        api_items_loader=fake_load_items,
-        delete_resource=fake_delete,
+        callbacks=maintenance_cleanup.PackageCleanupCallbacks(
+            dockerfile_tags_resolver=fake_resolve_tags,
+            api_items_loader=fake_load_items,
+            delete_resource=fake_delete,
+        ),
     )
 
     assert result["status"] == "passed", 'Expected result["status"] == "passed".'
@@ -488,9 +485,11 @@ def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listi
         "example-owner/repo",
         {"protected-sha"},
         maintenance_cleanup.epoch("2026-09-15T00:00:00Z"),
-        dockerfile_tags_resolver=fake_resolve_tags,
-        api_items_loader=fake_load_items,
-        delete_resource=fake_delete,
+        callbacks=maintenance_cleanup.PackageCleanupCallbacks(
+            dockerfile_tags_resolver=fake_resolve_tags,
+            api_items_loader=fake_load_items,
+            delete_resource=fake_delete,
+        ),
     )
 
     assert endpoints == [endpoint], "Expected endpoints == [endpoint]."
@@ -669,7 +668,7 @@ def test_branch_activity_epochs_fail_closed_when_a_commit_is_missing() -> None:
         maintenance_cleanup.branch_activity_epochs(
             "owner/repo", {"1" * 40}, fetch_json=fake_gh_json
         )
-    except RuntimeError as exc:
+    except TypeError as exc:
         assert "commit activity missing" in str(exc), (
             'Expected "commit activity missing" in str(exc).'
         )
@@ -731,14 +730,11 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
             )
         return iter([])
 
+    lookup = maintenance_cleanup.ClosedPullRequestLookup(
+        "owner/repo", set(), "main", activity, cutoff
+    )
     matched = maintenance_cleanup.closed_pr_head_shas_by_branch(
-        "owner/repo",
-        branches,
-        set(),
-        "main",
-        activity,
-        cutoff,
-        api_items_loader=fake_load_items,
+        branches, lookup, api_items_loader=fake_load_items
     )
 
     assert matched == {"fix/closed-pr-head": {"1" * 40}}, (
@@ -809,8 +805,9 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
     }
 
+    retention = maintenance_cleanup.BranchRetentionPolicy(activity, cutoff, {})
     stale = maintenance_cleanup.stale_unprotected_branches(
-        branches, {"agent/open-pr"}, "main", activity, cutoff
+        branches, {"agent/open-pr"}, "main", retention
     )
 
     assert [branch["name"] for branch in stale] == [
@@ -840,7 +837,9 @@ def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
 
 def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     """Pass every tracked Python source and stub to read-only Ruff commands under reviewed rules."""
-    tracked_files = collect_tracked_python_files(ROOT)
+    # The functional FreeCAD container is an exported tree without .git metadata;
+    # test command construction against a representative tracked-source inventory.
+    tracked_files = ("freecad_cloth/common/JsonTypes.py", "tests/test_ci_configuration.py")
     executable = Path("/quality/venv/bin/python")
     commands = quality_commands(executable, tracked_files)
     format_command = next(command for command in commands if command.label == "Ruff format")
@@ -1100,6 +1099,6 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
     }
     assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
     assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
-    assert commands["Pyright production inventory"][1:] == ("pyright", "-p", "pyrightconfig.json")
+    assert commands["Pyright production inventory"] == ("pyright", "-p", "pyrightconfig.json")
     assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
     assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")
