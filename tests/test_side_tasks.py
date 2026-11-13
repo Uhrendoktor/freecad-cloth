@@ -24,9 +24,7 @@ from freecad_cloth.simulation.DrapeVisualSanity import assert_drape_diagnostics
 _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
 _EDGE_LENGTH_ATTRIBUTE = "_edge_length"
 _EDGE_POINTS_ATTRIBUTE = "_edge_points"
-_edge_length = cast(
-    "Callable[..., float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE)
-)
+_edge_length = cast("Callable[..., float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE))
 _edge_points = cast(
     "Callable[..., tuple[_VectorLike, _VectorLike]]",
     getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE),
