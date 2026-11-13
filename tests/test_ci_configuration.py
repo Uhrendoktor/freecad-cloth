@@ -13,7 +13,7 @@ from tests.support.assertions import require
 from tests.support.ruff_contract import assert_reviewed_ruff_policy
 from tools.ci import maintenance_cleanup
 from tools.ci.run_freecad import configured_timeout_seconds
-from tools.ci.strict_quality import collect_tracked_python_files, quality_commands
+from tools.ci.strict_quality import quality_commands
 from tools.ci.validate_ci_structure import (
     PYRIGHT_CONFIG,
     PYRIGHT_EXPECTED_EXCLUDE,
@@ -218,12 +218,12 @@ def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
 
 def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
     """The dead-code gate must include unchanged modules, not only PR diffs."""
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
     quality = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
 
-    assert 'QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py"))' in quality
+    assert (
+        'QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py"))'
+        in quality
+    )
     assert "xargs -r python tools/check_dead_code.py" not in quality
     assert "changed-python.txt" not in quality
 
