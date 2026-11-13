@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType
@@ -1259,3 +1260,6 @@ try:
     register_commands(cast("GuiCommandRegistrar", FreeCADGui), _HANDLERS)
 except (ImportError, AttributeError):
     pass
+
+# Preserve the historical dotted import after the canonical module is loaded.
+sys.modules[f"{__package__}.avatar_commands"] = sys.modules[__name__]
