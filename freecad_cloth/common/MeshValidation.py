@@ -67,6 +67,7 @@ class _TrimeshMesh(Protocol):
         Returns:
             The connected mesh components.
         """
+        del only_watertight
         ...
 
 

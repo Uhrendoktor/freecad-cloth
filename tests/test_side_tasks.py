@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression contracts for pattern export, collision and sewing edge adapters."""
 
+from __future__ import annotations
+
 from collections.abc import Callable, Sequence
 from importlib import import_module
 from types import SimpleNamespace
