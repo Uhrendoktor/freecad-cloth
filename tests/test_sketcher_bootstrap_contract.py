@@ -50,7 +50,9 @@ def test_canonical_sketcher_acceptance_uses_apprun_without_module_discovery_flag
         encoding="utf-8"
     )
     job = _acceptance_job(workflow)
-    assert "freecad-test@" in job, "Canonical Sketcher acceptance must use the FreeCAD test action."
+    assert "uses: ./.github/actions/freecad-test" in job, (
+        "Canonical Sketcher acceptance must use the repository FreeCAD test action."
+    )
     assert "tests/freecad_sketcher_acceptance.py" in job, (
         "Canonical Sketcher acceptance must select its dedicated test script."
     )

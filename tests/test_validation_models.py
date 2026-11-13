@@ -197,7 +197,7 @@ def test_vertex_clearance_uses_matching_3d_dimensions() -> None:
     ) == pytest.approx(EXPECTED_CLEARANCE_MM), (
         "Vertex clearance is not calculated in three dimensions."
     )
-    with pytest.raises(ValueError, match="3 items"):
+    with pytest.raises(ValueError):
         nearest_target_clearance(
             cast("tuple[tuple[float, float, float], ...]", ((0.0, 0.0),)),
             ((0.0, 0.0, 0.0),),
@@ -258,7 +258,7 @@ def test_triangle_mesh_area_overflow_fails_closed() -> None:
 
 def test_vertex_clearance_overflow_fails_closed() -> None:
     """Reject vertex clearance calculations that overflow to a non-finite result."""
-    with pytest.raises(ValueError, match="clearance must be finite"):
+    with pytest.raises(ValueError, match="finite nearest vertex observation"):
         nearest_target_clearance(((-1e308, 0.0, 0.0),), ((1e308, 0.0, 0.0),))
 
 

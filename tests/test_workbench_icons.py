@@ -25,7 +25,7 @@ def test_workbench_icons_are_valid_scalable_assets() -> None:
         assert bool(root.findall(".//*[@fill='currentColor']")), (
             f"{name} should use currentColor for theme-aware shapes."
         )
-        assert "#333" in icon_path.read_text(encoding="utf-8"), (
+        assert "#333" not in icon_path.read_text(encoding="utf-8"), (
             f"{name} must not embed the legacy #333 color."
         )
 
