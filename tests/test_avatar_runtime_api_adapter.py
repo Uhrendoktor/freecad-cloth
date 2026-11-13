@@ -59,7 +59,7 @@ def test_runtime_adapters_preserve_the_freecad_api_spelling() -> None:
         "Mesh::Feature",
         "ClothAvatar",
     )
-    found = _document_get_object(cast("object", document), "DrapeTarget")
+    found = _document_get_object(cast("_FreeCADDocument", document), "DrapeTarget")
     _add_feature_property(
         cast("_AvatarFeature", feature),
         "App::PropertyString",
