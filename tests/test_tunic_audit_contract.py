@@ -224,30 +224,17 @@ def test_canonical_tunic_has_two_curved_open_armholes() -> None:
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "elif index == 2:" in source, 'Contract failed: "elif index == 2:" in source'
     assert "elif index == 6:" in source, 'Contract failed: "elif index == 6:" in source'
-    assert "def _arc_through_midpoint(" in source, (
-        'Contract failed: "def _arc_through_midpoint(" in source'
+    arc_helper = (ROOT / "tests" / "support" / "freecad_arc_geometry.py").read_text(
+        encoding="utf-8"
     )
-    assert "Part.ArcOfCircle(circle, start_angle, start_angle + sweep)" in source, (
-        'Contract failed: "Part.ArcOfCircle(circle, start_angle, ...'
-    )
-    assert "zero_point = curve_value(circle, 0.0)" in source, (
-        'Contract failed: "zero_point = curve_value(circle, 0.0)"...'
-    )
-    assert "quarter_point = curve_value(circle, math.pi / 2.0)" in source, (
-        'Contract failed: "quarter_point = curve_value(circle, ma...'
-    )
-    assert 'getter = getattr(curve, "valueAt", None)' in source, (
-        'Contract failed: \'getter = getattr(curve, "valueAt", Non...'
-    )
-    assert 'getter = getattr(curve, "value", None)' in source, (
-        'Contract failed: \'getter = getattr(curve, "value", None)...'
-    )
-    assert "tunic armhole curve has no native parameter evaluator" in source, (
-        'Contract failed: "tunic armhole curve has no native para...'
-    )
-    assert "tunic armhole arc lost authored %s" in source, (
-        'Contract failed: "tunic armhole arc lost authored %s" in...'
-    )
+    assert "def arc_through_midpoint(" in arc_helper
+    assert "part_api.ArcOfCircle(" in arc_helper
+    assert "zero_point = _native_curve_value(circle, 0.0)" in arc_helper
+    assert "quarter_point = _native_curve_value(circle, math.pi / 2.0)" in arc_helper
+    assert 'getter = getattr(curve, "valueAt", None)' in arc_helper
+    assert 'getter = getattr(curve, "value", None)' in arc_helper
+    assert "tunic armhole curve has no native parameter evaluator" in arc_helper
+    assert "tunic armhole arc lost authored {role}" in arc_helper
     sketch_builder = source.split("def _make_tunic_sketch(", 1)[1].split("\ndef _adopt_sketch", 1)[
         0
     ]
@@ -610,36 +597,27 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
 
 
 def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
-    """Verify production tunic audit runs even if performance gate fails contract."""
+    """The production geometry audit runs even when the realtime gate fails."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    benchmark = gui.split(
-        "      - uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@", 1
-    )[1].split("      - name: Independently validate realtime performance metrics", 1)[0]
-    assert "test-script: tests/freecad_realtime_benchmark.py" in benchmark, (
-        'Contract failed: "test-script: tests/freecad_realtime_be...'
+    benchmark_index = gui.index("test-script: tests/freecad_realtime_benchmark.py")
+    metric_gate_index = gui.index(
+        "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json"
     )
-    assert "CLOTH_REALTIME_FRAMES=120" in benchmark, (
-        'Contract failed: "CLOTH_REALTIME_FRAMES=120" in benchmark'
-    )
-    assert (
-        "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json" in gui
-    ), 'Contract failed: "tools/ci/validate_realtime_benchmark.p...'
-    audit_step = gui.split("      - uses: ./.github/actions/freecad-test", 1)[1]
-    assert "if: always()" in audit_step.split("test-script:", 1)[0], (
-        'Contract failed: "if: always()" in audit_step.split("tes...'
-    )
-    assert "test-script: tests/freecad_tunic_audit_production.py" in audit_step, (
-        'Contract failed: "test-script: tests/freecad_tunic_audit...'
+    audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
+    audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
+    audit_action = gui[audit_action_index:audit_index]
+    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_index:metric_gate_index]
+    assert benchmark_index < metric_gate_index < audit_action_index < audit_index
+    assert "if: always()" in audit_action, (
+        "The production tunic audit must still execute after a failed realtime gate."
     )
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
-    assert "p95_frame_interval_ms exceeds the 30 FPS budget" in validator, (
-        'Contract failed: "p95_frame_interval_ms exceeds the 30 F...'
-    )
+    assert "p95_frame_interval_ms exceeds the 30 FPS budget" in validator
 
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
@@ -781,7 +759,8 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
             "neckline_scoop_depth = 0.12 * h",
             "neckline_scoop_z = neck_z - neckline_scoop_depth",
             "if not (armhole_z < neckline_scoop_z < shoulder_z)",
-            '("back", "front") if TUNIC_PRODUCTION_AUDIT else ("front", "back")',
+            "front_y = box.YMax + clearance",
+            "back_y = box.YMin - clearance",
             'make_piece("DebugTunicFront", front_y, 0.72, 0.03)',
             'make_piece("DebugTunicBack", back_y, 0.72, 0.03)',
             "elif idx == 4:",
@@ -869,8 +848,8 @@ def test_canonical_tunic_fixture_blocks_every_authored_segment() -> None:
 def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
     """The actual CI fixture must emit geometry evidence before downstream evaluation."""
     source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    simulation = source.split("def simulation():", 1)[1]
-    topology_audit = simulation.index("def log_tunic_outline_topology(piece):")
+    simulation = source.split("def simulation() -> None:", 1)[1]
+    topology_audit = simulation.index("def log_tunic_outline_topology(")
     sample_resolution = simulation.index("resolve_piece_ir(piece)", topology_audit)
     pattern_view = simulation.index(
         "capture_tunic_pattern_view(doc, front, back, hem_width)", topology_audit
