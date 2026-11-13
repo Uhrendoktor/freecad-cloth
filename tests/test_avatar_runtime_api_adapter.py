@@ -5,55 +5,37 @@ import json
 from collections.abc import Callable
 from importlib import import_module
 from types import SimpleNamespace
-from typing import cast
+from typing import Protocol, cast
 from unittest.mock import Mock
+
+from freecad_cloth.avatar.AvatarCommands import (
+    JsonObject,
+    _AvatarFeature,
+    _FreeCADApplication,
+    _FreeCADDocument,
+)
 
 _avatar_commands = import_module("freecad_cloth.avatar.avatar_commands")
 
 
-def _private_adapter(name: str) -> Callable[..., object]:
-    """Return a private FreeCAD adapter by name for focused regression tests.
+class _AvatarCommandsModule(Protocol):
+    """Typed private adapter exports consumed by focused runtime tests."""
 
-    Args:
-        name: Attribute name of the adapter to retrieve.
-
-    Returns:
-        Callable[..., object]: The requested adapter.
-
-    Raises:
-        TypeError: If the attribute is not callable.
-    """
-    adapter = getattr(_avatar_commands, name)
-    if not callable(adapter):
-        message = f"Avatar adapter {name!r} is not callable"
-        raise TypeError(message)
-    return cast("Callable[..., object]", adapter)
+    _add_feature_property: Callable[[_AvatarFeature, str, str, str], None]
+    _application_new_document: Callable[[_FreeCADApplication, str], _FreeCADDocument]
+    _document_add_object: Callable[[_FreeCADDocument, str, str], _AvatarFeature]
+    _document_get_object: Callable[[_FreeCADDocument, str], _AvatarFeature | None]
+    _legacy_pose_data: Callable[[str], JsonObject | None]
+    _migrate_legacy_pose_angles: Callable[[str, str, dict[str, float]], None]
 
 
-_add_feature_property = cast(
-    "Callable[[object, str, str, str], object]",
-    _private_adapter("_add_feature_property"),
-)
-_application_new_document = cast(
-    "Callable[[object, str], object]",
-    _private_adapter("_application_new_document"),
-)
-_document_add_object = cast(
-    "Callable[[object, str, str], object]",
-    _private_adapter("_document_add_object"),
-)
-_document_get_object = cast(
-    "Callable[[object, str], object | None]",
-    _private_adapter("_document_get_object"),
-)
-_legacy_pose_data = cast(
-    "Callable[[str], dict[str, object] | None]",
-    _private_adapter("_legacy_pose_data"),
-)
-_migrate_legacy_pose_angles = cast(
-    "Callable[[str, str, dict[str, float]], None]",
-    _private_adapter("_migrate_legacy_pose_angles"),
-)
+_commands = cast("_AvatarCommandsModule", _avatar_commands)
+_add_feature_property = _commands._add_feature_property
+_application_new_document = _commands._application_new_document
+_document_add_object = _commands._document_add_object
+_document_get_object = _commands._document_get_object
+_legacy_pose_data = _commands._legacy_pose_data
+_migrate_legacy_pose_angles = _commands._migrate_legacy_pose_angles
 
 LEGACY_SCHEMA_VERSION: int = 1
 CURRENT_SCHEMA_VERSION: int = 4
@@ -73,19 +55,19 @@ def test_runtime_adapters_preserve_the_freecad_api_spelling() -> None:
     feature.addProperty = Mock(return_value=None)
 
     created = _document_add_object(
-        cast("object", document),
+        cast("_FreeCADDocument", document),
         "Mesh::Feature",
         "ClothAvatar",
     )
     found = _document_get_object(cast("object", document), "DrapeTarget")
     _add_feature_property(
-        cast("object", feature),
+        cast("_AvatarFeature", feature),
         "App::PropertyString",
         "AvatarType",
         "Avatar",
     )
     new_document = _application_new_document(
-        cast("object", application),
+        cast("_FreeCADApplication", application),
         "ClothSewing",
     )
 
