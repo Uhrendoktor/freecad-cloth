@@ -29,7 +29,7 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         '"ArrangementPoints"',
         '"shoulder_left"',
         '"hip"',
-        "solver_collision_surface",
+        "runtime.collision_surface",
         '"placement_offsets_mm"',
         "dispatch_ladder_entrypoint(",
         "_ladder.schedule_freecad_main",
@@ -49,6 +49,8 @@ def test_avatar_ladder_contract_is_diagnostic_only_and_frozen() -> None:
         '"solver_triangles"',
         '"seam_world_spans_mm"',
         "first_failing_rung",
+        "def build_proximity_mesh(",
+        "def surface_signed_clearance(",
     )
     assert 'purpose="simulation-avatar-ladder"' in SOURCE, (
         "Avatar ladder source must identify its manifest purpose."
@@ -83,16 +85,18 @@ def test_avatar_ladder_seam_controls_encode_near_zero_and_production_scale_pairs
 
 
 def test_avatar_ladder_screenshot_path_is_fail_closed() -> None:
-    """Keep screenshot capture validation and retry diagnostics fail-closed."""
-    expected_source_fragments = (
-        "def _avatar_png_has_visible_content(path, minimum_pixels=128):",
+    """Keep shared screenshot validation fail-closed for avatar ladder checkpoints."""
+    assert "_ladder.screenshot" in SOURCE, (
+        "Avatar ladder checkpoints must use the shared screenshot validator."
+    )
+    expected_helper_fragments = (
         "from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content",
-        "png_has_visible_content(path, minimum_pixels=int(minimum_pixels))",
-        "def _avatar_screenshot(view, path):",
+        "png_has_visible_content(",
+        "minimum_pixels=128",
         "view.redraw()",
         "time.sleep(0.05)",
         "png-capture=retry",
         "PNG capture contains no visible rendered content",
     )
-    for fragment in expected_source_fragments:
-        assert fragment in SOURCE, f"Avatar screenshot contract is missing {fragment!r}."
+    for fragment in expected_helper_fragments:
+        assert fragment in HELPERS, f"Shared avatar screenshot contract is missing {fragment!r}."

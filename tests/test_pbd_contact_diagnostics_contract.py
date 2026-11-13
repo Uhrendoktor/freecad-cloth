@@ -177,8 +177,8 @@ def test_cube_ladder_caches_collision_proximity_mesh() -> None:
     _require_fragments(
         source=source,
         fragments=(
-            "proximity_mesh = trimesh.Trimesh(",
-            "proximity_mesh.nearest.on_surface",
+            "_ladder.prepare_ladder_case(",
+            "proximity_mesh=measurements.proximity_mesh",
             "_surface_signed_clearance(",
             "source_shape,",
             "collision_surface,",
@@ -189,39 +189,50 @@ def test_cube_ladder_caches_collision_proximity_mesh() -> None:
     )
     _require_fragments(
         source=_HELPERS,
-        fragments=("for step in LADDER_CHECKPOINTS:", 'setattr(self.scene, "Steps", int(step))'),
+        fragments=(
+            "def build_proximity_mesh(",
+            "def surface_signed_clearance(",
+            'getattr(nearest, "on_surface", None)',
+            "proximity_mesh = build_proximity_mesh(runtime.collision_surface)",
+            "for step in LADDER_CHECKPOINTS:",
+            'setattr(self.scene, "Steps", int(step))',
+        ),
         contract="shared checkpoint capture",
     )
 
 
 def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
-    """Verify FreeCAD-safe startup and traceback handling in the cube ladder."""
+    """Verify shared FreeCAD bootstrap owns path, traceback, and entrypoint handling."""
     source = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     _require_fragments(
         source=source,
         fragments=(
-            "runpy.run_path(",
-            "from pbd_contact_helpers import",
-            '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
-            "sys.path.insert(0, str(_HELPER_DIR))",
-            "before-support-helper-import",
-            "_TRACE_HANDLE = _BOOT_LOG.open(",
-            "faulthandler.enable(file=_TRACE_HANDLE, all_threads=True)",
-            "faulthandler.dump_traceback_later(30.0, repeat=True, file=_TRACE_HANDLE)",
-            '_boot("script-start")',
-            "_freecad_entrypoint_name = Path(__file__).stem",
-            '_freecad_gui_hosted = bool(getattr(App, "GuiUp", False))',
-            "def _schedule_freecad_main():",
-            "schedule_freecad_main(_run_and_shutdown)",
-            "QtCore.QTimer.singleShot(0, callback)",
-            '_boot("freecad-hosted-entrypoint")',
-            "__name__ == _freecad_entrypoint_name",
-            '_boot("direct-entrypoint")',
+            "from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint",
+            '_BOOTSTRAP = bootstrap_ladder(__file__, "cube")',
+            "import pbd_contact_helpers as _ladder",
+            '_boot("before-support-helper-import")',
+            "dispatch_ladder_entrypoint(",
         ),
-        contract="cube-ladder startup",
+        contract="cube-ladder startup delegation",
     )
-    assert "file=sys.stderr" not in source, (
-        "The cube ladder must not redirect its traceback to stderr."
+    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(
+        encoding="utf-8"
+    )
+    _require_fragments(
+        source=bootstrap,
+        fragments=(
+            "def initialize_ladder(",
+            'helper_directory = script_path.parent / "support"',
+            "faulthandler.enable(file=trace, all_threads=True)",
+            "faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)",
+            'boot("before-import-FreeCAD")',
+            'boot("before-import-FreeCADGui")',
+            'boot("before-import-Part")',
+            "def dispatch_ladder_entrypoint(",
+            'boot("direct-entrypoint")',
+            'boot("freecad-hosted-entrypoint")',
+        ),
+        contract="shared FreeCAD-safe ladder bootstrap",
     )
 
 
@@ -252,52 +263,47 @@ def test_progressive_collision_ladder_is_a_normal_gate() -> None:
 
 
 def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit() -> None:
-    """Verify PBD support helpers remain import-safe and ladder contracts are explicit."""
+    """Verify FreeCAD bootstrap and PBD diagnostics have one import-safe owner."""
     cube = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     avatar = (_ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
-    for source, fragments, contract in (
-        (
-            cube + avatar,
-            ("runpy.run_path(",),
-            "no runpy bootstrap",
-        ),
-        (
-            cube,
-            (
-                "from pbd_contact_helpers import",
-                '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
-                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
-                "sys.path.insert(0, str(_REPO_ROOT))",
-                "sys.path.insert(0, str(_HELPER_DIR))",
+    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(
+        encoding="utf-8"
+    )
+    for source in (cube, avatar):
+        assert "runpy.run_path(" not in source, (
+            "PBD ladder scripts must not execute helpers via runpy."
+        )
+        _require_fragments(
+            source=source,
+            fragments=(
+                "from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint",
+                "import pbd_contact_helpers as _ladder",
+                "_BOOTSTRAP = bootstrap_ladder(__file__,",
+                "dispatch_ladder_entrypoint(",
             ),
-            "cube-ladder helper",
+            contract="shared PBD ladder bootstrap delegation",
+        )
+    _require_fragments(
+        source=bootstrap,
+        fragments=(
+            'helper_directory = script_path.parent / "support"',
+            "faulthandler.enable(file=trace, all_threads=True)",
+            "faulthandler.dump_traceback_later(30.0, repeat=True, file=trace)",
+            "def dispatch_ladder_entrypoint(",
         ),
-        (
-            avatar,
-            (
-                "from pbd_contact_helpers import",
-                '_HELPER_DIR = Path(__file__).resolve().parent / "support"',
-                "_REPO_ROOT = Path(__file__).resolve().parents[1]",
-                "sys.path.insert(0, str(_REPO_ROOT))",
-                "sys.path.insert(0, str(_HELPER_DIR))",
-            ),
-            "avatar-ladder helper",
+        contract="shared PBD bootstrap implementation",
+    )
+    _require_fragments(
+        source=_HELPERS,
+        fragments=(
+            "def build_scene(",
+            "def checkpoint_record(",
+            "def build_proximity_mesh(",
+            "def surface_signed_clearance(",
+            "def screenshot(",
         ),
-        (
-            _HELPERS,
-            (
-                "def build_scene(",
-                "def checkpoint_record(",
-            ),
-            "shared PBD helper",
-        ),
-    ):
-        if fragments == ("runpy.run_path(",):
-            assert fragments[0] not in source, (
-                "PBD ladder scripts must not execute helpers via runpy."
-            )
-        else:
-            _require_fragments(source=source, fragments=fragments, contract=contract)
+        contract="shared PBD helper",
+    )
     assert 'if __name__ == "__main__"' not in _HELPERS, (
         "The shared PBD helper module must remain import-safe."
     )
