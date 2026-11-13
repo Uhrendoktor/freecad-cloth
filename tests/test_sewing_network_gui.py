@@ -533,7 +533,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
     class Widget:
         """Represent a test input with a configurable value."""
 
-        def __init__(self, value: object) -> None:
+        def __init__(self, value: float) -> None:
             """Store the configured value for this simulated control.
 
             Args:
@@ -691,7 +691,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     class Spin:
         """Represent a numeric input control with a configurable value."""
 
-        def __init__(self, value: object) -> None:
+        def __init__(self, value: float) -> None:
             """Store the configured numeric value for this control.
 
             Args:
@@ -699,7 +699,7 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
             """
             self._value = value
 
-        def value(self) -> object:
+        def value(self) -> float:
             """Return the value stored by the simulated input control.
 
             Returns:
