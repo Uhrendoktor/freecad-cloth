@@ -777,7 +777,7 @@ def test_drape_debug_uses_the_canonical_tunic_profile_and_landmarks() -> None:
     _require_source_contract(
         source=source,
         required=(
-            "neckline_drop=0.03",
+            "neckline_drop: float = 0.03",
             "shoulder_headroom_mm = 20.0",
             "garment_height = max(560.0, (shoulder_z - hem_z + shoulder_headroom_mm) / 0.94)",
             "neckline_scoop_depth = 0.12 * float(garment_height)",
