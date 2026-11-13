@@ -25,10 +25,10 @@ _SEWING_OBJECTS = import_module("freecad_cloth.sewing.SewingObjects")
 _EDGE_LENGTH_ATTRIBUTE = "_edge_length"
 _EDGE_POINTS_ATTRIBUTE = "_edge_points"
 _edge_length = cast(
-    "Callable[[object, int], float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE)
+    "Callable[..., float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE)
 )
 _edge_points = cast(
-    "Callable[..., tuple[object, object]]", getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE)
+    "Callable[..., tuple[_VectorLike, _VectorLike]]", getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE)
 )
 
 SAMPLE_PATTERN_WIDTH_MM = 100
@@ -51,7 +51,7 @@ class _VectorLike(Protocol):
 class _SampledPatternPiece(Protocol):
     """Outline API consumed by deterministic garment-fixture assertions."""
 
-    def sampled_outline(self) -> object:
+    def sampled_outline(self) -> Sequence[tuple[float, float]]:
         """Return the piece's ordered outline samples.
 
         Returns:
@@ -118,10 +118,8 @@ def test_collision_surface_contract() -> None:
 
 def test_golden_fixtures_are_deterministic() -> None:
     """Keep representative multi-piece fixtures stable between constructions."""
-    first_fixture = cast("dict[str, object]", two_piece_rectangle())
-    second_fixture = cast("dict[str, object]", two_piece_rectangle())
-    first_pieces = cast("Sequence[_SampledPatternPiece]", first_fixture["pieces"])
-    second_pieces = cast("Sequence[_SampledPatternPiece]", second_fixture["pieces"])
+    first_pieces = cast("Sequence[_SampledPatternPiece]", two_piece_rectangle()["pieces"])
+    second_pieces = cast("Sequence[_SampledPatternPiece]", two_piece_rectangle()["pieces"])
     first_outline = first_pieces[0].sampled_outline()
     second_outline = second_pieces[0].sampled_outline()
     assert first_outline == second_outline, (
