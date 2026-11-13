@@ -88,9 +88,7 @@ def test_fitting_handoff_creates_the_quality_controlled_simulation(
     freecad_module.ActiveDocument = doc
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
 
-    calls: list[
-        tuple[SimpleNamespace, SimpleNamespace | None, tuple[SimpleNamespace, ...]]
-    ] = []
+    calls: list[tuple[SimpleNamespace, SimpleNamespace | None, tuple[SimpleNamespace, ...]]] = []
     expected_scene = SimpleNamespace()
 
     def create_quality_scene(

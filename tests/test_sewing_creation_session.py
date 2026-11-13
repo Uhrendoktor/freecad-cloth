@@ -344,7 +344,6 @@ def test_preview_error_feedback_is_actionable_and_disables_commit() -> None:
     )
 
 
-
 def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_clear(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -365,7 +364,6 @@ def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_c
         (first_piece, "Edge1"),
         (second_piece, "Edge3"),
     ]
-
 
 
 def test_task_panel_preserves_a_new_selection_outside_the_initial_edges(
