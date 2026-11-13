@@ -46,7 +46,7 @@ def test_visual_capture_contract_uses_structural_validation_without_size_heurist
     assert "effectively transparent" in validator
 
 
-def test_bootstrap_imports_fitting_command_providers_before_workbench_registration():
+def test_bootstrap_imports_fitting_command_providers_before_workbench_registration() -> None:
     """Register every public fitting command before the sewing menu references it."""
     bootstrap = (ROOT / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
     assert 'fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")' in bootstrap

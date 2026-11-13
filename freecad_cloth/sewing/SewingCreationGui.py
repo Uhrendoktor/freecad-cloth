@@ -304,9 +304,13 @@ class SewingCreationTaskPanel:
             )
         else:
             selected_edges = self._initial_selection
-        if not self._initial_preview_pending and current_selection and (
-            all(edge in current_selection for edge in selected_edges)
-            or any(edge not in selected_edges for edge in current_selection)
+        if (
+            not self._initial_preview_pending
+            and current_selection
+            and (
+                all(edge in current_selection for edge in selected_edges)
+                or any(edge not in selected_edges for edge in current_selection)
+            )
         ):
             return
         if not selected_edges:
