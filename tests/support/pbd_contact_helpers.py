@@ -782,8 +782,10 @@ def screenshot(view, path):
         view.redraw()
         events()
         view.saveImage(str(path), 640, 360, "White")
-        if path.is_file() and path.stat().st_size > 0 and png_has_visible_content(
-            path, minimum_pixels=128
+        if (
+            path.is_file()
+            and path.stat().st_size > 0
+            and png_has_visible_content(path, minimum_pixels=128)
         ):
             return
         if attempt < 2:
