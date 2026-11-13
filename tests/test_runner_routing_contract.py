@@ -209,6 +209,7 @@ def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
     assert '-v "$GITHUB_WORKSPACE:/workspace:rw"' not in action
     assert "uses: ./.github/actions/freecad-container" in workflow
     assert "Uhrendoktor/freecad-cloth/.github/actions/freecad-container@" not in workflow
+    assert "Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in workflow
     assert "--shm-size=1g" in action
 
 

@@ -482,6 +482,9 @@ def _validate_command_safety(text: str) -> None:
     if not any(reference in text for reference in allowed_action_references):
         msg = "canonical workflow must use freecad-test"
         raise SystemExit(msg)
+    if "Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in text:
+        msg = "canonical workflow must use the checked-out FreeCAD test action"
+        raise SystemExit(msg)
 
 
 def _validate_required_components() -> None:
