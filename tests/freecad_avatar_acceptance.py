@@ -250,9 +250,13 @@ def run_acceptance():
 
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
-        panel.pose.setCurrentText("sewing")
-        if not panel._apply():
-            msg = f"avatar pose edit was not applied; status={panel.status.text()!r}"
+        pose_panel = panel._open_pose_mode()
+        if pose_panel is None:
+            msg = "avatar editor did not open its public Pose Mode task panel"
+            raise RuntimeError(msg)
+        pose_panel.preset_buttons["sewing"].click()
+        if not pose_panel.accept():
+            msg = f"Pose Mode preset was not applied; status={pose_panel.status.text()!r}"
             raise RuntimeError(msg)
         _progress("pose-edit-applied")
         _close_task()

@@ -8,6 +8,7 @@ import pytest
 
 import freecad_cloth.sewing.SeamOverlay as overlay_module
 import freecad_cloth.sewing.SewingCommands as sewing_commands
+from tests.support.pattern_fixtures import sketcher_pattern_piece
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
@@ -219,10 +220,9 @@ def _run_repair(context: RepairContext, edge_length: EdgeLength) -> str:
 
 def _pattern_piece(piece_id: str) -> SimpleNamespace:
     """Build a minimal valid pattern piece with a square sewing outline."""
-    return SimpleNamespace(
-        PatternType="PatternPiece",
-        PieceId=piece_id,
-        SewingOutline="[(0, 0), (10, 0), (10, 10), (0, 10)]",
+    return sketcher_pattern_piece(
+        piece_id,
+        ((0.0, 0.0), (10.0, 0.0), (10.0, 10.0), (0.0, 10.0)),
     )
 
 

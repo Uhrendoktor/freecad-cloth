@@ -616,10 +616,40 @@ try:
     recorder.hold(800)
     select_edges((piece_a, 0), (piece_b, 0))
     recorder.hold(800)
+    from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
+    selected_before_command = tuple(_collect_selected_pattern_edges())
+    record(
+        "seam-selection-before-command="
+        + repr(tuple((str(obj.Name), int(edge)) for obj, edge in selected_before_command))
+    )
     panel = open_public("ClothSewing_CreateSeam")
     recorder.hold(1100)
-    assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
-        "1:1 preview did not create a seam"
+    selected_after_command = tuple(_collect_selected_pattern_edges())
+    created_seams = tuple(
+        obj for obj in panel.session.created if str(getattr(obj, "SeamId", "")).strip()
+    )
+    record(
+        "seam-preview-diagnostics="
+        + repr(
+            {
+                "initial_selection": tuple(
+                    (str(obj.Name), int(edge)) for obj, edge in panel._initial_selection
+                ),
+                "current_selection": tuple(
+                    (str(obj.Name), int(edge)) for obj, edge in selected_after_command
+                ),
+                "created": tuple(str(obj.SeamId) for obj in created_seams),
+                "feedback": str(panel.feedback.text()),
+            }
+        )
+    )
+    assert created_seams, (
+        "1:1 preview did not create a seam: "
+        f"initial_selection={panel._initial_selection!r} "
+        f"selected_before_command={selected_before_command!r} "
+        f"selected_after_command={selected_after_command!r} "
+        f"feedback={panel.feedback.text()!r}"
     )
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None

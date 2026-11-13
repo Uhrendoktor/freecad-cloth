@@ -772,14 +772,25 @@ def configure_diagnostic_cube_target(
 
 
 def screenshot(view, path):
-    """Capture a fixed-size diagnostic PNG and reject missing or empty artifacts."""
+    """Capture a fixed-size diagnostic PNG and reject blank or missing artifacts."""
+    from freecad_cloth.common.VisualCaptureValidation import png_has_visible_content
+
+    path.parent.mkdir(parents=True, exist_ok=True)
     view.setCameraType("Orthographic")
     view.fitAll()
-    events()
-    view.saveImage(str(path), 640, 360, "White")
-    if not path.is_file() or path.stat().st_size <= 0:
-        msg = f"screenshot missing: {path}"
-        raise RuntimeError(msg)
+    for attempt in range(3):
+        view.redraw()
+        events()
+        view.saveImage(str(path), 640, 360, "White")
+        if path.is_file() and path.stat().st_size > 0 and png_has_visible_content(
+            path, minimum_pixels=128
+        ):
+            return
+        if attempt < 2:
+            print(f"png-capture=retry attempt={attempt + 1} path={path}", flush=True)
+            time.sleep(0.05)
+    msg = f"PNG capture contains no visible rendered content: {path}"
+    raise RuntimeError(msg)
 
 
 def build_scene(doc, particle_distance=24.0):

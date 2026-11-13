@@ -154,10 +154,12 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "configured_timeout_seconds()" in runner, (
         'Expected "configured_timeout_seconds()" in runner.'
     )
-    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow, (
-        'Expected "--extra-index-url https://download.pytorch.org/whl/cpu" in workflow.'
+    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in image, (
+        "The pinned FreeCAD image must use the CPU-only PyTorch wheel index."
     )
-    assert '"torch==2.8.0+cpu"' in workflow, "Expected '\"torch==2.8.0+cpu\"' in workflow."
+    assert '"torch==2.8.0+cpu"' in image, (
+        "The pinned FreeCAD image must install the reviewed CPU-only PyTorch version."
+    )
 
 
 def test_timeout_contract_is_documented() -> None:
