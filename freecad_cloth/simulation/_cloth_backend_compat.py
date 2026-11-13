@@ -5,7 +5,6 @@ from importlib import import_module
 from sys import modules
 from types import ModuleType
 
-
 _PACKAGE_NAME = __name__.rpartition(".")[0]
 _LEGACY_MODULE_NAME = f"{_PACKAGE_NAME}.ClothBackend"
 
