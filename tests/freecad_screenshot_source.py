@@ -16,8 +16,9 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 if TYPE_CHECKING:
-    from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
     from PySide2 import QtWidgets
+
+    from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
 else:
     try:
         from PySide import QtWidgets
