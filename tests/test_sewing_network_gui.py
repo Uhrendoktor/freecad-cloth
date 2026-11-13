@@ -2,6 +2,8 @@
 """Regression tests for sewing-network GUI validation and transaction behavior."""
 
 import sys
+from collections.abc import Sequence
+from typing import Protocol
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -53,7 +55,7 @@ class _TaskPanelLabel:
 class _ReferenceSeam:
     """Model the identity and validation status of one network seam."""
 
-    def __init__(self, seam_id: object, status: object = "Valid") -> None:
+    def __init__(self, seam_id: str, status: str = "Valid") -> None:
         """Initialize the seam identity and reference status.
 
         Args:
@@ -64,10 +66,16 @@ class _ReferenceSeam:
         self.Status = status
 
 
+class _NetworkFixture(Protocol):
+    """Seam collection consumed by a headless network document fixture."""
+
+    Seams: Sequence[_ReferenceSeam]
+
+
 class _ReferenceNetwork:
     """Provide the seam collection consumed by sewing-network validators."""
 
-    def __init__(self, seams: object) -> None:
+    def __init__(self, seams: Sequence[_ReferenceSeam]) -> None:
         """Initialize a network with the supplied seam collection.
 
         Args:
@@ -242,7 +250,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
     class Doc:
         """Capture document transactions and recomputation requested by the panel."""
 
-        def __init__(self, network: object) -> None:
+        def __init__(self, network: _NetworkFixture) -> None:
             """Start an empty log of document operations.
 
             Args:
@@ -266,7 +274,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
     class Item:
         """Represent the display text for one network table item."""
 
-        def __init__(self, value: object) -> None:
+        def __init__(self, value: str | float) -> None:
             """Store the display text supplied for this item.
 
             Args:
@@ -274,7 +282,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
             """
             self.value = value
 
-        def text(self) -> object:
+        def text(self) -> str:
             """Return the text stored by this table item.
 
             Returns:
@@ -289,7 +297,7 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
             """Initialize the simulated table's row-item mapping."""
             self.values = {(0, 2): 0.3, (0, 3): 0.7, (0, 6): 0.2, (0, 7): 0.8}
 
-        def item(self, row: int, column: object) -> object:
+        def item(self, row: int, column: int) -> Item:
             """Return the table item mapped to the requested row.
 
             Args:
@@ -533,7 +541,7 @@ def test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance(
             """
             self.value_ = value
 
-        def value(self) -> object:
+        def value(self) -> float:
             """Return the value stored by the simulated input control.
 
             Returns:
