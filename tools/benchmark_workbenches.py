@@ -252,7 +252,7 @@ def _initialize_sample(
         msg = f"expected one registered workbench, got {sorted(added)!r}"
         raise RuntimeError(msg)
     registered_name = next(iter(added))
-    setattr(workbench, "__Workbench__", BenchmarkWorkbenchBackend())
+    workbench.__Workbench__ = BenchmarkWorkbenchBackend()
     initialize = cast(
         "Callable[[], None]",
         getattr(workbench, _WORKBENCH_INITIALIZE_METHOD),
