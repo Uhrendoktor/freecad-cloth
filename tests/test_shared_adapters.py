@@ -3,6 +3,7 @@
 
 from collections.abc import Sequence
 from types import SimpleNamespace
+from typing import Protocol, cast
 
 import pytest
 
@@ -16,6 +17,14 @@ from freecad_cloth.shared.SeamColors import (
 )
 from freecad_cloth.shared.SourceSignature import source_signature
 from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
+
+
+class _RefreshableDocument(Protocol):
+    """Document contract accepted by the seam refresh callback."""
+
+    def recompute(self) -> None:
+        """Recompute the document after view properties are refreshed."""
+        ...
 
 
 class _Vertex:
@@ -223,13 +232,13 @@ def test_apply_seam_colors_uses_neutral_linework_when_highlights_are_disabled() 
 
 def test_apply_seam_colors_dispatches_refresh_through_registered_callback() -> None:
     """Refresh only the owning document after seam colors have been applied."""
-    document = SimpleNamespace(Name="doc")
+    document = cast("_RefreshableDocument", SimpleNamespace(Name="doc", recompute=lambda: None))
     seam = SimpleNamespace(
         SeamId="seam-a",
         Document=document,
         ViewObject=SimpleNamespace(LineColor=None),
     )
-    calls: list[object] = []
+    calls: list[_RefreshableDocument] = []
     register_seam_refresh_callback(calls.append)
     try:
         apply_seam_colors([seam])
