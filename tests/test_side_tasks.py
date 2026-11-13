@@ -28,7 +28,8 @@ _edge_length = cast(
     "Callable[..., float]", getattr(_SEWING_OBJECTS, _EDGE_LENGTH_ATTRIBUTE)
 )
 _edge_points = cast(
-    "Callable[..., tuple[_VectorLike, _VectorLike]]", getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE)
+    "Callable[..., tuple[_VectorLike, _VectorLike]]",
+    getattr(_SEWING_OBJECTS, _EDGE_POINTS_ATTRIBUTE),
 )
 
 SAMPLE_PATTERN_WIDTH_MM = 100
