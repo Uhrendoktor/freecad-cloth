@@ -8,6 +8,7 @@ from tools.ci.strict_quality import (
     CPU_TORCH_REQUIREMENT,
     PIP_READ_TIMEOUT_SECONDS,
     PIP_RETRY_COUNT,
+    PIP_RESUME_RETRY_COUNT,
     PYTORCH_CPU_INDEX,
     build_environment_cache_key,
     quality_commands,
@@ -76,6 +77,7 @@ def test_quality_install_command_uses_resilient_download_timeouts() -> None:
     command = quality_install_command(python)
     timeout_index = command.index("--timeout")
     retries_index = command.index("--retries")
+    resume_retries_index = command.index("--resume-retries")
     require(
         condition=command[timeout_index + 1] == str(PIP_READ_TIMEOUT_SECONDS),
         message="The pip socket timeout must use the explicit resilient read-timeout setting.",
@@ -83,6 +85,10 @@ def test_quality_install_command_uses_resilient_download_timeouts() -> None:
     require(
         condition=command[retries_index + 1] == str(PIP_RETRY_COUNT),
         message="The pip retry budget must remain explicit and testable.",
+    )
+    require(
+        condition=command[resume_retries_index + 1] == str(PIP_RESUME_RETRY_COUNT),
+        message="The pip partial-download resume budget must remain explicit and testable.",
     )
     require(
         condition=PYTORCH_CPU_INDEX in command and CPU_TORCH_REQUIREMENT in command,
