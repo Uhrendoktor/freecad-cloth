@@ -206,7 +206,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     assert '"ruff", "format", "--check"' in strict_runner
     assert '"ruff", "check"' in strict_runner
     assert "python -m ruff check --fix" not in strict_runner
-    assert "needs: [local_runner_readiness]" in quality
+    assert "needs: [local_runner_readiness, pbd_validation_image]" in quality
     image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
     assert "needs: [local_runner_readiness]" in image
     independent_jobs = {
