@@ -46,6 +46,15 @@ def test_visual_capture_contract_uses_structural_validation_without_size_heurist
     assert "effectively transparent" in validator
 
 
+def test_bootstrap_imports_fitting_command_providers_before_workbench_registration():
+    """Register every public fitting command before the sewing menu references it."""
+    bootstrap = (ROOT / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
+    assert 'fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")' in bootstrap
+    assert 'fitting_handoff = import_module("freecad_cloth.simulation.FittingHandoff")' in bootstrap
+    assert "fitting_handoff.register_fitting_handoff_commands(gui)" in bootstrap
+    assert "command_ids.FITTING_COMMANDS" in bootstrap
+
+
 def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     source = (ROOT / "tests" / "freecad_visual_examples.py").read_text(encoding="utf-8")
     run = source.split("def main():", 1)[1]

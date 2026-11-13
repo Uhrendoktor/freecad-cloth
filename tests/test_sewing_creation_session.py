@@ -84,6 +84,7 @@ def _task_panel_with_edges(
     panel.Gui = SimpleNamespace(Selection=selection)
     panel._viewport_picks = []
     panel._initial_selection = initial_selection
+    panel._initial_preview_pending = False
     monkeypatch.setattr(
         SewingCommands,
         "_collect_selected_pattern_edges",
@@ -357,6 +358,30 @@ def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_c
         ((first_piece, 0), (second_piece, 2)),
         ((first_piece, 0),),
     )
+
+    panel._restore_initial_pattern_selection()
+
+    assert selection.entries == [
+        (first_piece, "Edge1"),
+        (second_piece, "Edge3"),
+    ]
+
+
+def test_task_panel_prioritizes_captured_edges_for_the_initial_preview(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use the command's captured edge pair before honoring later GUI selections."""
+    first_piece = _PatternPiece(Name="Front")
+    second_piece = _PatternPiece(Name="Back")
+    unrelated_piece = _PatternPiece(Name="Sleeve")
+    selection = _SubelementSelection(((unrelated_piece, "Edge5"),))
+    panel = _task_panel_with_edges(
+        monkeypatch,
+        selection,
+        ((first_piece, 0), (second_piece, 2)),
+        ((unrelated_piece, 4),),
+    )
+    panel._initial_preview_pending = True
 
     panel._restore_initial_pattern_selection()
 

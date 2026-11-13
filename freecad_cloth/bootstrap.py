@@ -24,6 +24,7 @@ def initialize_workbenches(installation_root: Path) -> None:
         gui.addIconPath(str(icon_dir))
 
     avatar_commands = import_module("freecad_cloth.avatar.AvatarCommands")
+    fitting_commands = import_module("freecad_cloth.avatar.FittingCommands")
     pattern_workbench = import_module("freecad_cloth.pattern.workbench")
     sewing_workbench = import_module("freecad_cloth.sewing.workbench")
     fitting_handoff = import_module("freecad_cloth.simulation.FittingHandoff")
@@ -35,6 +36,9 @@ def initialize_workbenches(installation_root: Path) -> None:
 
     if not set(command_ids.AVATAR_ENTRY_COMMANDS).issubset(avatar_commands.COMMANDS):
         msg = "Cloth Simulation avatar menu references unregistered commands"
+        raise RuntimeError(msg)
+    if not set(command_ids.FITTING_COMMANDS).issubset(fitting_commands.COMMANDS):
+        msg = "Cloth Sewing fitting menu references unregistered commands"
         raise RuntimeError(msg)
 
     workbenches = (

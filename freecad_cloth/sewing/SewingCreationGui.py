@@ -278,8 +278,10 @@ class SewingCreationTaskPanel:
         self._viewport_view = None
         self._viewport_callback = None
         self._viewport_picks = []
+        self._initial_preview_pending = bool(self._initial_selection)
         self._refresh_selection()
         self.preview()
+        self._initial_preview_pending = False
 
         from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
 
@@ -302,7 +304,7 @@ class SewingCreationTaskPanel:
             )
         else:
             selected_edges = self._initial_selection
-        if current_selection and (
+        if not self._initial_preview_pending and current_selection and (
             all(edge in current_selection for edge in selected_edges)
             or any(edge not in selected_edges for edge in current_selection)
         ):
