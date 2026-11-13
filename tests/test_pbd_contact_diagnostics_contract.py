@@ -195,7 +195,7 @@ def test_cube_ladder_caches_collision_proximity_mesh() -> None:
             'getattr(nearest, "on_surface", None)',
             "proximity_mesh = build_proximity_mesh(runtime.collision_surface)",
             "for step in LADDER_CHECKPOINTS:",
-            'self.scene.Steps = int(step)',
+            "self.scene.Steps = int(step)",
         ),
         contract="shared checkpoint capture",
     )
