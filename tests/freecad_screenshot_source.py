@@ -375,7 +375,7 @@ class _SimulationScene(Protocol):
     """Authored native scene properties asserted by the canonical tunic audit."""
 
     Document: _RecomputableDocument
-    DrapeTarget: _DrapeTargetFeature | None
+    DrapeTarget: "_DrapeTargetFeature | None"
     Proxy: _SimulationProxy
     StartHeight: float
     QualityPreset: str
