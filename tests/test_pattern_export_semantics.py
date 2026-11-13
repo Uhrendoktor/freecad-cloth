@@ -14,7 +14,6 @@ from defusedxml import ElementTree
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.JsonTypes import JsonValue
-
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     DerivedPattern,
     Notch,
