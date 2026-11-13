@@ -215,9 +215,7 @@ def test_cube_ladder_bootstrap_faulthandler_is_freecad_safe() -> None:
         ),
         contract="cube-ladder startup delegation",
     )
-    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(
-        encoding="utf-8"
-    )
+    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(encoding="utf-8")
     _require_fragments(
         source=bootstrap,
         fragments=(
@@ -266,9 +264,7 @@ def test_shared_pbd_helpers_are_import_safe_and_keep_ladder_contracts_explicit()
     """Verify FreeCAD bootstrap and PBD diagnostics have one import-safe owner."""
     cube = (_ROOT / "tests" / "freecad_pbd_cube_ladder.py").read_text(encoding="utf-8")
     avatar = (_ROOT / "tests" / "freecad_pbd_avatar_ladder.py").read_text(encoding="utf-8")
-    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(
-        encoding="utf-8"
-    )
+    bootstrap = (_ROOT / "tests" / "freecad_pbd_ladder_bootstrap.py").read_text(encoding="utf-8")
     for source in (cube, avatar):
         assert "runpy.run_path(" not in source, (
             "PBD ladder scripts must not execute helpers via runpy."
