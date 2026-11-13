@@ -188,3 +188,27 @@ def test_collection_contract_rejects_a_requested_module_with_zero_items() -> Non
             [collected],
             environ={"CLOTH_EXPECTED_TEST_MODULES": os.pathsep.join(map(str, expected))},
         )
+
+def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
+    """Transfer checked-out source and generated evidence without host bind mounts."""
+    action_path = ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
+    action = action_path.read_text(encoding="utf-8")
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    assert (
+        'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD'
+        in action
+    )
+    assert (
+        'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"'
+        in action
+    )
+    assert 'docker cp "$container_id:/workspace/$relative_path/." "$stage_directory/"' in action
+    assert 'copy_back_directory "artifacts" "$output_root/artifacts"' in action
+    assert 'copy_back_directory "docs/images/generated" "$output_root/generated"' in action
+    assert '-v "$GITHUB_WORKSPACE:/workspace:rw"' not in action
+    assert "uses: ./.github/actions/freecad-container" in workflow
+    assert "Uhrendoktor/freecad-cloth/.github/actions/freecad-container@" not in workflow
+    assert "--shm-size=1g" in action
+
+

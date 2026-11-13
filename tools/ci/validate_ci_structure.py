@@ -508,6 +508,21 @@ def _validate_required_components() -> None:
     if "180s" not in container_action or "timeout-seconds" not in container_action:
         msg = "FreeCAD container action must retain its 180-second pull contract"
         raise SystemExit(msg)
+    workspace_transfer_markers = (
+        'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD',
+        'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"',
+        'docker cp "$container_id:/workspace/$relative_path/." "$stage_directory/"',
+        'copy_back_directory "artifacts" "$output_root/artifacts"',
+        'copy_back_directory "docs/images/generated" "$output_root/generated"',
+    )
+    if any(marker not in container_action for marker in workspace_transfer_markers) or (
+        '-v "$GITHUB_WORKSPACE:/workspace:rw"' in container_action
+    ):
+        msg = (
+            "FreeCAD container action must transfer the checkout and restore evidence "
+            "without host bind mounts"
+        )
+        raise SystemExit(msg)
     freecad_action = (ROOT / ".github/actions/freecad-test/action.yml").read_text(encoding="utf-8")
     if (
         'default: "120"' not in freecad_action

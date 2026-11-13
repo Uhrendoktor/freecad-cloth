@@ -285,7 +285,7 @@ jobs:
           persist-credentials: false
       - name: Run pure Python validation groups
         if: ${{ matrix.group != 'gui' }}
-        uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-container@6d4c0ad13e2e267c48b746d5d09b9ffc3d059128
+        uses: ./.github/actions/freecad-container
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           command: >-
