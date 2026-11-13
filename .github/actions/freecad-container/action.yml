@@ -74,8 +74,12 @@ runs:
         trap cleanup EXIT
 
         timeout_seconds="$TIMEOUT_SECONDS"
-        if [[ ! "$timeout_seconds" =~ ^[0-9]+$ ]] || (( timeout_seconds > 360 )); then
+        if [[ ! "$timeout_seconds" =~ ^[0-9]+$ ]]; then
           echo "timeout-seconds must be an integer between 0 and 360" >&2
+          exit 2
+        fi
+        if [ "$timeout_seconds" -gt 360 ]; then
+          echo "timeout-seconds must be <= 360" >&2
           exit 2
         fi
 

@@ -189,6 +189,7 @@ def test_collection_contract_rejects_a_requested_module_with_zero_items() -> Non
             environ={"CLOTH_EXPECTED_TEST_MODULES": os.pathsep.join(map(str, expected))},
         )
 
+
 def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
     """Transfer checked-out source and generated evidence without host bind mounts."""
     action_path = ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
