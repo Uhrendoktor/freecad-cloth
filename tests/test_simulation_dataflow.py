@@ -422,9 +422,7 @@ def test_execute_rebuilds_when_pattern_geometry_or_placement_changes(
     )
 
     piece.Sketch.Geometry[0] = _LineSegment((0.0, 0.0), (UPDATED_EDGE_LENGTH_MM, 0.0))
-    piece.Sketch.Geometry[1] = _LineSegment(
-        (UPDATED_EDGE_LENGTH_MM, 0.0), (10.0, 10.0)
-    )
+    piece.Sketch.Geometry[1] = _LineSegment((UPDATED_EDGE_LENGTH_MM, 0.0), (10.0, 10.0))
     proxy.execute(scene)
     require(
         condition=len(rebuilt_signatures) == EXPECTED_PATTERN_BUILD_COUNT,
