@@ -14,7 +14,7 @@ import sys
 import tempfile
 import time
 import traceback
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -55,6 +55,35 @@ EXPECTED_WORKBENCH_ERRORS = (
 )
 
 
+class _Workbench(Protocol):
+    """Workbench lifecycle and command inventory measured by the benchmark."""
+
+    commands: Sequence[str]
+
+    def Initialize(self) -> None:
+        """Register commands exposed by this workbench."""
+
+
+class StaticMetrics(TypedDict):
+    """Source inventory metrics recorded for one workbench."""
+
+    python_files: int
+    nonblank_loc: int
+    related_test_files: int
+    related_tests: list[str]
+    cloth_command_tokens: int
+
+
+class RuntimeMetrics(TypedDict):
+    """Measured import, construction, and GUI initialization timings."""
+
+    class_lookup_ms: float
+    construct_ms: float
+    initialize_ms: float
+    initialize_samples: int
+    registered_commands: float
+
+
 class BenchmarkWorkbenchBackend:
     """No-op GUI backend used only to isolate Python Initialize() work."""
 
@@ -88,7 +117,7 @@ class BenchmarkWorkbenchBackend:
         """
         del name, commands
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Callable[..., None]:
         """Resolve a FreeCAD callback name to its lint-friendly implementation.
 
         Args:
@@ -153,7 +182,7 @@ def source_lines(path: pathlib.Path) -> int:
         return 0
 
 
-def static_metrics(name: str) -> dict[str, object]:
+def static_metrics(name: str) -> StaticMetrics:
     """Collect source-size, related-test, and command-token metrics for a workbench.
 
     Args:
@@ -194,7 +223,7 @@ def median_ms(samples: list[float]) -> float:
 
 def _initialize_sample(
     gui: ModuleType,
-    workbench_class: Callable[[], object],
+    workbench_class: Callable[[], _Workbench],
     name: str,
     sample: int,
     repeats: int,
@@ -223,9 +252,9 @@ def _initialize_sample(
         msg = f"expected one registered workbench, got {sorted(added)!r}"
         raise RuntimeError(msg)
     registered_name = next(iter(added))
-    workbench.__dict__["__Workbench__"] = BenchmarkWorkbenchBackend()
+    setattr(workbench, "__Workbench__", BenchmarkWorkbenchBackend())
     initialize = cast(
-        "Callable[[], object]",
+        "Callable[[], None]",
         getattr(workbench, _WORKBENCH_INITIALIZE_METHOD),
     )
     initialize()
@@ -237,7 +266,7 @@ def _initialize_sample(
     return duration, command_count
 
 
-def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> dict[str, object]:
+def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> RuntimeMetrics:
     """Measure import, construction, and GUI initialization time for a workbench.
 
     Args:
@@ -257,7 +286,7 @@ def runtime_metrics(name: str, repeats: int, gui: ModuleType) -> dict[str, objec
     trace(f"benchmark: {name}: module imported")
     lookup_samples = []
     construct_samples = []
-    wb_cls = getattr(module, class_name)
+    wb_cls = cast("Callable[[], _Workbench]", getattr(module, class_name))
     for _ in range(repeats):
         t0 = time.perf_counter()
         getattr(module, class_name)
