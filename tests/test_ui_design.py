@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the Qt UI design helpers that do not require a FreeCAD runtime."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from types import ModuleType, SimpleNamespace
 from typing import ClassVar, cast
@@ -19,7 +21,7 @@ class _QtMethodAdapter:
 
     _qt_method_aliases: ClassVar[dict[str, str]] = {}
 
-    def __getattr__(self, name: str) -> object:
+    def __getattr__(self, name: str) -> Callable[..., None | list[_PanelLayout]]:
         """Resolve a declared host API alias to its test-double implementation.
 
         Args:
@@ -42,9 +44,9 @@ class _Style:
 
     def __init__(self) -> None:
         """Initialize an empty style-event recorder."""
-        self.events: list[tuple[str, object]] = []
+        self.events: list[tuple[str, _Label]] = []
 
-    def unpolish(self, widget: object) -> None:
+    def unpolish(self, widget: _Label) -> None:
         """Record a widget entering the style-unpolish phase.
 
         Args:
@@ -52,7 +54,7 @@ class _Style:
         """
         self.events.append(("unpolish", widget))
 
-    def polish(self, widget: object) -> None:
+    def polish(self, widget: _Label) -> None:
         """Record a widget entering the style-polish phase.
 
         Args:
@@ -86,7 +88,7 @@ class _Label(_QtMethodAdapter):
         """
         self.text = value
 
-    def set_word_wrap(self, value: object) -> None:
+    def set_word_wrap(self, value: bool) -> None:
         """Store whether status text should wrap across lines.
 
         Args:
@@ -116,7 +118,7 @@ class _Label(_QtMethodAdapter):
         self.events.append("update")
 
     @property
-    def style_events(self) -> list[tuple[str, object]]:
+    def style_events(self) -> list[tuple[str, _Label]]:
         """Return ordered style-refresh events for public test assertions.
 
         Returns:
@@ -179,7 +181,7 @@ class _Panel(_QtMethodAdapter):
         self.stylesheet = ""
         self.outer_layout = _PanelLayout()
         self.nested_layouts = [_PanelLayout()]
-        self.requested_child_type: type[object] | None = None
+        self.requested_child_type: type[_QtLayout] | None = None
 
     def set_style_sheet(self, stylesheet: str) -> None:
         """Store the stylesheet assigned to this panel stub.
@@ -197,7 +199,7 @@ class _Panel(_QtMethodAdapter):
         """
         return self.outer_layout
 
-    def find_children(self, widget_type: type[object]) -> list[_PanelLayout]:
+    def find_children(self, widget_type: type[_QtLayout]) -> list[_PanelLayout]:
         """Return nested layouts matching the requested widget type.
 
         Args:
@@ -225,7 +227,7 @@ class _Signal:
         """
         self.callback = callback
 
-    def emit(self, value: object) -> None:
+    def emit(self, value: bool) -> None:
         """Invoke the callback with the boolean form of an emitted value.
 
         Args:
@@ -240,7 +242,7 @@ class _DisclosureWidget(_QtMethodAdapter):
 
     _qt_method_aliases: ClassVar[dict[str, str]] = {"setVisible": "set_visible"}
 
-    def __init__(self, *_args: object) -> None:
+    def __init__(self, *_args: _DisclosureWidget) -> None:
         """Initialize a widget as not yet visible.
 
         Args:
@@ -248,7 +250,7 @@ class _DisclosureWidget(_QtMethodAdapter):
         """
         self.visible: bool | None = None
 
-    def set_visible(self, visible: object) -> None:
+    def set_visible(self, visible: bool) -> None:
         """Record the visibility state assigned to the widget.
 
         Args:
@@ -266,7 +268,7 @@ class _DisclosureLayout(_QtMethodAdapter):
         "addWidget": "add_widget",
     }
 
-    def __init__(self, _parent: object) -> None:
+    def __init__(self, _parent: _DisclosureWidget) -> None:
         """Initialize disclosure layout measurements and child records.
 
         Args:
@@ -274,7 +276,7 @@ class _DisclosureLayout(_QtMethodAdapter):
         """
         self.margins: tuple[int, int, int, int] | None = None
         self.spacing: int | None = None
-        self.widgets: list[object] = []
+        self.widgets: list[_DisclosureWidget] = []
 
     def set_contents_margins(self, left: int, top: int, right: int, bottom: int) -> None:
         """Record all four margins applied to the disclosure layout.
@@ -295,7 +297,7 @@ class _DisclosureLayout(_QtMethodAdapter):
         """
         self.spacing = spacing
 
-    def add_widget(self, widget: object) -> None:
+    def add_widget(self, widget: _DisclosureWidget) -> None:
         """Record a child widget added to the disclosure layout.
 
         Args:
@@ -318,7 +320,7 @@ class _ToolButton(_DisclosureWidget):
         "setProperty": "set_property",
     }
 
-    def __init__(self, parent: object | None = None) -> None:
+    def __init__(self, parent: _DisclosureWidget | None = None) -> None:
         """Initialize toggle state and its isolated signal stub.
 
         Args:
@@ -328,9 +330,9 @@ class _ToolButton(_DisclosureWidget):
         self.text = ""
         self.checkable = False
         self.checked = False
-        self.arrow: object | None = None
+        self.arrow: str | int | None = None
         self.tooltip = ""
-        self.style: object | None = None
+        self.style: str | int | None = None
         self.properties: dict[str, str] = {}
         self.toggled = _Signal()
 
@@ -342,7 +344,7 @@ class _ToolButton(_DisclosureWidget):
         """
         self.text = text
 
-    def set_checkable(self, checkable: object) -> None:
+    def set_checkable(self, checkable: bool) -> None:
         """Store whether the toggle control supports checked state.
 
         Args:
@@ -350,7 +352,7 @@ class _ToolButton(_DisclosureWidget):
         """
         self.checkable = bool(checkable)
 
-    def set_checked(self, checked: object) -> None:
+    def set_checked(self, checked: bool) -> None:
         """Update checked state and notify listeners when it changes.
 
         Args:
@@ -361,7 +363,7 @@ class _ToolButton(_DisclosureWidget):
             self.checked = checked
             self.toggled.emit(checked)
 
-    def set_arrow_type(self, arrow: object) -> None:
+    def set_arrow_type(self, arrow: str | int) -> None:
         """Store the arrow direction presented by the toggle button.
 
         Args:
@@ -369,7 +371,7 @@ class _ToolButton(_DisclosureWidget):
         """
         self.arrow = arrow
 
-    def set_tool_button_style(self, style: object) -> None:
+    def set_tool_button_style(self, style: str | int) -> None:
         """Store the text-and-icon presentation mode of the button.
 
         Args:
@@ -486,12 +488,13 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
         ),
     )
     content = _DisclosureWidget()
-    disclosure_factory = cast("Callable[..., tuple[object, object]]", make_disclosure)
-    wrapper_value, toggle_value = disclosure_factory(
+    disclosure_factory = cast(
+        "Callable[[str, _DisclosureWidget, ModuleType, ModuleType, bool], tuple[_DisclosureWidget, _ToolButton]]",
+        make_disclosure,
+    )
+    wrapper, toggle = disclosure_factory(
         "Advanced settings", content, qt_core, qt_widgets, expanded=False
     )
-    wrapper = cast("_DisclosureWidget", wrapper_value)
-    toggle = cast("_ToolButton", toggle_value)
 
     assert isinstance(wrapper, _DisclosureWidget), "The disclosure wrapper should be a widget."
     assert toggle.text == "Advanced settings", "The disclosure should expose its requested caption."
