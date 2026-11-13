@@ -9,6 +9,7 @@ import pathlib
 import sys
 import traceback
 from collections.abc import Callable, Sequence
+from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 import FreeCAD as App
@@ -32,12 +33,12 @@ class _ArcGeometryModule(Protocol):
 
     def arc_through_midpoint(
         self,
-        part_module: object,
-        app_module: object,
-        start: object,
-        end: object,
-        midpoint: object,
-    ) -> object:
+        part_module: ModuleType,
+        app_module: ModuleType,
+        start: "_Vector3",
+        end: "_Vector3",
+        midpoint: "_Vector3",
+    ) -> "_NativeCurve":
         """Construct the native minor arc through three authored planar points.
 
         Args:
@@ -55,9 +56,10 @@ class _ArcGeometryModule(Protocol):
 _arc_geometry = cast(
     "_ArcGeometryModule", importlib.import_module("tests.support.freecad_arc_geometry")
 )
-_arc_through_midpoint: Callable[[object, object, object, object, object], object] = (
-    _arc_geometry.arc_through_midpoint
-)
+_arc_through_midpoint: Callable[
+    [ModuleType, ModuleType, "_Vector3", "_Vector3", "_Vector3"],
+    "_NativeCurve",
+] = _arc_geometry.arc_through_midpoint
 
 OUT = os.environ.get("CLOTH_SCREENSHOT_DIR", "docs/images/generated")
 pathlib.Path(OUT).mkdir(exist_ok=True, parents=True)
@@ -175,6 +177,27 @@ class _Vector3(Protocol):
     z: float
 
 
+class _NativeRotation(Protocol):
+    """Quaternion data exposed by a native FreeCAD placement rotation."""
+
+    Q: tuple[float, float, float, float]
+
+
+class _NativePlacement(Protocol):
+    """Rigid transform used to map authored pattern coordinates into world space."""
+
+    Base: _Vector3
+    Rotation: _NativeRotation
+
+    def inverse(self) -> "_NativePlacement":
+        """Return the inverse rigid transform."""
+        ...
+
+    def multVec(self, vector: _Vector3) -> _Vector3:
+        """Transform one local vector into document coordinates."""
+        ...
+
+
 class _RecomputableDocument(Protocol):
     """Document operation required by the FreeCAD visual acceptance harness."""
 
@@ -195,7 +218,7 @@ class _NativeSketch(Protocol):
 
     Name: str
     Geometry: Sequence[_NativeCurve]
-    Placement: object
+    Placement: _NativePlacement
     SemanticEdgeIds: Sequence[str]
 
 
@@ -225,7 +248,7 @@ class _PatternPiece(Protocol):
     Name: str
     Label: str
     PieceId: str
-    Placement: object
+    Placement: _NativePlacement
     Sketch: _NativeSketch
     ViewObject: _ViewObject
 
