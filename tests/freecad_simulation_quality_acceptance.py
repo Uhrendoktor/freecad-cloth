@@ -150,6 +150,14 @@ class _PatternPieceObject(Protocol):
     Placement: _PatternPlacement
 
 
+class _PanelValue(Protocol):
+    """Expose the numeric value control used by quality acceptance checks."""
+
+    def value(self) -> float:
+        """Return the current numeric control value."""
+        ...
+
+
 class _DocumentObjects(Protocol):
     """Expose the native document object's pattern inventory."""
 
@@ -168,7 +176,7 @@ def _find_pieces(doc: _DocumentObjects) -> list[_PatternPieceObject]:
     return [obj for obj in doc.Objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
-def _panel_value(panel: object, widget_name: str) -> float:
+def _panel_value(panel: _PanelValue, widget_name: str) -> float:
     """Read a numeric value from a named Simulation Quality control.
 
     Args:
