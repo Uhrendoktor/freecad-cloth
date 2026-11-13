@@ -17,14 +17,16 @@ class _SketchVector:
         self.z = float(z)
 
 
-class _SketchLineEdge:
+class _LineSegment:
     """Straight Sketcher edge exposing a native shape-discretization API."""
 
     def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
         """Store the local segment endpoints."""
-        self._points = (_SketchVector(*start), _SketchVector(*end))
+        self.StartPoint = _SketchVector(*start)
+        self.EndPoint = _SketchVector(*end)
+        self._points = (self.StartPoint, self.EndPoint)
 
-    def toShape(self) -> _SketchLineEdge:
+    def toShape(self) -> _LineSegment:
         """Return the edge shape consumed by the sewing adapters."""
         return self
 
