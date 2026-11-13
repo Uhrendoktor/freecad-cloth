@@ -54,7 +54,7 @@ def sketcher_pattern_piece(
     """
     vertices = tuple((float(x), float(y)) for x, y in points)
     geometry = tuple(
-        _SketchLineEdge(start, vertices[(index + 1) % len(vertices)])
+        _LineSegment(start, vertices[(index + 1) % len(vertices)])
         for index, start in enumerate(vertices)
     )
     sketch = SimpleNamespace(
