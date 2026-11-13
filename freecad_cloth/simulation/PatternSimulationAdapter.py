@@ -9,7 +9,7 @@ is absent instead of rebuilding geometry from cached outline or size fields.
 from collections.abc import Mapping, Sequence
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import SkipValidation
+from pydantic import ConfigDict, SkipValidation
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
@@ -85,7 +85,9 @@ class _PatternDocument(Protocol):
     Objects: Sequence[FreeCADDocumentObjectProtocol]
 
 
-@pydantic_dataclass(frozen=True)
+# Native FeaturePython proxies remain identity-preserved values. This scoped config lets
+# Pydantic build the dataclass schema without introspecting FreeCAD's runtime-only protocol.
+@pydantic_dataclass(config=ConfigDict(arbitrary_types_allowed=True), frozen=True)
 class ResolvedSimulationPattern:
     """Resolved PatternIR plus the originating FreeCAD PatternPiece objects.
 

@@ -62,6 +62,7 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     registered_index = run.index("raise RuntimeError", post_events_index)
     document_index = run.index('doc = App.newDocument("ClothBlanketExample")', registered_index)
     module_helper = source.split("def _load_cloth_modules():", 1)[1].split("def main():", 1)[0]
+    bootstrap = (ROOT / "tests" / "support" / "freecad_bootstrap.py").read_text(encoding="utf-8")
     assert window_index < show_index < first_events_index < modules_index
     assert (
         modules_index
@@ -74,9 +75,12 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     )
     assert "site.addsitedir(str(ROOT))" in module_helper
     assert "from freecad_cloth." in module_helper
-    assert "sys.path[:] = [entry for entry in sys.path if entry not in" in source
+    assert "from support.freecad_bootstrap import prepare_repository_root" in source
+    assert "ROOT = prepare_repository_root(__file__)" in source
+    assert 'sys.path[:] = [entry for entry in entry_path if entry_path not in ("", str(root))]' not in bootstrap
+    assert 'sys.path[:] = [entry for entry in sys.path if entry not in ("", str(root))]' in bootstrap
     assert "str(ROOT)" in source
-    assert source.index("sys.path[:] =") < source.index("import FreeCAD as App")
+    assert source.index("ROOT = prepare_repository_root(__file__)") < source.index("import FreeCAD as App")
     assert "InitGui.py" in run
 
 
@@ -180,7 +184,8 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     quality_wrapper = (ROOT / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
     strict_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     assert 'run: bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"' in quality
-    assert "git bundle create" in quality_wrapper
+    assert 'git -C "$workspace" bundle create "$bundle_file" "$bundle_ref" "$base_ref_name"' in quality_wrapper
+    assert 'git -C "$workspace" bundle verify "$bundle_file"' in quality_wrapper
     assert "tools/ci/strict_quality.py" in quality_wrapper
     assert "def collect_tracked_python_files" in strict_runner
     assert '"ruff", "format", "--check"' in strict_runner
