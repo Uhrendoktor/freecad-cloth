@@ -196,16 +196,10 @@ def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
     action = action_path.read_text(encoding="utf-8")
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
-    assert (
-        'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD'
-        in action
-    )
+    assert 'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD' in action
     assert "for relative_path in artifacts docs/images/generated; do" in action
     assert 'tar -rf "$workspace_archive" -C "$workspace" "$relative_path"' in action
-    assert (
-        'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"'
-        in action
-    )
+    assert 'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"' in action
     assert 'docker cp "$container_id:/workspace/$relative_path/." "$stage_directory/"' in action
     assert 'copy_back_directory "artifacts" "$output_root/artifacts"' in action
     assert 'copy_back_directory "docs/images/generated" "$output_root/generated"' in action
@@ -214,5 +208,3 @@ def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
     assert "Uhrendoktor/freecad-cloth/.github/actions/freecad-container@" not in workflow
     assert "Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" not in workflow
     assert "--shm-size=1g" in action
-
-
