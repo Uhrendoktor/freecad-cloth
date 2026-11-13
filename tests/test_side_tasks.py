@@ -82,14 +82,15 @@ def _sketch_piece(
         Document-object stand-in exposing native Sketcher geometry authority.
     """
     geometry = tuple(
-        _SketchEdge(start, points[(index + 1) % len(points)])
-        for index, start in enumerate(points)
+        _SketchEdge(start, points[(index + 1) % len(points)]) for index, start in enumerate(points)
     )
     return SimpleNamespace(
         GeometryAuthority="Sketcher",
         Sketch=SimpleNamespace(Geometry=geometry),
         Placement=placement,
     )
+
+
 EXPECTED_START_POINT = (10.0, -1.0, 2.2)
 EXPECTED_END_POINT = (7.0, -1.0, 2.2)
 EXPECTED_COLLISION_CENTER = (1 / 3, 1 / 3, 0.0)

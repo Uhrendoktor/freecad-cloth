@@ -62,13 +62,13 @@ class _TrimeshMesh(Protocol):
         """Split this mesh into disconnected components.
 
         Args:
-            _only_watertight: Whether to omit components that are not watertight.
+            only_watertight: Whether to omit components that are not watertight.
 
         Returns:
             The connected mesh components.
         """
         del only_watertight
-        ...
+        raise NotImplementedError
 
 
 MeshValidationResult = MeshHealthMetrics
