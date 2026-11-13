@@ -8,13 +8,13 @@ import pytest
 
 import freecad_cloth.sewing.SeamOverlay as overlay_module
 import freecad_cloth.sewing.SewingCommands as sewing_commands
-from tests.support.pattern_fixtures import sketcher_pattern_piece
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
     set_seam_highlights_enabled,
     set_seam_overlay_respect_depth,
 )
+from tests.support.pattern_fixtures import sketcher_pattern_piece
 
 SEWING_ACTIVATED_RESULT = 17
 FIRST_EDGE_INDEX = 0
