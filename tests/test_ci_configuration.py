@@ -221,8 +221,7 @@ def test_dead_code_gate_scans_the_full_static_core_inventory() -> None:
     quality = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
 
     assert (
-        'QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py"))'
-        in quality
+        'QualityCommand("Dead-code contract", (executable, "tools/check_dead_code.py"))' in quality
     )
     assert "xargs -r python tools/check_dead_code.py" not in quality
     assert "changed-python.txt" not in quality
