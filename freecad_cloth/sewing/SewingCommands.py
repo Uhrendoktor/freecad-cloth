@@ -122,7 +122,9 @@ def start_staged_seam_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
-    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("seam")
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task(
+        "seam", initial_selection=tuple(_collect_selected_pattern_edges())
+    )
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
@@ -135,7 +137,9 @@ def start_staged_mn_sewing_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
-    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("mn")
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task(
+        "mn", initial_selection=tuple(_collect_selected_pattern_edges())
+    )
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 
@@ -148,7 +152,9 @@ def start_staged_free_sewing_creation():
     global _ACTIVE_STAGED_SEWING_TASK_PANEL
     from freecad_cloth.sewing.SewingCreationGui import show_sewing_creation_task
 
-    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task("free")
+    _ACTIVE_STAGED_SEWING_TASK_PANEL = show_sewing_creation_task(
+        "free", initial_selection=tuple(_collect_selected_pattern_edges())
+    )
     return _ACTIVE_STAGED_SEWING_TASK_PANEL
 
 

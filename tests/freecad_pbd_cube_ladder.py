@@ -18,11 +18,17 @@ from functools import partial
 from pathlib import Path
 from typing import Protocol
 
-from freecad_cloth.shared.Collision import CollisionSurface
-
 _TEST_DIR = Path(__file__).resolve().parent
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_HELPER_DIR = Path(__file__).resolve().parent / "support"
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+if str(_HELPER_DIR) not in sys.path:
+    sys.path.insert(0, str(_HELPER_DIR))
 if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
+
+from freecad_cloth.shared.Collision import CollisionSurface
 
 from freecad_pbd_ladder_bootstrap import bootstrap_ladder, dispatch_ladder_entrypoint
 
@@ -32,6 +38,8 @@ _boot = _BOOTSTRAP.boot
 App = _BOOTSTRAP.app
 Gui = _BOOTSTRAP.gui
 Part = _BOOTSTRAP.part
+
+_boot("before-support-helper-import")
 
 import pbd_contact_helpers as _ladder
 

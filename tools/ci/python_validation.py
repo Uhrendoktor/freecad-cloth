@@ -141,6 +141,12 @@ GROUPS = {
         "tests/test_workbench_registration.py",
         "tests/test_ui_design.py",
         "tests/test_source_signature_contract.py",
+        "tests/test_avatar_arrangement_contract.py",
+        "tests/test_avatar_service_contract.py",
+        "tests/test_changed_python_types.py",
+        "tests/test_explicit_any_annotations.py",
+        "tests/test_pydantic_models_policy.py",
+        "tests/test_strict_quality_runner_contract.py",
     ),
 }
 

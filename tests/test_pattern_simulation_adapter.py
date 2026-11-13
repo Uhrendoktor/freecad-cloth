@@ -63,6 +63,7 @@ class _Placement:
 
 class _Piece:
     PatternType = "PatternPiece"
+    TypeId = "Part::FeaturePython"
     Placement = None
     SeamAllowance = 0.0
     GrainlineAngle = 0.0
@@ -73,6 +74,7 @@ class _Piece:
         self.PieceId = piece_id
         self.Label = piece_id
         self.Name = piece_id
+        self.PropertiesList = ["PieceId", "GeometryAuthority", "Sketch"]
         self.Sketch = sketch
         self.GeometryAuthority = "Sketcher" if sketch is not None else "PatternParameters"
 

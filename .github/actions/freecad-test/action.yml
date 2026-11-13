@@ -134,7 +134,6 @@ runs:
         else
           echo "evidence-validator-cache=hit key=$key"
         fi
-        "$env_dir/bin/python" -m pip check
         echo "evidence-validator-cache=ready path=$env_dir"
 
     - name: Verify evidence validator dependencies

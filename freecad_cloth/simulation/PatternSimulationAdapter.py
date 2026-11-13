@@ -7,8 +7,9 @@ is absent instead of rebuilding geometry from cached outline or size fields.
 """
 
 from collections.abc import Mapping, Sequence
-from typing import Literal, Protocol
+from typing import Literal, Protocol, runtime_checkable
 
+from pydantic import InstanceOf
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
@@ -56,6 +57,7 @@ class _NativePlacement(Protocol):
     Rotation: _NativeRotation
 
 
+@runtime_checkable
 class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persistent PatternPiece fields consumed by the simulation adapter."""
 
@@ -94,7 +96,7 @@ class ResolvedSimulationPattern:
     """
 
     pattern: PatternIR
-    pieces: Mapping[str, _PatternPieceFeature]
+    pieces: Mapping[str, InstanceOf[_PatternPieceFeature]]
     signature: tuple[_SignatureValue, ...]
 
     def piece(self, piece_id: str) -> PieceIR:

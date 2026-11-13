@@ -10,6 +10,10 @@ import sys
 from pathlib import Path
 from typing import cast
 
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 WORKBENCH_NAMES = ("Pattern", "Sewing", "Simulation")

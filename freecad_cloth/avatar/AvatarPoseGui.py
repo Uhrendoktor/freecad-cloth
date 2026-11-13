@@ -6,6 +6,8 @@ task panel keeps only essential posing aids visible while the viewport carries
 the primary manipulation. Exact Euler entry is retained behind a precision drawer.
 """
 
+from __future__ import annotations
+
 import contextlib
 import math
 from collections.abc import Sequence

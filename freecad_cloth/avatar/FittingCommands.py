@@ -7,7 +7,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Protocol, SupportsFloat, SupportsInt, SupportsStr, cast
+from typing import Protocol, SupportsFloat, SupportsInt, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
@@ -65,10 +65,18 @@ class _NativeShapeEdge(Protocol):
     CenterOfMass: _NativeVector
 
 
+class _StringConvertible(Protocol):
+    """Text conversion exposed by native FreeCAD surface implementations."""
+
+    def __str__(self) -> str:
+        """Return the textual description of the native surface."""
+        ...
+
+
 class _NativeShapeFace(Protocol):
     """Face values used when calculating stable local geometry signatures."""
 
-    Surface: SupportsStr
+    Surface: _StringConvertible
     Area: float
     CenterOfMass: _NativeVector
     Edges: Sequence[_NativeShapeEdge]

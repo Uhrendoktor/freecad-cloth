@@ -142,23 +142,24 @@ def run_acceptance():
         _progress("before-manual-pose-panel")
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
+        pose_panel = panel._open_pose_mode()
+        if pose_panel is None:
+            msg = "avatar task panel did not open the dedicated 3D Pose Mode editor"
+            raise RuntimeError(msg)
         _progress("manual-pose-panel-shown")
-        upperarm_index = panel.skeleton_joint.findText("Left shoulder")
-        if upperarm_index < 0:
-            msg = "manual skeleton editor did not expose the left shoulder joint"
+        pose_panel.symmetry.setChecked(True)
+        pose_panel.controller.select_joint("upperarm01.L")
+        pose_panel.precision_fields["y"].setValue(25.0)
+        if pose_panel.skeleton_joint_index != "upperarm01.L":
+            msg = "Pose Mode did not select the left shoulder joint"
             raise RuntimeError(msg)
-        panel.skeleton_joint.setCurrentIndex(upperarm_index)
-        panel.skeleton_y.setValue(25.0)
-        if not panel.skeleton_symmetry.isChecked():
-            msg = "manual skeleton editor did not enable symmetry by default"
-            raise RuntimeError(msg)
-        staged_pose = json.loads(panel._staged_parameters().to_json())
+        staged_pose = json.loads(pose_panel._staged_parameters().to_json())
         joints = staged_pose["pose"]["joints"]
         if joints["upperarm01.L"]["y"] != 25.0 or joints["upperarm01.R"]["y"] != -25.0:
-            msg = "manual skeleton symmetry did not mirror the shoulder rotation"
+            msg = "Pose Mode symmetry did not mirror the shoulder rotation"
             raise RuntimeError(msg)
-        if not panel._apply():
-            msg = f"manual skeleton joint edit was not applied; status={panel.status.text()!r}"
+        if not pose_panel.accept():
+            msg = f"manual Pose Mode edit was not applied; status={pose_panel.status.text()!r}"
             raise RuntimeError(msg)
         _progress("manual-pose-applied")
         _close_task()
@@ -187,9 +188,13 @@ def run_acceptance():
         refresh_drape_target(target)
         panel = AvatarTaskPanel(avatar)
         _show_panel(panel)
-        panel._reset_skeleton_pose()
-        if not panel._apply():
-            msg = f"manual skeleton reset was not applied; status={panel.status.text()!r}"
+        pose_panel = panel._open_pose_mode()
+        if pose_panel is None:
+            msg = "avatar task panel did not reopen Pose Mode for reset"
+            raise RuntimeError(msg)
+        pose_panel._reset_pose()
+        if not pose_panel.accept():
+            msg = f"manual Pose Mode reset was not applied; status={pose_panel.status.text()!r}"
             raise RuntimeError(msg)
         _progress("manual-pose-reset")
         _close_task()

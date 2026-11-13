@@ -275,7 +275,7 @@ class AvatarTaskPanel:
 
         apply_panel_style(self.form)
 
-    def _open_pose_mode(self):
+    def _open_pose_mode(self) -> AvatarTaskPanelProtocol | None:
         """Open the pose editor for the current mannequin."""
         if self.avatar is None:
             return
@@ -283,7 +283,7 @@ class AvatarTaskPanel:
             self.Gui.Control.closeDialog()
         from freecad_cloth.avatar.AvatarCommands import pose_avatar
 
-        pose_avatar(self.avatar)
+        return pose_avatar(self.avatar)
 
     def _find_avatar(self):
         """Resolve the active mannequin feature from the current FreeCAD document.

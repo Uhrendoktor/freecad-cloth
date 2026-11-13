@@ -221,7 +221,7 @@ class SewingCreationTaskPanel:
         "free": "Create Free Sewing",
     }
 
-    def __init__(self, kind):
+    def __init__(self, kind, initial_selection=()):
         App, Gui, QtWidgets = _modules()
         if App.ActiveDocument is None:
             msg = "open a document before creating sewing"
@@ -231,6 +231,7 @@ class SewingCreationTaskPanel:
             raise ValueError(msg)
         self.App, self.Gui = App, Gui
         self.kind = kind
+        self._initial_selection = tuple(initial_selection)
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Cloth Sewing — staged creation")
         layout = QtWidgets.QVBoxLayout(self.form)
@@ -287,7 +288,30 @@ class SewingCreationTaskPanel:
         mark_button(self.cancel_button, "secondary")
         apply_panel_style(self.form)
 
+    def _restore_initial_pattern_selection(self):
+        """Restore captured edge references when the task panel clears subelement selection."""
+        from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
+        try:
+            current_selection = tuple(_collect_selected_pattern_edges())
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            current_selection = ()
+        if current_selection:
+            return
+        if self._viewport_picks:
+            selected_edges = tuple(
+                (obj, int(component[4:]) - 1) for obj, component in self._viewport_picks
+            )
+        else:
+            selected_edges = self._initial_selection
+        if not selected_edges:
+            return
+        self.Gui.Selection.clearSelection()
+        for obj, edge in selected_edges:
+            self.Gui.Selection.addSelection(obj, "Edge%d" % (int(edge) + 1))
+
     def _builder(self):
+        self._restore_initial_pattern_selection()
         if self.kind == "seam":
             from freecad_cloth.sewing.SewingCommands import create_seam_from_selection
 
@@ -307,6 +331,8 @@ class SewingCreationTaskPanel:
             count = len(_collect_selected_pattern_edges())
         except (ImportError, ValueError):
             count = 0
+        if count == 0:
+            count = len(self._initial_selection)
         if self._viewport_picks:
             picked = " → ".join(
                 "{} / {}".format(getattr(obj, "Label", getattr(obj, "Name", "PatternPiece")), edge)
@@ -532,9 +558,9 @@ class SewingCreationTaskPanel:
         return 0
 
 
-def show_sewing_creation_task(kind):
+def show_sewing_creation_task(kind, initial_selection=()):
     _App, Gui, _QtWidgets = _modules()
-    panel = SewingCreationTaskPanel(kind)
+    panel = SewingCreationTaskPanel(kind, initial_selection=initial_selection)
     Gui.Control.showDialog(panel)
     if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
         panel.form.show()
