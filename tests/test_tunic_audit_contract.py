@@ -540,7 +540,7 @@ def test_pbd_sdf_cache_key_is_stable_and_geometry_sensitive() -> None:
     backend_module = import_module("freecad_cloth.simulation.PositionBasedDynamicsBackend")
     cache_key_attribute = "_pbd_collision_sdf_cache_key"
     collision_sdf_cache_key = cast(
-        "Callable[[CollisionSurface, list[int]], object]",
+        "Callable[[CollisionSurface, list[int]], bytes]",
         getattr(backend_module, cache_key_attribute),
     )
 
