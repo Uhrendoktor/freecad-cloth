@@ -5,7 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from freecad_cloth.simulation.DrapeTarget import DrapeTargetSpec, source_signature, target_status
+from freecad_cloth.simulation.DrapeTarget import (
+    DrapeTargetSpec,
+    source_signature,
+    target_status,
+)
 
 
 DEFLECTION_MM = 1.0
@@ -33,6 +37,7 @@ TARGET_NAME = "Chair"
 TARGET_LABEL = "Chair target"
 MESH_TARGET_NAME = "MeshTarget"
 MESH_TARGET_LABEL = "Mesh target"
+
 
 def _set_runtime_attribute[RuntimeAttribute](
     target: SimpleNamespace,
