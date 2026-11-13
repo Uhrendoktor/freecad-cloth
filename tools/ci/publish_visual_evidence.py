@@ -12,9 +12,14 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-import visual_evidence
-from build_visual_gifs import build, image_tool
-from visual_evidence import documented_assets, verify, write_provenance
+if __package__:
+    from . import visual_evidence
+    from .build_visual_gifs import build, image_tool
+    from .visual_evidence import documented_assets, verify, write_provenance
+else:
+    import visual_evidence
+    from build_visual_gifs import build, image_tool
+    from visual_evidence import documented_assets, verify, write_provenance
 
 IMAGE_SUFFIXES = {".png", ".gif", ".jpg", ".jpeg", ".webp"}
 SURFACE_PEN_FRAME_COUNT = 4

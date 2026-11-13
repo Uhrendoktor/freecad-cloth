@@ -689,7 +689,7 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
         ValueError: If the native element is unsupported or its parameter interval
             is invalid.
     """
-    type_name = type(native).__name__.lower()
+    type_name = type(native).__name__.lower().lstrip("_")
     if type_name == "linesegment":
         start = _point3(native.StartPoint)
         end = _point3(native.EndPoint)

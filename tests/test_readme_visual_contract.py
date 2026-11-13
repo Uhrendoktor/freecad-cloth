@@ -24,13 +24,13 @@ def test_blanket_visual_fixture_has_no_runtime_backend_selector():
 
 def test_turntable_still_uses_persistent_drape_target():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(
+    target = (ROOT / "freecad_cloth" / "simulation" / "DrapeTarget.py").read_text(
         encoding="utf-8"
     )
 
     assert "set_drape_target_source" in source
-    assert "create_drape_target" in objects
-    assert "assign_drape_target" in objects
+    assert "def create_drape_target(" in target
+    assert "def assign_drape_target(" in target
 
 
 def test_readme_turntable_builds_real_motion():
@@ -181,7 +181,7 @@ def test_visual_publisher_removes_stale_public_images_before_publish():
     assert "path.unlink()" in publisher
     assert "for asset in sorted(expected):" in publisher
     assert "write_provenance(" in publisher
-    assert "errors = verify(source_root, published, provenance, args.source_sha)" in publisher
+    assert "errors = verify(source_root, published, provenance, metadata.source_sha)" in publisher
 
 
 def test_visual_publisher_preserves_script_local_import_invocation():
