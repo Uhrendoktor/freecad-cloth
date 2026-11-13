@@ -3,8 +3,8 @@
 
 import sys
 from collections.abc import Sequence
-from typing import Protocol
 from pathlib import Path
+from typing import Protocol
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
