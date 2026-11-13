@@ -21,7 +21,7 @@ class _QtMethodAdapter:
 
     _qt_method_aliases: ClassVar[dict[str, str]] = {}
 
-    def __getattr__(self, name: str) -> Callable[..., None | list[_PanelLayout]]:
+    def __getattr__(self, name: str) -> Callable[..., list[_PanelLayout] | None]:
         """Resolve a declared host API alias to its test-double implementation.
 
         Args:
