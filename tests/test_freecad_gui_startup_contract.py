@@ -78,8 +78,7 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     assert "from support.freecad_bootstrap import prepare_repository_root" in source
     assert "ROOT = prepare_repository_root(__file__)" in source
     assert (
-        'sys.path[:] = [entry for entry in sys.path if entry not in ("", str(root))]'
-        in bootstrap
+        'sys.path[:] = [entry for entry in sys.path if entry not in ("", str(root))]' in bootstrap
     )
     assert "str(ROOT)" in source
     assert source.index("ROOT = prepare_repository_root(__file__)") < source.index(
