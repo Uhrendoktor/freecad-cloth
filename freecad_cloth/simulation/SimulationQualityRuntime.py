@@ -177,6 +177,10 @@ class QualitySimulationProxy:
     def __init__(self):
         self._restore_base()
 
+    def __getstate__(self) -> dict[str, int]:
+        """Persist only the schema marker; solver state is rebuilt on document restore."""
+        return {"schema": 1}
+
     @staticmethod
     def _new_base():
         from freecad_cloth.simulation.SimulationObjects import SimulationProxy

@@ -4,10 +4,11 @@
 from itertools import pairwise
 from math import dist
 from types import SimpleNamespace
-from typing import Never, cast
+from typing import Never
 
 import pytest
 
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PieceIR
 from freecad_cloth.pattern.PatternModel import PatternPiece
 from freecad_cloth.simulation.cloth_backend import validate_pinned_stitch_pairs
 from freecad_cloth.simulation.SimulationMeshQuality import quality_piece_mesh
@@ -52,13 +53,13 @@ _PINNED_STITCH_ERROR_PATTERN = (
 
 
 def _quality_piece_object(piece: PatternPiece) -> SimpleNamespace:
-    """Adapt an authored piece to the minimal mesh-builder document contract.
+    """Adapt a piece to the minimal placement contract consumed by the mesh builder.
 
     Args:
-        piece: Authored pattern piece whose identity and outline are preserved.
+        piece: Authored pattern piece whose identity is preserved.
 
     Returns:
-        A FreeCAD-like namespace exposing the outline, identifier, and placement.
+        A FreeCAD-like namespace exposing the identifier and native placement.
     """
     return SimpleNamespace(
         SewingOutline=repr(piece.outline),
@@ -66,6 +67,31 @@ def _quality_piece_object(piece: PatternPiece) -> SimpleNamespace:
         PieceId=piece.id,
         Placement=None,
     )
+
+
+def _quality_piece_ir(piece: PatternPiece) -> PieceIR:
+    """Build explicit solver-neutral boundaries for quality mesh tests.
+
+    Args:
+        piece: Authored rectangular pattern used to construct the semantic boundaries.
+
+    Returns:
+        Validated PatternIR input independent of legacy cached outline properties.
+    """
+    outline = tuple((float(point[0]), float(point[1])) for point in piece.outline)
+    boundaries = tuple(
+        BoundaryIR(
+            id=f"{piece.id}:edge-{index}",
+            kind="line",
+            samples=((start[0], start[1], 0.0), (end[0], end[1], 0.0)),
+        )
+        for index, (start, end) in enumerate(
+            zip(outline, (*outline[1:], outline[0]), strict=True)
+        )
+    )
+    result = PieceIR(id=piece.id, name="Test", boundaries=boundaries)
+    result.validate()
+    return result
 
 
 def test_quality_presets_are_monotonic_and_distinct() -> None:
@@ -148,7 +174,7 @@ def test_material_presentation_defaults_and_validation() -> None:
         "Material presentation defaults must stay stable and malformed values must fail."
     )
     with pytest.raises(ValueError, match="at least three channels"):
-        FabricMaterial(color_rgb=cast("tuple[float, float, float]", (1.0, 0.0))).validate()
+        FabricMaterial(color_rgb=(1.0, 0.0)).validate()
     with pytest.raises(ValueError, match="roughness must be between"):
         FabricMaterial(roughness=1.1).validate()
     with pytest.raises(ValueError, match="transparency must be between"):
@@ -184,8 +210,8 @@ def test_pattern_mesh_density_changes_with_particle_distance() -> None:
     """Show that finer particle spacing generates more mesh points."""
     piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
     piece_obj = _quality_piece_object(piece)
-    coarse = quality_piece_mesh(piece_obj, 100.0, 20.0)
-    fine = quality_piece_mesh(piece_obj, 100.0, 5.0)
+    coarse = quality_piece_mesh(piece_obj, 100.0, 20.0, piece_ir=_quality_piece_ir(piece))
+    fine = quality_piece_mesh(piece_obj, 100.0, 5.0, piece_ir=_quality_piece_ir(piece))
     assert len(fine[0]) > len(coarse[0]), "Finer particle spacing must produce more mesh vertices."
 
 
@@ -213,7 +239,7 @@ def test_refinement_preserves_authored_boundary_and_materially_tessellates() -> 
     """Preserve authored edge endpoints while refining faces and vertices."""
     piece = PatternPiece("Test", [(0, 0), (100, 0), (100, 60), (0, 60)], id="test")
     piece_obj = _quality_piece_object(piece)
-    positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0)
+    positions, triangles, boundary = quality_piece_mesh(piece_obj, 100.0, 2.0, piece_ir=_quality_piece_ir(piece))
     # Constrained Delaunay preserves the authored outline as semantic
     # boundary chains; refinement adds interior vertices and triangles.
     assert len(boundary) == len(piece.outline), _BOUNDARY_CONTRACT_MESSAGE

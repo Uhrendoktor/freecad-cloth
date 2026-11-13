@@ -1,8 +1,11 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression checks for the fitting commands that cross into Simulation."""
 
+import sys
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
+
+import pytest
 
 from freecad_cloth.avatar import FittingCommands
 from freecad_cloth.common.CommandAdapter import FunctionCommand
@@ -57,9 +60,51 @@ def test_fitting_command_module_has_no_simulation_dependency() -> None:
 def test_shared_bootstrap_registers_handoff_commands_before_workbench_activation() -> None:
     """Keep the simulation handoff handlers available during normal FreeCAD startup."""
     source = (_ROOT / "freecad_cloth" / "bootstrap.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.simulation import FittingHandoff as fitting_handoff" in source, (
+    assert 'import_module("freecad_cloth.simulation.FittingHandoff")' in source, (
         "The shared bootstrap must load the simulation handoff module."
     )
     assert "fitting_handoff.register_fitting_handoff_commands(gui)" in source, (
         "The shared bootstrap must register simulation-owned fitting commands."
     )
+
+
+
+def test_fitting_handoff_creates_the_quality_controlled_simulation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep fitting-to-simulation handoff on the canonical quality scene constructor."""
+    piece = SimpleNamespace(PieceId="front", PatternType="PatternPiece")
+    avatar = SimpleNamespace(AvatarType="ClothAvatar")
+    fitting = SimpleNamespace(
+        FittingType="FittingScene",
+        PatternPieces=(piece,),
+        AvatarProxy=avatar,
+    )
+    doc = SimpleNamespace(
+        Objects=(fitting,),
+        getObject=lambda _name: None,
+        recompute=lambda: None,
+    )
+    freecad_module = ModuleType("FreeCAD")
+    freecad_module.ActiveDocument = doc
+    monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
+
+    calls = []
+    expected_scene = SimpleNamespace()
+
+    def create_quality_scene(document, *, avatar_source, cloth_pieces):
+        calls.append((document, avatar_source, tuple(cloth_pieces)))
+        return expected_scene
+
+    simulation_commands = ModuleType("freecad_cloth.simulation.SimulationCommands")
+    simulation_commands.create_quality_simulation_scene = create_quality_scene
+    monkeypatch.setitem(
+        sys.modules,
+        "freecad_cloth.simulation.SimulationCommands",
+        simulation_commands,
+    )
+
+    result = fitting_handoff.create_simulation_from_fitting()
+
+    assert result is expected_scene
+    assert calls == [(doc, avatar, (piece,))]

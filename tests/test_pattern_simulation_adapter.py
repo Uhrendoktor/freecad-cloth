@@ -1,12 +1,16 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 import math
+from typing import cast
 
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
 )
 from freecad_cloth.simulation.PatternSimulationAdapter import (
+    ResolvedSimulationPattern,
+    _PatternPieceFeature,
     resolve_simulation_pattern,
 )
 from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
@@ -319,3 +323,23 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("Pattern simulation adapter tests passed")
+
+
+def test_resolved_pattern_retains_native_feature_without_runtime_protocol_probe() -> None:
+    """Retain FreeCAD feature proxies without evaluating their SWIG attributes as a class test."""
+    boundary = BoundaryIR(
+        id="piece:edge",
+        kind="line",
+        samples=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+    )
+    piece_ir = PieceIR(id="piece", name="Piece", boundaries=(boundary,))
+    pattern = PatternIR((piece_ir,), ())
+    native_feature = object()
+
+    resolved = ResolvedSimulationPattern(
+        pattern,
+        {"piece": cast("_PatternPieceFeature", native_feature)},
+        (),
+    )
+
+    assert resolved.pieces["piece"] is native_feature

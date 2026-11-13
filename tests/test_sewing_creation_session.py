@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 from unittest.mock import Mock
 
@@ -285,3 +286,42 @@ def test_preview_error_feedback_is_actionable_and_disables_commit() -> None:
         condition=commit_button.setEnabled.call_args.args == (False,),
         message="Commit must be disabled after a preview validation error.",
     )
+
+
+
+def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_clear(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Restore both semantic seam edges when a task panel leaves only one selected."""
+    from freecad_cloth.sewing import SewingCommands
+
+    first_piece = _PatternPiece(Name="Front")
+    second_piece = _PatternPiece(Name="Back")
+
+    class SubelementSelection:
+        def __init__(self) -> None:
+            self.entries: list[tuple[_PatternPiece, str]] = []
+
+        def clearSelection(self) -> None:
+            self.entries.clear()
+
+        def addSelection(self, obj: _PatternPiece, subelement: str) -> None:
+            self.entries.append((obj, subelement))
+
+    selection = SubelementSelection()
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.Gui = SimpleNamespace(Selection=selection)
+    panel._viewport_picks = []
+    panel._initial_selection = ((first_piece, 0), (second_piece, 2))
+    monkeypatch.setattr(
+        SewingCommands,
+        "_collect_selected_pattern_edges",
+        lambda: ((first_piece, 0),),
+    )
+
+    panel._restore_initial_pattern_selection()
+
+    assert selection.entries == [
+        (first_piece, "Edge1"),
+        (second_piece, "Edge3"),
+    ]

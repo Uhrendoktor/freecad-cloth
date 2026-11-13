@@ -498,6 +498,8 @@ class _DrapeCommand:
             Resource mapping consumed by the native command registry.
         """
         labels = {
+            "ClothDrape_EnableTarget": "Enable Target",
+            "ClothDrape_DisableTarget": "Disable Target",
             "ClothDrape_EditTarget": "Edit Drape Target",
             "ClothDrape_RefreshTarget": "Refresh Drape Target",
             "ClothDrape_Diagnostics": "Cloth Diagnostics",

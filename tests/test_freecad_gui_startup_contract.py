@@ -57,10 +57,8 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
     guard_index = run.index(
         'if "ClothPatternWorkbench" not in Gui.listWorkbenches():', init_gui_index
     )
-    exec_index = run.index("exec(", guard_index)
-    compile_index = run.index("compile(", exec_index)
-    assert exec_index < compile_index
-    post_events_index = run.index("events()", exec_index)
+    run_path_index = run.index("runpy.run_path(str(init_gui))", guard_index)
+    post_events_index = run.index("events()", run_path_index)
     registered_index = run.index("raise RuntimeError", post_events_index)
     document_index = run.index('doc = App.newDocument("ClothBlanketExample")', registered_index)
     module_helper = source.split("def _load_cloth_modules():", 1)[1].split("def main():", 1)[0]
@@ -69,7 +67,7 @@ def test_visual_example_prepares_gui_and_explicit_workbench_registration():
         modules_index
         < init_gui_index
         < guard_index
-        < exec_index
+        < run_path_index
         < post_events_index
         < registered_index
         < document_index
@@ -127,7 +125,7 @@ def test_canonical_gui_jobs_use_shared_freecad_test_boundaries():
     )
     gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in gui
+    assert "uses: ./.github/actions/freecad-test" in gui
     assert "uses: ./.github/actions/freecad-test" in tunic
     assert "scene-report-command: python3 tools/ci/scene_understanding_report.py" in tunic
     assert "summary=scene-understanding.json;visual=scene-understanding.svg" in tunic
@@ -179,12 +177,19 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     assert "tools/ci/check_visual_assets_and_budget.py" in workflow
     assert "from check_artifact_budget import main as artifact_budget_main" in checks
     quality = workflow.split("  agent-quality:", 1)[1].split("  local_runner_readiness:", 1)[0]
-    assert "git ls-files -z -- '*.py' '*.pyi'" in quality
-    assert (
-        'xargs -0 -r python -m ruff format --check < "$RUNNER_TEMP/python-files.zlist"' in quality
+    quality_wrapper = (ROOT / "tools" / "ci" / "run_strict_quality.sh").read_text(
+        encoding="utf-8"
     )
-    assert 'xargs -0 -r python -m ruff check < "$RUNNER_TEMP/python-files.zlist"' in quality
-    assert "python -m ruff check --fix" not in quality
+    strict_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'run: bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"' in quality
+    assert "git bundle create" in quality_wrapper
+    assert "tools/ci/strict_quality.py" in quality_wrapper
+    assert "def collect_tracked_python_files" in strict_runner
+    assert '"ruff", "format", "--check"' in strict_runner
+    assert '"ruff", "check"' in strict_runner
+    assert "python -m ruff check --fix" not in strict_runner
     assert "needs: [local_runner_readiness]" in quality
     image = workflow.split("  pbd_validation_image:", 1)[1].split("  diagnostic-pbd-contact:", 1)[0]
     assert "needs: [local_runner_readiness]" in image
@@ -221,7 +226,7 @@ def test_canonical_readme_turntable_uses_shared_freecad_test_action():
         encoding="utf-8"
     )
     turntable = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    assert "uses: Uhrendoktor/freecad-cloth/.github/actions/freecad-test@" in turntable
+    assert "uses: ./.github/actions/freecad-test" in turntable
     assert "test-script: tests/freecad_avatar_screenshot.py" in turntable
     assert "test-script: tests/freecad_simulation_turntable.py" in turntable
     assert "/opt/freecad/AppRun" not in turntable

@@ -75,7 +75,7 @@ class FabricMaterial:
     shear: float = 0.02
     bend: float = 0.01
     friction: float = 0.5
-    color_rgb: tuple[float, float, float] = (0.72, 0.34, 0.46)
+    color_rgb: tuple[float, ...] = (0.72, 0.34, 0.46)
     specular: float = 0.25
     roughness: float = 0.65
     transparency: float = 0.0

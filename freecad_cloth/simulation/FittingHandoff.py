@@ -137,6 +137,7 @@ class _FittingScene(Protocol):
 
     ArrangementPoints: Sequence[str]
     FitStatus: str
+    AvatarProxy: FreeCADDocumentObjectProtocol | None
     HomePlacements: Sequence[str]
     PatternPieces: Sequence[_PatternPiece]
     PiecePlacements: Sequence[str]
@@ -203,7 +204,7 @@ def assign_avatar_source(
             ),
             None,
         )
-    if source is None:
+    if source is None or not (hasattr(source, "Shape") or hasattr(source, "Mesh")):
         msg = "select a FreeCAD body or mesh to use as the avatar source"
         raise ValueError(msg)
 
@@ -231,26 +232,27 @@ def assign_avatar_source(
         drape_target.CollisionThickness = target_thickness
         drape_target_api.assign_drape_target(drape_target, source, target_type)
 
+    scene.AvatarProxy = source
     scene.FitStatus = "Avatar assigned"
     doc.recompute()
     return scene
 
 
 def create_simulation_from_fitting() -> _SimulationScene:
-    """Create a simulation scene from authored fitting pieces and avatar target.
+    """Create the quality-controlled simulation from persisted fitting state.
 
     Returns:
-        The new simulation scene containing the fitting scene's pieces.
+        The quality-controlled simulation scene containing the fitting pieces.
 
     Raises:
         ValueError: If the document has no fitting scene or the scene has no pieces.
     """
     import FreeCAD as App
 
-    from freecad_cloth.simulation import SimulationObjects as simulation_objects
-
-    app = cast("_FreeCADApplication", App)
-    doc = app.ActiveDocument or app.newDocument("ClothSewing")
+    doc = App.ActiveDocument
+    if doc is None:
+        msg = "open a document before creating a simulation from fitting"
+        raise ValueError(msg)
     scene = _fitting_scene(doc)
     if scene is None:
         msg = "create a fitting scene first"
@@ -260,41 +262,16 @@ def create_simulation_from_fitting() -> _SimulationScene:
         msg = "add at least one pattern piece to the fitting scene"
         raise ValueError(msg)
 
-    simulation = cast(
-        "_SimulationScene",
-        simulation_objects.create_simulation_scene(doc),
-    )
-    simulation.ClothPieces = list(pieces)
     doc_target = doc.getObject("DrapeTarget")
-    avatar_source = getattr(doc_target, "SourceObject", None)
-    if avatar_source is not None:
-        from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
+    avatar_source = scene.AvatarProxy
+    if avatar_source is None:
+        avatar_source = getattr(doc_target, "SourceObject", None)
+    from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
-        set_drape_target_source(
-            simulation,
-            avatar_source,
-            thickness=_FREECAD_COLLISION_THICKNESS_MM,
-            deflection=_COLLISION_DEFLECTION_MM,
-        )
-    doc.recompute()
-    return simulation
-
-
-FITTING_HANDOFF_COMMAND_HANDLERS: dict[str, CommandCallable] = {
-    "ClothFitting_AssignAvatar": assign_avatar_source,
-    "ClothFitting_CreateSimulation": create_simulation_from_fitting,
-}
-
-
-def register_fitting_handoff_commands(gui: GuiCommandRegistrar) -> None:
-    """Register the simulation-owned fitting commands in FreeCAD's GUI.
-
-    Args:
-        gui: FreeCAD GUI module or an object exposing the addCommand API.
-    """
-    register_commands(
-        cast("GuiCommandRegistrar", gui),
-        FITTING_HANDOFF_COMMAND_HANDLERS,
+    return create_quality_simulation_scene(
+        doc,
+        avatar_source=avatar_source,
+        cloth_pieces=pieces,
     )
 
 

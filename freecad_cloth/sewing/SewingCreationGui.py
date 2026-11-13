@@ -296,14 +296,14 @@ class SewingCreationTaskPanel:
             current_selection = tuple(_collect_selected_pattern_edges())
         except (ImportError, RuntimeError, TypeError, ValueError):
             current_selection = ()
-        if current_selection:
-            return
         if self._viewport_picks:
             selected_edges = tuple(
                 (obj, int(component[4:]) - 1) for obj, component in self._viewport_picks
             )
         else:
             selected_edges = self._initial_selection
+        if current_selection and len(current_selection) >= len(selected_edges):
+            return
         if not selected_edges:
             return
         self.Gui.Selection.clearSelection()

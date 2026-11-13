@@ -9,7 +9,7 @@ is absent instead of rebuilding geometry from cached outline or size fields.
 from collections.abc import Mapping, Sequence
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import InstanceOf
+from pydantic import SkipValidation
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
@@ -96,7 +96,7 @@ class ResolvedSimulationPattern:
     """
 
     pattern: PatternIR
-    pieces: Mapping[str, InstanceOf[_PatternPieceFeature]]
+    pieces: Mapping[str, SkipValidation[_PatternPieceFeature]]
     signature: tuple[_SignatureValue, ...]
 
     def piece(self, piece_id: str) -> PieceIR:
