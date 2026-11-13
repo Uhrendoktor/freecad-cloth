@@ -200,6 +200,8 @@ def test_freecad_container_transfers_checkout_and_returns_evidence() -> None:
         'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD'
         in action
     )
+    assert "for relative_path in artifacts docs/images/generated; do" in action
+    assert 'tar -rf "$workspace_archive" -C "$workspace" "$relative_path"' in action
     assert (
         'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"'
         in action

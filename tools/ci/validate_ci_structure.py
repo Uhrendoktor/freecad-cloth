@@ -513,6 +513,8 @@ def _validate_required_components() -> None:
         raise SystemExit(msg)
     workspace_transfer_markers = (
         'git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD',
+        'for relative_path in artifacts docs/images/generated; do',
+        'tar -rf "$workspace_archive" -C "$workspace" "$relative_path"',
         'docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"',
         'docker cp "$container_id:/workspace/$relative_path/." "$stage_directory/"',
         'copy_back_directory "artifacts" "$output_root/artifacts"',

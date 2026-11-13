@@ -100,6 +100,12 @@ runs:
         # different mount namespace. Export the exact checked-out tree instead of
         # bind-mounting the runner's private GITHUB_WORKSPACE path into the daemon.
         git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD
+        # Preserve evidence produced by earlier container invocations in this job.
+        for relative_path in artifacts docs/images/generated; do
+          if [[ -d "$workspace/$relative_path" ]]; then
+            tar -rf "$workspace_archive" -C "$workspace" "$relative_path"
+          fi
+        done
         tar -tf "$workspace_archive" >/dev/null
 
         {
