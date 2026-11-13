@@ -30,7 +30,6 @@ INSTALL_TIMEOUT_SECONDS = 900
 PRE_COMMIT_TIMEOUT_SECONDS = 120
 PIP_READ_TIMEOUT_SECONDS = 300
 PIP_RETRY_COUNT = 10
-PIP_RESUME_RETRY_COUNT = 10
 CPU_TORCH_REQUIREMENT = "torch==2.8.0+cpu"
 PYTORCH_CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 
@@ -54,8 +53,6 @@ def quality_install_command(python: Path) -> tuple[str, ...]:
         str(PIP_READ_TIMEOUT_SECONDS),
         "--retries",
         str(PIP_RETRY_COUNT),
-        "--resume-retries",
-        str(PIP_RESUME_RETRY_COUNT),
         "--extra-index-url",
         PYTORCH_CPU_INDEX,
         CPU_TORCH_REQUIREMENT,
