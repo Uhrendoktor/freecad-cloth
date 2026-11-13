@@ -99,51 +99,67 @@ def test_pattern_piece_reject_restores_original_properties() -> None:
     )
 
 
-def test_drafting_reject_restores_persisted_boundary() -> None:
-    """Restore the saved drafting boundary and dimensions on task-panel rejection."""
-    original_boundary = "[(0.0, 0.0), (100.0, 0.0), (80.0, 60.0)]"
+def test_sketch_edit_uses_the_linked_native_sketch() -> None:
+    """Enter Sketcher editing through the persisted native sketch object."""
+    sketch = SimpleNamespace(Name="AuthoritativeSketch")
+    calls: list[str] = []
+    active_document = SimpleNamespace(setEdit=calls.append)
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel._sketch_authoritative = True
+    panel.obj = SimpleNamespace(Sketch=sketch)
+    panel.Gui = SimpleNamespace(activeDocument=lambda: active_document)
+
+    panel._edit_sketch()
+
+    assert calls == ["AuthoritativeSketch"], "Sketch edit must target the linked native sketch."
+
+
+def test_sketch_authoritative_mode_disables_parameter_geometry_controls() -> None:
+    """Keep dimensions non-editable when the native sketch owns the boundary."""
+    width_states: list[bool] = []
+    height_states: list[bool] = []
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel._sketch_authoritative = True
+    panel.width = SimpleNamespace(setEnabled=width_states.append)
+    panel.height = SimpleNamespace(setEnabled=height_states.append)
+
+    panel._mode_changed("Rectangle")
+
+    assert width_states == [False], "Sketch authority must disable the width field."
+    assert height_states == [False], "Sketch authority must disable the height field."
+
+
+def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
+    """Restore editable properties while preserving the linked Sketcher object."""
+    sketch = SimpleNamespace(Name="AuthoritativeSketch")
     obj = SimpleNamespace(
-        GeometryMode="Custom",
-        DraftingBoundary=original_boundary,
+        Label="Original",
+        GeometryMode="Sketch",
         Width=EXPECTED_ORIGINAL_WIDTH_MM,
         Height=EXPECTED_ORIGINAL_HEIGHT_MM,
+        SeamAllowance=EXPECTED_ORIGINAL_ALLOWANCE_MM,
+        GrainlineAngle=EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG,
+        Sketch=sketch,
     )
-
-    panel = PatternGui.PatternDraftingTaskPanel.__new__(PatternGui.PatternDraftingTaskPanel)
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
     panel.obj = obj
     panel.App = _App()
     panel._original = {
-        "GeometryMode": "Custom",
-        "DraftingBoundary": original_boundary,
+        "Label": "Original",
+        "GeometryMode": "Sketch",
         "Width": EXPECTED_ORIGINAL_WIDTH_MM,
         "Height": EXPECTED_ORIGINAL_HEIGHT_MM,
+        "SeamAllowance": EXPECTED_ORIGINAL_ALLOWANCE_MM,
+        "GrainlineAngle": EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG,
     }
+    obj.Label = "Edited"
+    obj.SeamAllowance = 9.0
+    obj.GrainlineAngle = -30.0
 
-    obj.GeometryMode = "Custom"
-    obj.DraftingBoundary = "[(0.0, 0.0), (140.0, 0.0), (80.0, 90.0)]"
-    obj.Width = 140.0
-    obj.Height = 90.0
     panel.reject()
 
-    assert obj.GeometryMode == "Custom", "Reject must restore the custom drafting mode."
-    assert obj.DraftingBoundary == original_boundary, (
-        "Reject must restore the persisted drafting boundary."
-    )
-    assert (obj.Width, obj.Height) == (EXPECTED_ORIGINAL_WIDTH_MM, EXPECTED_ORIGINAL_HEIGHT_MM), (
-        "Reject must restore the persisted drafting dimensions."
-    )
-    assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT, (
-        "Reject must recompute the active document exactly once."
-    )
-
-
-def test_drafting_editor_never_removes_last_three_points() -> None:
-    """Keep at least three boundary points when removing a selected point."""
-    panel = PatternGui.PatternDraftingTaskPanel.__new__(PatternGui.PatternDraftingTaskPanel)
-    panel.points = [(0.0, 0.0), (100.0, 0.0), (0.0, 60.0)]
-    panel.selected = 1
-    original = list(panel.points)
-    panel.remove_selected_point()
-    assert panel.points == original, (
-        "A drafting boundary must retain all three points when removal is refused."
-    )
+    assert obj.Sketch is sketch, "Reject must preserve the linked native sketch identity."
+    assert obj.Label == "Original", "Reject must restore the original pattern-piece label."
+    assert obj.SeamAllowance == EXPECTED_ORIGINAL_ALLOWANCE_MM
+    assert obj.GrainlineAngle == EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG
+    assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT

@@ -82,17 +82,21 @@ def test_command_ids_exist_and_are_unique() -> None:
 
 def test_command_handlers_match_declared_command_ids() -> None:
     """Require every declared avatar/fitting command to have one dispatch handler."""
-    for module_name, handler_name in (
-        ("freecad_cloth.avatar.AvatarCommands", "_HANDLERS"),
-        ("freecad_cloth.avatar.FittingCommands", "_COMMAND_HANDLERS"),
-    ):
-        module = importlib.import_module(module_name)
-        handlers = getattr(module, handler_name)
-        commands = set(module.COMMANDS)
-        require(
-            condition=commands == set(handlers),
-            message=f"{module_name} command IDs must match their dispatch handlers exactly",
-        )
+    avatar_commands = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
+    require(
+        condition=set(avatar_commands.COMMANDS) == set(avatar_commands._HANDLERS),
+        message="Avatar command IDs must match their dispatch handlers exactly",
+    )
+    fitting_commands = importlib.import_module("freecad_cloth.avatar.FittingCommands")
+    fitting_handoff = importlib.import_module("freecad_cloth.simulation.FittingHandoff")
+    fitting_handlers = {
+        **fitting_commands._COMMAND_HANDLERS,
+        **fitting_handoff.FITTING_HANDOFF_COMMAND_HANDLERS,
+    }
+    require(
+        condition=set(fitting_commands.COMMANDS) == set(fitting_handlers),
+        message="Fitting command IDs must match their owning dispatch handlers exactly",
+    )
 
 
 def test_init_gui_is_bootstrap_only() -> None:
