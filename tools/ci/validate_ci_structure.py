@@ -93,6 +93,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/SimulationQualityRuntime.py",
     "freecad_cloth/simulation/cloth_backend.py",
     "freecad_cloth/simulation/simulation_protocols.py",
+    "tools/ci/repository_paths.py",
 )
 PYRIGHT_EXPECTED_EXCLUDE = (
     "**/*Commands.py",

@@ -1058,7 +1058,11 @@ def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
 def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
     """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
     config = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-    included = ("freecad_cloth/common/new_model.py", "freecad_cloth/shared/new_contract.py")
+    included = (
+        "freecad_cloth/common/new_model.py",
+        "freecad_cloth/shared/new_contract.py",
+        "tools/ci/repository_paths.py",
+    )
     require(
         condition=pyright_coverage_contract_violations(config, included) == (),
         message="Existing reviewed directory coverage must include new modules inside its selected paths.",
