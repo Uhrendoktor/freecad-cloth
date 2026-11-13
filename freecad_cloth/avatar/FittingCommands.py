@@ -255,7 +255,6 @@ class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, 
     BoundingVolumeObjects: list[str]
     SymmetryEnabled: bool
     FitStatus: str
-    AvatarProxy: FreeCADDocumentObjectProtocol | None
 
 
 class _FittingTaskPanel(Protocol):

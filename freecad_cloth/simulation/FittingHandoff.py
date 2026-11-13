@@ -260,8 +260,8 @@ def create_simulation_from_fitting() -> _SimulationScene:
         msg = "add at least one pattern piece to the fitting scene"
         raise ValueError(msg)
 
-    doc_target = doc.getObject("DrapeTarget")
-    avatar_source = getattr(doc_target, "SourceObject", None)
+    doc_target = cast("_DrapeTarget | None", doc.getObject("DrapeTarget"))
+    avatar_source = doc_target.SourceObject if doc_target is not None else None
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     return create_quality_simulation_scene(

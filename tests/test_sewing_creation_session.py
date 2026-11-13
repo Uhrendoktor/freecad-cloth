@@ -325,3 +325,42 @@ def test_task_panel_restores_the_complete_initial_edge_selection_after_partial_c
         (first_piece, "Edge1"),
         (second_piece, "Edge3"),
     ]
+
+
+
+def test_task_panel_preserves_a_new_selection_outside_the_initial_edges(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Do not replace a deliberate new selection with the captured initial edges."""
+    from freecad_cloth.sewing import SewingCommands
+
+    first_piece = _PatternPiece(Name="Front")
+    second_piece = _PatternPiece(Name="Back")
+    selected_piece = _PatternPiece(Name="Sleeve")
+
+    class SubelementSelection:
+        def __init__(self) -> None:
+            self.entries: list[tuple[_PatternPiece, str]] = [
+                (selected_piece, "Edge5"),
+            ]
+
+        def clearSelection(self) -> None:
+            self.entries.clear()
+
+        def addSelection(self, obj: _PatternPiece, subelement: str) -> None:
+            self.entries.append((obj, subelement))
+
+    selection = SubelementSelection()
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.Gui = SimpleNamespace(Selection=selection)
+    panel._viewport_picks = []
+    panel._initial_selection = ((first_piece, 0), (second_piece, 2))
+    monkeypatch.setattr(
+        SewingCommands,
+        "_collect_selected_pattern_edges",
+        lambda: ((selected_piece, 4),),
+    )
+
+    panel._restore_initial_pattern_selection()
+
+    assert selection.entries == [(selected_piece, "Edge5")]
