@@ -16,6 +16,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 if TYPE_CHECKING:
+    from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
     from PySide2 import QtWidgets
 else:
     try:
@@ -374,7 +375,7 @@ class _SimulationScene(Protocol):
     """Authored native scene properties asserted by the canonical tunic audit."""
 
     Document: _RecomputableDocument
-    DrapeTarget: object | None
+    DrapeTarget: _DrapeTargetFeature | None
     Proxy: _SimulationProxy
     StartHeight: float
     QualityPreset: str
