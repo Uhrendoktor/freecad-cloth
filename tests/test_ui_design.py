@@ -591,7 +591,7 @@ def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
         SimpleNamespace(
             QFormLayout=SimpleNamespace(
                 WrapLongRows="wrap-long-rows",
-                ExpandingFieldsGrow="expanding-fields",
+                AllNonFixedFieldsGrow="all-nonfixed-fields",
             )
         ),
     )
@@ -599,7 +599,7 @@ def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
     configure_form_layout(cast("_FormLayout", layout), qt_widgets)
 
     assert layout.row_wrap == "wrap-long-rows"
-    assert layout.field_growth == "expanding-fields"
+    assert layout.field_growth == "all-nonfixed-fields"
 
 
 def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
