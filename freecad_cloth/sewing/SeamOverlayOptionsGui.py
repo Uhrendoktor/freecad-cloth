@@ -1,13 +1,14 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Native FreeCAD task panel for seam-overlay display preferences."""
 
+from types import ModuleType
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
-def _gui_modules():
+def _gui_modules() -> tuple[ModuleType, ModuleType]:
     """Load the FreeCAD GUI and Qt modules supported by the host runtime.
 
     Returns:
