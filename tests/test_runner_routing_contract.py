@@ -181,8 +181,6 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha() -> None:
     assert "persist-credentials: false" in source
 
 
-
-
 def test_jobs_check_out_before_loading_local_composite_actions() -> None:
     """Require an explicit checkout before GitHub resolves repository-local actions."""
     source = WORKFLOW.read_text(encoding="utf-8")
