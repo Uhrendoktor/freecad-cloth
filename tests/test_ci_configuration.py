@@ -121,6 +121,9 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     turntable_validation = workflow.split("  gui-turntables:", 1)[1].split(
         "  gui-visual-examples:", 1
     )[0]
+    blanket_visual = workflow.split("  gui-visual-examples:", 1)[1].split(
+        "  publish-pr-simulation-evidence:", 1
+    )[0]
     realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
         "      - name: Independently validate realtime performance metrics", 1
     )[0]
@@ -128,10 +131,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "      - name: Independently validate realtime performance metrics", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
-    assert workflow.count("timeout-seconds:") == 4, (
+    assert workflow.count("timeout-seconds:") == 5, (
         'Expected workflow.count("timeout-seconds:") == 4.'
     )
-    assert workflow.count('timeout-seconds: "360"') == 3, (
+    assert workflow.count('timeout-seconds: "360"') == 4, (
         "Expected workflow.count('timeout-seconds: \"360\"') == 3."
     )
     assert (
@@ -149,6 +152,12 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
         "Expected one bounded 360-second simulation turntable budget."
+    )
+    assert blanket_visual.count('timeout-seconds: "360"') == 1, (
+        "Expected the complete 120-step blanket visual audit to retain its physical gates."
+    )
+    assert "timeout-minutes: 10" in blanket_visual, (
+        "The blanket visual job must allow its bounded FreeCAD command and evidence upload to finish."
     )
     assert tunic_audit.count("continue-on-error: true") == 3, (
         "Only the realtime diagnostics and explicitly deferred production audit may be non-blocking."
