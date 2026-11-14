@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD smoke test for sewing task-panel lifecycle and semantic persistence."""
 
 import os
@@ -19,7 +20,8 @@ from freecad_cloth.sewing.SewingGui import SewingTaskPanel
 from freecad_cloth.sewing.SewingObjects import add_sewing_operation
 
 
-def main():
+def main() -> None:
+    """Verify sewing task-panel edits, undo, invalidation, and native persistence."""
     # Exercise the public workbench activation path before document operations.
     Gui.activateWorkbench("Cloth Sewing")
     assert Gui.activeWorkbench() == "Cloth Sewing", "Cloth Sewing workbench did not activate"
@@ -35,9 +37,11 @@ def main():
 
         assert str(seam.EdgeAId) == f"{piece_a.PieceId}:edge:0"
         assert str(seam.EdgeBId) == f"{piece_b.PieceId}:edge:0"
-        assert str(seam.EdgeASignature) and str(seam.EdgeBSignature)
+        assert str(seam.EdgeASignature)
+        assert str(seam.EdgeBSignature)
         assert str(seam.Status) == "Valid"
-        assert seam.PatternA is piece_a and seam.PatternB is piece_b
+        assert seam.PatternA is piece_a
+        assert seam.PatternB is piece_b
 
         panel = SewingTaskPanel(operation)
         buttons = panel.getStandardButtons()
@@ -129,7 +133,8 @@ def main():
             assert restored.Status == "Valid"
             assert len(restored.StitchPoints) == 16
             assert restored.Seam is not None
-            assert restored.PieceA is not None and restored.PieceB is not None
+            assert restored.PieceA is not None
+            assert restored.PieceB is not None
             print(
                 "FreeCAD sewing task transaction, semantic persistence, invalidation, and workbench activation smoke test passed",
                 flush=True,
@@ -138,7 +143,7 @@ def main():
             if App.ActiveDocument is not None:
                 App.closeDocument(App.ActiveDocument.Name)
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
     finally:
         if App.ActiveDocument is not None:
             App.closeDocument(App.ActiveDocument.Name)

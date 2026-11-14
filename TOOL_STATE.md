@@ -7,6 +7,10 @@ canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 2492
 workflow_count: 1
+runner_execution: self_hosted_only
+runner_labels: self-hosted/linux/x64/docker
+hosted_fallback: disabled
+persistent_cache: dependency_keyed_RUNNER_TOOL_CACHE_venvs_and_local_Docker_daemon
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; mandatory_human_screenshot_review; artifact_link_alone_insufficient; no_second_workflow
 artifact_budget: 10MB_accumulated_per_workflow_run

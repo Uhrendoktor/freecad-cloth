@@ -1,16 +1,24 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI for deterministic production pattern export."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
 def _qt():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide2 import QtWidgets
+    if TYPE_CHECKING:
+        QtWidgets = _QT_TYPE_QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -35,7 +43,8 @@ class PatternExportTaskPanel:
         self.App, self.Gui = App, Gui
         self.piece = piece or _selected_piece(App.ActiveDocument)
         if self.piece is None:
-            raise ValueError("create or select a pattern piece before exporting")
+            msg = "create or select a pattern piece before exporting"
+            raise ValueError(msg)
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Cloth Pattern — Production Export")
         layout = QtWidgets.QFormLayout(self.form)
@@ -116,7 +125,8 @@ class PatternExportTaskPanel:
     def accept(self):
         path = self.path.text().strip()
         if not path:
-            raise ValueError("choose an output path before exporting")
+            msg = "choose an output path before exporting"
+            raise ValueError(msg)
         from freecad_cloth.pattern.PatternExport import export_pattern_piece
 
         try:

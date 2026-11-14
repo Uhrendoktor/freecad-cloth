@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import unittest
 
 from freecad_cloth.avatar.HumanoidMesh import _map_makehuman_axes

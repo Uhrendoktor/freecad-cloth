@@ -12,7 +12,7 @@
 
 PositionBasedDynamics is the **sole runtime cloth solver**. The simulation package may keep PositionBasedDynamics as an installation extra so non-simulation users do not pay the native dependency cost, but there is no second runtime physics implementation or user-selectable fallback.
 
-`ClothBackend.py` contains only the small application-facing adapter contract. `ClothSolver.py` is a headless input model containing particles, constraints, stitches and pins; it deliberately contains no integration, collision projection or constraint solving.
+`cloth_backend.py` contains only the small application-facing adapter contract. `ClothSolver.py` is a headless input model containing particles, constraints, stitches and pins; it deliberately contains no integration, collision projection or constraint solving.
 
 ## Research candidates
 

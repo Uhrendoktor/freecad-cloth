@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for the public Sewing workbench command surface."""
 
 from freecad_cloth.avatar import AvatarCommands, FittingCommands

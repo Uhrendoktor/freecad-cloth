@@ -1,7 +1,8 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
 from types import ModuleType
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 _PREVIEW = None
 
@@ -22,10 +23,13 @@ class _SimulationScene(Protocol):
 
 
 def _qt() -> ModuleType:
-    try:
-        from PySide import QtCore
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore
+    else:
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
     return QtCore
 
 
@@ -44,7 +48,7 @@ def _scene() -> _SimulationScene | None:
         ),
         None,
     )
-    return cast(_SimulationScene, scene) if scene is not None else None
+    return cast("_SimulationScene", scene) if scene is not None else None
 
 
 def _prepare(scene: _SimulationScene) -> None:
@@ -65,9 +69,11 @@ def _prepare(scene: _SimulationScene) -> None:
         else proxy
     )
     if base is None or getattr(base, "backend", None) is None:
-        raise RuntimeError("Realtime Cloth Preview did not build a simulation backend")
+        msg = "Realtime Cloth Preview did not build a simulation backend"
+        raise RuntimeError(msg)
     if getattr(base.backend, "name", "") != "position-based-dynamics":
-        raise RuntimeError("Realtime Cloth Preview requires the PositionBasedDynamics backend")
+        msg = "Realtime Cloth Preview requires the PositionBasedDynamics backend"
+        raise RuntimeError(msg)
 
 
 class _Preview:
@@ -126,9 +132,8 @@ class _Preview:
                 return
             proxy = getattr(self.scene, "Proxy", None)
             if proxy is None or not hasattr(proxy, "advance_preview_frame"):
-                raise RuntimeError(
-                    "Realtime Cloth Preview requires the recompute-free simulation path"
-                )
+                msg = "Realtime Cloth Preview requires the recompute-free simulation path"
+                raise RuntimeError(msg)
             proxy.advance_preview_frame(self.scene)
             self._overlay_refresh_ticks += 1
             if self._overlay_refresh_ticks % 2 == 0:
@@ -157,11 +162,18 @@ class _Preview:
 
 
 def toggle_realtime_preview() -> bool:
-    """Start or stop realtime preview and report whether it is running."""
+    """Start or stop realtime preview and report whether it is running.
+
+    Returns:
+        True when a preview has been started, or False when an active preview was stopped.
+
+    Raises:
+        RuntimeError: If no persistent ClothSimulation scene is available."""
     global _PREVIEW
     scene = _scene()
     if scene is None:
-        raise RuntimeError("Create a ClothSimulation scene first")
+        msg = "Create a ClothSimulation scene first"
+        raise RuntimeError(msg)
     if _PREVIEW is not None and _PREVIEW.running:
         _PREVIEW.stop()
         return False
@@ -200,8 +212,12 @@ def register_gui_command() -> None:
                 "Pixmap": "",
             }
 
-    if "ClothRealtimePreview" not in Gui.listCommands():
-        Gui.addCommand("ClothRealtimePreview", _Command())
+    add_command = getattr(Gui, "addCommand", None)
+    list_commands = getattr(Gui, "listCommands", None)
+    if callable(add_command) and (
+        not callable(list_commands) or "ClothRealtimePreview" not in list_commands()
+    ):
+        add_command("ClothRealtimePreview", _Command())
 
 
 register_gui_command()

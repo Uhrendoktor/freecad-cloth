@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient viewport dimension handles for the staged mannequin editor.
 
 The handles only edit staged task-panel values. They are Coin3D overlay nodes,
@@ -184,7 +185,7 @@ class AvatarDimensionController:
             coin = self._coin()
             while self.overlay.getNumChildren() > 1:
                 self.overlay.removeChild(1)
-            from freecad_cloth.shared.viewport_gizmo_style import (
+            from freecad_cloth.shared.ViewportGizmoStyle import (
                 ACTIVE_COLOR,
                 RIG_PASSIVE_COLOR,
                 SNAP_TARGET_COLOR,

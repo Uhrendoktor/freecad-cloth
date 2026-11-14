@@ -1,3 +1,6 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
+"""Native FreeCAD object contract tests for pattern and drape-target behavior."""
+
 import math
 import os
 import sys
@@ -15,6 +18,8 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import contextlib
+
+from support.assertions import require
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.PatternObjects import (
@@ -71,7 +76,8 @@ def test_pattern_piece_proxy_rejects_invalid_dimensions():
         return
     except ValueError:
         return
-    raise AssertionError("non-positive dimensions should fail")
+    msg = "non-positive dimensions should fail"
+    raise AssertionError(msg)
 
 
 def _set_native_boundary(sketch, arc):
@@ -94,10 +100,11 @@ def _set_native_boundary(sketch, arc):
     sketch.GeometryAuthority = "Sketcher"
 
 
-def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
+def test_drape_target_is_the_only_persistent_collision_authority() -> None:
+    """Ensure fitting and simulation share DrapeTarget without a proxy object."""
     if App is None or Part is None:
         return
-    document = App.newDocument("AvatarCollisionScope")
+    document = App.newDocument("DrapeTargetAuthority")
     try:
         from freecad_cloth.avatar.FittingCommands import create_fitting_scene
         from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
@@ -107,28 +114,74 @@ def test_avatar_collision_source_supports_fitting_and_simulation_scopes():
         body.Shape = Part.makeBox(80, 80, 160, App.Vector(-40, -40, -80))
         document.recompute()
 
-        fitting = create_fitting_scene()
-        proxy = set_drape_target_source(fitting, body, thickness=2.0, deflection=1.0)
-        assert proxy is fitting.AvatarProxy
-        assert fitting.getTypeIdOfProperty("AvatarProxy") == "App::PropertyLinkGlobal"
-        document.recompute()
-        assert fitting.AvatarProxy is proxy
-        assert proxy.Name == "AvatarCollision"
-        assert proxy.SourceObject == body
-        assert "DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ())
-
-        target = document.getObject("DrapeTarget")
-        assert target is not None
-        assert target.SourceObject == body
-
         simulation = create_simulation_scene(document)
-        proxy2 = set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5)
-        assert proxy2 is simulation.AvatarProxy
-        assert proxy2 is proxy
-        assert simulation.DrapeTarget == target
-        assert proxy2.SourceObject == body
-        assert float(target.CollisionThickness) == 3.0
-        assert float(target.CollisionDeflection) == 0.5
+        assigned_source = set_drape_target_source(simulation, body, thickness=2.0, deflection=1.0)
+        require(
+            condition=assigned_source is body,
+            message="DrapeTarget assignment must return its source object.",
+        )
+        target = document.getObject("DrapeTarget")
+        require(
+            condition=target is not None,
+            message="DrapeTarget must be created.",
+        )
+        require(
+            condition=target.SourceObject == body,
+            message="DrapeTarget must own the collision source.",
+        )
+        require(
+            condition=simulation.DrapeTarget == target,
+            message="Simulation must reference DrapeTarget.",
+        )
+
+        fitting = create_fitting_scene()
+        require(
+            condition="AvatarProxy" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            message="FittingScene must not store a duplicate AvatarProxy link.",
+        )
+        require(
+            condition="DrapeTarget" not in set(getattr(fitting, "PropertiesList", ()) or ()),
+            message="DrapeTarget ownership must remain at the document/simulation boundary.",
+        )
+        require(
+            condition=document.getObject("AvatarCollision") is None,
+            message="No compatibility collision proxy may be created.",
+        )
+        document.recompute()
+        require(
+            condition=document.getObject("DrapeTarget") == target,
+            message="Recompute must preserve the target.",
+        )
+        require(
+            condition=target.SourceObject == body,
+            message="Recompute must preserve the authoritative source.",
+        )
+
+        updated_source = set_drape_target_source(simulation, body, thickness=3.0, deflection=0.5)
+        require(
+            condition=updated_source is body,
+            message="Updating collision settings must keep the same source.",
+        )
+        require(
+            condition=simulation.DrapeTarget == target,
+            message="Updating settings must preserve target identity.",
+        )
+        require(
+            condition=target.SourceObject == body,
+            message="Updating settings must preserve target ownership.",
+        )
+        require(
+            condition=float(target.CollisionThickness) == 3.0,
+            message="Thickness must be stored on DrapeTarget.",
+        )
+        require(
+            condition=float(target.CollisionDeflection) == 0.5,
+            message="Deflection must be stored on DrapeTarget.",
+        )
+        require(
+            condition=document.getObject("AvatarCollision") is None,
+            message="No duplicate proxy may be introduced.",
+        )
     finally:
         if document.Name in App.listDocuments():
             App.closeDocument(document.Name)
@@ -226,7 +279,7 @@ def test_native_seam_reference_save_reload_curve_edit_and_missing():
             App.closeDocument(reloaded.Name)
         finally:
             with contextlib.suppress(OSError):
-                os.unlink(path)
+                Path(path).unlink()
     finally:
         if document is not None and document.Name in App.listDocuments():
             App.closeDocument(document.Name)
@@ -347,7 +400,8 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
         reloaded.recompute()
         changed = [seam for seam in network.Seams if str(seam.Status) == "Changed reference"]
         valid = [seam for seam in network.Seams if str(seam.Status) == "Valid"]
-        assert len(changed) == 1 and len(valid) == 1
+        assert len(changed) == 1
+        assert len(valid) == 1
         assert str(network.Status) == "Invalid"
         changed_seam = changed[0]
         changed_seam.EdgeASignature = refresh_edge_reference_signature(
@@ -360,7 +414,7 @@ def test_native_mn_network_save_reload_curve_edit_invalidates_and_repairs():
     finally:
         try:
             if path is not None:
-                os.unlink(path)
+                Path(path).unlink()
         except OSError:
             pass
         if document is not None and document.Name in App.listDocuments():

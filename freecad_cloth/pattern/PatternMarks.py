@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Persisted semantic marks for the Cloth Pattern workbench."""
 
 from collections.abc import Callable
@@ -23,7 +24,8 @@ def _selected_piece(doc, *, gui: ModuleType | None = None):
     pieces = _pieces(doc)
     if pieces:
         return pieces[0]
-    raise ValueError("create or select a pattern piece before adding a mark")
+    msg = "create or select a pattern piece before adding a mark"
+    raise ValueError(msg)
 
 
 def _native_default_segment_id(piece):
@@ -33,11 +35,13 @@ def _native_default_segment_id(piece):
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if not piece_id:
-        raise ValueError("selected pattern piece has no authored native edge identity")
+        msg = "selected pattern piece has no authored native edge identity"
+        raise ValueError(msg)
     for semantic_id in semantic_ids:
         if semantic_id:
             return semantic_id
-    raise ValueError("selected pattern piece has no authored native edge identity")
+    msg = "selected pattern piece has no authored native edge identity"
+    raise ValueError(msg)
 
 
 def _has_selected_piece(*, gui: ModuleType | None = None):
@@ -64,17 +68,40 @@ def add_mark(
     length=40.0,
     text="",
 ):
-    """Add the requested mark data."""
+    """Create and persist one semantic mark on the requested pattern piece.
+
+    Args:
+        doc: FreeCAD document that will own the mark feature.
+        mark_type: Stable semantic kind used to identify the mark in the document.
+        piece_id: Authored identity of the pattern piece receiving the mark.
+        segment_id: Optional semantic edge identity associated with the mark.
+        position: Normalized location along the referenced edge from zero to one.
+        depth: Mark depth in model units; must be positive.
+        angle: Rotation angle in degrees for the displayed mark.
+        length: Display length in model units; must be positive.
+        text: Optional user-facing label stored with the mark.
+
+    Returns:
+        The new FreeCAD feature containing the persisted mark properties.
+
+    Raises:
+        ValueError: If the mark type or piece identity is empty or a numeric range is invalid.
+    """
     if not mark_type.strip():
-        raise ValueError("mark type must not be empty")
+        msg = "mark type must not be empty"
+        raise ValueError(msg)
     if not piece_id.strip():
-        raise ValueError("mark piece ID must not be empty")
+        msg = "mark piece ID must not be empty"
+        raise ValueError(msg)
     if not 0.0 <= float(position) <= 1.0:
-        raise ValueError("mark position must be between 0 and 1")
+        msg = "mark position must be between 0 and 1"
+        raise ValueError(msg)
     if float(depth) <= 0:
-        raise ValueError("mark depth must be positive")
+        msg = "mark depth must be positive"
+        raise ValueError(msg)
     if float(length) <= 0:
-        raise ValueError("mark length must be positive")
+        msg = "mark length must be positive"
+        raise ValueError(msg)
     name = "%s_%d" % (
         mark_type,
         1 + len([o for o in doc.Objects if getattr(o, "PatternMarkType", "") == mark_type]),
@@ -98,7 +125,11 @@ def add_mark(
 
 
 def add_notch():
-    """Add the requested notch data."""
+    """Create a notch at the selected piece's default semantic edge.
+
+    Returns:
+        The new FreeCAD feature containing the persisted notch properties.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
@@ -114,7 +145,11 @@ def add_notch():
 
 
 def add_grainline():
-    """Add the requested grainline data."""
+    """Create a grainline using the selected piece's authored grain direction.
+
+    Returns:
+        The new FreeCAD feature containing the persisted grainline properties.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")
@@ -131,7 +166,11 @@ def add_grainline():
 
 
 def add_internal_mark():
-    """Add the requested internal mark data."""
+    """Create a labeled internal mark on the selected pattern piece.
+
+    Returns:
+        The new FreeCAD feature containing the persisted internal-mark properties.
+    """
     import FreeCAD as App
 
     doc = App.ActiveDocument or App.newDocument("ClothPattern")

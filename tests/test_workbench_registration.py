@@ -1,11 +1,20 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression checks for package-owned Cloth workbench registration."""
 
 import importlib
 from pathlib import Path
 
+from defusedxml import ElementTree
+
 from freecad_cloth.pattern.workbench import ClothPatternWorkbench
-from freecad_cloth.sewing.workbench import COMMAND_GROUPS as SEWING_COMMAND_GROUPS
-from freecad_cloth.sewing.workbench import ClothSewingWorkbench
+from freecad_cloth.sewing.workbench import (
+    COMMAND_GROUPS as SEWING_COMMAND_GROUPS,
+)
+from freecad_cloth.sewing.workbench import (
+    TOOLBAR_COMMANDS,
+    ClothSewingWorkbench,
+)
+from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS, FITTING_COMMANDS
 from freecad_cloth.simulation.workbench import ClothSimulationWorkbench
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,61 +26,96 @@ EXPECTED_WORKBENCHES = {
 }
 
 
-def test_workbench_resources_are_stable():
+def test_workbench_resources_are_stable() -> None:
+    """Preserve workbench labels, tooltips, icon paths, and GUI class identity."""
     workbenches = (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench())
-    assert {wb.MenuText: wb.ToolTip for wb in workbenches} == EXPECTED_WORKBENCHES
-    for wb in workbenches:
-        resources = wb.GetResources()
-        assert resources["MenuText"] == wb.MenuText
-        assert resources["ToolTip"] == wb.ToolTip
-        assert (
-            Path(resources["Icon"]).resolve() == (ICON_DIR / Path(resources["Icon"]).name).resolve()
+    assert {
+        workbench.MenuText: workbench.ToolTip for workbench in workbenches
+    } == EXPECTED_WORKBENCHES, (
+        "Workbench menu metadata no longer matches the public registration contract."
+    )
+    for workbench in workbenches:
+        resources = workbench.GetResources()
+        assert resources["MenuText"] == workbench.MenuText, (
+            f"{workbench.MenuText} resources expose a mismatched menu label."
         )
-        assert Path(resources["Icon"]).is_file()
-        assert wb.GetClassName() == "Gui::PythonWorkbench"
+        assert resources["ToolTip"] == workbench.ToolTip, (
+            f"{workbench.MenuText} resources expose a mismatched tooltip."
+        )
+        icon = Path(resources["Icon"])
+        assert icon.resolve() == (ICON_DIR / icon.name).resolve(), (
+            f"{workbench.MenuText} resolves its icon outside the shared icon directory."
+        )
+        assert icon.is_file(), f"{workbench.MenuText} references a missing icon asset."
+        assert workbench.GetClassName() == "Gui::PythonWorkbench", (
+            f"{workbench.MenuText} reports the wrong FreeCAD GUI workbench class."
+        )
 
 
-def test_sewing_command_groups_are_unique_and_complete():
+def test_sewing_command_groups_are_unique_and_complete() -> None:
+    """Ensure the sewing toolbar groups exactly cover the registered command modules."""
     commands = [command for _name, group in SEWING_COMMAND_GROUPS for command in group]
-    assert commands
-    assert len(commands) == len(set(commands))
+    assert bool(commands), "Sewing command groups must not be empty."
+    assert len(commands) == len(set(commands)), (
+        "Sewing command groups contain duplicate command identifiers."
+    )
     sewing = importlib.import_module("freecad_cloth.sewing.SewingCommands")
     network = importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")
     expected = set(sewing.COMMANDS + network.COMMANDS)
-    assert set(commands) == expected
+    assert set(commands) == expected, (
+        "Sewing command groups do not match the commands exported by their modules."
+    )
 
 
-def test_initialize_is_idempotent_and_preserves_registered_command_order():
+def test_initialize_is_idempotent_and_preserves_registered_command_order() -> None:
+    """Keep initialization repeatable without losing or duplicating commands."""
     for workbench in (ClothPatternWorkbench(), ClothSewingWorkbench(), ClothSimulationWorkbench()):
         workbench.Initialize()
         first = list(workbench.commands)
-        assert first
+        assert bool(first), f"{type(workbench).__name__} registered no commands."
         workbench.Initialize()
-        assert workbench.commands == first
-        assert len(workbench.commands) == len(set(workbench.commands))
+        assert workbench.commands == first, (
+            f"{type(workbench).__name__} changed command order on repeat."
+        )
+        assert len(workbench.commands) == len(set(workbench.commands)), (
+            f"{type(workbench).__name__} registered duplicate command identifiers."
+        )
 
 
-def test_sewing_groups_cover_fitting_and_avatar_without_duplicates():
-    wb = ClothSewingWorkbench()
-    wb.Initialize()
-    fitting = importlib.import_module("freecad_cloth.avatar.FittingCommands")
-    avatar = importlib.import_module("freecad_cloth.avatar.AvatarCommands")
-    assert set(wb.commands) == set(
-        command for _name, group in SEWING_COMMAND_GROUPS for command in group
-    ) | set(fitting.COMMANDS) | set(avatar.COMMANDS)
+def test_sewing_groups_cover_fitting_and_avatar_without_duplicates() -> None:
+    """Keep sewing registration complete for fitting and avatar commands."""
+    workbench = ClothSewingWorkbench()
+    workbench.Initialize()
+    expected = (
+        {command for _name, group in SEWING_COMMAND_GROUPS for command in group}
+        | set(FITTING_COMMANDS)
+        | set(AVATAR_COMMANDS)
+    )
+    assert set(workbench.commands) == expected, (
+        "Sewing workbench commands do not match the expected registration set."
+    )
 
 
-def test_workbench_package_metadata_matches_registration_surface():
-    import xml.etree.ElementTree as ET
-
-    root = ET.parse(ROOT / "package.xml").getroot()
+def test_workbench_package_metadata_matches_registration_surface() -> None:
+    """Match package.xml metadata to the implemented workbench registration surface."""
+    root = ElementTree.parse(ROOT / "package.xml").getroot()
+    assert root is not None, "Package metadata did not parse to an XML root element."
     namespace = "{https://wiki.freecad.org/Package_Metadata}"
-    assert root.tag == namespace + "package"
-    assert root.findtext(namespace + "name") == "FreeCAD Cloth"
-    assert root.findtext(namespace + "version") == "0.1.0"
-    assert root.findtext(namespace + "license") == "LGPL-2.1-or-later"
-    assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth"
+    assert root.tag == namespace + "package", "Package metadata has an unexpected root tag."
+    assert root.findtext(namespace + "name") == "FreeCAD Cloth", (
+        "Package metadata contains an unexpected package name."
+    )
+    assert root.findtext(namespace + "version") == "0.1.0", (
+        "Package metadata contains an unexpected version."
+    )
+    assert root.findtext(namespace + "license") == "LGPL-2.1-or-later", (
+        "Package metadata contains an unexpected license identifier."
+    )
+    assert root.findtext(namespace + "url") == "https://github.com/Uhrendoktor/freecad-cloth", (
+        "Package metadata contains an unexpected repository URL."
+    )
     content = root.find(namespace + "content")
+    assert content is not None, "Package metadata does not declare any workbench content."
     declared = {
         item.findtext(namespace + "classname") for item in content.findall(namespace + "workbench")
     }
@@ -79,26 +123,26 @@ def test_workbench_package_metadata_matches_registration_surface():
         "ClothPatternWorkbench",
         "ClothSewingWorkbench",
         "ClothSimulationWorkbench",
-    }
+    }, "Package metadata does not list exactly the implemented workbenches."
 
 
-def test_sewing_toolbar_is_stable_and_registered():
-    from freecad_cloth.sewing.workbench import TOOLBAR_COMMANDS
-
+def test_sewing_toolbar_is_stable_and_registered() -> None:
+    """Keep the public sewing toolbar command sequence registered and stable."""
     assert TOOLBAR_COMMANDS == (
         "ClothSewing_CreateSeam",
         "ClothSewing_CreateOperation",
         "ClothSewing_Validate",
         "ClothFitting_CreateAvatar",
-    )
+    ), "Sewing toolbar command order no longer matches its public contract."
     workbench = ClothSewingWorkbench()
     workbench.Initialize()
-    assert set(TOOLBAR_COMMANDS) <= set(workbench.commands)
+    assert set(TOOLBAR_COMMANDS) <= set(workbench.commands), (
+        "The sewing toolbar includes commands absent from workbench registration."
+    )
 
 
-def test_workbench_command_groups_do_not_overlap():
-    import importlib
-
+def test_workbench_command_groups_do_not_overlap() -> None:
+    """Prevent command identifiers from colliding across registered workbenches."""
     groups = {
         "Pattern": {
             command
@@ -128,16 +172,25 @@ def test_workbench_command_groups_do_not_overlap():
         }
         | {"ClothRealtimePreview"},
     }
-    seen = {}
+    seen: dict[str, str] = {}
     for workbench, commands in groups.items():
-        assert commands
+        assert bool(commands), f"{workbench} workbench must expose at least one command."
         for command in commands:
-            assert command not in seen, (command, seen.get(command))
+            assert command not in seen, (
+                f"Duplicate command {command!r}: {workbench!r} and {seen.get(command)!r}."
+            )
             seen[command] = workbench
 
 
-def test_root_loader_delegates_registration_to_shared_bootstrap():
+def test_root_loader_delegates_registration_to_shared_bootstrap() -> None:
+    """Ensure the classic FreeCAD loader delegates workbench registration."""
     source = (ROOT / "InitGui.py").read_text(encoding="utf-8")
-    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source
-    assert source.count("initialize_workbenches(") == 1
-    assert "Gui.addWorkbench(" not in source
+    assert "from freecad_cloth.bootstrap import initialize_workbenches" in source, (
+        "The classic GUI loader must import the shared bootstrap registrar."
+    )
+    assert source.count("initialize_workbenches(") == 1, (
+        "The classic GUI loader must delegate registration exactly once."
+    )
+    assert "Gui.addWorkbench(" not in source, (
+        "The classic GUI loader must not duplicate bootstrap registration logic."
+    )

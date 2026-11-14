@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -42,7 +43,8 @@ def test_add_mark_rejects_invalid_position():
     except ValueError as exc:
         assert "between 0 and 1" in str(exc)
     else:
-        raise AssertionError("invalid mark position should fail")
+        msg = "invalid mark position should fail"
+        raise AssertionError(msg)
 
 
 if __name__ == "__main__":

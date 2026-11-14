@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-native Sketcher authoring adapter for Cloth Pattern pieces.
 
 Sketcher is the editable geometry authority. PatternPiece stores semantic
@@ -101,18 +102,22 @@ def _add_native_geometry(
         vectors = [App.Vector(float(point[0]), float(point[1]), 0) for point in points]
         if kind == "line":
             if len(vectors) != 2:
-                raise ValueError("line boundary segment requires exactly two endpoints")
+                msg = "line boundary segment requires exactly two endpoints"
+                raise ValueError(msg)
             geometry.append(Part.LineSegment(vectors[0], vectors[1]))
         elif kind == "bspline":
             if len(vectors) < 3:
-                raise ValueError("B-spline boundary segment requires an interior curve point")
+                msg = "B-spline boundary segment requires an interior curve point"
+                raise ValueError(msg)
             curve = Part.BSplineCurve()
             curve.interpolate(vectors)
             geometry.append(curve)
         else:
-            raise ValueError(f"unsupported surface boundary segment type: {kind}")
+            msg = f"unsupported surface boundary segment type: {kind}"
+            raise ValueError(msg)
     if len(geometry) < 3:
-        raise ValueError("surface sketch requires at least three connected boundary segments")
+        msg = "surface sketch requires at least three connected boundary segments"
+        raise ValueError(msg)
     sketch.addGeometry(geometry, False)
     constraints = [
         Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(geometry), 1)
@@ -126,11 +131,25 @@ def create_sketch_for_piece(
     document=None,
     geometry_segments: Sequence[tuple[str, Sequence[tuple[float, float]]]] | None = None,
 ):
-    """Create or return the native Sketcher representation for ``piece``."""
+    """Create or update the native Sketcher representation for one pattern piece.
+
+    Args:
+        piece: Semantic pattern value supplying the boundary and stable piece identity.
+        document: Optional owning FreeCAD document; the active document is the default.
+        geometry_segments: Optional connected line/B-spline boundary definitions.
+
+    Returns:
+        Native Sketcher object linked to the semantic pattern-piece document object.
+
+    Raises:
+        RuntimeError: If FreeCAD is unavailable or no sketch document can be created.
+        ValueError: If the source piece or supplied native geometry is invalid.
+    """
     try:
         import FreeCAD as App
     except ImportError as exc:
-        raise RuntimeError("FreeCAD Sketcher is required for PatternSketch") from exc
+        msg = "FreeCAD Sketcher is required for PatternSketch"
+        raise RuntimeError(msg) from exc
 
     document = document or App.ActiveDocument
     if document is None:
@@ -148,7 +167,7 @@ def create_sketch_for_piece(
     )
     if existing is not None:
         if geometry_segments is not None:
-            existing.clear()
+            existing.deleteAllGeometry()
             _add_native_geometry(existing, geometry_segments)
             existing.SemanticEdgeIds = [
                 f"{piece.id}:edge:{i}" for i in range(len(geometry_segments))
@@ -198,10 +217,22 @@ def _attach(sketch, piece, document):
 
 
 def sync_sketch_from_piece(sketch, piece):
-    """Replace sketch geometry from a PatternPiece for migration/repair only."""
+    """Replace sketch geometry from a PatternPiece for migration or repair only.
+
+    Args:
+        sketch: Native Sketcher object whose existing geometry is replaced.
+        piece: Validated semantic pattern piece that owns the replacement boundary.
+
+    Returns:
+        The same Sketcher object after its geometry and semantic edge IDs are refreshed.
+
+    Raises:
+        ValueError: If the sketch belongs to a different pattern piece.
+    """
     piece.validate()
     if getattr(sketch, "PatternPieceId", None) != piece.id:
-        raise ValueError("sketch does not belong to pattern piece")
+        msg = "sketch does not belong to pattern piece"
+        raise ValueError(msg)
     sketch.clear()
     _add_geometry(sketch, piece.outline)
     sketch.SemanticEdgeIds = [f"{piece.id}:edge:{i}" for i in range(len(piece.outline))]

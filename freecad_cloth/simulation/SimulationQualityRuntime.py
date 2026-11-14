@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Canonical FreeCAD boundary integration for simulation quality and fabric controls.
 
 This module owns the quality-aware runtime wrapper around the canonical simulation
@@ -5,18 +6,71 @@ proxy. It is the only quality runtime implementation.
 """
 
 import weakref
+from collections.abc import Hashable, Sequence
 from math import ceil
-from typing import cast
+from typing import Protocol, Self, cast
 
-from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES, resolve_pin_indices
-from freecad_cloth.simulation.SimulationQuality import QUALITY_PRESETS, normalize_color_rgb, preset
+from freecad_cloth.simulation.SimulationObjects import (
+    PIN_MODE_NAMES,
+    _PatternPieceDocumentObject,
+    resolve_pin_indices,
+)
+from freecad_cloth.simulation.SimulationQuality import (
+    QUALITY_PRESETS,
+    normalize_color_rgb,
+    preset,
+)
 
 QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
-def ensure_quality_properties(scene):
-    """Create and validate persistent simulation-quality properties on a scene."""
+class _QualityScene(Protocol):
+    """Dynamic FreeCAD feature fields owned by the quality runtime."""
+
+    QualityPreset: str
+    ParticleDistance: float
+    SolverIterations: int
+    SolverSubsteps: int
+    PinMode: str
+    FabricDensity: float
+    FabricThickness: float
+    FabricStretch: float
+    FabricShear: float
+    FabricBend: float
+    FabricFriction: float
+    FabricColor: tuple[float, float, float]
+    FabricSpecular: float
+    FabricRoughness: float
+    FabricTransparency: int
+    AvatarSkinOffset: float
+    Steps: int
+    ClothPieces: Sequence[_PatternPieceDocumentObject]
+
+    def addProperty(self, type_name: str, name: str, group: str) -> Self:
+        """Register one persistent property on the FreeCAD feature.
+
+        Args:
+            type_name: Native FreeCAD property type.
+            name: Property name to add.
+            group: Property group displayed by FreeCAD.
+
+        Returns:
+            The FreeCAD feature on which the property was registered.
+        """
+        ...
+
+
+def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
+    """Create and validate persistent simulation-quality properties on a scene.
+
+    Args:
+        scene: FreeCAD simulation feature receiving quality and fabric properties.
+
+    Returns:
+        The same feature after its quality properties have been initialized and clamped.
+    """
+    typed_scene = scene
     specs = (
         ("QualityPreset", "App::PropertyEnumeration", "Quality", list(QUALITY_NAMES), "Balanced"),
         ("ParticleDistance", "App::PropertyFloat", "Quality", None, 4.0),
@@ -36,16 +90,21 @@ def ensure_quality_properties(scene):
         ("AvatarSkinOffset", "App::PropertyFloat", "Collision", None, 0.0),
     )
     for name, type_name, group, values, default in specs:
-        if not hasattr(scene, name):
-            scene.addProperty(type_name, name, group)
+        if not hasattr(typed_scene, name):
+            typed_scene.addProperty(type_name, name, group)
             if values is not None:
-                setattr(scene, name, values)
-            setattr(scene, name, default)
-    _validate_properties(scene)
-    return scene
+                setattr(typed_scene, name, values)
+            setattr(typed_scene, name, default)
+    _validate_properties(typed_scene)
+    return typed_scene
 
 
-def _validate_properties(scene):
+def _validate_properties(scene: _QualityScene) -> None:
+    """Clamp persisted quality and fabric properties to their supported ranges.
+
+    Args:
+        scene: Simulation feature whose saved values are normalized in place.
+    """
     scene.ParticleDistance = max(0.25, float(scene.ParticleDistance))
     scene.SolverIterations = max(1, int(scene.SolverIterations))
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
@@ -66,7 +125,18 @@ def _validate_properties(scene):
 
 
 def apply_quality_preset(scene, name=None):
-    """Apply a named quality preset and return its normalized profile."""
+    """Apply a named quality preset and return its normalized profile.
+
+    Args:
+        scene: Persistent FreeCAD simulation feature receiving the profile values.
+        name: Optional preset name; the scene's stored selection is used by default.
+
+    Returns:
+        The selected immutable profile after its persisted values have been updated.
+
+    Raises:
+        ValueError: If the requested preset name is not supported.
+    """
     ensure_quality_properties(scene)
     quality = preset(name or scene.QualityPreset)
     scene.QualityPreset = quality.name
@@ -80,9 +150,22 @@ def apply_quality_preset(scene, name=None):
 
 
 def quality_discretization(point_count, perimeter, particle_distance):
-    """Return the sample count required by the requested particle spacing."""
+    """Return the sample count required by the requested particle spacing.
+
+    Args:
+        point_count: Minimum sample count required by the authored boundary.
+        perimeter: Total boundary length in model units.
+        particle_distance: Requested maximum particle spacing in model units.
+
+    Returns:
+        An integer sample count no smaller than the supplied boundary minimum.
+
+    Raises:
+        ValueError: If the boundary minimum contains fewer than three points.
+    """
     if int(point_count) < 3:
-        raise ValueError("point_count must be at least three")
+        msg = "point_count must be at least three"
+        raise ValueError(msg)
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
@@ -93,6 +176,10 @@ class QualitySimulationProxy:
 
     def __init__(self):
         self._restore_base()
+
+    def __getstate__(self) -> dict[str, int]:
+        """Persist only the schema marker; solver state is rebuilt on document restore."""
+        return {"schema": 1}
 
     @staticmethod
     def _new_base():
@@ -124,18 +211,29 @@ class QualitySimulationProxy:
         }
 
     def onDocumentRestored(self, obj):
-        """Recreate non-serializable solver state after FreeCAD reloads the proxy."""
+        """Recreate non-serializable solver state after FreeCAD reloads the proxy.
+
+        Args:
+            obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""
         self._restore_base()
         self.seam_stitch_pairs = {}
 
     @staticmethod
-    def _signature(obj):
+    def _signature(obj: _QualityScene) -> tuple[Hashable, ...]:
+        """Return the deterministic inputs that invalidate the derived simulation.
+
+        Args:
+            obj: Simulation feature whose persisted source and quality values are read.
+
+        Returns:
+            Immutable source, preset, solver, and fabric controls for scene rebuilding.
+        """
         from freecad_cloth.simulation.SimulationObjects import _simulation_source_signature
 
         pieces = [
-            p
-            for p in getattr(obj, "ClothPieces", ())
-            if getattr(p, "PatternType", "") == "PatternPiece"
+            piece
+            for piece in obj.ClothPieces
+            if getattr(piece, "PatternType", "") == "PatternPiece"
         ]
         return (
             _simulation_source_signature(obj, pieces),
@@ -175,7 +273,7 @@ class QualitySimulationProxy:
         if callable(snapshot):
             snapshot_result = snapshot()
             positions, finite_state = cast(
-                tuple[tuple[tuple[float, float, float], ...], bool],
+                "tuple[tuple[tuple[float, float, float], ...], bool]",
                 snapshot_result,
             )
         else:
@@ -191,33 +289,41 @@ class QualitySimulationProxy:
         obj.ParticleCount = len(positions)
         obj.FiniteState = finite_state
 
-    def execute(self, obj):
-        """Recompute the FreeCAD object from its current source properties."""
-        ensure_quality_properties(obj)
+    def execute(self, obj: _QualityScene) -> None:
+        """Recompute the FreeCAD object from its current source properties.
+
+        Args:
+            obj: Native FreeCAD simulation feature receiving the derived scene state.
+        """
+        scene = ensure_quality_properties(obj)
         base = self._base_or_restore()
-        signature = self._signature(obj)
+        signature = self._signature(scene)
         pieces = [
-            p
-            for p in getattr(obj, "ClothPieces", ())
-            if getattr(p, "PatternType", "") == "PatternPiece"
+            piece
+            for piece in scene.ClothPieces
+            if getattr(piece, "PatternType", "") == "PatternPiece"
         ]
         if (
             base.backend is None
             or signature != base.source_signature
-            or int(obj.Steps) < base.last_steps
+            or int(scene.Steps) < base.last_steps
         ):
             if pieces:
-                self._build_pattern_scene(obj, pieces, signature)
+                self._build_pattern_scene(scene, pieces, signature)
             else:
-                self._build_demo(obj, signature)
+                self._build_demo(scene, signature)
             self._sync_seam_stitch_provenance(base)
-        steps = int(obj.Steps)
+        steps = int(scene.Steps)
         if steps > base.last_steps:
-            self._advance(obj, base, steps - base.last_steps)
-        self._publish_state(obj, base)
+            self._advance(scene, base, steps - base.last_steps)
+        self._publish_state(scene, base)
 
     def advance_preview_frame(self, obj):
-        """Advance one interactive frame without triggering a document recompute."""
+        """Advance one interactive frame without triggering a document recompute.
+
+        Args:
+            obj: Persistent quality-simulation feature whose preview state is advanced.
+        """
         ensure_quality_properties(obj)
         base = self._base_or_restore()
         if base.backend is None:
@@ -340,5 +446,9 @@ class QualitySimulationProxy:
                 pass
 
     def reset(self, obj):
-        """Reset the runtime state to its initial values."""
+        """Reset the runtime state to its initial values.
+
+        Args:
+            obj: Persistent quality-simulation feature whose runtime state is reset.
+        """
         self._base_or_restore().reset(obj)

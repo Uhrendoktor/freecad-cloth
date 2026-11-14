@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import gzip
 import math
 import tempfile
@@ -5,13 +6,14 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import trimesh
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters
 from freecad_cloth.avatar.HumanoidMesh import (
     _make_source_fitted_mapper,
     _section_circumference,
 )
-from freecad_cloth.avatar.MakeHumanTargets import (
+from freecad_cloth.avatar.make_human_targets import (
     TARGETS_ENV,
     apply_measurement_targets,
     apply_targets,
@@ -199,9 +201,9 @@ class MakeHumanTargetTests(unittest.TestCase):
             source_vertices, parameters, 0.0, source_triangles=triangles
         )
         fitted = tuple(mapper(point) for point in source_vertices)
+        fitted_mesh = trimesh.Trimesh(vertices=fitted, faces=triangles, process=False)
         actual = _section_circumference(
-            fitted,
-            triangles,
+            fitted_mesh,
             plane=parameters.measurement("height") * 0.58,
             vertical_axis=2,
             max_width=600.0,
@@ -231,7 +233,11 @@ class MakeHumanTargetTests(unittest.TestCase):
             (3, 4, 7),
         )
         self.assertAlmostEqual(
-            _section_circumference(vertices, triangles, plane=0.5, max_width=10.0),
+            _section_circumference(
+                trimesh.Trimesh(vertices=vertices, faces=triangles, process=False),
+                plane=0.5,
+                max_width=10.0,
+            ),
             12.0,
             places=4,
         )

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD runtime smoke coverage for the humanoid mesh avatar."""
 
 import sys

@@ -100,6 +100,7 @@ Source:
 - <code>freecad_cloth/avatar/FittingGui.py</code>
 - <code>freecad_cloth/avatar/FittingCommands.py</code>
 - <code>freecad_cloth/avatar/AvatarFitting.py</code>
-- <code>freecad_cloth/avatar/AvatarArrangement.py</code>
+- <code>freecad_cloth/avatar/avatar_arrangement.py</code> (canonical implementation)
+- <code>freecad_cloth/avatar/AvatarArrangement/__init__.py</code> (public import facade)
 
 The generated <code>interactive-arrange.png</code> is the public visual proof of the current viewport workflow.

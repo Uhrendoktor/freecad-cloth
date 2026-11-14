@@ -1,38 +1,83 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Build documentation GIFs with bounded, parallel ImageMagick invocations."""
 
 from __future__ import annotations
 
 import argparse
 import shutil
-import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+if __package__:
+    from tools.ci.command_runner import run_command
+else:
+    from command_runner import run_command
+
+TURNTABLE_FRAME_COUNT = 73
+
 
 def image_tool() -> str:
-    """Return the available ImageMagick executable."""
+    """Locate the ImageMagick executable used to assemble animation frames.
+
+    Returns:
+        Executable path suitable for subprocess invocation.
+
+    Raises:
+        SystemExit: If neither supported ImageMagick executable is available.
+    """
     tool = shutil.which("magick") or shutil.which("convert")
     if not tool:
-        raise SystemExit("ImageMagick is required on the CI runner")
+        msg = "ImageMagick is required on the CI runner"
+        raise SystemExit(msg)
     return tool
 
 
 def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int = 50) -> None:
-    """Build a GIF from a sequence of PNG frames."""
+    """Assemble PNG frames into a non-empty animated GIF.
+
+    Args:
+        tool: ImageMagick executable path.
+        frames: Ordered PNG frame paths to encode.
+        output: Destination path for the generated GIF.
+        delay: ImageMagick frame delay expressed in its command-line units.
+        timeout: Maximum runtime in seconds before the build is terminated.
+
+    Raises:
+        SystemExit: If no frames are supplied or the output file is missing or empty.
+    """
     if not frames:
-        raise SystemExit(f"no frames found for {output}")
+        msg = f"no frames found for {output}"
+        raise SystemExit(msg)
     output.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [tool, "-delay", delay, "-loop", "0", *map(str, frames), "-colors", "128", str(output)],
+    run_command(
+        [
+            tool,
+            "-delay",
+            delay,
+            "-loop",
+            "0",
+            *map(str, frames),
+            "-colors",
+            "128",
+            str(output),
+        ],
         check=True,
         timeout=timeout,
     )
     if not output.is_file() or not output.stat().st_size:
-        raise SystemExit(f"GIF was not produced: {output}")
+        msg = f"GIF was not produced: {output}"
+        raise SystemExit(msg)
 
 
 def main() -> int:
-    """Build the requested repository visual GIF set."""
+    """Build the requested documentation animations from captured frame sets.
+
+    Returns:
+        Zero after every GIF required by the selected kind has been generated.
+
+    Raises:
+        SystemExit: If arguments are invalid, frames are incomplete, or ImageMagick is unavailable.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("kind", choices=("turntables", "blanket", "tunic"))
     args = parser.parse_args()
@@ -52,8 +97,9 @@ def main() -> int:
         with ThreadPoolExecutor(max_workers=3) as pool:
             for directory, output in specs:
                 frames = sorted((root / directory).glob("frame-*.png"))
-                if len(frames) != 73:
-                    raise SystemExit(f"{directory}: expected 73 frames, got {len(frames)}")
+                if len(frames) != TURNTABLE_FRAME_COUNT:
+                    msg = f"{directory}: expected {TURNTABLE_FRAME_COUNT} frames, got {len(frames)}"
+                    raise SystemExit(msg)
                 jobs.append(pool.submit(build, tool, frames, root / output, "8"))
             for job in as_completed(jobs):
                 job.result()

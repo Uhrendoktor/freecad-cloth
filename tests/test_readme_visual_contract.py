@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the published README/wiki visual validation path."""
 
 from pathlib import Path
@@ -23,13 +24,11 @@ def test_blanket_visual_fixture_has_no_runtime_backend_selector():
 
 def test_turntable_still_uses_persistent_drape_target():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
-    objects = (ROOT / "freecad_cloth" / "simulation" / "SimulationObjects.py").read_text(
-        encoding="utf-8"
-    )
+    target = (ROOT / "freecad_cloth" / "simulation" / "DrapeTarget.py").read_text(encoding="utf-8")
 
     assert "set_drape_target_source" in source
-    assert "create_drape_target" in objects
-    assert "assign_drape_target" in objects
+    assert "def create_drape_target(" in target
+    assert "def assign_drape_target(" in target
 
 
 def test_readme_turntable_builds_real_motion():
@@ -180,7 +179,7 @@ def test_visual_publisher_removes_stale_public_images_before_publish():
     assert "path.unlink()" in publisher
     assert "for asset in sorted(expected):" in publisher
     assert "write_provenance(" in publisher
-    assert "errors = verify(source_root, published, provenance, args.source_sha)" in publisher
+    assert "errors = verify(source_root, published, provenance, metadata.source_sha)" in publisher
 
 
 def test_visual_publisher_preserves_script_local_import_invocation():
@@ -303,10 +302,10 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "\nenv:\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
-    watchdog = shared.split("  runner_watchdog:", 1)[1].split("  pbd_validation_image:", 1)[0]
-    watchdog_source = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
-    assert "inputs.runner_mode != 'hosted'" in watchdog
-    assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in watchdog_source
+    assert "runs-on: [self-hosted, linux, x64, docker]" in shared
+    assert "ubuntu-latest" not in shared
+    assert "runner_watchdog" not in shared
+    assert "needs: [local_runner_readiness]" in shared
 
 
 def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:

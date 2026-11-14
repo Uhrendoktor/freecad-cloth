@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -25,7 +26,8 @@ def test_invalid_piece():
         PatternPiece("", [(0, 0), (1, 0), (0, 1)], id="x").validate()
     except ValueError:
         return
-    raise AssertionError("empty name should fail")
+    msg = "empty name should fail"
+    raise AssertionError(msg)
 
 
 def test_seam_validation():
@@ -77,7 +79,8 @@ def test_invalid_geometry_is_rejected():
         )
     except ValueError:
         return
-    raise AssertionError("open boundary should fail")
+    msg = "open boundary should fail"
+    raise AssertionError(msg)
 
 
 def test_workbench_command_scopes():

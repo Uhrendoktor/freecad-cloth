@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Optional FreeCAD-facing MeshPart/Netgen pattern meshing adapter.
 
 The semantic PatternModel and TriangleMesh remain FreeCAD-independent. This
@@ -24,26 +25,45 @@ def mesh_from_pattern(
     angular_deflection: float = 0.5,
     curve_samples: int = 32,
 ) -> TriangleMesh:
-    """Mesh a pattern with FreeCAD MeshPart and return the semantic mesh."""
+    """Mesh a pattern with FreeCAD MeshPart and return the semantic mesh.
+
+    Args:
+        pattern: Authored parametric outline and curve definitions to tessellate.
+        linear_deflection: Maximum linear tessellation error in model units.
+        angular_deflection: Maximum angular tessellation error in radians.
+        curve_samples: Sampling count used to approximate each authored curve boundary.
+
+    Returns:
+        TriangleMesh with canonical vertex order, facets, and semantic edge provenance.
+
+    Raises:
+        ValueError: If the deflections, curve sampling, or resulting boundary is invalid.
+        RuntimeError: If FreeCAD MeshPart is unavailable or native tessellation fails.
+    """
     if linear_deflection <= 0 or angular_deflection <= 0:
-        raise ValueError("mesh deflections must be positive")
+        msg = "mesh deflections must be positive"
+        raise ValueError(msg)
     if curve_samples < 2:
-        raise ValueError("curve_samples must be at least 2")
+        msg = "curve_samples must be at least 2"
+        raise ValueError(msg)
     try:
         import FreeCAD as App
         import MeshPart
         import Part
     except ImportError as exc:
-        raise RuntimeError("FreeCAD MeshPart is required for native pattern meshing") from exc
+        msg = "FreeCAD MeshPart is required for native pattern meshing"
+        raise RuntimeError(msg) from exc
 
     points = pattern.sampled_outline(curve_samples)
     if len(points) < 3:
-        raise ValueError("pattern has too few sampled boundary points")
+        msg = "pattern has too few sampled boundary points"
+        raise ValueError(msg)
     vectors = [App.Vector(x, y, 0.0) for x, y in points]
     vectors.append(vectors[0])
     face = Part.Face(Part.makePolygon(vectors))
     if face.isNull():
-        raise ValueError("unable to construct a planar pattern face")
+        msg = "unable to construct a planar pattern face"
+        raise ValueError(msg)
     native = MeshPart.meshFromShape(
         Shape=face,
         LinearDeflection=float(linear_deflection),
@@ -59,15 +79,30 @@ def mesh_shape_from_outline(
     linear_deflection: float = 1.0,
     angular_deflection: float = 0.5,
 ) -> object:
-    """Compatibility helper returning the native FreeCAD mesh object."""
+    """Return a native FreeCAD mesh generated from a closed planar outline.
+
+    Args:
+        outline: Ordered two-dimensional boundary vertices in model coordinates.
+        linear_deflection: Maximum linear tessellation error in model units.
+        angular_deflection: Maximum angular tessellation error in radians.
+
+    Returns:
+        FreeCAD Mesh object created from the planar outline face.
+
+    Raises:
+        ValueError: If fewer than three outline points are supplied.
+        RuntimeError: If FreeCAD Part or MeshPart cannot construct the mesh.
+    """
     if len(outline) < 3:
-        raise ValueError("outline needs at least three points")
+        msg = "outline needs at least three points"
+        raise ValueError(msg)
     try:
         import FreeCAD as App
         import MeshPart
         import Part
     except ImportError as exc:
-        raise RuntimeError("FreeCAD Part/MeshPart is required") from exc
+        msg = "FreeCAD Part/MeshPart is required"
+        raise RuntimeError(msg) from exc
     points = [App.Vector(float(x), float(y), 0.0) for x, y in outline]
     points.append(points[0])
     face = Part.Face(Part.makePolygon(points))
@@ -80,7 +115,14 @@ def mesh_shape_from_outline(
 
 
 def boundary_provenance(outline: Sequence[Point]) -> tuple[tuple[int, str], ...]:
-    """Return stable semantic boundary IDs independent of MeshPart face order."""
+    """Return stable semantic boundary IDs independent of MeshPart face order.
+
+    Args:
+        outline: Ordered two-dimensional points defining the authored pattern boundary.
+
+    Returns:
+        Zero-based boundary indices paired with stable edge identity strings.
+    """
     return tuple((i, f"edge:{i}") for i in range(len(outline)))
 
 
@@ -95,7 +137,8 @@ def _mesh_topology(native: object) -> tuple[list[Point], list[tuple[int, int, in
     points = getattr(native, "Points", None)
     facets = getattr(native, "Facets", None)
     if points is None or facets is None:
-        raise RuntimeError("FreeCAD mesh does not expose Topology or Points/Facets")
+        msg = "FreeCAD mesh does not expose Topology or Points/Facets"
+        raise RuntimeError(msg)
     vertices = [(float(point.x), float(point.y)) for point in points]
     triangles = []
     for facet in facets:
@@ -112,7 +155,8 @@ def _canonical_triangle_mesh(
     triangles: Sequence[tuple[int, int, int]],
 ) -> TriangleMesh:
     if len(vertices) < 3 or not triangles:
-        raise ValueError("native tessellator returned an empty mesh")
+        msg = "native tessellator returned an empty mesh"
+        raise ValueError(msg)
     order = sorted(range(len(vertices)), key=lambda index: _point_key(vertices[index]))
     remap = {old: new for new, old in enumerate(order)}
     canonical_vertices = tuple(
@@ -124,7 +168,8 @@ def _canonical_triangle_mesh(
         if len(triangle) == 3 and len(set(triangle)) == 3
     )
     if not canonical_triangles:
-        raise ValueError("native tessellator returned no triangular facets")
+        msg = "native tessellator returned no triangular facets"
+        raise ValueError(msg)
     boundary_loop = _canonical_boundary_loop(
         _boundary_edges(canonical_triangles), canonical_vertices
     )
@@ -157,13 +202,15 @@ def _canonical_boundary_loop(
     edges: Sequence[tuple[int, int]], vertices: Sequence[Point]
 ) -> list[int]:
     if len(edges) < 3:
-        raise ValueError("native tessellator returned no closed boundary")
+        msg = "native tessellator returned no closed boundary"
+        raise ValueError(msg)
     adjacency: dict[int, list[int]] = {}
     for a, b in edges:
         adjacency.setdefault(a, []).append(b)
         adjacency.setdefault(b, []).append(a)
     if any(len(neighbors) != 2 for neighbors in adjacency.values()):
-        raise ValueError("native tessellator returned a boundary with multiple loops or branches")
+        msg = "native tessellator returned a boundary with multiple loops or branches"
+        raise ValueError(msg)
     start = min(adjacency, key=lambda index: _point_key(vertices[index]))
     neighbors = sorted(adjacency[start], key=lambda index: _point_key(vertices[index]))
     loop = [start]
@@ -175,10 +222,12 @@ def _canonical_boundary_loop(
         previous, current = current, next_vertex
         candidates = [index for index in adjacency[current] if index != previous]
         if len(candidates) != 1:
-            raise ValueError("native tessellator boundary traversal is ambiguous")
+            msg = "native tessellator boundary traversal is ambiguous"
+            raise ValueError(msg)
         next_vertex = candidates[0]
         if len(loop) > len(edges):
-            raise ValueError("native tessellator boundary is not a simple loop")
+            msg = "native tessellator boundary is not a simple loop"
+            raise ValueError(msg)
     if _signed_loop_area(loop, vertices) < 0.0:
         loop = [loop[0]] + list(reversed(loop[1:]))
     return loop

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Compute and validate the public README/wiki visual evidence contract."""
 
 from __future__ import annotations
@@ -5,6 +6,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import re
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 IMAGE_SUFFIXES = (".png", ".gif", ".jpg", ".jpeg", ".webp")
@@ -16,7 +19,17 @@ ASSET_RE = re.compile(re.escape(PREFIX) + r"""([^\s'"<>\)]+)""")
 
 
 def documented_assets(source_root: Path) -> set[str]:
-    """Return the generated visual assets referenced by the public documentation."""
+    """Return the generated visual assets referenced by the public documentation.
+
+    Args:
+        source_root: Repository root containing the README and wiki documents.
+
+    Returns:
+        Set of generated image filenames referenced by the public documentation.
+
+    Raises:
+        ValueError: Raised when the documents contain no generated image references.
+    """
     documents = [
         source_root / "README.md",
         *sorted((source_root / "docs").rglob("*.md")),
@@ -31,14 +44,26 @@ def documented_assets(source_root: Path) -> set[str]:
             if asset.lower().endswith(IMAGE_SUFFIXES):
                 assets.add(asset)
     if not assets:
-        raise ValueError("README/wiki contain no generated visual references")
+        msg = "README/wiki contain no generated visual references"
+        raise ValueError(msg)
     return assets
 
 
 def public_assets(published_root: Path) -> set[str]:
-    """Return the generated visual assets present in the published directory."""
+    """Return the generated visual assets present in the published directory.
+
+    Args:
+        published_root: Directory containing the public image files.
+
+    Returns:
+        Set of image filenames found in the published directory.
+
+    Raises:
+        ValueError: Raised when the publication directory does not exist.
+    """
     if not published_root.is_dir():
-        raise ValueError(f"published image directory missing: {published_root}")
+        msg = f"published image directory missing: {published_root}"
+        raise ValueError(msg)
     return {
         path.name
         for path in published_root.iterdir()
@@ -47,7 +72,14 @@ def public_assets(published_root: Path) -> set[str]:
 
 
 def sha256(path: Path) -> str:
-    """Return the SHA-256 digest of a file."""
+    """Return the SHA-256 digest of a file.
+
+    Args:
+        path: File whose content should be hashed.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest of the file.
+    """
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -55,33 +87,60 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+@dataclass(frozen=True)
+class ProvenanceMetadata:
+    """Identify the commit and workflow run that produced the visual assets.
+
+    Attributes:
+        source_sha: Commit SHA from which the source assets were produced.
+        run_id: GitHub Actions identifier for the producing run.
+        run_number: Human-readable sequence number for the producing run.
+    """
+
+    source_sha: str
+    run_id: str
+    run_number: str
+
+
 def write_provenance(
     provenance: Path,
     published_root: Path,
     source_root: Path,
-    source_sha: str,
-    run_id: str,
-    run_number: str,
+    metadata: ProvenanceMetadata,
 ) -> None:
-    """Write the visual evidence provenance manifest."""
+    """Write the visual evidence provenance manifest.
+
+    Args:
+        provenance: Destination path for the provenance JSON document.
+        published_root: Directory containing the publicly published images.
+        source_root: Repository root containing documented image references.
+        metadata: Source commit and GitHub Actions run identifying the publication.
+
+    Raises:
+        ValueError: Raised when the published images differ from the documented inventory.
+    """
     assets = sorted(documented_assets(source_root))
     actual = public_assets(published_root)
     if assets != sorted(actual):
-        raise ValueError(
-            f"public image set mismatch; missing={sorted(set(assets) - actual)} extra={sorted(actual - set(assets))}"
+        msg = (
+            "public image set mismatch; "
+            f"missing={sorted(set(assets) - actual)} "
+            f"extra={sorted(actual - set(assets))}"
         )
+        raise ValueError(msg)
     lines = [
         "# README/wiki visual evidence provenance",
         "",
-        f"source_main_sha={source_sha}",
-        f"workflow_run={run_id}",
-        f"workflow_run_number={run_number}",
+        f"source_main_sha={metadata.source_sha}",
+        f"workflow_run={metadata.run_id}",
+        f"workflow_run_number={metadata.run_number}",
         "",
     ]
     for asset in assets:
         path = published_root / asset
         if not path.is_file() or not path.stat().st_size:
-            raise ValueError(f"missing or empty generated asset: {asset}")
+            msg = f"missing or empty generated asset: {asset}"
+            raise ValueError(msg)
         lines.append(f"{sha256(path)}  docs/images/generated/{asset}")
     provenance.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -92,16 +151,26 @@ def verify(
     provenance: Path,
     source_sha: str,
 ) -> list[str]:
-    """Validate the published visual evidence against the documented source set."""
+    """Validate the published visual evidence against the documented source set.
+
+    Args:
+        source_root: Repository root containing documented image references.
+        published_root: Directory containing the public image files.
+        provenance: Path to the provenance manifest to verify.
+        source_sha: Expected source commit SHA for the published assets.
+
+    Returns:
+        Human-readable errors found while comparing sources, publication, and provenance.
+    """
     expected = documented_assets(source_root)
     actual = public_assets(published_root)
     errors: list[str] = []
-    errors.extend(
-        f"missing documented images: {sorted(expected - actual)}" for _ in [0] if expected - actual
-    )
-    errors.extend(
-        f"undocumented public images: {sorted(actual - expected)}" for _ in [0] if actual - expected
-    )
+    missing = expected - actual
+    if missing:
+        errors.append(f"missing documented images: {sorted(missing)}")
+    undocumented = actual - expected
+    if undocumented:
+        errors.append(f"undocumented public images: {sorted(undocumented)}")
     if not provenance.is_file() or not provenance.stat().st_size:
         errors.append(f"missing provenance: {provenance}")
     else:
@@ -124,7 +193,11 @@ def verify(
 
 
 def main() -> int:
-    """Validate the repository visual evidence contract."""
+    """Validate the repository visual evidence contract.
+
+    Returns:
+        Process status indicating whether the published evidence is consistent.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-root", type=Path, required=True)
     parser.add_argument("--published-root", type=Path, required=True)
@@ -134,10 +207,11 @@ def main() -> int:
     errors = verify(args.source_root, args.published_root, args.provenance, args.source_sha)
     if errors:
         for error in errors:
-            print(f"visual-evidence-error={error}")
+            sys.stdout.write(f"visual-evidence-error={error}\n")
         return 1
-    print(
-        f"readme-wiki-visual-freshness=passed asset_count={len(documented_assets(args.source_root))}"
+    sys.stdout.write(
+        "readme-wiki-visual-freshness=passed "
+        f"asset_count={len(documented_assets(args.source_root))}\n"
     )
     return 0
 

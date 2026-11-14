@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Property and stateful tests for deterministic core models."""
 
 from __future__ import annotations

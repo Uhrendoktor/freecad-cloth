@@ -90,6 +90,7 @@ RUN /opt/conda/envs/freecad/bin/python -c "import pivy; from pivy import coin; p
         "shapely>=2,<3" \
         "anny>=0.6,<0.7" \
         "clad-body[anny]>=0.6.1,<0.7" \
+        "defusedxml>=0.7.1,<1" \
         pytest \
         hypothesis==6.168.3 \
     && /opt/conda/envs/freecad/bin/python -c "import importlib.metadata, pypbd; print('pypbd=' + importlib.metadata.version('pyPBD')); print('pypbd_module=' + pypbd.__file__)" \

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Position-level contact projection for closed rigid collision meshes.
 
 The native PBD binding detects rigid-body contacts, but its rigid-body contacts are
@@ -7,13 +8,16 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial import KDTree
 
-from freecad_cloth.shared.collision import CollisionSurface
+from freecad_cloth.shared.Collision import CollisionSurface
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class MeshCollisionProjector:
@@ -27,11 +31,14 @@ class MeshCollisionProjector:
     ) -> None:
         """Prepare outward-facing triangles and a spatial index for the target mesh."""
         if not np.isfinite(clearance_mm) or clearance_mm <= 0.0:
-            raise ValueError("collision projection clearance must be positive and finite")
+            msg = "collision projection clearance must be positive and finite"
+            raise ValueError(msg)
         if len(surface.vertices) < 4 or len(surface.triangles) < 4:
-            raise ValueError("collision projection requires a closed triangle mesh")
+            msg = "collision projection requires a closed triangle mesh"
+            raise ValueError(msg)
         if candidate_count < 1:
-            raise ValueError("collision projection candidate count must be positive")
+            msg = "collision projection candidate count must be positive"
+            raise ValueError(msg)
 
         self.clearance_mm = float(clearance_mm)
         self._vertices = np.asarray(surface.vertices, dtype=np.float64)
@@ -62,20 +69,23 @@ class MeshCollisionProjector:
         edge_directions = np.where(directed_edges[:, 0] < directed_edges[:, 1], 1.0, -1.0)
         edge_balance = np.bincount(edge_group, weights=edge_directions)
         if not bool(np.all(edge_counts == 2) and np.all(edge_balance == 0.0)):
-            raise ValueError("collision projection requires a closed, consistently oriented mesh")
+            msg = "collision projection requires a closed, consistently oriented mesh"
+            raise ValueError(msg)
 
         triangles = self._vertices[self._triangles]
         a, b, c = triangles[:, 0], triangles[:, 1], triangles[:, 2]
         raw_normals = np.cross(b - a, c - a)
         lengths = np.linalg.norm(raw_normals, axis=1)
         if bool(np.any(lengths <= 1e-12)):
-            raise ValueError("collision projection mesh contains degenerate triangles")
+            msg = "collision projection mesh contains degenerate triangles"
+            raise ValueError(msg)
 
         signed_volume_times_six = float(
             np.einsum("ij,ij->i", a, np.cross(b, c)).sum(dtype=np.float64)
         )
         if abs(signed_volume_times_six) <= 1e-9:
-            raise ValueError("collision projection mesh has no reliable enclosed volume")
+            msg = "collision projection mesh has no reliable enclosed volume"
+            raise ValueError(msg)
         orientation = 1.0 if signed_volume_times_six > 0.0 else -1.0
         self._normals = raw_normals * (orientation / lengths[:, None])
         self._centroids = np.mean(triangles, axis=1)
@@ -98,12 +108,22 @@ class MeshCollisionProjector:
         Zero rows in the returned normal array mark positions that did not require a
         correction. Closest-triangle calculations are vectorized across cloth points
         and a local set of target faces, avoiding point-by-all-triangles matrices.
-        """
+
+        Args:
+            points_mm: Finite N-by-3 cloth particle positions in world millimetres.
+
+        Returns:
+            Corrected N-by-3 positions and N-by-3 outward contact normals.
+
+        Raises:
+            ValueError: If the input is not a finite array with shape (N, 3)."""
         points = np.asarray(points_mm, dtype=np.float64)
         if points.ndim != 2 or points.shape[1] != 3:
-            raise ValueError("collision projection points must have shape (N, 3)")
+            msg = "collision projection points must have shape (N, 3)"
+            raise ValueError(msg)
         if not bool(np.isfinite(points).all()):
-            raise ValueError("collision projection points must be finite")
+            msg = "collision projection points must be finite"
+            raise ValueError(msg)
         corrected = points.copy()
         contact_normals = np.zeros_like(points)
         if points.shape[0] == 0:
@@ -240,20 +260,36 @@ def project_stitched_pairs(
     needed, or use it unchanged when the projector reports that it is already
     safe. Groups beyond the capture distance and groups containing fixed
     particles remain unchanged, avoiding early capture of distant stitches.
-    """
+
+    Args:
+        projector: Target-surface projector used for residual contact correction.
+        positions_mm: Current finite cloth particle positions in world millimetres.
+        contact_normals: Per-particle contact normals from the preceding projection.
+        stitches: Particle-index pairs that must remain coincident after contact response.
+        pinned_indices: Particle indices whose positions must not be reconciled.
+
+    Returns:
+        Corrected positions and contact normals with eligible stitch groups reconciled.
+
+    Raises:
+        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
     if corrected.ndim != 2 or corrected.shape[1] != 3:
-        raise ValueError("stitched collision positions must have shape (N, 3)")
+        msg = "stitched collision positions must have shape (N, 3)"
+        raise ValueError(msg)
     if normals.shape != corrected.shape:
-        raise ValueError("stitched collision normals must match the position array")
+        msg = "stitched collision normals must match the position array"
+        raise ValueError(msg)
     if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
-        raise ValueError("stitched collision positions and normals must be finite")
+        msg = "stitched collision positions and normals must be finite"
+        raise ValueError(msg)
 
     particle_count = len(corrected)
     pinned = {int(index) for index in pinned_indices}
     if any(index < 0 or index >= particle_count for index in pinned):
-        raise ValueError("pinned index is outside the collision position array")
+        msg = "pinned index is outside the collision position array"
+        raise ValueError(msg)
 
     parent = list(range(particle_count))
     rank = [0] * particle_count
@@ -278,7 +314,8 @@ def project_stitched_pairs(
     for raw_left, raw_right in stitches:
         left, right = int(raw_left), int(raw_right)
         if not 0 <= left < particle_count or not 0 <= right < particle_count:
-            raise ValueError("stitch pair index is outside the collision position array")
+            msg = "stitch pair index is outside the collision position array"
+            raise ValueError(msg)
         if left == right:
             continue
         touched.add(left)

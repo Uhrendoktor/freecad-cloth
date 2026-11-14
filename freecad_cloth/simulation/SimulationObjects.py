@@ -1,18 +1,182 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-facing deterministic cloth simulation scene objects."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from functools import lru_cache
-from typing import TYPE_CHECKING
+from itertools import starmap
+from typing import TYPE_CHECKING, Protocol, Self, cast
+
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
+from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
 
 if TYPE_CHECKING:
+    from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+
+
+class _SimulationDocument(SimulationDocument, Protocol):
+    """Document API used by the simulation scene and its mesh outputs."""
+
+    def addObject(self, object_type: str, name: str) -> _SimulationFeature:
+        """Create a simulation feature in the owning document.
+
+        Args:
+            object_type: Native FreeCAD object type identifier.
+            name: Stable internal object name.
+
+        Returns:
+            The created FreeCAD feature.
+        """
+        ...
+
+    def getObject(self, object_name: str) -> _SimulationFeature | None:
+        """Look up a simulation feature by internal name.
+
+        Args:
+            object_name: Stable internal object name.
+
+        Returns:
+            The matching feature or None when it is absent.
+        """
+        ...
+
+    def recompute(self) -> None:
+        """Recompute the document after changing persistent simulation state."""
+        ...
+
+
+class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
+    """Shared native document identity and property operations for scene features."""
+
+    @property
+    def Document(self) -> _SimulationDocument | None:
+        """Return the document that owns this persistent feature."""
+        ...
+
+    def addProperty(self, type_name: str, name: str, group: str) -> Self:
+        """Register one persisted FreeCAD property and return this feature.
+
+        Args:
+            type_name: Native FreeCAD property type identifier.
+            name: Persisted property name to register.
+            group: Property-editor group for the new property.
+
+        Returns:
+            The same feature after registering the requested property.
+        """
+        ...
+
+
+class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent pattern-piece identity consumed by simulation scene construction."""
+
+    PatternType: str
+    PieceId: str
+
+
+class _NativeMeshVector(Protocol):
+    """Read-only coordinate properties exposed by native FreeCAD vectors."""
+
+    @property
+    def x(self) -> float:
+        """Return the X coordinate in millimetres."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """Return the Y coordinate in millimetres."""
+        ...
+
+    @property
+    def z(self) -> float:
+        """Return the Z coordinate in millimetres."""
+        ...
+
+
+class _MeshBuffer(Protocol):
+    """Mutable FreeCAD mesh buffer retained while panel topology stays fixed."""
+
+    @property
+    def CountPoints(self) -> int:
+        """Return the number of vertices in the mutable native mesh."""
+        ...
+
+    @property
+    def CountFacets(self) -> int:
+        """Return the number of facets in the mutable native mesh."""
+        ...
+
+    def setPoint(self, index: int, point: _NativeMeshVector) -> None:
+        """Replace one indexed vertex in the cached mesh buffer."""
+        ...
+
+    def addFacets(
+        self,
+        facets: tuple[Sequence[_NativeMeshVector], Sequence[Sequence[int]]],
+        _check_manifold: bool = False,
+    ) -> None:
+        """Populate the mutable buffer with its shared vertices and face indices."""
+        ...
+
+
+class _SimulationMeshFeature(_MeshObjectKey, Protocol):
+    """FreeCAD mesh feature written by the simulation visualization adapter."""
+
+    Mesh: _MeshBuffer
+    ClothMeshType: str
+
+
+class _SimulationFeature(_MeshObjectKey, Protocol):
+    """Feature properties created and persisted by the simulation factory."""
+
+    Label: str
+    ClothMeshType: str
+    Iterations: int
+    TimeStep: float
+    Steps: int
+    StartHeight: float
+    StitchSamples: int
+    GravityX: float
+    GravityY: float
+    GravityZ: float
+    ClothPieces: Sequence[_PatternPieceDocumentObject]
+    DrapePanels: Sequence[_SimulationMeshFeature]
+    DrapeTarget: _DrapeTargetFeature | None
+    PinMode: str | list[str]
+    PinSelection: list[str]
+    SeamSelection: list[str]
+    SimulatedTime: float
+    ParticleCount: int
+    FiniteState: bool
+    CollisionX: float
+    CollisionY: float
+    CollisionZ: float
+    CollisionRadius: float
+    Proxy: SimulationProxy
+
 
 PIN_MODE_NAMES = ("Automatic", "None", "Explicit")
 
 
-def _mesh_object(doc, name, label):
-    obj = doc.addObject("Mesh::Feature", name)
+def _mesh_object(
+    doc: _SimulationDocument,
+    name: str,
+    label: str,
+) -> _SimulationMeshFeature:
+    """Create one persistent FreeCAD mesh feature for simulation visualization.
+
+    Args:
+        doc: FreeCAD document that will own the mesh feature.
+        name: Stable document object name.
+        label: User-visible feature label.
+
+    Returns:
+        New Mesh::Feature with its ClothMeshType property initialized.
+    """
+    obj = cast("_SimulationMeshFeature", doc.addObject("Mesh::Feature", name))
     obj.Label = label
     obj.addProperty(
         "App::PropertyString", "ClothMeshType", "Simulation"
@@ -35,10 +199,18 @@ def _indexed_mesh_topology(
 # indexed topology alongside a separately owned mutable buffer: obj.Mesh exposes
 # an immutable property view, so calling setPoint on that view raises ReferenceError.
 _MESH_OBJECT_TOPOLOGY: dict[tuple[str, str], tuple[tuple[int, int, int], ...]] = {}
-_MESH_OBJECT_BUFFERS: dict[tuple[str, str], object] = {}
+_MESH_OBJECT_BUFFERS: dict[tuple[str, str], _MeshBuffer] = {}
 
 
-def _mesh_object_key(obj: object) -> tuple[str, str]:
+def _mesh_object_key(obj: _MeshObjectKey) -> tuple[str, str]:
+    """Return the stable document/object key used by mutable mesh-buffer caches.
+
+    Args:
+        obj: FreeCAD document object whose Mesh buffer is cached separately.
+
+    Returns:
+        Document name and object name, or a process-local fallback for detached objects.
+    """
     document = getattr(obj, "Document", None)
     document_name = getattr(document, "Name", None)
     object_name = getattr(obj, "Name", None)
@@ -48,6 +220,16 @@ def _mesh_object_key(obj: object) -> tuple[str, str]:
 
 
 def _write_mesh(obj, positions, triangles):
+    """Update a FreeCAD mesh feature while reusing its separately owned mutable buffer.
+
+    Args:
+        obj: Mesh::Feature receiving the newly generated mesh.
+        positions: Ordered XYZ vertex coordinates in document space.
+        triangles: Indexed triangle faces referencing the supplied positions.
+
+    The indexed topology is cached by document/object identity. Empty face sets
+    clear both the document mesh and its auxiliary cache entries.
+    """
     import FreeCAD as App
     import Mesh
 
@@ -95,7 +277,7 @@ def _write_mesh(obj, positions, triangles):
 
     # The face indices originate from validated panel topology. Avoid repeating
     # the constructor's manifold check on every transient preview mesh rebuild.
-    buffer = Mesh.Mesh()
+    buffer = cast("_MeshBuffer", Mesh.Mesh())
     buffer.addFacets((vertices, list(faces)), False)
     obj.Mesh = buffer
     _MESH_OBJECT_BUFFERS[object_key] = buffer
@@ -108,6 +290,15 @@ def _write_mesh(obj, positions, triangles):
 
 
 def _write_grid_mesh(obj, positions, indices, nx, ny):
+    """Triangulate a structured grid and write its faces to a FreeCAD mesh object.
+
+    Args:
+        obj: Mesh::Feature receiving the generated grid surface.
+        positions: XYZ coordinates stored in the grid's vertex order.
+        indices: Flat grid-index array mapping cell coordinates to mesh vertices.
+        nx: Number of grid vertices along the horizontal axis.
+        ny: Number of grid vertices along the vertical axis.
+    """
     triangles = []
     for j in range(ny - 1):
         for i in range(nx - 1):
@@ -120,6 +311,15 @@ def _write_grid_mesh(obj, positions, indices, nx, ny):
 
 
 def _parse_pair_list(values, particle_count=None):
+    """Parse serialized particle-index pairs and discard malformed/out-of-range values.
+
+    Args:
+        values: Iterable of strings containing two integer indices per entry.
+        particle_count: Optional upper bound used to reject invalid particle indices.
+
+    Returns:
+        Deduplicated immutable pairs in their first-seen order.
+    """
     pairs = []
     for value in values or ():
         parts = [p.strip() for p in str(value).replace(",", "-").split("-") if p.strip()]
@@ -134,6 +334,15 @@ def _parse_pair_list(values, particle_count=None):
 
 
 def _parse_int_list(values, particle_count=None):
+    """Parse serialized integer selections and keep valid particle indices.
+
+    Args:
+        values: Iterable of strings containing delimited integer values.
+        particle_count: Optional exclusive upper bound for accepted indices.
+
+    Returns:
+        Deduplicated immutable indices in their first-seen order.
+    """
     result = []
     for value in values or ():
         for part in str(value).replace(";", ",").split(","):
@@ -147,13 +356,29 @@ def _parse_int_list(values, particle_count=None):
 
 
 def normalize_pin_mode(value):
-    """Return a supported persistent pinning mode, preserving legacy defaults."""
+    """Return a supported pinning mode, defaulting invalid values to Automatic.
+
+    Args:
+        value: Authored pin-mode value read from the persistent simulation feature.
+
+    Returns:
+        A supported pinning mode name, or Automatic when the value is invalid.
+    """
     mode = str(value or "Automatic").strip()
     return mode if mode in PIN_MODE_NAMES else "Automatic"
 
 
 def resolve_pin_indices(obj, particle_count, automatic_default=()):
-    """Resolve the solver pin indices from the persistent pinning mode."""
+    """Resolve the solver pin indices from the persistent pinning mode.
+
+    Args:
+        obj: Persistent simulation feature containing the selected pin mode and indices.
+        particle_count: Number of solver particles available for pin selection.
+        automatic_default: Fallback particle indices used by Automatic mode.
+
+    Returns:
+        Unique in-range solver particle indices selected by the active pin mode.
+    """
     mode = normalize_pin_mode(getattr(obj, "PinMode", "Automatic"))
     explicit = _parse_int_list(getattr(obj, "PinSelection", ()), particle_count)
     if mode == "None":
@@ -211,6 +436,16 @@ def _simulation_source_signature(obj, pieces):
 
 
 def _piece_mesh(piece, start_height, piece_ir=None):
+    """Triangulate one PatternPiece and place its mesh vertices in world coordinates.
+
+    Args:
+        piece: Native PatternPiece document object supplying placement and geometry.
+        start_height: Initial Z elevation used for the panel before placement.
+        piece_ir: Optional resolved PatternIR piece reused by the caller.
+
+    Returns:
+        World-space vertices, indexed triangles, and semantic boundary vertex chains.
+    """
     import FreeCAD as App
 
     from freecad_cloth.pattern.PatternMesh import triangulate
@@ -230,97 +465,27 @@ def _piece_mesh(piece, start_height, piece_ir=None):
             point = placement.multVec(point)
         vertices.append((float(point.x), float(point.y), float(point.z)))
 
-    boundary = tuple(int(index) for index in mesh.boundary_vertex_indices)
-    segment_ids = tuple(str(value) for value in mesh.boundary_edge_segment_ids)
-    if not segment_ids:
-        raise ValueError("pattern mesh semantic boundary provenance is missing")
-    if len(segment_ids) != len(boundary):
-        raise ValueError("pattern mesh boundary provenance length does not match boundary vertices")
-
-    edge_pairs = {}
-    for index, segment_id in enumerate(segment_ids):
-        raw_key = str(segment_id)
-        base = next(
-            (
-                str(boundary_ir.id)
-                for boundary_ir in piece_ir.boundaries
-                if raw_key == str(boundary_ir.id)
-                or raw_key.startswith(str(boundary_ir.id) + "::sub::")
-            ),
-            None,
-        )
-        if base is None:
-            raise ValueError("pattern mesh boundary provenance contains an unknown semantic edge")
-        pair = (boundary[index], boundary[(index + 1) % len(boundary)])
-        edge_pairs.setdefault(base, []).append(pair)
-
-    by_id = {}
-    mesh_vertices = tuple(mesh.vertices)
-    for boundary_ir in piece_ir.boundaries:
-        edge_id = str(boundary_ir.id)
-        pairs = edge_pairs.get(edge_id)
-        if not pairs:
-            raise ValueError(f"pattern mesh has no boundary provenance for semantic edge {edge_id}")
-        vertex_indices = {vertex for pair in pairs for vertex in pair}
-        samples = tuple(tuple(point[:2]) for point in boundary_ir.samples)
-        ordered = tuple(
-            sorted(
-                vertex_indices,
-                key=lambda vertex: _polyline_parameter(mesh_vertices[vertex], samples),
-            )
-        )
-        if len(ordered) < 2:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} has too few boundary vertices")
-        actual_pairs = {frozenset(pair) for pair in pairs}
-        ordered_pairs = {
-            frozenset((left, right)) for left, right in zip(ordered, ordered[1:], strict=False)
-        }
-        if ordered_pairs != actual_pairs:
-            raise ValueError(f"pattern mesh semantic edge {edge_id} boundary chain is disconnected")
-        by_id[edge_id] = ordered
-
+    chains = semantic_boundary_chains(mesh, piece_ir, source_name="pattern mesh")
     return (
         vertices,
         mesh.triangles,
-        tuple(tuple(by_id[str(boundary_ir.id)]) for boundary_ir in piece_ir.boundaries),
+        chains,
     )
 
 
-def _polyline_parameter(point, polyline):
-    if len(polyline) < 2:
-        return 0.0
-    total = 0.0
-    spans = []
-    for start, end in zip(polyline, polyline[1:], strict=False):
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        length = (dx * dx + dy * dy) ** 0.5
-        spans.append((total, start, end, length))
-        total += length
-    if total <= 1e-12:
-        return 0.0
-    best = None
-    for offset, start, end, length in spans:
-        if length <= 1e-12:
-            continue
-        dx = float(end[0]) - float(start[0])
-        dy = float(end[1]) - float(start[1])
-        t = (
-            (float(point[0]) - float(start[0])) * dx + (float(point[1]) - float(start[1])) * dy
-        ) / (length * length)
-        t = max(0.0, min(1.0, t))
-        px = float(start[0]) + t * dx
-        py = float(start[1]) + t * dy
-        distance = (float(point[0]) - px) ** 2 + (float(point[1]) - py) ** 2
-        candidate = (distance, offset + t * length)
-        best = candidate if best is None or candidate < best else best
-    return best[1] / total if best else 0.0
-
-
 def _mesh_constraints(positions, triangles):
+    """Build one distance constraint for every unique undirected triangle edge.
+
+    Args:
+        positions: Ordered particle XYZ coordinates for the combined cloth mesh.
+        triangles: Indexed triangle faces defining the surface topology.
+
+    Returns:
+        Distance constraints with rest lengths measured from the initial positions.
+    """
     from freecad_cloth.simulation.ClothSolver import DistanceConstraint, Particle, distance
 
-    particles = [Particle(*p) for p in positions]
+    particles = list(starmap(Particle, positions))
     edges = set()
     constraints = []
     for a, b, c in triangles:
@@ -335,7 +500,8 @@ def _mesh_constraints(positions, triangles):
 
 def _sample_boundary(values, start, end, count, points=None):
     if len(values) < 2:
-        raise ValueError("seam edge requires at least two boundary vertices")
+        msg = "seam edge requires at least two boundary vertices"
+        raise ValueError(msg)
     if points is not None:
         from freecad_cloth.sewing.SewingCorrespondence import arc_length_vertex_indices
 
@@ -400,34 +566,35 @@ def _boundary_vertices(piece_ir, edge_id, panel_data):
     for boundary, values in zip(piece_ir.boundaries, panel_data["boundary_edges"], strict=False):
         if str(boundary.id) == str(edge_id):
             return tuple(values)
-    raise ValueError(f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}")
+    msg = f"PatternIR semantic seam edge {edge_id} is missing from piece {piece_ir.id}"
+    raise ValueError(msg)
 
 
-def _collision_for_scene(obj):
+def _collision_for_scene(obj: _SimulationFeature):
     """Resolve collision strictly from the persistent DrapeTarget."""
-    target = getattr(obj, "DrapeTarget", None)
-    if target is not None:
-        from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+    target = obj.DrapeTarget
+    if target is None:
+        return None
 
-        source = getattr(target, "SourceObject", None)
-        managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or str(
-            getattr(source, "Name", "")
-        ) in {"ClothAvatar", "HumanoidAvatar"}
-        if managed:
-            return collision_surface(
-                source,
-                float(getattr(target, "CollisionDeflection", 1.0)),
-                float(getattr(target, "CollisionThickness", 0.0)),
-            )
+    from freecad_cloth.simulation.DrapeTarget import collision_surface, target_status
+
+    source = target.SourceObject
+    if source is None:
+        raise RuntimeError(target_status(target)["message"])
+
+    managed = str(getattr(source, "AvatarMeshProvider", "")) == "makehuman-hm08" or source.Name in {
+        "ClothAvatar",
+        "HumanoidAvatar",
+    }
+    if not managed:
         status = target_status(target)
         if status["state"] in ("stale", "unbuilt", "unassigned", "invalid", "missing"):
             raise RuntimeError(status["message"])
-        return collision_surface(
-            source,
-            float(getattr(target, "CollisionDeflection", 1.0)),
-            float(getattr(target, "CollisionThickness", 0.0)),
-        )
-    return None
+    return collision_surface(
+        source,
+        float(target.CollisionDeflection),
+        float(target.CollisionThickness),
+    )
 
 
 def _ensure_state_properties(obj):
@@ -493,7 +660,14 @@ class SimulationProxy:
         self.collision_surface = None
 
     def execute(self, obj):
-        """Recompute the FreeCAD object from its current source properties."""
+        """Recompute the FreeCAD object from its current source properties.
+
+        Args:
+            obj: Persistent simulation feature whose source state is recomputed.
+
+        Raises:
+            RuntimeError: If rebuilding the scene does not initialize a solver backend.
+        """
         _ensure_state_properties(obj)
         target = getattr(obj, "DrapeTarget", None)
         if target is not None:
@@ -518,7 +692,8 @@ class SimulationProxy:
                 self._build(obj, signature)
             backend = self.backend
             if backend is None:
-                raise RuntimeError("simulation backend was not initialized after rebuild")
+                msg = "simulation backend was not initialized after rebuild"
+                raise RuntimeError(msg)
             steps = int(obj.Steps)
             if steps > self.last_steps:
                 for _ in range(steps - self.last_steps):
@@ -545,6 +720,13 @@ class SimulationProxy:
         return
 
     def _build(self, obj, signature=None, piece_mesh=None):
+        """Build a pattern-driven scene when pieces exist, otherwise the demo cloth.
+
+        Args:
+            obj: Persistent simulation feature containing piece and scene properties.
+            signature: Optional precomputed source signature for cache invalidation.
+            piece_mesh: Optional injected piece-mesh builder for tests and host adapters.
+        """
         pieces = [
             p
             for p in getattr(obj, "ClothPieces", ())
@@ -556,6 +738,17 @@ class SimulationProxy:
             self._build_demo(obj)
 
     def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+        """Build the particle system and visualization panels from native PatternIR.
+
+        Args:
+            obj: Persistent simulation feature receiving runtime state and panels.
+            pieces: PatternPiece document objects included in the simulation scene.
+            signature: Source signature used to detect changes to authoritative inputs.
+            piece_mesh: Optional callback that triangulates each resolved piece.
+
+        Raises:
+            ValueError: If pattern topology or seam correspondence cannot be resolved.
+        """
         from freecad_cloth.simulation.ClothSolver import ClothSystem, Particle
         from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
@@ -568,7 +761,7 @@ class SimulationProxy:
         positions = []
         triangles_global = []
         panel_data = {}
-        panels = list(getattr(obj, "DrapePanels", ()))
+        panels = list(obj.DrapePanels)
         for index, piece in enumerate(pieces):
             piece_ir = resolved.piece(str(piece.PieceId))
             vertices, triangles, boundary = mesh_builder(
@@ -602,7 +795,7 @@ class SimulationProxy:
         obj.DrapePanels = panels[: len(pieces)]
         panels = list(obj.DrapePanels)
 
-        particles = [Particle(*p) for p in positions]
+        particles = list(starmap(Particle, positions))
         system = ClothSystem(particles, _mesh_constraints(positions, triangles_global))
         seam_pairs, seam_pair_records = _seam_pair_records(
             resolved.pattern,
@@ -656,6 +849,11 @@ class SimulationProxy:
             _write_mesh(panel, self.backend.positions(), self.panel_triangles[panel.Name])
 
     def _build_demo(self, obj):
+        """Build the two-panel demonstration cloth used without authored PatternPieces.
+
+        Args:
+            obj: Persistent simulation feature receiving the demo particle system.
+        """
         from freecad_cloth.simulation.ClothSolver import ClothSystem
         from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
             PositionBasedDynamicsBackend,
@@ -720,14 +918,35 @@ class SimulationProxy:
         ):
             _write_grid_mesh(panel, positions, self.panel_indices[key], nx, ny)
 
-    def _ensure_panel(self, doc, index):
+    def _ensure_panel(
+        self,
+        doc: _SimulationDocument,
+        index: int,
+    ) -> _SimulationMeshFeature:
+        """Return the existing panel feature or create its persistent replacement.
+
+        Args:
+            doc: FreeCAD document that owns the simulation output panels.
+            index: Zero-based panel index used to choose the persistent object name.
+
+        Returns:
+            The existing panel feature or the newly created panel feature.
+        """
         names = ["DrapePanelA", "DrapePanelB"]
         name = names[index] if index < len(names) else f"DrapePanel{index + 1}"
         obj = doc.getObject(name)
-        return obj if obj is not None else _mesh_object(doc, name, name)
+        return (
+            cast("_SimulationMeshFeature", obj)
+            if obj is not None
+            else _mesh_object(doc, name, name)
+        )
 
     def reset(self, obj):
-        """Reset the runtime state to its initial values."""
+        """Reset the runtime state to its initial values.
+
+        Args:
+            obj: Persistent simulation feature receiving the reset state.
+        """
         if self.backend is not None:
             self.backend.reset()
         obj.Steps = 0
@@ -737,64 +956,21 @@ class SimulationProxy:
         self.last_steps = 0
 
 
-def create_avatar_collision(doc, source_obj=None, thickness=2.0, deflection=1.0):
-    """Create a target-neutral compatibility collision proxy."""
-    avatar = doc.getObject("AvatarCollision")
-    if avatar is None:
-        avatar = doc.addObject("App::FeaturePython", "AvatarCollision")
-        avatar.Label = "Avatar Collision Proxy (Compatibility)"
-        avatar.addProperty("App::PropertyString", "CollisionType", "Simulation")
-        avatar.addProperty("App::PropertyLink", "SourceObject", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionThickness", "Simulation")
-        avatar.addProperty("App::PropertyFloat", "CollisionDeflection", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionVertexCount", "Simulation")
-        avatar.addProperty("App::PropertyInteger", "CollisionTriangleCount", "Simulation")
-    avatar.SourceObject = source_obj
-    avatar.CollisionType = "MeshSurface" if source_obj is not None else "Unassigned"
-    avatar.CollisionThickness = float(thickness)
-    avatar.CollisionDeflection = float(deflection)
-    if source_obj is not None:
-        from freecad_cloth.simulation.DrapeTarget import collision_surface
+def create_simulation_scene(
+    doc: _SimulationDocument,
+    build: bool = True,
+) -> _SimulationFeature:
+    """Create the persistent simulation feature and its output mesh objects.
 
-        surface = collision_surface(source_obj, deflection, thickness)
-        avatar.CollisionVertexCount = len(surface.vertices)
-        avatar.CollisionTriangleCount = len(surface.triangles)
-    else:
-        avatar.CollisionVertexCount = 0
-        avatar.CollisionTriangleCount = 0
-    return avatar
+    Args:
+        doc: FreeCAD document that owns the simulation and generated panels.
+        build: Whether to initialize the deterministic solver state immediately.
 
-
-def set_avatar_collision_source(scene, source_obj, thickness=2.0, deflection=1.0):
-    """Set an avatar collision proxy without coupling Simulation to Avatar."""
-    from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
-
-    doc = scene.Document
-    target = getattr(scene, "DrapeTarget", None)
-    if target is None:
-        target = doc.getObject("DrapeTarget")
-    target_type = (
-        "Mannequin"
-        if str(getattr(source_obj, "AvatarType", "")) == "ClothAvatar"
-        else "FreeCAD Geometry"
-    )
-    if target is None:
-        target = create_drape_target(doc, source_obj, target_type, deflection, thickness)
-    else:
-        target.CollisionThickness = float(thickness)
-        target.CollisionDeflection = float(deflection)
-        assign_drape_target(target, source_obj, target_type)
-    proxy = create_avatar_collision(doc, source_obj, thickness, deflection)
-    scene.AvatarProxy = proxy
-    if "DrapeTarget" in set(getattr(scene, "PropertiesList", ()) or ()):
-        scene.DrapeTarget = target
-    doc.recompute()
-    return proxy
-
-
-def create_simulation_scene(doc, build=True):
-    """Create and return the requested simulation scene object."""
-    scene = doc.addObject("App::FeaturePython", "ClothSimulation")
+    Returns:
+        The created simulation feature with its panel links and proxy installed.
+    """
+    typed_doc = doc
+    scene = typed_doc.addObject("App::FeaturePython", "ClothSimulation")
     scene.Label = "Cloth Simulation"
     scene.addProperty("App::PropertyInteger", "Iterations", "Solver").Iterations = 8
     scene.addProperty("App::PropertyFloat", "TimeStep", "Solver").TimeStep = 1 / 60
@@ -807,12 +983,6 @@ def create_simulation_scene(doc, build=True):
     scene.addProperty("App::PropertyLinkListGlobal", "ClothPieces", "Selection")
     scene.addProperty("App::PropertyLinkListGlobal", "DrapePanels", "Output")
     scene.addProperty("App::PropertyLinkGlobal", "DrapeTarget", "Selection")
-    scene.addProperty(
-        "App::PropertyLinkGlobal",
-        "AvatarProxy",
-        "Draping",
-        "Avatar source used by fitting workflows",
-    )
     scene.addProperty("App::PropertyEnumeration", "PinMode", "Quality")
     scene.PinMode = list(PIN_MODE_NAMES)
     scene.PinMode = "Automatic"
@@ -829,11 +999,11 @@ def create_simulation_scene(doc, build=True):
     scene.Proxy = proxy
     from freecad_cloth.common.GarmentDocument import link_garment_object
 
-    link_garment_object(scene, "Simulation", doc)
-    panel_a = _mesh_object(doc, "DrapePanelA", "Drape Panel A")
-    panel_b = _mesh_object(doc, "DrapePanelB", "Drape Panel B")
-    link_garment_object(panel_a, "SimulationOutput", doc)
-    link_garment_object(panel_b, "SimulationOutput", doc)
+    link_garment_object(scene, "Simulation", typed_doc)
+    panel_a = _mesh_object(typed_doc, "DrapePanelA", "Drape Panel A")
+    panel_b = _mesh_object(typed_doc, "DrapePanelB", "Drape Panel B")
+    link_garment_object(panel_a, "SimulationOutput", typed_doc)
+    link_garment_object(panel_b, "SimulationOutput", typed_doc)
     scene.DrapePanels = [panel_a, panel_b]
     if build:
         proxy._build(scene, ())
@@ -841,23 +1011,45 @@ def create_simulation_scene(doc, build=True):
 
 
 def step_scene(scene, steps=1):
-    """Provide the public step scene operation."""
+    """Advance a persisted simulation scene and recompute its owning document.
+
+    Args:
+        scene: Persistent simulation feature whose solver state is advanced.
+        steps: Number of solver steps added to the stored step counter.
+
+    Returns:
+        The same simulation feature after its document has recomputed.
+    """
     scene.Steps = int(scene.Steps) + int(steps)
     scene.Document.recompute()
     return scene
 
 
-def reset_scene(scene):
-    """Provide the public reset scene operation."""
-    proxy = getattr(scene, "Proxy", None)
-    if proxy is not None and hasattr(proxy, "reset"):
-        proxy.reset(scene)
+def reset_scene(scene: SimulationScene) -> SimulationScene:
+    """Reset the runtime state and recompute the owning document.
+
+    Args:
+        scene: Simulation scene whose runtime state is reset.
+
+    Returns:
+        The same simulation scene after its document has recomputed.
+    """
+    reset = getattr(scene.Proxy, "reset", None)
+    if callable(reset):
+        reset(scene)
     scene.Document.recompute()
     return scene
 
 
-def create_drape_scene(doc):
-    """Create and return the requested drape scene object."""
+def create_drape_scene(doc: _SimulationDocument) -> _SimulationFeature:
+    """Create and return the requested drape scene object.
+
+    Args:
+        doc: FreeCAD document that will own the persistent drape scene.
+
+    Returns:
+        The simulation feature after its initial preview steps have been applied.
+    """
     scene = create_simulation_scene(doc)
     step_scene(scene, 30)
     return scene
