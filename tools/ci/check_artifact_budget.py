@@ -18,6 +18,38 @@ MAX_ARTIFACT_BYTES = 10_000_000
 PAGE_SIZE = 100
 
 
+def latest_artifacts_by_name(
+    artifacts: Iterable[Mapping[str, object]],
+) -> list[Mapping[str, object]]:
+    """Keep the newest upload for each logical artifact name across run attempts."""
+    latest: dict[str, Mapping[str, object]] = {}
+    for artifact in artifacts:
+        name = artifact.get("name")
+        if not isinstance(name, str) or not name:
+            raise ValueError(f"artifact has invalid name: {artifact!r}")
+        previous = latest.get(name)
+        if previous is None:
+            latest[name] = artifact
+            continue
+
+        current_created = artifact.get("created_at")
+        previous_created = previous.get("created_at")
+        current_id = artifact.get("id")
+        previous_id = previous.get("id")
+        if (
+            not isinstance(current_created, str)
+            or not isinstance(previous_created, str)
+            or not isinstance(current_id, int)
+            or isinstance(current_id, bool)
+            or not isinstance(previous_id, int)
+            or isinstance(previous_id, bool)
+        ):
+            raise ValueError(f"duplicate artifact name {name!r} lacks creation time or artifact ID")
+        if (current_created, current_id) > (previous_created, previous_id):
+            latest[name] = artifact
+    return [latest[name] for name in sorted(latest)]
+
+
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     """Return the accumulated stored size of workflow artifacts in bytes."""
     total = 0
@@ -90,9 +122,13 @@ def main() -> int:
         print(f"GITHUB_RUN_ID is not an integer: {run_id_text!r}", file=sys.stderr)
         return 2
 
-    artifacts = fetch_run_artifacts(repository, run_id, token)
+    uploads = fetch_run_artifacts(repository, run_id, token)
+    artifacts = latest_artifacts_by_name(uploads)
     total = accumulated_size(artifacts)
-    print(f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}")
+    print(
+        f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes "
+        f"artifacts={len(artifacts)} uploads={len(uploads)}"
+    )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
         print(
             f"artifact={artifact.get('name', '<unnamed>')} size={artifact['size_in_bytes']} bytes"
