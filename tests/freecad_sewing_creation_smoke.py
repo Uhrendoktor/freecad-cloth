@@ -981,7 +981,9 @@ try:
         b_line_length,
         curve_span=50.0,
         curve_height=120.0,
-        x_offset=140.0,
+        # The interpolated B-spline extends beyond its endpoint X range.
+        # Keep this visual/selection fixture clear of CurvedA with margin.
+        x_offset=200.0,
     )
     doc.recompute()
     assert curved_a.Shape.isValid() and not curved_a.Shape.isNull(), (
@@ -989,6 +991,21 @@ try:
     )
     assert curved_b.Shape.isValid() and not curved_b.Shape.isNull(), (
         "CurvedB must be a valid, non-self-intersecting pattern face"
+    )
+    record(
+        "curved-fixture-bounds="
+        + repr(
+            {
+                "a_x": (
+                    float(curved_a.Shape.BoundBox.XMin),
+                    float(curved_a.Shape.BoundBox.XMax),
+                ),
+                "b_x": (
+                    float(curved_b.Shape.BoundBox.XMin),
+                    float(curved_b.Shape.BoundBox.XMax),
+                ),
+            }
+        )
     )
     assert float(curved_a.Shape.BoundBox.XMax) < float(curved_b.Shape.BoundBox.XMin), (
         "curved seam-overlay fixtures must be spatially separated"
