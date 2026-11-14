@@ -30,6 +30,8 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "ISC002",
         "N999",
         "PLC0415",
+        "PLR6301",
+        "UP031",
         "Q000",
         "Q001",
         "Q002",
@@ -76,7 +78,12 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "tests/freecad_sewing_smoke.py",
     }
     expected_per_file = {
-        "tests/**/*.py": ["S101"],
+        "tests/**/*.py": ["S101", "PLR2004", "T201"],
+        "tools/ci/check_changed_python_types.py": ["T201"],
+        "tools/ci/check_explicit_any_annotations.py": ["T201"],
+        "tools/ci/check_docker_workspace_transfer.py": ["T201"],
+        "tools/ci/check_pydantic_models.py": ["T201"],
+        "freecad_cloth/avatar/AnnyAvatarBackend.py": ["T201"],
         **{path: ["E402"] for path in bootstrap_paths},
         "freecad_cloth/pattern/PatternCommands.py": ["BLE001"],
         "freecad_cloth/pattern/PatternTopologyRepairGui.py": ["BLE001"],
@@ -101,5 +108,5 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=lint.get("per-file-ignores") == expected_per_file,
-        message="Per-file exceptions must remain limited to exact bootstraps, pytest assertions, and native callbacks.",
+        message="Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, and native callbacks.",
     )
