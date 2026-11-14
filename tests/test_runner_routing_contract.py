@@ -67,6 +67,29 @@ def test_pull_requests_are_hosted_only():
         assert "self-hosted" in block
 
 
+def test_local_runner_readiness_checks_docker_workspace_bind_mount() -> None:
+    source = WORKFLOW.read_text(encoding="utf-8")
+    readiness = _job_block(source, "local_runner_readiness")
+    assert "docker info" in readiness
+    assert "busybox:1.36.1" in readiness
+    assert "type=bind,source=${probe_dir},target=/probe" in readiness
+    assert "docker-workspace-bind-mount=ready" in readiness
+
+
+def test_watchdog_matches_reusable_workflow_prefixed_readiness_job() -> None:
+    from tools.ci.runner_watchdog import find_runner_readiness_job
+
+    prefixed = {
+        "name": "Publish main documentation assets / Selected runner readiness",
+        "status": "completed",
+        "conclusion": "success",
+    }
+    assert find_runner_readiness_job([prefixed]) == prefixed
+    assert find_runner_readiness_job([{"name": "Selected runner readiness"}]) == {
+        "name": "Selected runner readiness"
+    }
+
+
 def test_main_publication_uses_main_only_trigger_and_mode_aware_fallback() -> None:
     workflow_dir = ROOT / ".github" / "workflows"
     publication = (workflow_dir / "main-publication.yml").read_text(encoding="utf-8")
@@ -119,6 +142,8 @@ def test_watchdog_dispatches_hosted_fallback_only_for_trusted_runs():
 
     script = (ROOT / "tools" / "ci" / "runner_watchdog.py").read_text(encoding="utf-8")
     assert "time.monotonic() + 45" in script
+    assert "find_runner_readiness_job(jobs)" in script
+    assert 'if conclusion == "success":' in script
     assert 'os.environ.get("FALLBACK_WORKFLOW", "commit-validation.yml")' in script
     assert '"runner_mode=hosted"' in script
     assert 'f"fallback_source_run={run_id}"' in script
