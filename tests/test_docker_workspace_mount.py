@@ -31,9 +31,7 @@ def test_probe_pulls_its_small_image_and_checks_bidirectional_access(
             assert (source / "host-marker").read_text(encoding="utf-8") == (
                 "runner-bind-mount-test-run"
             )
-            (source / "container-marker").write_text(
-                "runner-bind-mount-test-run", encoding="utf-8"
-            )
+            (source / "container-marker").write_text("runner-bind-mount-test-run", encoding="utf-8")
         return 0
 
     check_docker_workspace_mount.validate_workspace_mount(
