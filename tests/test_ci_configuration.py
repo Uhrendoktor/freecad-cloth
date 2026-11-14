@@ -131,8 +131,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "      - name: Independently validate realtime performance metrics", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
-    assert workflow.count("timeout-seconds:") == 5, (
-        'Expected workflow.count("timeout-seconds:") == 4.'
+    assert workflow.count("timeout-seconds:") == 6, (
+        'Expected workflow.count("timeout-seconds:") == 6.'
     )
     assert workflow.count('timeout-seconds: "360"') == 4, (
         "Expected workflow.count('timeout-seconds: \"360\"') == 3."
@@ -206,6 +206,15 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner, (
         'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner.'
     )
+    assert (
+        'runner_scope="${RUNNER_NAME:-runner}|${RUNNER_TEMP:-}|${GITHUB_WORKSPACE:-}"'
+        in container_action
+    )
+    assert (
+        'runner_key="$(printf %s "$runner_scope" | sha256sum | cut -c1-12)"'
+        in container_action
+    )
+    assert 'execution_key="freecad-$run_id-$run_attempt-$job_key-$runner_key"' in container_action
     assert "420" not in container_action, 'Expected "420" not in container_action.'
     assert "--no-deps -e ." in action, 'Expected "--no-deps -e ." in action.'
     assert '"numpy>=1.26,<3"' in action, "Expected '\"numpy>=1.26,<3\"' in action."
