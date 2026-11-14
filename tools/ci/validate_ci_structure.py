@@ -9,6 +9,7 @@ import os
 import re
 import sys
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
 
 if __package__:
@@ -121,7 +122,7 @@ def missing_ruff_commands(workflow_text: str) -> tuple[str, ...]:
     return missing_typecheck_commands(workflow_text)
 
 
-def _pyright_path_is_included(path: str, include: list[str]) -> bool:
+def _pyright_path_is_included(path: str, include: Sequence[str]) -> bool:
     """Return whether a source path is covered by one include entry.
 
     Args:
@@ -143,7 +144,7 @@ def _pyright_path_is_included(path: str, include: list[str]) -> bool:
     return False
 
 
-def _pyright_path_is_excluded(path: str, exclude: list[str]) -> bool:
+def _pyright_path_is_excluded(path: str, exclude: Sequence[str]) -> bool:
     """Return whether a source path is covered by a declared exclusion pattern.
 
     Args:
