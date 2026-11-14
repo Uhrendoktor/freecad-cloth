@@ -69,6 +69,7 @@ freecad_cloth = ["resources/**/*"]
 pythonpath = [".", "tests"]
 
 [tool.ruff]
+required-version = "==0.17.2"
 target-version = "py312"
 line-length = 100
 respect-gitignore = true
@@ -101,11 +102,26 @@ ignore = [
 
   # Lazy/local imports preserve runtime boundaries and avoid eager host imports/cycles.
   "PLC0415",
+
+  # Preserve legacy printf formatting in FreeCAD console/status messages.
+  "UP031",
+
+  # Host callback methods must retain instance binding even when their body does not use self.
+  "PLR6301",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# pytest assertions are the executable test oracle and must remain enabled.
-"tests/**/*.py" = ["S101"]
+# Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
+"tests/**/*.py" = ["S101", "PLR2004", "T201"]
+
+# These CI tools have stable stdout contracts consumed by Actions and developers.
+"tools/ci/check_changed_python_types.py" = ["T201"]
+"tools/ci/check_explicit_any_annotations.py" = ["T201"]
+"tools/ci/check_docker_workspace_transfer.py" = ["T201"]
+"tools/ci/check_pydantic_models.py" = ["T201"]
+
+# Native FreeCAD console diagnostics are intentionally visible to the user.
+"freecad_cloth/avatar/AnnyAvatarBackend.py" = ["T201"]
 
 # Executable adapters establish a checkout path before importing repository modules.
 "tools/ci/check_visual_assets_and_budget.py" = ["E402"]
