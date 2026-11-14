@@ -199,12 +199,12 @@ jobs:
           fi
           probe_dir="$(mktemp -d "$GITHUB_WORKSPACE/.docker-workspace-probe.XXXXXX")"
           marker="runner-bind-mount-${GITHUB_RUN_ID}"
-          printf '%s\\n' "$marker" > "$probe_dir/host-marker"
+          printf '%s\n' "$marker" > "$probe_dir/host-marker"
           trap 'rm -rf "$probe_dir"' EXIT
           timeout --signal=TERM --kill-after=5s 15s docker run --rm \
             --mount "type=bind,source=${probe_dir},target=/probe" \
             "$image" sh -ec \
-            'test "$(cat /probe/host-marker)" = "$1"; printf "%s\\n" "$1" > /probe/container-marker' \
+            'test "$(cat /probe/host-marker)" = "$1"; printf "%s\n" "$1" > /probe/container-marker' \
             sh "$marker"
           test "$(cat "$probe_dir/container-marker")" = "$marker"
           echo "docker-workspace-bind-mount=ready"
