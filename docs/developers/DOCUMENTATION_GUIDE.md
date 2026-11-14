@@ -36,7 +36,7 @@ Use sentence-case headings and descriptive link text. Keep steps in the same gra
 
 ## Use visual evidence purposefully
 
-Visuals should answer a question that is hard to answer from text alone: where to click, what state appears, how an interaction changes, or whether the final geometry looks plausible.
+Visuals should answer a question that is hard to answer from text alone: where to click, what state appears, how an interaction changes, or whether the final geometry looks plausible. Treat each image as evidence for one reader question, not as decoration or a substitute for an explanation.
 
 - Use generated screenshots for a stable UI state and a short recording when the important behavior changes over time.
 - Put an introductory sentence next to each informative image and provide concise, contextual alt text.
@@ -44,6 +44,8 @@ Visuals should answer a question that is hard to answer from text alone: where t
 - Do not encode meaning by color alone. Add labels, shape/direction cues, and text; for seam pairing, explain the A/B identity as well as highlight color.
 - Crop captures to the relevant UI, keep labels readable, and avoid using screenshots of text/code/terminal output where real text is selectable.
 - Avoid repeated images unless they teach a distinct task. A hero image introduces the product; a task GIF should demonstrate an interaction; a multi-view set should support geometry review.
+- Keep the root README selective: use one representative result image and a small set of distinct, captioned captures. Put animations beside the procedure they explain instead of collecting them into a decorative strip.
+- Do not place a screenshot gallery in a navigation index unless the images help readers choose a task. Put detailed visual walkthroughs in the relevant feature guides.
 - Do not hand-edit generated UI or geometry evidence. Correct the capture fixture and regenerate through the canonical path.
 
 Public visual assets are published to the docs/screenshots branch at the generated-image path referenced by the [README](../../README.md) and [wiki index](../users/wiki/README.md). That branch is a publication target, not the authoritative copy of the feature implementation.
@@ -128,6 +130,9 @@ The canonical workflow includes <code>python tools/check_markdown_contract.py</c
 - [Google: Images](https://developers.google.com/style/images) — alt text, image captions, text equivalents, and selective use of visuals.
 - [Google: Accessibility](https://developers.google.com/style/accessibility) — don't make images or color the sole carrier of information.
 - [GitHub Docs: README files](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes) — project orientation, relative links, and where to put longer documentation.
+- [Write the Docs: Documentation principles](https://www.writethedocs.org/guide/writing/docs-principles/) — skimmability, examples, consistency, freshness, unique sources, and discoverability.
 - [Write the Docs: Docs as code](https://www.writethedocs.org/guide/docs-as-code/) — version control, code review, and automated checks for docs.
 - [Write the Docs: Testing documentation](https://www.writethedocs.org/guide/tools/testing/) — links, builds, and repeatable documentation checks.
+- [Google: Headings and titles](https://developers.google.com/style/headings) — concise sentence-case headings and logical page hierarchy.
+- [Microsoft: Writing step-by-step instructions](https://learn.microsoft.com/en-us/style-guide/procedures-instructions/writing-step-by-step-instructions) — scannable procedures, one action per step, and clear UI context.
 - [FreeCAD Documentation: Add-on and workbench installation](https://github.com/FreeCAD/FreeCAD-documentation/blob/main/wiki/How_to_install_additional_workbenches.md) — native workbench distribution and manual-install context.
