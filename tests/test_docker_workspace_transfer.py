@@ -24,6 +24,10 @@ def test_probe_copies_workspace_files_into_and_out_of_container(
         if command[1:3] == ["image", "inspect"]:
             assert not check
             return 1
+        if command[1] == "pull":
+            assert check
+            assert command[2] == check_docker_workspace_transfer.IMAGE
+            return 0
         if command[1] == "create":
             assert check
             return 0
@@ -46,11 +50,13 @@ def test_probe_copies_workspace_files_into_and_out_of_container(
     )
 
     assert commands[0][:2] == ["docker", "info"]
-    assert commands[2][1] == "create"
-    assert commands[3][:2] == ["docker", "cp"]
-    assert commands[4][:3] == ["docker", "start", "--attach"]
-    assert commands[5][:2] == ["docker", "cp"]
-    assert commands[6][:3] == ["docker", "rm", "--force"]
+    assert commands[1][:3] == ["docker", "image", "inspect"]
+    assert commands[2] == ["docker", "pull", check_docker_workspace_transfer.IMAGE]
+    assert commands[3][1] == "create"
+    assert commands[4][:2] == ["docker", "cp"]
+    assert commands[5][:3] == ["docker", "start", "--attach"]
+    assert commands[6][:2] == ["docker", "cp"]
+    assert commands[7][:3] == ["docker", "rm", "--force"]
     assert all("--mount" not in command for command in commands)
     assert not list(tmp_path.glob(".docker-workspace-probe.*"))
 
