@@ -148,7 +148,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "Expected one bounded 360-second production tunic audit budget."
     )
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
-        'Expected one bounded 360-second simulation turntable budget.'
+        "Expected one bounded 360-second simulation turntable budget."
     )
     assert tunic_audit.count("continue-on-error: true") == 2, (
         "Expected only the realtime diagnostic steps to be non-blocking."
