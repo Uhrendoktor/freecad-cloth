@@ -5,8 +5,9 @@ import os
 import re
 import sys
 import traceback
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -21,6 +22,25 @@ import Part
 from pivy import coin
 
 importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
+
+_Point2D = tuple[float, float]
+_GeometrySegments = tuple[tuple[str, tuple[_Point2D, ...]], ...]
+
+
+class _FixtureViewObject(Protocol):
+    Visibility: bool
+
+
+class _FixturePiece(Protocol):
+    Label: str
+    PieceId: str
+    ViewObject: _FixtureViewObject
+
+
+class _FixtureDocument(Protocol):
+    def recompute(self) -> None: ...
+
+
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
@@ -51,7 +71,12 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def _curved_geometry_segments(line_length, curve_span, curve_height, x_offset=0.0):
+def _curved_geometry_segments(
+    line_length: float,
+    curve_span: float,
+    curve_height: float,
+    x_offset: float = 0.0,
+) -> _GeometrySegments:
     x_offset = float(x_offset)
     line_length = float(line_length)
     curve_span = float(curve_span)
@@ -70,7 +95,13 @@ def _curved_geometry_segments(line_length, curve_span, curve_height, x_offset=0.
     )
 
 
-def _create_native_fixture_piece(doc, name, piece_id, outline, geometry_segments=None):
+def _create_native_fixture_piece(
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    outline: Sequence[_Point2D],
+    geometry_segments: _GeometrySegments | None = None,
+) -> _FixturePiece:
     """Build test pieces through the same Sketcher-authority path as production."""
     from freecad_cloth.pattern.PatternModel import PatternPiece
     from freecad_cloth.pattern.PatternObjects import add_pattern_piece
@@ -88,8 +119,14 @@ def _create_native_fixture_piece(doc, name, piece_id, outline, geometry_segments
 
 
 def _replace_curved_piece_geometry(
-    doc, obj, *, line_length, curve_span, curve_height, x_offset=0.0
-):
+    doc: _FixtureDocument,
+    obj: _FixturePiece,
+    *,
+    line_length: float,
+    curve_span: float,
+    curve_height: float,
+    x_offset: float = 0.0,
+) -> None:
     from freecad_cloth.pattern.PatternModel import PatternPiece
     from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 
@@ -115,7 +152,9 @@ def _replace_curved_piece_geometry(
     sketch.Visibility = False
 
 
-def _curved_edge_length(line_length, curve_span, curve_height):
+def _curved_edge_length(
+    line_length: float, curve_span: float, curve_height: float
+) -> float:
     points = _curved_geometry_segments(line_length, curve_span, curve_height)[2][1]
     curve = Part.BSplineCurve()
     curve.interpolate([App.Vector(x, y, 0.0) for x, y in points])
@@ -123,8 +162,14 @@ def _curved_edge_length(line_length, curve_span, curve_height):
 
 
 def add_curved_piece(
-    doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
-):
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    line_length: float,
+    curve_span: float = 80.0,
+    curve_height: float = 90.0,
+    x_offset: float = 0.0,
+) -> _FixturePiece:
     outline = [
         (float(x_offset), 0.0),
         (float(x_offset) + float(line_length), 0.0),
@@ -142,7 +187,14 @@ def add_curved_piece(
     )
 
 
-def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0):
+def add_rectangular_piece(
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    width: float = 100.0,
+    height: float = 100.0,
+    x_offset: float = 0.0,
+) -> _FixturePiece:
     """Create a native Sketcher-backed PatternPiece test fixture."""
     x_offset = float(x_offset)
     outline = [
@@ -152,6 +204,7 @@ def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offs
         (x_offset, float(height)),
     ]
     return _create_native_fixture_piece(doc, name, piece_id, outline)
+
 
 def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
     first, last = float(edge.FirstParameter), float(edge.LastParameter)
