@@ -27,7 +27,10 @@ def test_probe_pulls_its_small_image_and_checks_bidirectional_access(
         if command[1] == "run":
             mount = command[command.index("--mount") + 1]
             source = Path(mount.split("source=", 1)[1].split(",target=", 1)[0])
-            assert (source / "host-marker").read_text(encoding="utf-8") == "runner-bind-mount-test-run"
+            assert (
+                (source / "host-marker").read_text(encoding="utf-8")
+                == "runner-bind-mount-test-run"
+            )
             (source / "container-marker").write_text(
                 "runner-bind-mount-test-run", encoding="utf-8"
             )
