@@ -251,7 +251,8 @@ def ty_warnings_are_blocking(config_text: str) -> bool:
     except tomllib.TOMLDecodeError:
         return False
     terminal = config.get("terminal", {})
-    return terminal.get("error-on-warning") is True
+    rules = config.get("rules", {})
+    return terminal.get("error-on-warning") is True and rules.get("all") == "error"
 
 
 def _validate_workflow_dispatch_contract(text: str) -> None:
