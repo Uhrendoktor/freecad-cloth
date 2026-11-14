@@ -948,8 +948,18 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
     assert "CLOTH_PBD_SUBSTEPS =" not in profile
     assert "clearance_mm =" not in profile
     assert "simulation_panel.step(batch)" in profile
+    backend_step_wrapper = profile.split("def timed_backend_step(", 1)[1].split(
+        "def timed_collision_projection(", 1
+    )[0]
+    assert "backend_steps_completed += 1" in backend_step_wrapper
+    assert "write_profile_checkpoint(" in backend_step_wrapper
+    assert "backend_steps_completed" in backend_step_wrapper
+    assert "scene_steps_requested=int(scene.Steps)" in backend_step_wrapper
+    assert '"scene_steps_requested": scene_steps_requested' in profile
     assert (
-        "write_profile_checkpoint(int(scene.Steps), elapsed_ms, process_cpu_elapsed_ms)" in profile
+        "write_profile_checkpoint(\n                backend_steps_completed,\n"
+        "                elapsed_ms,\n                process_cpu_elapsed_ms,"
+        in profile
     )
     assert "backend_class.step = original_backend_step" in profile
     assert "projector_class.project = original_project" in profile
