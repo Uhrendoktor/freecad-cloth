@@ -31,7 +31,7 @@ def test_over_budget_is_detectable():
     assert accumulated_size(artifacts) > MAX_ARTIFACT_BYTES
 
 
-def test_retry_uploads_count_only_the_latest_artifact_with_each_name():
+def test_retry_uploads_count_only_the_latest_artifact_with_each_name() -> None:
     artifacts = [
         {
             "id": 10,
@@ -65,7 +65,7 @@ def test_retry_uploads_count_only_the_latest_artifact_with_each_name():
     assert accumulated_size(latest) == 2_247_909
 
 
-def test_duplicate_artifact_name_requires_creation_metadata():
+def test_duplicate_artifact_name_requires_creation_metadata() -> None:
     artifacts = [
         {"id": 1, "name": "evidence", "size_in_bytes": 100, "created_at": "2026-11-14T12:00:00Z"},
         {"id": 2, "name": "evidence", "size_in_bytes": 200},
