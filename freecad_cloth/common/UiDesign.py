@@ -338,7 +338,7 @@ def configure_form_layout(layout: _FormLayout, qt_widgets: ModuleType) -> None:
         qt_widgets: QtWidgets module providing the host's QFormLayout enums.
     """
     layout.setRowWrapPolicy(qt_widgets.QFormLayout.WrapLongRows)
-    layout.setFieldGrowthPolicy(qt_widgets.QFormLayout.ExpandingFieldsGrow)
+    layout.setFieldGrowthPolicy(qt_widgets.QFormLayout.AllNonFixedFieldsGrow)
 
 
 def make_scroll_area(content: _VisibilityWidget, qt_widgets: ModuleType) -> _ScrollArea:
