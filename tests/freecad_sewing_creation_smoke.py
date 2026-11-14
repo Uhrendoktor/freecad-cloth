@@ -48,9 +48,16 @@ class _FixtureViewObject(Protocol):
     Visibility: bool
 
 
+class _FixtureSketch(Protocol):
+    Visibility: bool
+    ViewObject: _FixtureViewObject
+
+
 class _FixturePiece(Protocol):
     Label: str
     PieceId: str
+    Visibility: bool
+    Sketch: _FixtureSketch
     ViewObject: _FixtureViewObject
 
 
@@ -113,8 +120,13 @@ def _create_native_fixture_piece(
     doc.recompute()
     # Keep the filled PatternPiece presentation visible for the UI recording;
     # the linked Sketcher object remains the sole geometry authority.
+    # The document-object and view-provider visibility properties are
+    # both exposed by FreeCAD; set both so recompute/view-provider updates
+    # cannot leave the filled Part feature hidden behind its authoring sketch.
+    obj.Visibility = True
     obj.ViewObject.Visibility = True
     sketch.Visibility = False
+    sketch.ViewObject.Visibility = False
     return obj
 
 
@@ -148,8 +160,10 @@ def _replace_curved_piece_geometry(
         ),
     )
     doc.recompute()
+    obj.Visibility = True
     obj.ViewObject.Visibility = True
     sketch.Visibility = False
+    sketch.ViewObject.Visibility = False
 
 
 def _curved_edge_length(line_length: float, curve_span: float, curve_height: float) -> float:
@@ -561,16 +575,36 @@ try:
         (piece_a, (0.34, 0.65, 0.88)),
         (piece_b, (0.94, 0.62, 0.30)),
     )
+    piece_c.Visibility = False
     piece_c.ViewObject.Visibility = False
     for piece, color in recording_pieces:
         view_object = piece.ViewObject
+        piece.Visibility = True
         view_object.Visibility = True
+        sketch = piece.Sketch
+        sketch.Visibility = False
+        sketch.ViewObject.Visibility = False
         view_object.ShapeColor = color
         # Standard Part view providers render stable colored face and edge cues.
         view_object.LineColor = color
         view_object.LineWidth = 4.0
         view_object.Transparency = 0
     doc.recompute()
+    record(
+        "fixture-visibility="
+        + repr(
+            {
+                piece.Label: {
+                    "document": bool(piece.Visibility),
+                    "view": bool(piece.ViewObject.Visibility),
+                    "sketch_document": bool(piece.Sketch.Visibility),
+                    "sketch_view": bool(piece.Sketch.ViewObject.Visibility),
+                    "faces": len(piece.Shape.Faces),
+                }
+                for piece, _color in recording_pieces
+            }
+        )
+    )
     view.setCameraType("Orthographic")
     view.viewTop()
     view.fitAll()
