@@ -548,13 +548,46 @@ class _FormLayoutStub:
         self.field_growth = policy
 
 
+class _ScrollLayoutStub:
+    """Record the size constraint applied to dynamic scroll content."""
+
+    def __init__(self) -> None:
+        """Initialize an empty size-constraint record."""
+        self.size_constraint: int | None = None
+
+    def setSizeConstraint(self, constraint: int) -> None:
+        """Record the Qt layout size constraint.
+
+        Args:
+            constraint: Size constraint selected by the helper.
+        """
+        self.size_constraint = constraint
+
+
+class _ScrollContentStub(_DisclosureWidget):
+    """Widget stub that exposes its child layout for scroll extent updates."""
+
+    def __init__(self) -> None:
+        """Initialize the hosted layout used by the scroll helper."""
+        super().__init__()
+        self.content_layout = _ScrollLayoutStub()
+
+    def layout(self) -> _ScrollLayoutStub:
+        """Return the layout whose minimum and maximum size should track content.
+
+        Returns:
+            Scroll-content layout test double.
+        """
+        return self.content_layout
+
+
 class _ScrollAreaStub:
     """Record the content and resize policy configured by the scroll helper."""
 
     def __init__(self) -> None:
         """Initialize an empty scroll-area record."""
         self.resizable: bool | None = None
-        self.content: _DisclosureWidget | None = None
+        self.content: _ScrollContentStub | None = None
         self.object_name = ""
 
     def setWidgetResizable(self, enabled: bool) -> None:
@@ -565,7 +598,7 @@ class _ScrollAreaStub:
         """
         self.resizable = bool(enabled)
 
-    def setWidget(self, widget: _DisclosureWidget) -> None:
+    def setWidget(self, widget: _ScrollContentStub) -> None:
         """Record the widget installed inside the scroll viewport.
 
         Args:
@@ -602,9 +635,15 @@ def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
 
 
 def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
-    """Use a resizable in-panel scroll viewport instead of a separate window."""
-    content = _DisclosureWidget()
-    qt_widgets = cast("ModuleType", SimpleNamespace(QScrollArea=_ScrollAreaStub))
+    """Use a resizable in-panel viewport whose extent tracks disclosure changes."""
+    content = _ScrollContentStub()
+    qt_widgets = cast(
+        "ModuleType",
+        SimpleNamespace(
+            QScrollArea=_ScrollAreaStub,
+            QLayout=SimpleNamespace(SetMinAndMaxSize=3),
+        ),
+    )
 
     scroll = make_scroll_area(content, qt_widgets)
 
@@ -612,3 +651,4 @@ def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
     assert scroll.resizable is True
     assert scroll.content is content
     assert scroll.object_name == "ClothTaskPanelScrollArea"
+    assert content.content_layout.size_constraint == 3
