@@ -115,7 +115,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
-"tests/**/*.py" = ["S101", "PLR2004", "T201"]
+"tests/**/*.py" = ["S101", "PLR2004", "T201", "PT011"]
 
 # These CI tools have stable stdout contracts consumed by Actions and developers.
 "tools/ci/check_changed_python_types.py" = ["T201"]
