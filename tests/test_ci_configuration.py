@@ -992,7 +992,7 @@ def test_pyright_uses_strict_mode_for_entire_python_repository() -> None:
 
 
 def test_ty_all_diagnostics_remain_blocking() -> None:
-    """Keep warning-level ty diagnostics fatal for the curated simulation core."""
+    """Require every ty rule to produce errors for the complete tracked inventory."""
     config = TY_CONFIG.read_text(encoding="utf-8")
     require(condition=ty_warnings_are_blocking(config), message="All ty diagnostics must fail validation.")
     tampered = config.replace('all = "error"', 'all = "warn"')
