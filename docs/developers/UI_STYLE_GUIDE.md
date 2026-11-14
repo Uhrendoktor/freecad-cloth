@@ -61,6 +61,24 @@ These sources inform the rules below; the exact spacing and component choices ar
 - Prefer a small number of meaningful disclosures over dozens of unrelated accordion rows.
 - Keep current selection and staged values when expanding or collapsing advanced settings.
 
+## Complex collections and master/detail panels
+
+- Use a searchable list with a focused detail editor when many related objects each have their own precision controls. The list answers “which item?”; the detail area answers “what can I change on this item?”
+- Keep each list summary compact: identify the object and its important relationship or state. Put secondary metadata in the selected-detail summary or tooltip, not in a wide grid of tiny columns.
+- Search all meaningful identifiers and both sides of a relationship, including validation state. Filtering must preserve staged edits and must not silently change the object being edited.
+- Use native Qt lists/trees plus standard form controls. Reserve tables for genuinely tabular comparison or batch editing, not a narrow task panel that requires horizontal scrolling for its primary action.
+- Keep one selected object explicit. Disable detail controls when no visible result is selected and say why. Preserve that record's staged values when selection or filters change.
+- Prefer one selection level followed by a clear detail form over deeply nested trees or several competing splitters. Add tabs only for distinct task modes, not alternative views of the same record.
+- Keep hierarchy shallow. A list, one selected-detail group, and one status area are usually enough structure for a compact workbench task.
+
+## Scrolling and fixed task actions
+
+- When a task contains many controls, place the long settings content inside a native QScrollArea that remains a child of the existing FreeCAD task-panel widget. Do not create a separate top-level window merely to gain space.
+- Keep the title, most important actions, and current status outside the scrolling region when the task benefits from persistent access to them. This lets users scroll through details without losing the next safe action or the current result.
+- Use QFormLayout.WrapLongRows and expanding field policies for compact panels so long labels and control fields adapt to available width. Avoid hard-coded widths that break under DPI scaling, font changes, or translated labels.
+- Put detailed solver or compatibility settings behind a named disclosure, and make the disclosure itself scroll with the settings. Do not put the primary Run/Apply/Commit control below a long settings list.
+- Add scrolling only when the content genuinely exceeds the available panel height. A short panel should remain compact and should not gain nested scroll bars.
+
 ## Viewport interaction and semantic color
 
 - Keep the viewport visually quiet until an action needs feedback. Show hovered, selected, active, editable and invalid states with clear differences in size/weight as well as color.
@@ -85,6 +103,8 @@ These sources inform the rules below; the exact spacing and component choices ar
 - mark_button(button, emphasis) gives a QPushButton a semantic role (primary, secondary, or danger).
 - set_status(label, text, state) sets text and the info, warning, error or success role. Callers are responsible for wording that communicates state independently of color.
 - make_disclosure(title, content, QtCore, QtWidgets, expanded=False) uses a checkable Qt tool button to hide/show a settings container while preserving contained widgets and values.
+- make_scroll_area(content, QtWidgets) wraps long content in a resize-aware QScrollArea that stays inside the current FreeCAD task panel.
+- configure_form_layout(layout, QtWidgets) uses long-row wrapping and expanding fields to adapt forms to narrow panel widths.
 - Existing domain-specific viewport tokens remain in freecad_cloth/shared/viewport_gizmo_style.py; seam identity colors stay in freecad_cloth/shared/seam_colors.py. Do not introduce another palette source.
 - Styling lives on the supplied panel. The rest of FreeCAD remains the host's responsibility.
 
@@ -93,16 +113,17 @@ These sources inform the rules below; the exact spacing and component choices ar
 | Area | Current affordance and UX risk | Decision under this guide |
 |---|---|---|
 | Mannequin shape and measurements | 3D dimension handles provide direct manipulation; shape, measurement, display, and provider controls are grouped, and the panel has one Apply & Rebuild action. | Keep measurement handles and numeric precision; standardize feedback and spacing; remove duplicate callbacks and aliases; clearly identify derived versus editable values and provider source. |
-| 3D Pose Mode | Viewport rings, presets, mirror and snap are aligned with a spatial task, but heading/status styles and disclosure controls vary. | Keep viewport-first editing, Mirror and angle snapping; standardize title/status styling; retain Exact angles and Joint list as disclosures, since they are precision aids rather than the normal interaction. |
-| Arrange / Fit | Dragging garment pieces and snapping to arrangement points avoids a wall of XYZ coordinates. | Preserve direct manipulation; standardize the active-pick state, status copy and secondary reset/fit actions. Do not add numeric placement fields to the default flow. |
+| 3D Pose Mode | Viewport rings, presets, Mirror and snapping are aligned with a spatial task, but the joint list can exceed the compact panel height. | Keep viewport-first editing, Mirror and angle snapping; keep the title, presets and tools accessible while selected-joint details and the expandable joint list scroll together. |
+| Arrange / Fit | Direct dragging and surface snap anchors avoid a wall of XYZ coordinates; anchor controls can make the panel taller than the task zone. | Preserve direct manipulation and keep live fitting status visible while fitting and anchor settings scroll in the current task panel. Do not add numeric placement fields to the default flow. |
 | Pattern piece | Native Sketcher authority is respected, but disabled derived dimensions can be misread as editable fields. | Keep Sketcher authoritative; style derived/read-only values consistently and explain why they are not editable; retain explicit seam-allowance and grainline fields with units. |
 | Production export | SVG/DXF/PDF and PDF tile options are format-dependent, but status and conditional controls need coherent feedback. | Reveal PDF-only choices only for PDF; use explicit output labels and a success/error state; keep the exporter read-only with respect to source geometry. |
-| Topology repair | The explicit mapping workflow protects semantic seam references; generic status text can hide whether mappings remain unresolved. | Preserve explicit per-side mapping and fail-closed behavior; show actionable status/error roles and never repair silently. |
+| Topology repair | Explicit per-side mappings protect semantic seam references; a long invalid-edge list can overflow the task panel. | Preserve fail-closed mapping behavior, place the mapping grid inside the native task-panel scroll area, keep status visible and never repair silently. |
 | Seam creation | Preview / Commit / Cancel and viewport picking are transactional, but feedback currently resets styles ad hoc. | Preserve transactional preview; style picking/preview/error statuses consistently; keep Commit disabled until the preview is safe to accept. |
-| Seam / sewing network editors | Orientation, normalized-range, alignment, length and correspondence values can be confusing without context; errors vary by label. | Keep valid semantic data visible, group related orientation/range fields, standardize warning/status roles, and surface recovery guidance from the correspondence report. |
+| Seam / sewing network editors | A wide 10-column range table is difficult to use at the FreeCAD task-panel width and makes seam identity hard to scan. | Use a searchable seam list summarizing both connected edges and a focused four-field normalized-range editor for the selected seam. Preserve all staged ranges while filtering or changing selection; keep the existing single document transaction. |
+| Seam overlay preferences | A standalone modal options dialog is inconsistent with the rest of the workbench and bypasses FreeCAD's task-panel conventions. | Present the two display preferences through Gui.Control.showDialog; use FreeCAD's native OK/Cancel footer and persist only on acceptance. |
 | Drape target | Collision source, preset and settings are sensibly grouped; title/status styling differs from other panels. | Keep source selection and Preview/Normal/Final quality presets in the default view; emphasize Apply & Refresh, use consistent status and palette-aware control styling. |
-| Simulation | Scene, fabric, solver, collision and raw pin/seam-index settings appear together, burying the normal workflow. | Keep scene/fabric, Step/Run/Reset and status visible; put solver, collision and manual sewing/pinning fields in one collapsed “Advanced solver, collision & sewing settings” disclosure. |
-| Simulation quality | Presets and fitting status form a useful common workflow while low-level physics controls already have an expert disclosure. | Keep existing expert-settings behavior and use the same panel and status vocabulary; do not introduce a second competing disclosure layer. |
+| Simulation | Scene, fabric, solver, collision and raw pin/seam-index settings appear together, burying the normal workflow. | Put the full settings content in a resize-aware in-panel scroll area; keep Step/Run/Reset and current status outside it, and retain advanced solver/collision/pinning behind the existing disclosure. |
+| Simulation quality | Presets and fitting status form a useful common workflow while low-level physics controls already have an expert disclosure. | Keep workflow readiness, target context and Arrange/Fit in the scrollable content; leave Step/Run/Reset/status visible and preserve the existing expert-settings state. |
 | Diagnostics | Metric, definition, refresh/map/export actions, and runtime failures need to guide the next step. | Preserve a short workflow; emphasize the main map action and standardize analysis/error status while keeping data export explicit. |
 
 This is a UI consistency pass, not a replacement of native FreeCAD geometry or domain semantics. A future usability study should test novice completion, recovery from invalid selections, and expert discoverability with representative garment tasks.
