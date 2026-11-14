@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression coverage for the Sewing workbench command layer."""
 
-from collections.abc import Callable
 import sys
+from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
