@@ -442,6 +442,12 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "_validate_realtime_metrics(data)" in validator, (
         'Contract failed: "_validate_realtime_metrics(data)" in v...'
     )
+    assert "if require_realtime_metrics:" in validator, (
+        'Contract failed: "if require_realtime_metrics:" in validator'
+    )
+    assert (
+        "_validate_tunic(require_canonical_e2e=False, require_realtime_metrics=False)" in validator
+    ), "Production tunic validation must not inherit the realtime timing gate."
     assert "PBD SDF voxel must be 8 mm" in validator, (
         'Contract failed: "PBD SDF voxel must be 8 mm" in validator'
     )

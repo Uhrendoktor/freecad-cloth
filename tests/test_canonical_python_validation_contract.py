@@ -316,6 +316,38 @@ def test_tunic_manifest_gate_preserves_the_legacy_metrics_contract() -> None:
         vars(validate_manifests)["_validate_realtime_metrics"](legacy_metrics)
 
 
+def test_production_tunic_manifest_does_not_require_realtime_metrics(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Keep production physics acceptance independent from the realtime FPS diagnostic."""
+    generated = tmp_path / "docs" / "images" / "generated"
+    generated.mkdir(parents=True)
+    (generated / "gui-progress.log").write_text(
+        "\n".join(
+            (
+                "scenario-pass",
+                "tunic-collision-config target-thickness-mm=",
+                "realtime-preview=passed backend=position-based-dynamics",
+                "drape-metrics=",
+                "diagnostic-map=passed metric=stress",
+                "diagnostic-stale-guard=passed",
+            )
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        validate_manifests, "_validate_tunic_collision_configuration", lambda _text: None
+    )
+    monkeypatch.setattr(
+        validate_manifests,
+        "_validate_tunic_images",
+        lambda _generated, *, require_canonical_e2e: None,
+    )
+
+    validate_manifests.validate_tunic_production()
+
+
 def _valid_workbench_benchmark_metrics(workbench: str = "Pattern") -> dict[str, object]:
     """Build an artifact matching the production workbench benchmark schema.
 

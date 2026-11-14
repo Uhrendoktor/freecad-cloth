@@ -418,11 +418,14 @@ def _validate_tunic_end_to_end() -> None:
             raise SystemExit(msg)
 
 
-def _validate_tunic(*, require_canonical_e2e: bool) -> None:
-    """Validate tunic evidence with either the canonical or production audit contract.
+def _validate_tunic(
+    *, require_canonical_e2e: bool, require_realtime_metrics: bool = True
+) -> None:
+    """Validate tunic evidence with independent visual, physics, and timing contracts.
 
     Args:
         require_canonical_e2e: Whether canonical garment end-to-end evidence is required.
+        require_realtime_metrics: Whether this validation also gates on preview timing data.
 
     Raises:
         SystemExit: If required evidence or acceptance checks fail.
@@ -430,11 +433,15 @@ def _validate_tunic(*, require_canonical_e2e: bool) -> None:
     generated = Path("docs/images/generated")
     progress = generated / "gui-progress.log"
     metrics = Path("artifacts/freecad-realtime/metrics.json")
-    if not progress.is_file() or not metrics.is_file():
+    if not progress.is_file():
         msg = "tunic: required evidence is missing"
         raise SystemExit(msg)
-    data = json.loads(metrics.read_text(encoding="utf-8"))
-    _validate_realtime_metrics(data)
+    if require_realtime_metrics:
+        if not metrics.is_file():
+            msg = "tunic: realtime performance evidence is missing"
+            raise SystemExit(msg)
+        data = json.loads(metrics.read_text(encoding="utf-8"))
+        _validate_realtime_metrics(data)
     text = progress.read_text(encoding="utf-8")
     markers = (
         "scenario-pass",
@@ -461,8 +468,8 @@ def validate_tunic() -> None:
 
 
 def validate_tunic_production() -> None:
-    """Validate production tunic evidence without canonical garment E2E artifacts."""
-    _validate_tunic(require_canonical_e2e=False)
+    """Validate production physics evidence independently of preview timing."""
+    _validate_tunic(require_canonical_e2e=False, require_realtime_metrics=False)
 
 
 def validate_blanket() -> None:
