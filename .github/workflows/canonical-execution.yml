@@ -442,13 +442,14 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: [self-hosted, linux, x64, docker]
-    timeout-minutes: 6
+    timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
       - uses: ./.github/actions/freecad-test
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "360"
           test-script: tests/freecad_visual_examples.py
           stage-workbench: "true"
           clean-user: "true"
