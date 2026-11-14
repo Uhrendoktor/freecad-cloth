@@ -187,7 +187,27 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
-      - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - name: Verify Docker daemon availability
+        run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - name: Verify Docker can bind-mount the runner workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="busybox:1.36.1"
+          if ! docker image inspect "$image" >/dev/null 2>&1; then
+            timeout --signal=TERM --kill-after=5s 20s docker pull "$image"
+          fi
+          probe_dir="$(mktemp -d "$GITHUB_WORKSPACE/.docker-workspace-probe.XXXXXX")"
+          marker="runner-bind-mount-${GITHUB_RUN_ID}"
+          printf '%s\\n' "$marker" > "$probe_dir/host-marker"
+          trap 'rm -rf "$probe_dir"' EXIT
+          timeout --signal=TERM --kill-after=5s 15s docker run --rm \
+            --mount "type=bind,source=${probe_dir},target=/probe" \
+            "$image" sh -ec \
+            'test "$(cat /probe/host-marker)" = "$1"; printf "%s\\n" "$1" > /probe/container-marker' \
+            sh "$marker"
+          test "$(cat "$probe_dir/container-marker")" = "$marker"
+          echo "docker-workspace-bind-mount=ready"
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
     if: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && inputs.runner_mode != 'hosted' && inputs.execution_mode != 'fast' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
