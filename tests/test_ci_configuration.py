@@ -473,6 +473,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
         "1" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
         "2" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
         "3" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
+        "4" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
     }
     branches: list[dict[str, object]] = [
         {"name": "main", "protected": True, "commit": {"sha": "1" * 40}},
@@ -490,6 +491,11 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
             "name": "fix/recent-unsubmitted-work",
             "protected": False,
             "commit": {"sha": "3" * 40},
+        },
+        {
+            "name": "docs/screenshots",
+            "protected": False,
+            "commit": {"sha": "4" * 40},
         },
     ]
     endpoints: list[str] = []
@@ -573,6 +579,11 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
             "protected": False,
             "commit": {"sha": "8" * 40},
         },
+        {
+            "name": "docs/screenshots",
+            "protected": False,
+            "commit": {"sha": "9" * 40},
+        },
     ]
     activity = {
         "2" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
@@ -581,6 +592,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "5" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
         "6" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
         "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
+        "9" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
     }
 
     stale = maintenance_cleanup.stale_unprotected_branches(
