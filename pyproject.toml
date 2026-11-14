@@ -171,6 +171,22 @@ ignore = [
 "tests/freecad_smoke.py" = ["E402"]
 "tests/freecad_sewing_smoke.py" = ["E402"]
 
+# FreeCAD acceptance scripts bootstrap the checkout before importing FreeCAD or project modules.
+"tools/ci/check_visual_asset_contract.py" = ["E402"]
+"tools/ci/maintenance_cleanup.py" = ["E402"]
+"tools/ci/validate_realtime_benchmark.py" = ["E402"]
+"tools/ci/validate_workbench_benchmark.py" = ["E402"]
+"tests/freecad_pbd_contact_diagnostics.py" = ["E402"]
+"tests/freecad_realtime_benchmark.py" = ["E402"]
+"tests/freecad_garment_e2e_smoke.py" = ["E402"]
+"tests/freecad_pattern_export_smoke.py" = ["E402"]
+"tests/freecad_simulation_turntable.py" = ["E402"]
+"tests/freecad_screenshot_source.py" = ["E402"]
+"tests/freecad_sewing_creation_smoke.py" = ["E402"]
+"tests/freecad_avatar_pose_ui_acceptance.py" = ["E402"]
+"tests/freecad_interactive_arrange_acceptance.py" = ["E402"]
+"tests/freecad_avatar_shape_editor_acceptance.py" = ["E402"]
+
 # FreeCAD task and teardown callbacks must contain native SWIG/Qt exceptions.
 "freecad_cloth/pattern/PatternCommands.py" = ["BLE001"]
 "freecad_cloth/pattern/PatternTopologyRepairGui.py" = ["BLE001"]
