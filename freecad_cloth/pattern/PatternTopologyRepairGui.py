@@ -42,7 +42,8 @@ class PatternTopologyRepairTaskPanel:
             )
         )
         self.rows = []
-        grid = QtWidgets.QGridLayout()
+        grid_content = QtWidgets.QWidget()
+        grid = QtWidgets.QGridLayout(grid_content)
         for col, title in enumerate(("Seam", "Side", "Reason", "Current edge")):
             grid.addWidget(QtWidgets.QLabel(title), 0, col)
         for row, (seam, side, reason) in enumerate(invalid_seam_sides(doc), 1):
@@ -55,7 +56,9 @@ class PatternTopologyRepairTaskPanel:
                 combo.addItem(str(record["id"]), str(record["id"]))
             grid.addWidget(combo, row, 3)
             self.rows.append((seam, side, combo))
-        outer.addLayout(grid)
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        outer.addWidget(make_scroll_area(grid_content, QtWidgets), 1)
         self.status = QtWidgets.QLabel(
             "%d invalid seam side(s) require an explicit mapping." % len(self.rows)
         )
