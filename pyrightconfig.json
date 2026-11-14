@@ -3,5 +3,7 @@
     "."
   ],
   "typeCheckingMode": "strict",
-  "pythonVersion": "3.12"
+  "pythonVersion": "3.12",
+  "reportMissingImports": "error",
+  "reportMissingModuleSource": "error"
 }
