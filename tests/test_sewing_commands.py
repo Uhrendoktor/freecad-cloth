@@ -342,12 +342,12 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -
 
 
 
-def test_seam_overlay_options_command_uses_the_native_task_panel(monkeypatch) -> None:
+def test_seam_overlay_options_command_uses_the_native_task_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Route seam preferences through FreeCAD's current task-panel host."""
     expected_panel = object()
-    task_panel_module = SimpleNamespace(
-        show_seam_overlay_options_task=lambda: expected_panel
-    )
+    task_panel_module = SimpleNamespace(show_seam_overlay_options_task=lambda: expected_panel)
     monkeypatch.setitem(
         sys.modules,
         "freecad_cloth.sewing.SeamOverlayOptionsGui",
