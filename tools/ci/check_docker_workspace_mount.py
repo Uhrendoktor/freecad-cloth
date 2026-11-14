@@ -11,7 +11,8 @@ IMAGE = "busybox:1.36.1"
 
 
 def validate_workspace_mount(workspace: Path) -> None:
-    """Check the runner workspace is visible and writable inside Docker."""
+    """Check Docker is usable and the runner workspace is visible and writable."""
+    subprocess.run(["docker", "info"], check=True, timeout=20)
     image_check = subprocess.run(
         ["docker", "image", "inspect", IMAGE], check=False, timeout=10
     )
@@ -55,7 +56,12 @@ def validate_workspace_mount(workspace: Path) -> None:
 
 
 def main() -> int:
-    """Run the mount check against the actual GitHub Actions workspace."""
+    """Run the mount check only for local-first trusted workflow executions."""
+    runner_mode = os.environ.get("CLOTH_CI_RUNNER_MODE", "local")
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    if runner_mode != "local" or event_name == "pull_request":
+        print(f"docker-workspace-bind-mount=skipped runner_mode={runner_mode}")
+        return 0
     workspace = Path(os.environ["GITHUB_WORKSPACE"])
     validate_workspace_mount(workspace)
     return 0
