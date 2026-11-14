@@ -994,7 +994,10 @@ def test_pyright_uses_strict_mode_for_entire_python_repository() -> None:
 def test_ty_all_diagnostics_remain_blocking() -> None:
     """Require every ty rule to produce errors for the complete tracked inventory."""
     config = TY_CONFIG.read_text(encoding="utf-8")
-    require(condition=ty_all_diagnostics_are_errors(config), message="All ty diagnostics must fail validation.")
+    require(
+        condition=ty_all_diagnostics_are_errors(config),
+        message="All ty diagnostics must fail validation.",
+    )
     tampered = config.replace('all = "error"', 'all = "warn"')
     require(
         condition=not ty_all_diagnostics_are_errors(tampered),
