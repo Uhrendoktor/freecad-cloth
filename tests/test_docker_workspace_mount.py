@@ -27,13 +27,10 @@ def test_probe_pulls_its_small_image_and_checks_bidirectional_access(
         if command[1] == "run":
             mount = command[command.index("--mount") + 1]
             source = Path(mount.split("source=", 1)[1].split(",target=", 1)[0])
-            assert (
-                (source / "host-marker").read_text(encoding="utf-8")
-                == "runner-bind-mount-test-run"
-            )
-            (source / "container-marker").write_text(
-                "runner-bind-mount-test-run", encoding="utf-8"
-            )
+            assert (source / "host-marker").read_text(
+                encoding="utf-8"
+            ) == "runner-bind-mount-test-run"
+            (source / "container-marker").write_text("runner-bind-mount-test-run", encoding="utf-8")
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(check_docker_workspace_mount.subprocess, "run", fake_run)
@@ -46,9 +43,7 @@ def test_probe_pulls_its_small_image_and_checks_bidirectional_access(
     assert not list(tmp_path.glob(".docker-workspace-probe.*"))
 
 
-def test_main_skips_probe_for_hosted_runs(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
+def test_main_skips_probe_for_hosted_runs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("CLOTH_CI_RUNNER_MODE", "hosted")
     monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
     monkeypatch.setenv("GITHUB_WORKSPACE", str(tmp_path))
@@ -56,9 +51,7 @@ def test_main_skips_probe_for_hosted_runs(
     def fail_if_called(workspace: Path) -> None:
         raise AssertionError(f"unexpected local Docker probe: {workspace}")
 
-    monkeypatch.setattr(
-        check_docker_workspace_mount, "validate_workspace_mount", fail_if_called
-    )
+    monkeypatch.setattr(check_docker_workspace_mount, "validate_workspace_mount", fail_if_called)
     assert check_docker_workspace_mount.main() == 0
 
 
