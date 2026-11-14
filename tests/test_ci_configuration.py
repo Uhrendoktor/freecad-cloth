@@ -119,6 +119,15 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     python_validation = workflow.split("  python:", 1)[1].split("  gui-simple:", 1)[0]
     tunic_audit = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     turntable_validation = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
+    realtime_step = tunic_audit.split(
+        "      - uses: ./.github/actions/freecad-test", 1
+    )[1].split("      - name: Independently validate realtime performance metrics", 1)[0]
+    realtime_validator = tunic_audit.split(
+        "      - name: Independently validate realtime performance metrics", 1
+    )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
+    production_tunic_step = tunic_audit.split(
+        "      - uses: ./.github/actions/freecad-test"
+    )[2]
     assert workflow.count("timeout-seconds:") == 4, (
         'Expected workflow.count("timeout-seconds:") == 4.'
     )
@@ -139,6 +148,18 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
         'Expected one bounded 360-second simulation turntable budget.'
+    )
+    assert tunic_audit.count("continue-on-error: true") == 2, (
+        'Expected only the realtime diagnostic steps to be non-blocking.'
+    )
+    assert "continue-on-error: true" in realtime_step, (
+        "The realtime metric capture is diagnostic-only for this PR."
+    )
+    assert "continue-on-error: true" in realtime_validator, (
+        "The independent realtime metric validator remains diagnostic-only."
+    )
+    assert "continue-on-error" not in production_tunic_step, (
+        "Production tunic drape and physical acceptance must remain blocking."
     )
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
