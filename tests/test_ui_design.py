@@ -10,7 +10,9 @@ from typing import ClassVar, cast
 from freecad_cloth.common.UiDesign import (
     PANEL_STYLE,
     apply_panel_style,
+    configure_form_layout,
     make_disclosure,
+    make_scroll_area,
     mark_button,
     set_status,
 )
@@ -519,3 +521,95 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     assert toggle.arrow == "right", (
         "The disclosure arrow should reflect its expanded or collapsed state."
     )
+
+
+
+class _FormLayoutStub:
+    """Record responsive policies supplied to a Qt form layout."""
+
+    def __init__(self) -> None:
+        """Initialize empty policy records."""
+        self.row_wrap: object | None = None
+        self.field_growth: object | None = None
+
+    def setRowWrapPolicy(self, policy: object) -> None:
+        """Record the row-wrapping policy.
+
+        Args:
+            policy: Host Qt policy value supplied by the helper.
+        """
+        self.row_wrap = policy
+
+    def setFieldGrowthPolicy(self, policy: object) -> None:
+        """Record the field-growth policy.
+
+        Args:
+            policy: Host Qt policy value supplied by the helper.
+        """
+        self.field_growth = policy
+
+
+class _ScrollAreaStub:
+    """Record the content and resize policy configured by the scroll helper."""
+
+    def __init__(self) -> None:
+        """Initialize an empty scroll-area record."""
+        self.resizable: bool | None = None
+        self.content: object | None = None
+        self.object_name = ""
+
+    def setWidgetResizable(self, enabled: bool) -> None:
+        """Record whether content should resize with the viewport.
+
+        Args:
+            enabled: Requested resize-to-viewport setting.
+        """
+        self.resizable = bool(enabled)
+
+    def setWidget(self, widget: _DisclosureWidget) -> None:
+        """Record the widget installed inside the scroll viewport.
+
+        Args:
+            widget: Content widget supplied by the helper.
+        """
+        self.content = widget
+
+    def setObjectName(self, name: str) -> None:
+        """Record the scroll area's stable Qt object name.
+
+        Args:
+            name: Object name assigned by the helper.
+        """
+        self.object_name = name
+
+
+def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
+    """Keep labels readable and form fields responsive in narrow task panels."""
+    layout = _FormLayoutStub()
+    qt_widgets = cast(
+        "ModuleType",
+        SimpleNamespace(
+            QFormLayout=SimpleNamespace(
+                WrapLongRows="wrap-long-rows",
+                ExpandingFieldsGrow="expanding-fields",
+            )
+        ),
+    )
+
+    configure_form_layout(cast("_FormLayout", layout), qt_widgets)
+
+    assert layout.row_wrap == "wrap-long-rows"
+    assert layout.field_growth == "expanding-fields"
+
+
+def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
+    """Use a resizable in-panel scroll viewport instead of a separate window."""
+    content = _DisclosureWidget()
+    qt_widgets = cast("ModuleType", SimpleNamespace(QScrollArea=_ScrollAreaStub))
+
+    scroll = make_scroll_area(content, qt_widgets)
+
+    assert isinstance(scroll, _ScrollAreaStub)
+    assert scroll.resizable is True
+    assert scroll.content is content
+    assert scroll.object_name == "ClothTaskPanelScrollArea"
