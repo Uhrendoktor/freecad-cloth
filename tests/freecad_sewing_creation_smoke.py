@@ -51,72 +51,99 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def _curved_shape(line_length, curve_span, curve_height, x_offset=0.0):
+def _curved_geometry_segments(line_length, curve_span, curve_height, x_offset=0.0):
     x_offset = float(x_offset)
-    p0 = App.Vector(x_offset, 0, 0)
-    p1 = App.Vector(x_offset + float(line_length), 0, 0)
-    p2 = App.Vector(x_offset + float(line_length), 40, 0)
-    p3 = App.Vector(x_offset + float(line_length) - float(curve_span), 40, 0)
-    curve = Part.BezierCurve()
-    curve.setPoles(
-        [
-            p2,
-            App.Vector(
-                x_offset + float(line_length),
-                40 + float(curve_height),
-                0,
-            ),
-            App.Vector(
-                x_offset + float(line_length) - float(curve_span),
-                40 + float(curve_height),
-                0,
-            ),
-            p3,
-        ]
+    line_length = float(line_length)
+    curve_span = float(curve_span)
+    curve_height = float(curve_height)
+    p0 = (x_offset, 0.0)
+    p1 = (x_offset + line_length, 0.0)
+    p2 = (x_offset + line_length, 40.0)
+    p3 = (x_offset + line_length - curve_span, 40.0)
+    control_a = (x_offset + line_length, 40.0 + curve_height)
+    control_b = (x_offset + line_length - curve_span, 40.0 + curve_height)
+    return (
+        ("line", (p0, p1)),
+        ("line", (p1, p2)),
+        ("bspline", (p2, control_a, control_b, p3)),
+        ("line", (p3, p0)),
     )
-    return Part.Face(
-        Part.Wire(
-            [
-                Part.makeLine(p0, p1),
-                Part.makeLine(p1, p2),
-                curve.toShape(),
-                Part.makeLine(p3, p0),
-            ]
-        )
+
+
+def _create_native_fixture_piece(doc, name, piece_id, outline, geometry_segments=None):
+    """Build test pieces through the same Sketcher-authority path as production."""
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+    from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+    piece = PatternPiece(name, outline, id=str(piece_id))
+    obj = add_pattern_piece(doc, piece)
+    sketch = create_sketch_for_piece(piece, doc, geometry_segments=geometry_segments)
+    doc.recompute()
+    # Keep the filled PatternPiece presentation visible for the UI recording;
+    # the linked Sketcher object remains the sole geometry authority.
+    obj.ViewObject.Visibility = True
+    sketch.Visibility = False
+    return obj
+
+
+def _replace_curved_piece_geometry(
+    doc, obj, *, line_length, curve_span, curve_height, x_offset=0.0
+):
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+    line_length = float(line_length)
+    curve_span = float(curve_span)
+    x_offset = float(x_offset)
+    outline = [
+        (x_offset, 0.0),
+        (x_offset + line_length, 0.0),
+        (x_offset + line_length, 40.0),
+        (x_offset + line_length - curve_span, 40.0),
+    ]
+    piece = PatternPiece(str(obj.Label), outline, id=str(obj.PieceId))
+    sketch = create_sketch_for_piece(
+        piece,
+        doc,
+        geometry_segments=_curved_geometry_segments(
+            line_length, curve_span, curve_height, x_offset=x_offset
+        ),
     )
+    doc.recompute()
+    obj.ViewObject.Visibility = True
+    sketch.Visibility = False
+
+
+def _curved_edge_length(line_length, curve_span, curve_height):
+    points = _curved_geometry_segments(line_length, curve_span, curve_height)[2][1]
+    curve = Part.BSplineCurve()
+    curve.interpolate([App.Vector(x, y, 0.0) for x, y in points])
+    return float(curve.toShape().Length)
 
 
 def add_curved_piece(
     doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
 ):
-    obj = doc.addObject("Part::Feature", name)
-    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
-    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(line_length)
-    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(
-        curve_height
+    outline = [
+        (float(x_offset), 0.0),
+        (float(x_offset) + float(line_length), 0.0),
+        (float(x_offset) + float(line_length), 40.0),
+        (float(x_offset) + float(line_length) - float(curve_span), 40.0),
+    ]
+    return _create_native_fixture_piece(
+        doc,
+        name,
+        piece_id,
+        outline,
+        geometry_segments=_curved_geometry_segments(
+            line_length, curve_span, curve_height, x_offset=x_offset
+        ),
     )
-    x_offset = float(x_offset)
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
-        [
-            (x_offset, 0.0),
-            (x_offset + float(line_length), 0.0),
-            (x_offset + float(line_length), 40.0),
-            (x_offset + float(line_length) - float(curve_span), 40.0),
-        ]
-    )
-    obj.Shape = _curved_shape(line_length, curve_span, curve_height, x_offset=x_offset)
-    return obj
 
 
 def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0):
-    """Create a standard Part feature carrying the sewing workflow's piece contract."""
-    obj = doc.addObject("Part::Feature", name)
-    obj.Label = name
-    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
-    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
-    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+    """Create a native Sketcher-backed PatternPiece test fixture."""
     x_offset = float(x_offset)
     outline = [
         (x_offset, 0.0),
@@ -124,14 +151,7 @@ def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offs
         (x_offset + float(width), float(height)),
         (x_offset, float(height)),
     ]
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(outline)
-    # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
-    # returns a face whose native Edge1..Edge4 order does not match this boundary.
-    vertices = [App.Vector(x, y, 0.0) for x, y in outline]
-    wire = Part.makePolygon(vertices + [vertices[0]])
-    obj.Shape = Part.Face(wire)
-    return obj
-
+    return _create_native_fixture_piece(doc, name, piece_id, outline)
 
 def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
     first, last = float(edge.FirstParameter), float(edge.LastParameter)
@@ -772,20 +792,7 @@ try:
         f"curved-sampling=passed max_spacing={max(curve_spacings):.6f} min_spacing={min(curve_spacings):.6f}"
     )
 
-    probe = Part.BezierCurve()
-    probe.setPoles(
-        [
-            App.Vector(0, 40, 0),
-            App.Vector(0, 160, 0),
-            App.Vector(-50, 160, 0),
-            App.Vector(-50, 40, 0),
-        ]
-    )
-    probe_points = probe.toShape().discretize(Number=64)
-    b_curve_length = sum(
-        ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
-        for left, right in zip(probe_points, probe_points[1:], strict=False)
-    )
+    b_curve_length = _curved_edge_length(50.0, 50.0, 120.0)
     b_line_length = float(
         curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length
     )
@@ -825,18 +832,18 @@ try:
     assert curved_preview.SideACount == 2
     assert curved_preview.SideBCount == 2
 
-    curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (-5.0, 40.0)])
-    curved_a.Shape = _curved_shape(100.0, 105.0, 90.0)
-    doc.recompute()
+    _replace_curved_piece_geometry(
+        doc, curved_a, line_length=100.0, curve_span=105.0, curve_height=90.0
+    )
     assert curved_panel.accept() is False
     assert "Preview validation failed" in curved_panel.feedback.text()
     record("stale-endpoint-invalidation=passed commit-blocked=true")
     curved_panel.cancel_button.click()
     wait_for_task_close()
 
-    curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (20.0, 40.0)])
-    curved_a.Shape = _curved_shape(100.0, 80.0, 90.0)
-    doc.recompute()
+    _replace_curved_piece_geometry(
+        doc, curved_a, line_length=100.0, curve_span=80.0, curve_height=90.0
+    )
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
     curved_preview = next(
