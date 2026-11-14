@@ -157,11 +157,14 @@ class SimulationQualityTaskPanel:
         qform.addRow("Solver iterations", self.iterations)
         qform.addRow("Solver substeps", self.substeps)
         content_layout.addWidget(quality)
+        self._expert_quality_widgets = []
         for widget in (self.particle_distance, self.iterations, self.substeps):
             label = qform.labelForField(widget)
             if label is not None:
                 label.setVisible(False)
+                self._expert_quality_widgets.append(label)
             widget.setVisible(False)
+            self._expert_quality_widgets.append(widget)
 
         fabric = QtWidgets.QGroupBox("Fabric")
         fform = QtWidgets.QFormLayout(fabric)
@@ -292,6 +295,8 @@ class SimulationQualityTaskPanel:
             self.QtCore.Qt.DownArrow if enabled else self.QtCore.Qt.RightArrow
         )
         for widget in getattr(self, "_expert_widgets", ()):
+            widget.setVisible(bool(enabled))
+        for widget in getattr(self, "_expert_quality_widgets", ()):
             widget.setVisible(bool(enabled))
         if enabled:
             self._set_status(
