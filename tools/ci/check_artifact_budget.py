@@ -44,9 +44,7 @@ def latest_artifacts_by_name(
             or not isinstance(previous_id, int)
             or isinstance(previous_id, bool)
         ):
-            raise ValueError(
-                f"duplicate artifact name {name!r} lacks creation time or artifact ID"
-            )
+            raise ValueError(f"duplicate artifact name {name!r} lacks creation time or artifact ID")
         if (current_created, current_id) > (previous_created, previous_id):
             latest[name] = artifact
     return [latest[name] for name in sorted(latest)]
