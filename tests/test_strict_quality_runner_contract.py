@@ -97,7 +97,8 @@ def test_quality_install_command_uses_resilient_download_timeouts() -> None:
 def test_quality_command_inventory_includes_every_strict_gate() -> None:
     """Keep architecture, typing, documentation, workflow, and Ruff checks enabled."""
     python = Path("/runner-cache/venvs/strict-quality/bin/python")
-    commands = quality_commands(python, ("freecad_cloth/module.py", "tests/module.pyi"))
+    tracked_files = ("freecad_cloth/module.py", "tests/module.pyi")
+    commands = quality_commands(python, tracked_files)
     labels = {command.label for command in commands}
     arguments = tuple(command.arguments for command in commands)
     require(
@@ -110,8 +111,8 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "Source-rewriting policy",
             "Explicit Any policy",
             "Pydantic model policy",
-            "Pyright production inventory",
-            "Typed simulation core",
+            "Pyright all Python files",
+            "Typed all Python files",
             "Changed Python annotation ratchet",
             "AST-grep rule tests",
             "AST-grep repository contracts",
@@ -129,13 +130,17 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
     require(
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
-        message="The reviewed Pyright production inventory must remain enabled.",
+        message="Strict Pyright must cover the full repository and remain enabled.",
     )
     require(
         condition=any(
             command[:4] == ("ty", "check", "--output-format", "github") for command in arguments
         ),
-        message="The blocking ty simulation-core profile must remain enabled.",
+        message="The blocking ty profile must check every tracked Python source and stub.",
+    )
+    require(
+        condition=("ty", "check", "--output-format", "github", *tracked_files) in arguments,
+        message="The ty command must receive the entire tracked Python inventory.",
     )
     require(
         condition=any(
@@ -169,11 +174,11 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         ),
         (
             "tests/test_ci_configuration.py::"
-            "test_pyright_uses_the_reviewed_staged_production_inventory"
+            "test_pyright_uses_strict_mode_for_entire_python_repository"
         ),
         (
             "tests/test_ci_configuration.py::"
-            "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
+            "test_new_python_modules_are_covered_by_strict_pyright"
         ),
         ("tests/test_ci_configuration.py::test_ty_warning_diagnostics_remain_blocking"),
         "tests/test_avatar_service_contract.py",
