@@ -200,8 +200,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_pbd_contact_diagnostics.py
           log-file: artifacts/pbd-contact-diagnostics/app-run.log
@@ -236,8 +241,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           timeout-seconds: "360"
           test-script: tests/freecad_pbd_cube_ladder.py
@@ -320,15 +330,21 @@ jobs:
           - {case: avatar-provider-lifecycle, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-provider-lifecycle-run.log, artifact: avatar-provider-lifecycle, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-provider-lifecycle"}
           - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
-          - {case: simulation-quality, script: tests/freecad_simulation_quality_acceptance.py, log: artifacts/simulation-quality-acceptance.log, artifact: simulation-quality-acceptance, stage: "true", clean: "false", env: "CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR=/workspace/artifacts", pre: "", validate: "python3 tools/ci/validate_acceptance.py simulation-quality"}
+          - {case: simulation-quality, script: tests/freecad_simulation_quality_acceptance.py, log: artifacts/simulation-quality-acceptance.log, artifact: simulation-quality-acceptance, stage: "true", clean: "false", env: "CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR=/workspace/artifacts", pre: "", validate: "python3 tools/ci/validate_acceptance.py simulation-quality", timeout: "360"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
           - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py surface-pen"}
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
+          timeout-seconds: ${{ matrix.timeout || '120' }}
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: ${{ matrix.script }}
           pre-command: ${{ matrix.pre }}
@@ -348,9 +364,14 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         continue-on-error: true
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
           pre-command: mkdir -p artifacts
@@ -418,8 +439,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: "${{ env.FREECAD_PBD_IMAGE }}"
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
@@ -449,8 +475,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           timeout-seconds: "360"
           test-script: tests/freecad_visual_examples.py
@@ -544,8 +575,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_avatar_screenshot.py
           clean-user: "true"
@@ -658,8 +694,13 @@ jobs:
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
       - uses: ./.github/actions/freecad-test
         with:
+          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_workbench_benchmark.py
           log-file: artifacts/workbench-benchmark.log
