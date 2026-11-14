@@ -70,6 +70,8 @@ def test_pull_requests_are_hosted_only():
 def test_local_runner_readiness_checks_docker_workspace_bind_mount() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
     readiness = _job_block(source, "local_runner_readiness")
+    assert "actions/checkout@" in readiness
+    assert "persist-credentials: false" in readiness
     assert "python3 tools/ci/check_docker_workspace_mount.py" in readiness
 
 
