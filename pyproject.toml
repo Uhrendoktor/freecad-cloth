@@ -115,7 +115,14 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
-"tests/**/*.py" = ["S101", "PLR2004", "T201", "PT011"]
+"tests/**/*.py" = ["S101", "PLR2004", "T201"]
+
+# These tests assert public exception classes where message text is not a contract.
+"tests/test_avatar_provider.py" = ["PT011"]
+"tests/test_boundary_validation_expansion.py" = ["PT011"]
+"tests/test_pattern_geometry.py" = ["PT011"]
+"tests/test_seam_reference.py" = ["PT011"]
+"tests/test_validation_models.py" = ["PT011"]
 
 # These CI tools have stable stdout contracts consumed by Actions and developers.
 "tools/ci/check_changed_python_types.py" = ["T201"]
