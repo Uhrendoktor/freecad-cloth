@@ -39,6 +39,8 @@ class SimulationTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothSimulationTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content)
 
         selection = QtWidgets.QGroupBox("Scene")
         layout = QtWidgets.QFormLayout(selection)
@@ -46,7 +48,7 @@ class SimulationTaskPanel:
         self._populate_selection_lists()
         layout.addRow("Cloth pieces", self.cloth)
         layout.addRow("Drape target", self.target)
-        root.addWidget(selection)
+        content_layout.addWidget(selection)
 
         material = QtWidgets.QGroupBox("Fabric")
         layout = QtWidgets.QFormLayout(material)
@@ -60,7 +62,7 @@ class SimulationTaskPanel:
         layout.addRow("Stretch compliance", self.stretch)
         layout.addRow("Bend compliance", self.bend)
         layout.addRow("Areal density", self.density)
-        root.addWidget(material)
+        content_layout.addWidget(material)
 
         advanced_content = QtWidgets.QWidget()
         advanced_layout = QtWidgets.QVBoxLayout(advanced_content)
@@ -111,7 +113,11 @@ class SimulationTaskPanel:
         self.advanced_section, self.advanced_toggle = make_disclosure(
             "Advanced solver, collision & sewing settings", advanced_content, QtCore, QtWidgets
         )
-        root.addWidget(self.advanced_section)
+        content_layout.addWidget(self.advanced_section)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
 
         controls = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
