@@ -355,7 +355,7 @@ def _function_type_comment_annotations(
         node: Function declaration carrying the parsed type comment.
         annotations: Mutable annotation inventory receiving each type expression.
     """
-    if not node.type_comment:
+    if node.type_comment is None or node.type_comment == "":
         return
     try:
         function_type = ast.parse(node.type_comment, mode="func_type")
@@ -733,7 +733,10 @@ def _parameter_documentation_errors(
     for line in args_body:
         match = PARAMETER_LINE.match(line)
         if match is not None:
-            described[match.group(1)] = match.group(2).strip()
+            parameter_name, description = match.groups()
+            if parameter_name is None or description is None:
+                continue
+            described[parameter_name] = description.strip()
 
     missing = sorted(set(_parameter_names(node)) - set(described))
     errors = (
@@ -821,7 +824,10 @@ def _raise_documentation_errors(
     for line in raises_body:
         match = EXCEPTION_LINE.match(line)
         if match is not None:
-            entries[match.group(1)] = match.group(2).strip()
+            exception_name, description = match.groups()
+            if exception_name is None or description is None:
+                continue
+            entries[exception_name] = description.strip()
 
     missing = sorted(raised - set(entries))
     errors = (
