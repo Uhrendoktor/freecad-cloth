@@ -178,25 +178,19 @@ class _VisibilityWidget(Protocol):
 class _FormLayout(Protocol):
     """Minimal responsive QFormLayout configuration surface."""
 
-    def setRowWrapPolicy(self, _policy: object) -> object:
+    def setRowWrapPolicy(self, _policy: int) -> None:
         """Set how a form row wraps when horizontal space is limited.
 
         Args:
             _policy: Qt row-wrap policy selected by the host.
-
-        Returns:
-            Result returned by the Qt row-wrap policy setter.
         """
         ...
 
-    def setFieldGrowthPolicy(self, _policy: object) -> object:
+    def setFieldGrowthPolicy(self, _policy: int) -> None:
         """Set how form fields consume available horizontal space.
 
         Args:
             _policy: Qt field-growth policy selected by the host.
-
-        Returns:
-            Result returned by the Qt field-growth policy setter.
         """
         ...
 
@@ -204,36 +198,27 @@ class _FormLayout(Protocol):
 class _ScrollArea(Protocol):
     """Minimal native Qt scroll area used for long task-panel content."""
 
-    def setWidgetResizable(self, _enabled: bool) -> object:
+    def setWidgetResizable(self, _enabled: bool) -> None:
         """Allow the content widget to track the available viewport size.
 
         Args:
             _enabled: Whether the scroll area resizes its content widget.
-
-        Returns:
-            Result returned by the Qt resize-policy setter.
         """
         ...
 
-    def setWidget(self, _widget: _VisibilityWidget) -> object:
+    def setWidget(self, _widget: _VisibilityWidget) -> None:
         """Install the content widget hosted by the scroll area.
 
         Args:
             _widget: Widget whose size and visibility are managed by Qt.
-
-        Returns:
-            Result returned by the Qt content-widget setter.
         """
         ...
 
-    def setObjectName(self, _name: str) -> object:
+    def setObjectName(self, _name: str) -> None:
         """Assign a stable object name for inspection and tests.
 
         Args:
             _name: Object name assigned to the scroll area.
-
-        Returns:
-            Result returned by the Qt object-name setter.
         """
         ...
 
@@ -389,11 +374,19 @@ def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None 
     if layout is not None:
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-        if form_layout_type is not None and isinstance(layout, form_layout_type):
+        if (
+            form_layout_type is not None
+            and qt_widgets is not None
+            and isinstance(layout, form_layout_type)
+        ):
             configure_form_layout(cast("_FormLayout", layout), qt_widgets)
     for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
-        if form_layout_type is not None and isinstance(nested_layout, form_layout_type):
+        if (
+            form_layout_type is not None
+            and qt_widgets is not None
+            and isinstance(nested_layout, form_layout_type)
+        ):
             configure_form_layout(cast("_FormLayout", nested_layout), qt_widgets)
 
 
