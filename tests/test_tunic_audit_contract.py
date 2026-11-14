@@ -904,3 +904,68 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
     assert 'status["result"]' not in simulation, (
         "Contract failed: 'status[\"result\"]' not in simulation"
     )
+
+
+def test_production_tunic_profile_records_native_python_and_gui_stages() -> None:
+    """Keep production throughput profiling separate from preview and physics settings."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    profile = source.split("def _run_production_tunic_drape(", 1)[1].split("\ndef simulation()", 1)[
+        0
+    ]
+    required = (
+        'getattr(getattr(active_backend, "_pbd", None), "Timing", None)',
+        "timing_reset()",
+        '"simulation step"',
+        '"position constraints projection"',
+        '"collision detection"',
+        '"backend_step_total"',
+        '"collision_projection_total"',
+        '"mesh_collision_projector"',
+        '"stitched_pair_reconciliation"',
+        '"audit_document_recompute"',
+        '"seam_diagnostics"',
+        '"viewport_framing"',
+        '"screenshot_capture"',
+        '"runtime_limits"',
+        '"cgroup_cpu_max"',
+        '"cgroup_cpu_stat"',
+        '"cgroup_cpu_pressure"',
+        '"thread_environment"',
+        '"process_cpu_elapsed_ms"',
+        '"mean_cpu_cores_used"',
+        '"simulation_complete"',
+        '"acceptance_gates"',
+        '"artifacts/tunic-audit/production-pbd-profile.json"',
+        '"artifacts/freecad-realtime/metrics.json"',
+        "scene.SolverSubsteps",
+        'getattr(active_backend, "_substeps", -1)',
+        "len(collision.triangles)",
+    )
+    missing = tuple(fragment for fragment in required if fragment not in profile)
+    assert not missing, f"Production profiling lost required measurements: {missing!r}"
+    assert "scene.SolverIterations =" not in profile
+    assert "scene.SolverSubsteps =" not in profile
+    assert "CLOTH_PBD_SUBSTEPS =" not in profile
+    assert "clearance_mm =" not in profile
+    assert "simulation_panel.step(batch)" in profile
+    assert (
+        "write_profile_checkpoint(int(scene.Steps), elapsed_ms, process_cpu_elapsed_ms)" in profile
+    )
+    assert "backend_class.step = original_backend_step" in profile
+    assert "projector_class.project = original_project" in profile
+    assert profile.index('log("realtime-preview=passed') < profile.index("timing_reset()")
+
+
+def test_production_profile_is_finalized_only_after_authoritative_acceptance() -> None:
+    """The throughput report must not claim a pass before the full tunic gate succeeds."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    simulation = source.split("def simulation() -> None:", 1)[1]
+    diagnostics_gate = simulation.index("assert_drape_diagnostics(")
+    profile_finalize = simulation.index('profile["audit_complete"] = True')
+    acceptance_finalize = simulation.index('profile["acceptance_gates"] = "passed"')
+    document_close = simulation.index("App.closeDocument(doc.Name)")
+    assert diagnostics_gate < profile_finalize < acceptance_finalize < document_close
+    assert 'profile.get("steps_completed", 0)' in simulation
+    assert 'profile.get("simulation_complete", False)' in simulation
+    assert '"target_clearance_and_penetration": True' in simulation
+    assert '"drape_visual_diagnostics": True' in simulation
