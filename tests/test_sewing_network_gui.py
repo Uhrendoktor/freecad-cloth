@@ -782,3 +782,63 @@ if __name__ == "__main__":
     test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
     test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
     print("sewing GUI relative-tolerance regression passed")
+
+
+
+def test_network_editor_search_covers_both_sides_and_status() -> None:
+    """Keep seam identity, both edge references, and validation searchable."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    seam = type(
+        "Seam",
+        (),
+        {
+            "SeamId": "seam-17",
+            "PieceA": "FrontPanel",
+            "EdgeA": "Edge4",
+            "PieceB": "SleeveLeft",
+            "EdgeB": "Edge2",
+            "Status": "Valid",
+        },
+    )()
+    network = type("Network", (), {"Status": "Ready"})()
+
+    searchable = SewingNetworkTaskPanel._seam_search_text(seam, network)
+    caption = SewingNetworkTaskPanel._seam_caption(seam, network)
+
+    assert "frontpanel" in searchable
+    assert "edge2" in searchable
+    assert "sleeveleft" in searchable
+    assert "seam-17" in searchable
+    assert "valid" in searchable
+    assert "FrontPanel" in caption
+    assert "SleeveLeft" in caption
+
+
+def test_network_editor_stores_selected_detail_values_before_acceptance() -> None:
+    """Preserve focused seam edits when the user changes selection or accepts."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    class Field:
+        """Expose the numeric value needed by the staged detail editor."""
+
+        def __init__(self, value: float) -> None:
+            """Store a deterministic spin-box value."""
+            self.current = value
+
+        def value(self) -> float:
+            """Return the current numeric value."""
+            return self.current
+
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._current_row = 1
+    panel._loading_range = False
+    panel._range_values = [(0.0, 1.0, 0.0, 1.0), (0.1, 0.9, 0.2, 0.8)]
+    panel._range_fields = (Field(0.25), Field(0.75), Field(0.3), Field(0.7))
+
+    panel._store_selected_range()
+
+    assert panel._range_values == [
+        (0.0, 1.0, 0.0, 1.0),
+        (0.25, 0.75, 0.3, 0.7),
+    ]
