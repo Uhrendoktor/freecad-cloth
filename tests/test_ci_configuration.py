@@ -118,33 +118,34 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
     python_validation = workflow.split("  python:", 1)[1].split("  gui-simple:", 1)[0]
     tunic_audit = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    turntable_validation = workflow.split("  gui-turntables:", 1)[1].split("  gui-visual-examples:", 1)[0]
-    realtime_step = tunic_audit.split(
-        "      - uses: ./.github/actions/freecad-test", 1
-    )[1].split("      - name: Independently validate realtime performance metrics", 1)[0]
+    turntable_validation = workflow.split("  gui-turntables:", 1)[1].split(
+        "  gui-visual-examples:", 1
+    )[0]
+    realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
+        "      - name: Independently validate realtime performance metrics", 1
+    )[0]
     realtime_validator = tunic_audit.split(
         "      - name: Independently validate realtime performance metrics", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
-    production_tunic_step = tunic_audit.split(
-        "      - uses: ./.github/actions/freecad-test"
-    )[2]
+    production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
     assert workflow.count("timeout-seconds:") == 4, (
         'Expected workflow.count("timeout-seconds:") == 4.'
     )
     assert workflow.count('timeout-seconds: "360"') == 3, (
-        'Expected workflow.count(\'timeout-seconds: "360"\') == 3.'
+        "Expected workflow.count('timeout-seconds: \"360\"') == 3."
     )
-    assert workflow.count('timeout-seconds: "${{ matrix.group == \'core\' && 360 || 120 }}"') == 1, (
-        "Expected a single core-only Python validation timeout override."
-    )
+    assert (
+        workflow.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"") == 1
+    ), "Expected a single core-only Python validation timeout override."
     assert simulation_ladder.count('timeout-seconds: "360"') == 1, (
-        'Expected one 360-second timeout in simulation_ladder.'
+        "Expected one 360-second timeout in simulation_ladder."
     )
-    assert python_validation.count(
-        'timeout-seconds: "${{ matrix.group == \'core\' && 360 || 120 }}"'
-    ) == 1, "Only the core Python validation group may use the extended Python budget."
+    assert (
+        python_validation.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"")
+        == 1
+    ), "Only the core Python validation group may use the extended Python budget."
     assert tunic_audit.count('timeout-seconds: "360"') == 1, (
-        'Expected one bounded 360-second production tunic audit budget.'
+        "Expected one bounded 360-second production tunic audit budget."
     )
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
         'Expected one bounded 360-second simulation turntable budget.'
