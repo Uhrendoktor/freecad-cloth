@@ -4,7 +4,6 @@
 import contextlib
 from collections.abc import Callable
 from types import ModuleType
-from typing import TYPE_CHECKING
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
