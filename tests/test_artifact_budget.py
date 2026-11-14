@@ -6,7 +6,7 @@ from tools.ci.check_artifact_budget import (
     MAX_ARTIFACT_BYTES,
     accumulated_size,
     latest_artifacts_by_name,
- )
+)
 
 
 def test_accumulated_size_sums_all_artifacts():
