@@ -19,6 +19,10 @@ MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
+# Published documentation assets are long-lived public refs, not disposable work branches.
+RESERVED_BRANCH_NAMES = frozenset({"docs/screenshots"})
+RESERVED_BRANCH_PREFIXES = ("simulation-evidence/",)
+
 
 def gh_json(*args: str) -> object:
     """Run a GitHub CLI command and parse its JSON output."""
@@ -34,6 +38,15 @@ def gh_delete(*args: str) -> None:
 def epoch(value: str) -> float:
     """Convert an ISO-8601 timestamp to a Unix epoch."""
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def is_reserved_branch(name: str, default_branch: str) -> bool:
+    """Return whether a ref is the default branch or a long-lived evidence publication."""
+    return (
+        name == default_branch
+        or name in RESERVED_BRANCH_NAMES
+        or name.startswith(RESERVED_BRANCH_PREFIXES)
+    )
 
 
 def paginated_api_items(
@@ -169,8 +182,8 @@ def closed_pr_head_shas_by_branch(
 
     Such refs have no open review and have not advanced since the PR closed, so
     they are eligible for removal even if their commit timestamp is recent.
-    Evidence refs, protected refs, the default branch, and open PR heads are
-    excluded from these lookups.
+    Long-lived evidence/publication refs, protected refs, the default branch, and
+    open PR heads are excluded from these lookups.
     """
     load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
     owner = repo.split("/", maxsplit=1)[0]
@@ -179,8 +192,7 @@ def closed_pr_head_shas_by_branch(
         name = branch.get("name")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
+            or is_reserved_branch(name, default_branch)
             or name in open_heads
             or branch.get("protected") is not False
         ):
@@ -223,16 +235,15 @@ def stale_unprotected_branches(
 ) -> list[dict[str, object]]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
-    Open pull-request heads and branches with missing activity evidence are
-    retained. Results are ordered oldest first for predictable bounded cleanup.
+    Reserved evidence/publication refs, open pull-request heads, and branches with
+    missing activity evidence are retained. Results are ordered oldest first.
     """
     stale: list[tuple[float, dict[str, object]]] = []
     for branch in branches:
         name = branch.get("name")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
+            or is_reserved_branch(name, default_branch)
             or name in open_heads
             or branch.get("protected") is not False
         ):
@@ -452,8 +463,7 @@ def main() -> int:
         commit = branch.get("commit")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
+            or is_reserved_branch(name, default_branch)
             or name in open_heads
             or branch.get("protected") is not False
         ):
