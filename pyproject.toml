@@ -77,14 +77,49 @@ force-exclude = false
 [tool.ruff.lint]
 select = ["ALL"]
 preview = true
-ignore = [
-  # Classic FreeCAD loader adapters must adjust sys.path before importing host modules.
-  "E402",
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 # pytest assertions are the executable test oracle and must remain enabled.
 "tests/**/*.py" = ["S101"]
+
+# Executable adapters establish a checkout path before importing repository modules.
+"tools/ci/check_visual_assets_and_budget.py" = ["E402"]
+"tools/ci/validate_acceptance.py" = ["E402"]
+"tests/test_pattern_marks.py" = ["E402"]
+"tests/test_command_adapter.py" = ["E402"]
+"tests/test_meshpart_adapter.py" = ["E402"]
+"tests/test_sewing_repair.py" = ["E402"]
+"tests/test_simulation_gui.py" = ["E402"]
+"tests/freecad_meshpart_smoke.py" = ["E402"]
+"tests/freecad_workbench_benchmark.py" = ["E402"]
+"tests/freecad_tunic_audit_production.py" = ["E402"]
+"tests/test_core.py" = ["E402"]
+"tests/test_sewing_network_gui_contract.py" = ["E402"]
+"tests/test_derived_geometry.py" = ["E402"]
+"tests/test_sewing_gui_contract.py" = ["E402"]
+"tests/freecad_pattern_workbench_smoke.py" = ["E402"]
+"tests/freecad_avatar_smoke.py" = ["E402"]
+"tests/test_sewing_correspondence.py" = ["E402"]
+"tests/test_seam_graph.py" = ["E402"]
+"tests/drape_backend_micro.py" = ["E402"]
+"tests/freecad_e2e.py" = ["E402"]
+"tests/test_sewing_network.py" = ["E402"]
+"tests/test_sewing_show2d.py" = ["E402"]
+"tests/test_pattern_ir.py" = ["E402"]
+"tests/freecad_drape_debug.py" = ["E402"]
+"tests/test_freecad_objects.py" = ["E402"]
+"tests/freecad_surface_pen_smoke.py" = ["E402"]
+"tests/freecad_avatar_acceptance.py" = ["E402"]
+"tests/freecad_pbd_cube_ladder.py" = ["E402"]
+"tests/freecad_pbd_ladder_bootstrap.py" = ["E402"]
+"tests/freecad_pbd_avatar_ladder.py" = ["E402"]
+"tests/freecad_sketcher_acceptance.py" = ["E402"]
+"tests/freecad_visual_examples.py" = ["E402"]
+"tests/test_sewing_network_gui.py" = ["E402"]
+"tests/freecad_avatar_screenshot.py" = ["E402"]
+"tests/freecad_smoke.py" = ["E402"]
+"tests/freecad_sewing_smoke.py" = ["E402"]
 
 # FreeCAD task and teardown callbacks must contain native SWIG/Qt exceptions.
 "freecad_cloth/pattern/PatternCommands.py" = ["BLE001"]
