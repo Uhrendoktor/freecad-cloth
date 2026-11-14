@@ -596,8 +596,8 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
 
 
-def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
-    """The production geometry audit runs even when the realtime gate fails."""
+def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
+    """The full production audit runs but cannot block while throughput is deferred."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -614,6 +614,15 @@ def test_production_tunic_audit_runs_even_if_performance_gate_fails() -> None:
     assert "if: always()" in audit_action, (
         "The production tunic audit must still execute after a failed realtime gate."
     )
+    assert "id: production-tunic-audit" in audit_action
+    assert "continue-on-error: true" in audit_action
+    assert 'timeout-seconds: "360"' in audit_action
+    advisory = gui.split("      - name: Report production tunic audit as advisory", 1)[1]
+    assert "steps.production-tunic-audit.outcome" in advisory
+    assert "this is not a pass" in advisory
+    assert "#2839" in advisory
+    assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )

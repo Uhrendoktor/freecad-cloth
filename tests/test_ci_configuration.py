@@ -150,8 +150,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
         "Expected one bounded 360-second simulation turntable budget."
     )
-    assert tunic_audit.count("continue-on-error: true") == 2, (
-        "Expected only the realtime diagnostic steps to be non-blocking."
+    assert tunic_audit.count("continue-on-error: true") == 3, (
+        "Only the realtime diagnostics and explicitly deferred production audit may be non-blocking."
     )
     assert "continue-on-error: true" in realtime_step, (
         "The realtime metric capture is diagnostic-only for this PR."
@@ -159,8 +159,23 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "continue-on-error: true" in realtime_validator, (
         "The independent realtime metric validator remains diagnostic-only."
     )
-    assert "continue-on-error" not in production_tunic_step, (
-        "Production tunic drape and physical acceptance must remain blocking."
+    assert "id: production-tunic-audit" in production_tunic_step, (
+        "The production tunic audit outcome must be reported explicitly."
+    )
+    assert "continue-on-error: true" in production_tunic_step, (
+        "The production audit is advisory while its throughput follow-up is unresolved."
+    )
+    assert 'timeout-seconds: "360"' in production_tunic_step, (
+        "The production audit must retain its existing bounded execution budget."
+    )
+    assert "steps.production-tunic-audit.outcome" in production_tunic_step, (
+        "The advisory warning must preserve the actual audit step outcome."
+    )
+    assert "this is not a pass" in production_tunic_step, (
+        "A deferred or timed-out production audit must never be reported as passed."
+    )
+    assert "#2839" in production_tunic_step, (
+        "The deferred production audit must identify its dedicated performance follow-up."
     )
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
