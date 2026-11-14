@@ -5,28 +5,34 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 IMAGE = "busybox:1.36.1"
+CommandRunner = Callable[..., subprocess.CompletedProcess[bytes]]
 
 
-def validate_workspace_mount(workspace: Path) -> None:
+def validate_workspace_mount(
+    workspace: Path,
+    *,
+    run: CommandRunner = subprocess.run,
+    environ: Mapping[str, str] | None = None,
+) -> None:
     """Check Docker is usable and the runner workspace is visible and writable."""
-    subprocess.run(["docker", "info"], check=True, timeout=20)
-    image_check = subprocess.run(["docker", "image", "inspect", IMAGE], check=False, timeout=10)
+    environment = os.environ if environ is None else environ
+    run(["docker", "info"], check=True, timeout=20)
+    image_check = run(["docker", "image", "inspect", IMAGE], check=False, timeout=10)
     if image_check.returncode != 0:
-        subprocess.run(["docker", "pull", IMAGE], check=True, timeout=20)
+        run(["docker", "pull", IMAGE], check=True, timeout=20)
 
-    marker = f"runner-bind-mount-{os.environ.get('GITHUB_RUN_ID', 'local')}"
-    with tempfile.TemporaryDirectory(
-        prefix=".docker-workspace-probe.", dir=workspace
-    ) as temporary_directory:
+    marker = f"runner-bind-mount-{environment.get('GITHUB_RUN_ID', 'local')}"
+    with tempfile.TemporaryDirectory(prefix=".docker-workspace-probe.", dir=workspace) as temporary_directory:
         probe_directory = Path(temporary_directory)
         (probe_directory / "host-marker").write_text(marker, encoding="utf-8")
         container_script = (
             'test "$(cat /probe/host-marker)" = "$1"; printf "%s\\n" "$1" > /probe/container-marker'
         )
-        subprocess.run(
+        run(
             [
                 "docker",
                 "run",
@@ -50,15 +56,20 @@ def validate_workspace_mount(workspace: Path) -> None:
     print("docker-workspace-bind-mount=ready")
 
 
-def main() -> int:
+def main(
+    *,
+    environ: Mapping[str, str] | None = None,
+    run: CommandRunner = subprocess.run,
+) -> int:
     """Run the mount check only for local-first trusted workflow executions."""
-    runner_mode = os.environ.get("CLOTH_CI_RUNNER_MODE", "local")
-    event_name = os.environ.get("GITHUB_EVENT_NAME", "")
+    environment = os.environ if environ is None else environ
+    runner_mode = environment.get("CLOTH_CI_RUNNER_MODE", "local")
+    event_name = environment.get("GITHUB_EVENT_NAME", "")
     if runner_mode != "local" or event_name == "pull_request":
         print(f"docker-workspace-bind-mount=skipped runner_mode={runner_mode}")
         return 0
-    workspace = Path(os.environ["GITHUB_WORKSPACE"])
-    validate_workspace_mount(workspace)
+    workspace = Path(environment["GITHUB_WORKSPACE"])
+    validate_workspace_mount(workspace, run=run, environ=environment)
     return 0
 
 
