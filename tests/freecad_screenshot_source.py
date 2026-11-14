@@ -2274,6 +2274,8 @@ def _run_production_tunic_drape(
         steps_completed: int,
         elapsed_ms: float,
         process_cpu_elapsed_ms: float,
+        *,
+        scene_steps_requested: int,
     ) -> None:
         native = native_timing_snapshot()
         python_stages = {
@@ -2300,6 +2302,7 @@ def _run_production_tunic_drape(
             "fixture": "canonical-two-panel-tunic-production",
             "steps_completed": steps_completed,
             "steps_requested": 90,
+            "scene_steps_requested": scene_steps_requested,
             "simulation_complete": steps_completed == 90 and bool(scene.FiniteState),
             "audit_complete": False,
             "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
@@ -2395,6 +2398,8 @@ def _run_production_tunic_drape(
     if getattr(active_backend, "_collision_projector", None) is None:
         raise RuntimeError("production tunic mesh collision projector is unavailable")
 
+    backend_steps_completed = 0
+
     def timed_backend_step(
         backend: "PositionBasedDynamicsBackend",
         dt: float = 1.0 / 60.0,
@@ -2402,11 +2407,24 @@ def _run_production_tunic_drape(
         gravity: Sequence[float] = (0.0, 0.0, -9810.0),
         surface: "CollisionSurface | None" = None,
     ) -> None:
+        nonlocal backend_steps_completed
         stage_started = perf_counter()
+        completed = False
         try:
             original_backend_step(backend, dt, iterations, gravity, surface)
+            completed = True
         finally:
             record_profile_sample("backend_step_total", stage_started)
+            if completed:
+                backend_steps_completed += 1
+                backend_elapsed_ms = 1000.0 * (perf_counter() - started)
+                backend_process_cpu_elapsed_ms = 1000.0 * (process_time() - started_process)
+                write_profile_checkpoint(
+                    backend_steps_completed,
+                    backend_elapsed_ms,
+                    backend_process_cpu_elapsed_ms,
+                    scene_steps_requested=int(scene.Steps),
+                )
 
     def timed_collision_projection(backend: "PositionBasedDynamicsBackend") -> None:
         stage_started = perf_counter()
@@ -2455,12 +2473,13 @@ def _run_production_tunic_drape(
                 {
                     "schema_version": 1,
                     "fixture": "canonical-two-panel-tunic-production",
-                    "steps_completed": int(scene.Steps),
+                    "steps_completed": backend_steps_completed,
                     "steps_requested": 90,
+                    "scene_steps_requested": int(scene.Steps),
                     "simulation_complete": False,
                     "audit_complete": False,
                     "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
-                    "status": "profiling started; first 10-step checkpoint not yet completed",
+                    "status": "profiling started; first completed solver-step checkpoint not yet written",
                     "production_settings": {
                         "particles": int(scene.ParticleCount),
                         "scene_substeps": int(scene.SolverSubsteps),
@@ -2527,7 +2546,12 @@ def _run_production_tunic_drape(
                     "process_cpu_elapsed_ms": 1000.0 * (process_time() - batch_cpu_started),
                 }
             )
-            write_profile_checkpoint(int(scene.Steps), elapsed_ms, process_cpu_elapsed_ms)
+            write_profile_checkpoint(
+                backend_steps_completed,
+                elapsed_ms,
+                process_cpu_elapsed_ms,
+                scene_steps_requested=int(scene.Steps),
+            )
             log(
                 "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
                 "particles=%d iterations=%d scene_substeps=%d backend_substeps=%d"
