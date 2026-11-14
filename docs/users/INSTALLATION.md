@@ -31,11 +31,13 @@ For an existing installation, remove the previous `freecad-cloth` directory befo
 
 ## First run
 
-Recommended first run:
+Use the examples in this order to separate installation problems from garment-workflow questions:
 
-1. Open the [end-to-end user guide](USER_GUIDE.md) and follow its Tunic path from pattern through simulation.
-2. Use the [Tunic example](EXAMPLES.md#2-tunic) as the acceptance reference for the full garment path.
-3. Run [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) when diagnosing a basic target, pinning, or collision problem independently of sewing and mannequin complexity.
+1. Run [Blanket over Cube](EXAMPLES.md#1-blanket-over-cube) to verify a basic pattern, collision target, pinning, and drape.
+2. Follow the [end-to-end user guide](USER_GUIDE.md) for the complete Tunic workflow, from editable pattern through diagnosis.
+3. Keep the [Tunic example](EXAMPLES.md#2-tunic) as the reference for integrated sewing, mannequin fitting, simulation, and save/reload behavior.
+
+The user guide remains the starting point when your immediate goal is to build a complete garment rather than validate a fresh installation.
 
 ## Developer setup
 
