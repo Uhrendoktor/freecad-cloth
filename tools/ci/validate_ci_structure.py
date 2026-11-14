@@ -61,54 +61,10 @@ REQUIRED = (
     ROOT / "tools/ci/validate_workbench_benchmark.py",
 )
 
-# Stage semantic type checking deliberately: these paths form the reviewed
-# blocking Pyright inventory. New production modules are added only after
-# their diagnostics are triaged; changed-file annotation checks remain broad.
-PYRIGHT_EXPECTED_INCLUDE = (
-    "freecad_cloth/avatar/AnnyAvatarBackend.py",
-    "freecad_cloth/avatar/AvatarArrangement",
-    "freecad_cloth/avatar/AvatarProperties.py",
-    "freecad_cloth/avatar/SkeletonTypes.py",
-    "freecad_cloth/avatar/avatar_arrangement.py",
-    "freecad_cloth/avatar/avatar_defaults.py",
-    "freecad_cloth/avatar/avatar_protocols.py",
-    "freecad_cloth/avatar/make_human_targets.py",
-    "freecad_cloth/common",
-    "freecad_cloth/pattern/PatternGeometry.py",
-    "freecad_cloth/pattern/PatternIR.py",
-    "freecad_cloth/pattern/PatternModel.py",
-    "freecad_cloth/pattern/PatternPdfExport.py",
-    "freecad_cloth/pattern/PatternSvgValidation.py",
-    "freecad_cloth/sewing/SeamGraph.py",
-    "freecad_cloth/sewing/SewingCorrespondence.py",
-    "freecad_cloth/shared",
-    "freecad_cloth/simulation/ClothSolver.py",
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/DrapeTarget.py",
-    "freecad_cloth/simulation/MeshBoundary.py",
-    "freecad_cloth/simulation/MeshCollisionProjector.py",
-    "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
-    "freecad_cloth/simulation/SimulationObjects.py",
-    "freecad_cloth/simulation/SimulationQuality.py",
-    "freecad_cloth/simulation/SimulationQualityRuntime.py",
-    "freecad_cloth/simulation/cloth_backend.py",
-    "freecad_cloth/simulation/simulation_protocols.py",
-    "tools/ci/repository_paths.py",
-)
-PYRIGHT_EXPECTED_EXCLUDE = (
-    "**/*Commands.py",
-    "**/*Gui.py",
-    "**/workbench.py",
-    "freecad_cloth/avatar/_lazy_imports.py",
-    "freecad_cloth/avatar/avatar_commands.py",
-    "freecad_cloth/bootstrap.py",
-    "freecad_cloth/simulation/_cloth_backend_compat.py",
-)
-PYRIGHT_EXPECTED_STRICT = (
-    "freecad_cloth/simulation/DrapeFailureClassifier.py",
-    "freecad_cloth/simulation/cloth_backend.py",
-    "freecad_cloth/simulation/ClothSolver.py",
-)
+# One strict Pyright profile covers the repository root; new tracked modules need no opt-in.
+PYRIGHT_EXPECTED_INCLUDE = (".",)
+PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()
+PYRIGHT_EXPECTED_STRICT: tuple[str, ...] = ()
 
 QUALITY_RUNNER_COMMANDS = ('bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"',)
 TYPECHECK_COMMANDS = QUALITY_RUNNER_COMMANDS
@@ -235,14 +191,14 @@ def pyright_coverage_contract_violations(
     config_text: str,
     added_modules: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Require the reviewed staged Pyright inventory and prevent accidental scope drift.
+    """Require strict Pyright analysis to cover the repository's complete Python tree.
 
     Args:
         config_text: Contents of the Pyright configuration file.
-        added_modules: New production modules to check against the selected inventory.
+        added_modules: New production modules to check against the repository-wide scope.
 
     Returns:
-        Contract violations describing changes to the reviewed scope or uncovered modules.
+        Contract violations describing any narrowed scope or disabled diagnostics.
     """
     try:
         config = json.loads(config_text)
@@ -253,19 +209,17 @@ def pyright_coverage_contract_violations(
     include = list(PYRIGHT_EXPECTED_INCLUDE)
     exclude = list(PYRIGHT_EXPECTED_EXCLUDE)
     if config.get("include") != include:
-        violations.append("<Pyright include scope differs from the reviewed inventory>")
+        violations.append("<Pyright include scope must cover the entire repository root>")
     if config.get("exclude", []) != exclude:
-        violations.append("<Pyright exclude scope differs from the reviewed inventory>")
+        violations.append("<Pyright must not exclude repository source paths>")
     if config.get("strict", []) != list(PYRIGHT_EXPECTED_STRICT):
-        violations.append("<Pyright strict scope differs from the reviewed simulation core>")
-    if config.get("typeCheckingMode") != "standard":
-        violations.append("<Pyright default mode must remain standard outside the strict core>")
-    if config.get("reportMissingImports", "none") != "none":
-        violations.append("<Pyright missing-import policy differs from the reviewed host boundary>")
-    if config.get("reportMissingModuleSource", "none") != "none":
-        violations.append(
-            "<Pyright missing-module-source policy differs from the reviewed host boundary>"
-        )
+        violations.append("<Pyright strict mode must apply globally, not through a path subset>")
+    if config.get("typeCheckingMode") != "strict":
+        violations.append("<Pyright typeCheckingMode must be strict>")
+    if config.get("reportMissingImports", "error") != "error":
+        violations.append("<Pyright missing-import diagnostics must be blocking>")
+    if config.get("reportMissingModuleSource", "error") != "error":
+        violations.append("<Pyright missing-module-source diagnostics must be blocking>")
 
     missing_paths = tuple(path for path in PYRIGHT_EXPECTED_INCLUDE if not (ROOT / path).exists())
     violations.extend(f"<Pyright inventory path does not exist: {path}>" for path in missing_paths)
@@ -277,14 +231,14 @@ def pyright_coverage_contract_violations(
         and not _pyright_path_is_excluded(path, exclude)
     )
     violations.extend(
-        f"<new Python module is outside Pyright include/exclude scope: {path}>"
+        f"<new Python module is outside strict Pyright coverage: {path}>"
         for path in uncovered_modules
     )
     return tuple(violations)
 
 
 def ty_warnings_are_blocking(config_text: str) -> bool:
-    """Require the curated ty core profile to fail on warning-level diagnostics.
+    """Require every ty diagnostic to be blocking for the complete tracked Python inventory.
 
     Args:
         config_text: TOML text from the repository's ty configuration.
