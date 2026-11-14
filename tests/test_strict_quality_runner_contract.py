@@ -176,10 +176,7 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "tests/test_ci_configuration.py::"
             "test_pyright_uses_strict_mode_for_entire_python_repository"
         ),
-        (
-            "tests/test_ci_configuration.py::"
-            "test_new_python_modules_are_covered_by_strict_pyright"
-        ),
+        ("tests/test_ci_configuration.py::test_new_python_modules_are_covered_by_strict_pyright"),
         ("tests/test_ci_configuration.py::test_ty_all_diagnostics_remain_blocking"),
         "tests/test_avatar_service_contract.py",
         "tests/test_changed_python_types.py",
