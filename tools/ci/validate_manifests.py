@@ -418,9 +418,7 @@ def _validate_tunic_end_to_end() -> None:
             raise SystemExit(msg)
 
 
-def _validate_tunic(
-    *, require_canonical_e2e: bool, require_realtime_metrics: bool = True
-) -> None:
+def _validate_tunic(*, require_canonical_e2e: bool, require_realtime_metrics: bool = True) -> None:
     """Validate tunic evidence with independent visual, physics, and timing contracts.
 
     Args:
