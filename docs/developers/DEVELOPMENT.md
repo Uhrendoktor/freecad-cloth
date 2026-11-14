@@ -55,9 +55,9 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 Pull requests use GitHub-hosted runners directly. They never enter the self-hosted runner path.
 
-Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started.
+Trusted `push`, scheduled, and manual runs are local-first: the canonical workflow starts one `local_runner_readiness` sentinel on the existing `self-hosted/linux/x64/docker` runner. The sentinel verifies both Docker daemon availability and a read/write bind mount of the actual workspace into a container. Every substantive job depends on that sentinel, so the fallback cannot race with work that has already started.
 
-A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel. When the local runner does not start, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
+A small hosted `runner_watchdog` waits up to 45 seconds for the local sentinel to complete successfully. If the runner is unavailable, the workspace mount is not usable, or readiness times out, it dispatches the same canonical workflow in explicit `runner_mode=hosted` mode and cancels the stalled source run. Manual `workflow_dispatch` with `runner_mode=hosted` still forces the hosted path.
 
 There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The single daily schedule remains for repository maintenance and runner/fallback coverage.
 
