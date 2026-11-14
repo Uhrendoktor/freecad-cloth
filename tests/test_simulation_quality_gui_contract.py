@@ -240,7 +240,6 @@ def test_reject_restores_snapshot_before_closing_dialog(
     )
 
 
-
 def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> None:
     """Show the numeric quality fields when expert physics settings are expanded."""
     panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
@@ -271,9 +270,7 @@ def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> Non
             """
             self.arrow = arrow
 
-    panel.QtCore = SimpleNamespace(
-        Qt=SimpleNamespace(DownArrow="down", RightArrow="right")
-    )
+    panel.QtCore = SimpleNamespace(Qt=SimpleNamespace(DownArrow="down", RightArrow="right"))
     panel.advanced_toggle = Disclosure()
     panel._expert_widgets = (Visibility(), Visibility(), Visibility())
     panel._expert_quality_widgets = tuple(Visibility() for _ in range(6))
@@ -282,8 +279,7 @@ def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> Non
     _panel_method(panel, "_set_expert_visibility")(True)
     require(
         condition=all(
-            widget.visible
-            for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
+            widget.visible for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
         ),
         message="Expanding expert settings must reveal every solver, fabric, collision, and quality control.",
     )
@@ -295,8 +291,7 @@ def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> Non
     _panel_method(panel, "_set_expert_visibility")(False)
     require(
         condition=not any(
-            widget.visible
-            for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
+            widget.visible for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
         ),
         message="Collapsing expert settings must hide every expert control.",
     )
