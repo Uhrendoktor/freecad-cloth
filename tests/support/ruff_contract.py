@@ -17,50 +17,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     """
     project = tomllib.loads(project_file.read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
-    allowed_select = {
-        "E",
-        "F",
-        "W",
-        "I",
-        "A",
-        "ANN401",
-        "B",
-        "BLE",
-        "C4",
-        "DTZ",
-        "FURB",
-        "G",
-        "LOG",
-        "PERF",
-        "PGH",
-        "PIE",
-        "RET",
-        "RUF",
-        "SIM",
-        "UP",
-        "YTT",
-    }
-    allowed_ignores = {
-        "E402",
-        "E501",
-        "UP031",
-        "RUF007",
-        "RUF046",
-        "RUF005",
-        "RET501",
-        "RET503",
-        "RET504",
-        "SIM105",
-        "C401",
-        "C408",
-        "C416",
-        "FURB162",
-        "FURB192",
-        "PIE810",
-        "RUF043",
-        "UP017",
-        "UP040",
-    }
+    allowed_ignores = {"E402"}
     allowed_per_file = {
         "tests/**/*.py": ["S101"],
         "freecad_cloth/pattern/PatternCommands.py": ["BLE001"],
@@ -73,18 +30,18 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "tools/ci/python_validation.py": ["BLE001"],
     }
     require(
-        condition=set(lint.get("select", [])) == allowed_select,
-        message="Ruff selection must match the reviewed correctness/security/import/type policy.",
+        condition=lint.get("select") == ["ALL"],
+        message="Ruff must select every rule for all tracked Python sources and stubs.",
     )
     require(
-        condition=not lint.get("preview", False),
-        message="Blanket Ruff preview selection is not permitted.",
+        condition=lint.get("preview") is True,
+        message="Ruff preview rules must remain enabled repository-wide.",
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="Ruff ignores must match the reviewed rule-specific policy.",
+        message="Only the documented FreeCAD loader import-order exception may remain globally ignored.",
     )
     require(
         condition=lint.get("per-file-ignores") == allowed_per_file,
-        message="Only documented pytest and FreeCAD host-callback exceptions may be scoped per file.",
+        message="Per-file exceptions must remain limited to pytest assertions and exact native callback boundaries.",
     )
