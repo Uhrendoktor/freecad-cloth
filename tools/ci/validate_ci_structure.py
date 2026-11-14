@@ -237,14 +237,14 @@ def pyright_coverage_contract_violations(
     return tuple(violations)
 
 
-def ty_warnings_are_blocking(config_text: str) -> bool:
+def ty_all_diagnostics_are_errors(config_text: str) -> bool:
     """Require every ty diagnostic to be blocking for the complete tracked Python inventory.
 
     Args:
         config_text: TOML text from the repository's ty configuration.
 
     Returns:
-        True when warning-level type diagnostics remain blocking.
+        True when every type diagnostic is treated as an error.
     """
     try:
         config = tomllib.loads(config_text)
