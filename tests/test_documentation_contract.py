@@ -320,8 +320,8 @@ def test_syntax_errors_fail_closed() -> None:
     )
 
 
-def test_ruff_uses_the_reviewed_rule_set_and_documented_exceptions() -> None:
-    """Protect the reviewed production-oriented Ruff rules and narrow callback exceptions."""
+def test_ruff_uses_all_preview_and_documented_exceptions() -> None:
+    """Protect repository-wide Ruff ALL/preview checks and narrow native callback exceptions."""
     project = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert_reviewed_ruff_policy(project)
 
