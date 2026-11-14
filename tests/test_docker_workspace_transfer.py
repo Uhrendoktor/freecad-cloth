@@ -34,9 +34,7 @@ def test_probe_copies_workspace_files_into_and_out_of_container(
                 container_files["host-marker"] = Path(source).read_text(encoding="utf-8")
             else:
                 assert source.endswith(":/tmp/container-marker")
-                Path(destination).write_text(
-                    container_files["container-marker"], encoding="utf-8"
-                )
+                Path(destination).write_text(container_files["container-marker"], encoding="utf-8")
         if command[1] == "start":
             assert check
             assert container_files["host-marker"] == "runner-workspace-transfer-test-run"
