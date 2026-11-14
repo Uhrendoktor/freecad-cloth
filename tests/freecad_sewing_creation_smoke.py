@@ -58,7 +58,6 @@ class _FixtureDocument(Protocol):
     def recompute(self) -> None: ...
 
 
-
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
 _ORIGINAL_DEPTH_SETTING = seam_overlay_respects_depth()
 set_seam_highlights_enabled(True)
@@ -153,9 +152,7 @@ def _replace_curved_piece_geometry(
     sketch.Visibility = False
 
 
-def _curved_edge_length(
-    line_length: float, curve_span: float, curve_height: float
-) -> float:
+def _curved_edge_length(line_length: float, curve_span: float, curve_height: float) -> float:
     points = _curved_geometry_segments(line_length, curve_span, curve_height)[2][1]
     curve = Part.BSplineCurve()
     curve.interpolate([App.Vector(x, y, 0.0) for x, y in points])
