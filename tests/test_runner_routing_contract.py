@@ -186,9 +186,9 @@ def test_pr_checkout_is_credential_free_and_uses_head_sha() -> None:
 def test_jobs_check_out_before_loading_local_composite_actions() -> None:
     """Require an explicit checkout before GitHub resolves repository-local actions."""
     source = WORKFLOW.read_text(encoding="utf-8")
-    job_source = source.split("\\njobs:\\n", 1)[1]
+    job_source = source.split("\njobs:\n", 1)[1]
     blocks = re.findall(
-        r"(?ms)^  ([A-Za-z0-9_-]+):\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        r"(?ms)^  ([A-Za-z0-9_-]+):\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         job_source,
     )
     assert blocks
@@ -201,13 +201,15 @@ def test_jobs_check_out_before_loading_local_composite_actions() -> None:
             f"{name} must check out the revision before loading a local action."
         )
         if block[local_action:].startswith("uses: ./.github/actions/freecad-test"):
-            step_end = block.find("\\n      - ", local_action)
+            step_end = block.find("\n      - ", local_action)
             if step_end < 0:
                 step_end = len(block)
             first_action_step = block[local_action:step_end]
             assert 'checkout: "false"' in first_action_step, (
                 f"{name} should reuse the job checkout instead of checking out twice."
             )
+
+
 def test_collection_contract_passes_when_every_requested_module_collects() -> None:
     """Accept the collection contract when each requested module is present."""
     result = missing_requested_modules(
