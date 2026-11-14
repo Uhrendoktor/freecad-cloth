@@ -16,9 +16,9 @@ This section is for people using the workbench in FreeCAD. It focuses on complet
 ## Suggested learning path
 
 1. Verify the supported FreeCAD version and install the workbench.
-2. Start with **Blanket over Cube** to check a simple pattern, target, pinning, and drape.
-3. Follow the Tunic workflow for a complete pattern-to-simulation journey.
-4. Use the visual feature guides to understand individual interactions and their expected results.
+2. Run **Blanket over Cube** to confirm a basic pattern, target, pinning, and drape without garment complexity.
+3. Follow the **Tunic** workflow for a complete pattern-to-simulation journey.
+4. Open the visual feature guide for the specific interaction you need to learn or verify.
 
 ## Audience boundary
 
