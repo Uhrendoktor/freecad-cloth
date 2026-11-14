@@ -523,7 +523,6 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     )
 
 
-
 class _FormLayoutStub:
     """Record responsive policies supplied to a Qt form layout."""
 
@@ -532,7 +531,7 @@ class _FormLayoutStub:
         self.row_wrap: object | None = None
         self.field_growth: object | None = None
 
-    def setRowWrapPolicy(self, policy: object) -> None:
+    def setRowWrapPolicy(self, policy: int) -> None:
         """Record the row-wrapping policy.
 
         Args:
@@ -540,7 +539,7 @@ class _FormLayoutStub:
         """
         self.row_wrap = policy
 
-    def setFieldGrowthPolicy(self, policy: object) -> None:
+    def setFieldGrowthPolicy(self, policy: int) -> None:
         """Record the field-growth policy.
 
         Args:
@@ -555,7 +554,7 @@ class _ScrollAreaStub:
     def __init__(self) -> None:
         """Initialize an empty scroll-area record."""
         self.resizable: bool | None = None
-        self.content: object | None = None
+        self.content: _DisclosureWidget | None = None
         self.object_name = ""
 
     def setWidgetResizable(self, enabled: bool) -> None:
@@ -590,16 +589,16 @@ def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
         "ModuleType",
         SimpleNamespace(
             QFormLayout=SimpleNamespace(
-                WrapLongRows="wrap-long-rows",
-                AllNonFixedFieldsGrow="all-nonfixed-fields",
+                WrapLongRows=1,
+                AllNonFixedFieldsGrow=2,
             )
         ),
     )
 
-    configure_form_layout(cast("_FormLayout", layout), qt_widgets)
+    configure_form_layout(layout, qt_widgets)
 
-    assert layout.row_wrap == "wrap-long-rows"
-    assert layout.field_growth == "all-nonfixed-fields"
+    assert layout.row_wrap == 1
+    assert layout.field_growth == 2
 
 
 def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
