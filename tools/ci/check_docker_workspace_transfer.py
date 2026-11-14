@@ -59,7 +59,9 @@ def validate_workspace_transfer(
         host_marker = probe_directory / "host-marker"
         returned_marker = probe_directory / "container-marker"
         host_marker.write_text(marker, encoding="utf-8")
-        container_script = 'test "$(cat /tmp/host-marker)" = "$1"; printf "%s" "$1" > /tmp/container-marker'
+        container_script = (
+            'test "$(cat /tmp/host-marker)" = "$1"; printf "%s" "$1" > /tmp/container-marker'
+        )
         run_command(
             [
                 "docker",
