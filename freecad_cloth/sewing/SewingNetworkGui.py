@@ -8,6 +8,7 @@ silently edit a network whose canonical seam references are invalid.
 from __future__ import annotations
 
 from itertools import starmap
+from types import ModuleType
 from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
@@ -106,8 +107,8 @@ class SewingNetworkTaskPanel:
         Args:
             network: Network whose seam ranges and alignment will be edited.
         """
-        App, Gui, QtCore, QtWidgets = _modules()
-        self.App, self.Gui, self.QtCore = App, Gui, QtCore
+        App, Gui, _QtCore, QtWidgets = _modules()
+        self.App, self.Gui = App, Gui
         self.network = network
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
@@ -156,41 +157,71 @@ class SewingNetworkTaskPanel:
         self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
         layout.addWidget(self.correspondence)
 
-        columns = (
-            "A piece",
-            "A edge",
-            "A start",
-            "A end",
-            "B piece",
-            "B edge",
-            "B start",
-            "B end",
-            "Direction",
-            "Status",
-        )
-        self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
-        self.table.setHorizontalHeaderLabels(columns)
-        self.table.setObjectName("ClothSewingNetworkRangeTable")
         self._seams = seam_values
-        for row, seam in enumerate(seam_values):
-            values = (
-                str(getattr(seam, "PieceA", "")),
-                str(getattr(seam, "EdgeA", "")),
+        self._range_values = [
+            (
                 float(getattr(seam, "StartA", 0.0)),
                 float(getattr(seam, "EndA", 1.0)),
-                str(getattr(seam, "PieceB", "")),
-                str(getattr(seam, "EdgeB", "")),
                 float(getattr(seam, "StartB", 0.0)),
                 float(getattr(seam, "EndB", 1.0)),
-                "reversed" if bool(getattr(seam, "ReversedB", False)) else "forward",
-                str(getattr(seam, "Status", getattr(network, "Status", ""))),
             )
-            for column, value in enumerate(values):
-                item = QtWidgets.QTableWidgetItem(str(value))
-                if column not in (2, 3, 6, 7):
-                    item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-                self.table.setItem(row, column, item)
-        layout.addWidget(self.table)
+            for seam in seam_values
+        ]
+        self._current_row = -1
+        self._loading_range = False
+
+        seam_group = QtWidgets.QGroupBox("Seams")
+        seam_layout = QtWidgets.QVBoxLayout(seam_group)
+        self.seam_filter = QtWidgets.QLineEdit()
+        self.seam_filter.setPlaceholderText("Filter by piece, edge or status…")
+        self.seam_filter.setClearButtonEnabled(True)
+        self.seam_filter.setToolTip(
+            "Search both sides of a seam and its validation status."
+        )
+        seam_layout.addWidget(self.seam_filter)
+        self.seam_list = QtWidgets.QListWidget()
+        self.seam_list.setObjectName("ClothSewingNetworkSeamList")
+        self.seam_list.setMinimumHeight(90)
+        self.seam_list.setMaximumHeight(170)
+        self._seam_items = []
+        for seam in seam_values:
+            item = QtWidgets.QListWidgetItem(self._seam_caption(seam, network))
+            item.setToolTip(self._seam_search_text(seam, network))
+            self.seam_list.addItem(item)
+            self._seam_items.append(item)
+        seam_layout.addWidget(self.seam_list)
+        layout.addWidget(seam_group)
+
+        detail = QtWidgets.QGroupBox("Selected seam")
+        detail_layout = QtWidgets.QVBoxLayout(detail)
+        self.selected_seam_label = QtWidgets.QLabel("Select a seam to edit its ranges.")
+        self.selected_seam_label.setWordWrap(True)
+        detail_layout.addWidget(self.selected_seam_label)
+        range_form = QtWidgets.QFormLayout()
+        self.start_a, self.end_a, self.start_b, self.end_b = (
+            self._range_spin(QtWidgets) for _ in range(4)
+        )
+        self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
+        for label, field in (
+            ("Side A start (0–1)", self.start_a),
+            ("Side A end (0–1)", self.end_a),
+            ("Side B start (0–1)", self.start_b),
+            ("Side B end (0–1)", self.end_b),
+        ):
+            range_form.addRow(label, field)
+        detail_layout.addLayout(range_form)
+        layout.addWidget(detail)
+
+        self.seam_filter.textChanged.connect(self._filter_seams)
+        self.seam_list.currentRowChanged.connect(self._select_seam_row)
+        for field in self._range_fields:
+            field.valueChanged.connect(self._selected_range_changed)
+        if seam_values:
+            self.seam_list.setCurrentRow(0)
+        else:
+            self._set_range_editor_enabled(False)
+            self.selected_seam_label.setText("This network has no seam members.")
+
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
@@ -255,6 +286,12 @@ class SewingNetworkTaskPanel:
 
     def _restore_original(self) -> None:
         """Restore the saved seam ranges, alignment, and correspondence direction."""
+        if hasattr(self, "_range_values"):
+            self._range_values = [tuple(values) for values in self._original["ranges"]]
+            current_row = getattr(self, "_current_row", -1)
+            if hasattr(self, "_range_fields") and 0 <= current_row < len(self._range_values):
+                self._current_row = -1
+                self._select_seam_row(current_row)
         for seam, ranges, alignment, reversed_b in zip(
             self._seams,
             self._original["ranges"],
@@ -266,22 +303,158 @@ class SewingNetworkTaskPanel:
             seam.Alignment = alignment
             seam.ReversedB = reversed_b
 
-    def _range(self, row: int, column: int) -> float:
-        """Parse and validate one normalized edge range from the table.
+    @staticmethod
+    def _range_spin(qt_widgets: ModuleType):
+        """Create one precise normalized edge-range editor.
 
         Args:
-            row: Table row containing the seam range.
-            column: Table column containing its numeric value.
+            qt_widgets: QtWidgets module providing QDoubleSpinBox.
+
+        Returns:
+            A native numeric editor constrained to the normalized edge interval.
+        """
+        field = qt_widgets.QDoubleSpinBox()
+        field.setRange(0.0, 1.0)
+        field.setDecimals(4)
+        field.setSingleStep(0.01)
+        return field
+
+    @staticmethod
+    def _seam_search_text(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+        """Build searchable text from both seam sides and validation state.
+
+        Args:
+            seam: Seam whose identity and edge references are displayed.
+            network: Parent network used as a status fallback.
+
+        Returns:
+            Case-folded search content for one seam-list entry.
+        """
+        return " ".join(
+            str(value)
+            for value in (
+                getattr(seam, "SeamId", ""),
+                getattr(seam, "PieceA", ""),
+                getattr(seam, "EdgeA", ""),
+                getattr(seam, "PieceB", ""),
+                getattr(seam, "EdgeB", ""),
+                getattr(seam, "Status", getattr(network, "Status", "")),
+            )
+        ).casefold()
+
+    @staticmethod
+    def _seam_caption(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+        """Create a compact row caption identifying both connected edges.
+
+        Args:
+            seam: Seam whose two pattern-edge references are summarized.
+            network: Parent network used as a status fallback.
+
+        Returns:
+            One readable seam-list caption.
+        """
+        side_a = "{} / Edge {}".format(
+            str(getattr(seam, "PieceA", "—")), str(getattr(seam, "EdgeA", "—"))
+        )
+        side_b = "{} / Edge {}".format(
+            str(getattr(seam, "PieceB", "—")), str(getattr(seam, "EdgeB", "—"))
+        )
+        status = str(getattr(seam, "Status", getattr(network, "Status", "Unknown")))
+        return f"{side_a}  ↔  {side_b}  ·  {status}"
+
+    def _set_range_editor_enabled(self, enabled: bool) -> None:
+        """Enable or disable the selected-seam numeric editor as one unit.
+
+        Args:
+            enabled: Whether a visible seam row is currently selected.
+        """
+        for field in getattr(self, "_range_fields", ()):
+            field.setEnabled(bool(enabled))
+
+    def _store_selected_range(self) -> None:
+        """Copy the current four spin-box values into the staged seam record."""
+        row = int(getattr(self, "_current_row", -1))
+        ranges = getattr(self, "_range_values", ())
+        fields = getattr(self, "_range_fields", ())
+        if getattr(self, "_loading_range", False) or not 0 <= row < len(ranges) or len(fields) != 4:
+            return
+        self._range_values[row] = tuple(float(field.value()) for field in fields)
+
+    def _select_seam_row(self, row: int) -> None:
+        """Load a selected seam's staged range values into the detail editor.
+
+        Args:
+            row: Current zero-based seam-list row, or -1 when no row is selected.
+        """
+        self._store_selected_range()
+        self._current_row = int(row)
+        if not 0 <= self._current_row < len(self._seams):
+            self.selected_seam_label.setText("No seams match the current filter.")
+            self._set_range_editor_enabled(False)
+            return
+        seam = self._seams[self._current_row]
+        self.selected_seam_label.setText(
+            "Seam {} — {}".format(
+                str(getattr(seam, "SeamId", self._current_row + 1)),
+                str(getattr(seam, "Status", getattr(self.network, "Status", "Unknown"))),
+            )
+        )
+        self._loading_range = True
+        for field, value in zip(
+            self._range_fields, self._range_values[self._current_row], strict=True
+        ):
+            field.setValue(float(value))
+        self._loading_range = False
+        self._set_range_editor_enabled(True)
+
+    def _selected_range_changed(self, _value: float) -> None:
+        """Update staged values when an active seam endpoint is edited."""
+        if not getattr(self, "_loading_range", False):
+            self._store_selected_range()
+
+    def _filter_seams(self, query: str) -> None:
+        """Filter seam rows by either piece, either edge, or status.
+
+        Args:
+            query: User-entered text used to filter the visible seam list.
+        """
+        needle = str(query).strip().casefold()
+        visible_rows = []
+        for row, item in enumerate(self._seam_items):
+            hidden = bool(needle) and needle not in self._seam_search_text(
+                self._seams[row], self.network
+            )
+            item.setHidden(hidden)
+            if not hidden:
+                visible_rows.append(row)
+        if self.seam_list.currentRow() not in visible_rows:
+            self.seam_list.setCurrentRow(visible_rows[0] if visible_rows else -1)
+
+    def _range(self, row: int, column: int) -> float:
+        """Parse and validate one normalized edge-range endpoint.
+
+        Args:
+            row: Seam index in the canonical network member sequence.
+            column: Legacy endpoint selector (2, 3, 6, or 7).
 
         Returns:
             Range endpoint constrained to the inclusive interval from zero to one.
 
         Raises:
-            ValueError: If the cell is not numeric or its value is out of range.
+            ValueError: If the endpoint is not numeric or is outside the valid range.
         """
+        column_index = {2: 0, 3: 1, 6: 2, 7: 3}.get(column)
+        if column_index is None:
+            msg = "unsupported seam range field"
+            raise ValueError(msg)
+        self._store_selected_range()
         try:
-            value = float(self.table.item(row, column).text())
-        except (TypeError, ValueError) as exc:
+            ranges = getattr(self, "_range_values", None)
+            if ranges is None:
+                value = float(self.table.item(row, column).text())
+            else:
+                value = float(ranges[row][column_index])
+        except (AttributeError, IndexError, TypeError, ValueError) as exc:
             msg = "range values must be numeric"
             raise ValueError(msg) from exc
         if not 0.0 <= value <= 1.0:
