@@ -23,6 +23,23 @@ from pivy import coin
 
 importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
 
+from freecad_cloth.sewing.SeamOverlay import (
+    seam_highlights_enabled,
+    seam_overlay_respects_depth,
+    set_seam_highlights_enabled,
+    set_seam_overlay_respect_depth,
+)
+from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
+from tests.support.freecad_input import (
+    UiGifRecorder,
+    _qt_modules,
+    click_widget,
+    focus_main_window,
+)
+from tests.support.freecad_input import (
+    wait_for_task_dialog_close as wait_for_task_dialog_close_common,
+)
+
 _Point2D = tuple[float, float]
 _GeometrySegments = tuple[tuple[str, tuple[_Point2D, ...]], ...]
 
@@ -41,22 +58,6 @@ class _FixtureDocument(Protocol):
     def recompute(self) -> None: ...
 
 
-from freecad_cloth.sewing.SeamOverlay import (
-    seam_highlights_enabled,
-    seam_overlay_respects_depth,
-    set_seam_highlights_enabled,
-    set_seam_overlay_respect_depth,
-)
-from freecad_cloth.sewing.SewingCommands import get_active_staged_sewing_task_panel
-from tests.support.freecad_input import (
-    UiGifRecorder,
-    _qt_modules,
-    click_widget,
-    focus_main_window,
-)
-from tests.support.freecad_input import (
-    wait_for_task_dialog_close as wait_for_task_dialog_close_common,
-)
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
 _ORIGINAL_DEPTH_SETTING = seam_overlay_respects_depth()
