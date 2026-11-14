@@ -195,6 +195,26 @@ class _FormLayout(Protocol):
         ...
 
 
+class _ScrollContentLayout(Protocol):
+    """Layout sizing capability required by dynamic scroll-area content."""
+
+    def setSizeConstraint(self, _constraint: int) -> None:
+        """Update the hosted widget's size bounds when child visibility changes.
+
+        Args:
+            _constraint: Qt layout size constraint selected by the host.
+        """
+        ...
+
+
+class _ScrollContentWidget(_VisibilityWidget, Protocol):
+    """Widget whose layout controls the scroll area's content extent."""
+
+    def layout(self) -> _ScrollContentLayout | None:
+        """Return the content layout whose extent must follow disclosure state."""
+        ...
+
+
 class _ScrollArea(Protocol):
     """Minimal native Qt scroll area used for long task-panel content."""
 
@@ -206,7 +226,7 @@ class _ScrollArea(Protocol):
         """
         ...
 
-    def setWidget(self, _widget: _VisibilityWidget) -> None:
+    def setWidget(self, _widget: _ScrollContentWidget) -> None:
         """Install the content widget hosted by the scroll area.
 
         Args:
@@ -326,19 +346,24 @@ def configure_form_layout(layout: _FormLayout, qt_widgets: ModuleType) -> None:
     layout.setFieldGrowthPolicy(qt_widgets.QFormLayout.AllNonFixedFieldsGrow)
 
 
-def make_scroll_area(content: _VisibilityWidget, qt_widgets: ModuleType) -> _ScrollArea:
+def make_scroll_area(content: _ScrollContentWidget, qt_widgets: ModuleType) -> _ScrollArea:
     """Wrap long task-panel content in a resize-aware native Qt scroll area.
 
-    The scroll area remains inside the FreeCAD task-panel widget; it does not
-    create a top-level window or alter the host's dock/task-panel arrangement.
+    The hosted layout uses SetMinAndMaxSize so expanding or collapsing child
+    disclosures updates the scroll extent while the task panel remains open.
+    The scroll area stays inside FreeCAD's current task-panel widget; it does
+    not create a top-level window or alter the host's dock arrangement.
 
     Args:
         content: Content widget to host inside the scroll area.
-        qt_widgets: QtWidgets module providing QScrollArea.
+        qt_widgets: QtWidgets module providing QScrollArea and QLayout.
 
     Returns:
         Native scroll area containing the supplied content widget.
     """
+    content_layout = content.layout()
+    if content_layout is not None:
+        content_layout.setSizeConstraint(qt_widgets.QLayout.SetMinAndMaxSize)
     scroll = cast("_ScrollArea", qt_widgets.QScrollArea())
     scroll.setWidgetResizable(True)
     scroll.setWidget(content)
