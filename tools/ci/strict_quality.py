@@ -252,7 +252,8 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
     executable = str(python)
     return (
         QualityCommand(
-            "Python compilation", (executable, "-m", "compileall", "-q", "tests", "tools/ci")
+            "Python compilation",
+            (executable, "-m", "compileall", "-q", *(path for path in tracked_files if path.endswith(".py"))),
         ),
         QualityCommand(
             "Focused migration regression tests",
@@ -268,11 +269,11 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                 ),
                 (
                     "tests/test_ci_configuration.py::"
-                    "test_pyright_uses_the_reviewed_staged_production_inventory"
+                    "test_pyright_uses_strict_mode_for_entire_python_repository"
                 ),
                 (
                     "tests/test_ci_configuration.py::"
-                    "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
+                    "test_new_python_modules_are_covered_by_strict_pyright"
                 ),
                 ("tests/test_ci_configuration.py::test_ty_warning_diagnostics_remain_blocking"),
                 "tests/test_avatar_service_contract.py",
@@ -298,18 +299,10 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
             "Explicit Any policy", (executable, "tools/ci/check_explicit_any_annotations.py")
         ),
         QualityCommand("Pydantic model policy", (executable, "tools/ci/check_pydantic_models.py")),
-        QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json")),
+        QualityCommand("Pyright all Python files", ("pyright", "-p", "pyrightconfig.json")),
         QualityCommand(
-            "Typed simulation core",
-            (
-                "ty",
-                "check",
-                "--output-format",
-                "github",
-                "freecad_cloth/simulation/DrapeFailureClassifier.py",
-                "freecad_cloth/simulation/cloth_backend.py",
-                "freecad_cloth/simulation/ClothSolver.py",
-            ),
+            "Typed all Python files",
+            ("ty", "check", "--output-format", "github", *tracked_files),
         ),
         QualityCommand(
             "Changed Python annotation ratchet",
