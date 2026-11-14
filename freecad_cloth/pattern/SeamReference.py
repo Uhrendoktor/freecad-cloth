@@ -15,6 +15,7 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Self
 
+
 from freecad_cloth.common.JsonTypes import JsonValue
 
 Point = tuple[float, float]
