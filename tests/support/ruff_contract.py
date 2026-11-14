@@ -32,6 +32,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "PLC0415",
         "PLR6301",
         "UP031",
+    "DOC502",
         "Q000",
         "Q001",
         "Q002",
@@ -78,7 +79,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "tests/freecad_sewing_smoke.py",
     }
     expected_per_file = {
-        "tests/**/*.py": ["S101", "PLR2004", "T201"],
+        "tests/**/*.py": ["S101", "PLR2004", "T201", "PT011"],
         "tools/ci/check_changed_python_types.py": ["T201"],
         "tools/ci/check_explicit_any_annotations.py": ["T201"],
         "tools/ci/check_docker_workspace_transfer.py": ["T201"],
@@ -104,7 +105,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="No Ruff rules may be globally ignored.",
+        message="Only the propagated-exception documentation rule may be globally ignored.",
     )
     require(
         condition=lint.get("per-file-ignores") == expected_per_file,
