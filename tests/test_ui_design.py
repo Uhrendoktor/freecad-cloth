@@ -528,8 +528,8 @@ class _FormLayoutStub:
 
     def __init__(self) -> None:
         """Initialize empty policy records."""
-        self.row_wrap: object | None = None
-        self.field_growth: object | None = None
+        self.row_wrap: int | None = None
+        self.field_growth: int | None = None
 
     def setRowWrapPolicy(self, policy: int) -> None:
         """Record the row-wrapping policy.
