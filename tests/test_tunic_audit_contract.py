@@ -608,7 +608,8 @@ def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
     )
     audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
     audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
-    audit_action = gui[audit_action_index:audit_index]
+    advisory_index = gui.index("      - name: Report production tunic audit as advisory", audit_action_index)
+    audit_action = gui[audit_action_index:advisory_index]
     assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_index:metric_gate_index]
     assert benchmark_index < metric_gate_index < audit_action_index < audit_index
     assert "if: always()" in audit_action, (
