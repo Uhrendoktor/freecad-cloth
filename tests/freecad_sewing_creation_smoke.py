@@ -504,28 +504,27 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
 
 
 def save_seam_overlay_options_evidence(filename):
-    """Capture the real Sewing workbench options dialog as visual evidence."""
-    from freecad_cloth.sewing.SewingCommands import _build_seam_overlay_options_dialog
+    """Capture seam preferences inside FreeCAD's native task-panel host."""
+    from freecad_cloth.sewing.SeamOverlayOptionsGui import show_seam_overlay_options_task
 
-    dialog, highlights, respect_depth = _build_seam_overlay_options_dialog()
-    assert highlights.isChecked() is True
-    assert respect_depth.isChecked() is True
+    panel = show_seam_overlay_options_task()
+    assert panel.highlights.isChecked() is True
+    assert panel.respect_depth.isChecked() is True
     destination = LOG_PATH.parent / filename
     destination.parent.mkdir(parents=True, exist_ok=True)
     try:
-        dialog.show()
-        if callable(getattr(dialog, "raise_", None)):
-            dialog.raise_()
         process_events()
-        image = dialog.grab()
-        assert not image.isNull(), "overlay options dialog could not be captured"
+        assert panel.form.isVisible(), "seam overlay task panel did not become visible"
+        image = panel.form.grab()
+        assert not image.isNull(), "overlay options task panel could not be captured"
         assert image.save(str(destination), "PNG"), "overlay options screenshot could not be saved"
         assert destination.is_file() and destination.stat().st_size > 1000, (
             "overlay options screenshot is missing or suspiciously small"
         )
         record(f"seam-overlay-options-image={filename} bytes={destination.stat().st_size}")
     finally:
-        dialog.close()
+        if Gui.Control.activeDialog():
+            Gui.Control.closeDialog()
         process_events()
 
 
