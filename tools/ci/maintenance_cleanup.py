@@ -36,6 +36,10 @@ MAX_RUN_DELETIONS_PER_RUN = 100
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
+
+# Published documentation assets are long-lived public refs, not disposable work branches.
+RESERVED_BRANCH_NAMES = frozenset({"docs/screenshots"})
+RESERVED_BRANCH_PREFIXES = ("simulation-evidence/",)
 GITHUB_API_VERSION = "2022-11-28"
 
 
@@ -233,6 +237,15 @@ def epoch(value: str) -> float:
         Unix epoch timestamp representing the supplied date and time.
     """
     return datetime.fromisoformat(value).timestamp()
+
+
+def is_reserved_branch(name: str, default_branch: str) -> bool:
+    """Return whether a ref is the default branch or a long-lived evidence publication."""
+    return (
+        name == default_branch
+        or name in RESERVED_BRANCH_NAMES
+        or name.startswith(RESERVED_BRANCH_PREFIXES)
+    )
 
 
 def paginated_api_items(
@@ -438,6 +451,9 @@ def closed_pr_head_shas_by_branch(
 ) -> dict[str, set[str]]:
     """Identify recent branch refs matching a closed pull-request head exactly.
 
+    Long-lived evidence/publication refs, protected refs, the default branch, and
+    open pull-request heads are excluded from these lookups.
+
     Args:
         branches: Branch records containing names, protection flags, and current SHAs.
         lookup: Verified repository, activity, and open-PR state for this search.
@@ -453,8 +469,7 @@ def closed_pr_head_shas_by_branch(
         name = branch.get("name")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == lookup.default_branch
+            or is_reserved_branch(name, lookup.default_branch)
             or name in lookup.open_heads
             or branch.get("protected") is not False
         ):
@@ -495,8 +510,8 @@ def stale_unprotected_branches(
 ) -> list[ApiJsonObject]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
-    Open pull-request heads and branches with missing activity evidence are
-    retained. Results are ordered oldest first for predictable bounded cleanup.
+    Reserved evidence/publication refs, open pull-request heads, and branches with
+    missing activity evidence are retained. Results are ordered oldest first.
 
     Args:
         branches: Branch records returned by GitHub for the repository.
@@ -512,8 +527,7 @@ def stale_unprotected_branches(
         name = branch.get("name")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
+            or is_reserved_branch(name, default_branch)
             or name in open_heads
             or branch.get("protected") is not False
         ):
@@ -881,8 +895,7 @@ def _branch_head_shas(
         commit = branch.get("commit")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
+            or is_reserved_branch(name, default_branch)
             or name in open_heads
             or branch.get("protected") is not False
         ):
