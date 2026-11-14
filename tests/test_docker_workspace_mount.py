@@ -121,3 +121,19 @@ def test_probe_runs_only_for_trusted_local_events() -> None:
     assert should_run("local", "merge_group")
     assert not should_run("local", "workflow_run")
     assert not should_run("hosted", "workflow_dispatch")
+
+
+def test_runner_container_candidates_prefer_hostname_and_deduplicate() -> None:
+    """Try the runtime container ID before the registered runner name."""
+    candidates = check_docker_workspace_mount._runner_container_candidates(
+        {"HOSTNAME": "container-id", "RUNNER_NAME": "runner-name"}
+    )
+    assert candidates == ["container-id", "runner-name"]
+
+
+def test_runner_container_candidates_ignore_empty_identifiers() -> None:
+    """Do not attempt Docker inspection when runner identifiers are unavailable."""
+    candidates = check_docker_workspace_mount._runner_container_candidates(
+        {"HOSTNAME": "", "RUNNER_NAME": ""}
+    )
+    assert candidates == []

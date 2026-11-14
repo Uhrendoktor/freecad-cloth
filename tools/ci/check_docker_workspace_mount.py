@@ -29,15 +29,19 @@ def _runner_mounts(container_id: str) -> list[Mapping[str, str]]:
         Mount source and destination pairs reported by Docker.
 
     Raises:
-        RuntimeError: If Docker returns malformed mount metadata.
+        RuntimeError: If Docker cannot inspect the container or returns malformed metadata.
     """
     result = subprocess.run(
         ["docker", "inspect", "--format", "{{json .Mounts}}", container_id],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
         timeout=10,
     )
+    if result.returncode != 0:
+        detail = result.stderr.strip().replace("\n", " ")[:240]
+        msg = f"Docker could not inspect runner container {container_id!r}: {detail}"
+        raise RuntimeError(msg)
     payload = json.loads(result.stdout)
     if not isinstance(payload, list):
         msg = "Docker did not return a mount list for the runner container"
@@ -87,6 +91,19 @@ def _host_workspace_path(
         msg = f"Docker cannot map runner workspace to a host mount: {workspace}"
         raise RuntimeError(msg)
     return max(matches, key=lambda match: match[0])[1]
+
+
+def _runner_container_candidates(environment: Mapping[str, str]) -> list[str]:
+    """Return unique Docker identifiers to try for the current runner container.
+
+    Args:
+        environment: Process environment containing runtime and runner names.
+
+    Returns:
+        Non-empty host/container identifiers, preferring the runtime hostname.
+    """
+    candidates = (environment.get("HOSTNAME", ""), environment.get("RUNNER_NAME", ""))
+    return list(dict.fromkeys(candidate for candidate in candidates if candidate))
 
 
 def should_run_probe(runner_mode: str, event_name: str) -> bool:
@@ -170,16 +187,37 @@ def main() -> int:
         print(f"docker-workspace-bind-mount=skipped runner_mode={runner_mode}")
         return 0
     workspace = Path(os.environ["GITHUB_WORKSPACE"])
-    runner_container = os.environ.get("RUNNER_NAME") or os.environ.get("HOSTNAME")
-    if not runner_container:
+    run_id = os.environ.get("GITHUB_RUN_ID", "local")
+    candidates = _runner_container_candidates(os.environ)
+    if not candidates:
         msg = "RUNNER_NAME and HOSTNAME are unavailable for Docker workspace inspection"
         raise RuntimeError(msg)
-    validate_workspace_mount(
-        workspace,
-        os.environ.get("GITHUB_RUN_ID", "local"),
-        runner_container,
+
+    failures: list[str] = []
+    for runner_container in candidates:
+        try:
+            validate_workspace_mount(workspace, run_id, runner_container)
+        except RuntimeError as exc:
+            failures.append(f"{runner_container}: {exc}")
+        else:
+            return 0
+
+    try:
+        container_names = subprocess.run(
+            ["docker", "ps", "--all", "--format", "{{.Names}}"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+    except (OSError, subprocess.SubprocessError) as exc:
+        container_names = f"unavailable ({type(exc).__name__})"
+    msg = (
+        "Docker could not resolve the current runner's host workspace mount; "
+        f"tried={', '.join(candidates)}; containers={container_names[:500]}; "
+        f"failures={'; '.join(failures)}"
     )
-    return 0
+    raise RuntimeError(msg)
 
 
 if __name__ == "__main__":
