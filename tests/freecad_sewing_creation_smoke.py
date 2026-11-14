@@ -52,9 +52,15 @@ class _FixtureViewObject(Protocol):
     Visibility: bool
 
 
+class _FixtureVector(Protocol):
+    x: float
+    y: float
+    z: float
+
+
 class _FixtureShape(Protocol):
-    def copy(self) -> _FixtureShape: ...
-    def translate(self, vector: object) -> None: ...
+    def copy(self) -> "_FixtureShape": ...
+    def translate(self, vector: _FixtureVector) -> None: ...
 
 
 class _FixtureSketch(Protocol):
@@ -646,9 +652,9 @@ try:
         view_object.LineWidth = 4.0
         view_object.Transparency = 0
     doc.recompute()
-    # Reapply the shaded presentation after FeaturePython recompute. The
-    # Sketch-authoritative proxy regenerates the BREP, but its view provider
-    # must remain in a face-rendering mode for this visual acceptance capture.
+    # Reapply the display-copy colors and visibility after recompute. The
+    # selected PatternPiece remains the Sketcher authority; the Part features
+    # exist only to render the two mating faces in the visual capture.
     for piece, color in recording_pieces:
         piece.Visibility = True
         piece.ViewObject.Visibility = True
