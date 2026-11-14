@@ -19,6 +19,7 @@ class DrapeTargetRef:
 
         Returns:
             True when the target provider is the human mannequin, otherwise False.
+
         """
         return self.provider == "human"
 
@@ -27,5 +28,6 @@ class DrapeTargetRef:
 
         Returns:
             True when the target provider is a FreeCAD object, otherwise False.
+
         """
         return self.provider == "freecad"
