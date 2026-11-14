@@ -31,7 +31,7 @@ class SeamOverlayOptionsTaskPanel:
 
     def __init__(self) -> None:
         """Build the compact display-options form inside FreeCAD's task-panel host."""
-        _App, Gui, QtWidgets = _gui_modules()
+        Gui, QtWidgets = _gui_modules()
         self.Gui = Gui
         from freecad_cloth.sewing.SeamOverlay import (
             seam_highlights_enabled,
@@ -124,7 +124,7 @@ def show_seam_overlay_options_task() -> SeamOverlayOptionsTaskPanel:
     Returns:
         The active seam-overlay task-panel instance.
     """
-    _App, Gui, _QtWidgets = _gui_modules()
+    Gui, _QtWidgets = _gui_modules()
     panel = SeamOverlayOptionsTaskPanel()
     Gui.Control.showDialog(panel)
     return panel
