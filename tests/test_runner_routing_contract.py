@@ -88,13 +88,13 @@ def test_every_canonical_job_uses_only_the_self_hosted_docker_runner() -> None:
     assert "fallback_source_run" not in source
 
 
-def test_local_runner_readiness_checks_docker_workspace_bind_mount() -> None:
+def test_local_runner_readiness_checks_docker_workspace_transfer() -> None:
     """Require checkout and the bidirectional workspace probe before work starts."""
     source = WORKFLOW.read_text(encoding="utf-8")
     readiness = _job_block(source, "local_runner_readiness")
     assert "actions/checkout@" in readiness
     assert "persist-credentials: false" in readiness
-    assert "python3 tools/ci/check_docker_workspace_mount.py" in readiness
+    assert "python3 tools/ci/check_docker_workspace_transfer.py" in readiness
 
 
 def test_local_readiness_gates_quality_and_image_work() -> None:
@@ -105,7 +105,7 @@ def test_local_readiness_gates_quality_and_image_work() -> None:
     readiness = _job_block(source, "local_runner_readiness")
     assert "needs: [local_runner_readiness, pbd_validation_image]" in quality
     assert "needs: [local_runner_readiness]" in image
-    assert "python3 tools/ci/check_docker_workspace_mount.py" in readiness
+    assert "python3 tools/ci/check_docker_workspace_transfer.py" in readiness
     assert "github.event_name == 'merge_group'" in readiness
     assert "commits/${HEAD_SHA}/pulls" in readiness
 

@@ -164,7 +164,7 @@ jobs:
         run: |
           pulls="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls?per_page=100")"
           jq -e 'length > 0 and all(.[]; .head.repo.full_name == env.REPOSITORY and .user.login != "dependabot[bot]")' <<< "$pulls" >/dev/null || { echo "::error::Untrusted merge-group PR; local execution refused."; exit 1; }
-      - run: python3 tools/ci/check_docker_workspace_mount.py
+      - run: python3 tools/ci/check_docker_workspace_transfer.py
   pbd_validation_image:
     name: Build/publish pinned PBD image
     if: ${{ inputs.execution_mode != 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
