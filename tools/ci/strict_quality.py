@@ -253,7 +253,13 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
     return (
         QualityCommand(
             "Python compilation",
-            (executable, "-m", "compileall", "-q", *(path for path in tracked_files if path.endswith(".py"))),
+            (
+                executable,
+                "-m",
+                "compileall",
+                "-q",
+                *(path for path in tracked_files if path.endswith(".py")),
+            ),
         ),
         QualityCommand(
             "Focused migration regression tests",
