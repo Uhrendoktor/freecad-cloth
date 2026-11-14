@@ -341,7 +341,6 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -
     ], "selection transitions from the piece to its authoritative sketch edge"
 
 
-
 def test_seam_overlay_options_command_uses_the_native_task_panel(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
