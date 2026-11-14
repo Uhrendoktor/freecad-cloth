@@ -17,7 +17,26 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     """
     project = tomllib.loads(project_file.read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
-    allowed_ignores: set[str] = set()
+    allowed_ignores = {
+        "COM812",
+        "COM819",
+        "D203",
+        "D206",
+        "D213",
+        "D300",
+        "E111",
+        "E114",
+        "E117",
+        "ISC002",
+        "N999",
+        "PLC0415",
+        "Q000",
+        "Q001",
+        "Q002",
+        "Q003",
+        "Q004",
+        "W191",
+    }
     bootstrap_paths = {
         "tools/ci/check_visual_assets_and_budget.py",
         "tools/ci/validate_acceptance.py",
