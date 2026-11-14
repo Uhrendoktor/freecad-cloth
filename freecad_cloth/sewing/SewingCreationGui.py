@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient staged creation session for semantic sewing objects.
 
 Preview creates the normal FreeCAD seam/network objects inside the same
@@ -7,7 +8,7 @@ transaction; Cancel aborts it. The session itself is transient UI state only.
 
 import contextlib
 import re
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 
 def viewport_edge_candidate(document, hit_info):
@@ -44,10 +45,13 @@ def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     return App, Gui, QtWidgets
 
 
@@ -107,7 +111,8 @@ class SewingCreationSession:
 
     def _validate_preview(self):
         if not self.created:
-            raise ValueError("Preview did not create a sewing object")
+            msg = "Preview did not create a sewing object"
+            raise ValueError(msg)
         invalid = []
         for obj in self.created:
             sewing_type = str(getattr(obj, "SewingType", ""))
@@ -158,7 +163,8 @@ class SewingCreationSession:
     def preview(self):
         """Create and validate the normal persisted objects, still uncommitted."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if self.previewed:
             self._reset_preview()
         before_names = {str(getattr(obj, "Name", "")) for obj in getattr(self.doc, "Objects", ())}
@@ -181,7 +187,8 @@ class SewingCreationSession:
     def commit(self):
         """Validate the staged objects once, then commit the document transaction."""
         if self.committed:
-            raise ValueError("sewing creation has already been committed")
+            msg = "sewing creation has already been committed"
+            raise ValueError(msg)
         if not self.previewed:
             self.preview()
         self.doc.recompute()
@@ -214,14 +221,17 @@ class SewingCreationTaskPanel:
         "free": "Create Free Sewing",
     }
 
-    def __init__(self, kind):
+    def __init__(self, kind, initial_selection=()):
         App, Gui, QtWidgets = _modules()
         if App.ActiveDocument is None:
-            raise ValueError("open a document before creating sewing")
+            msg = "open a document before creating sewing"
+            raise ValueError(msg)
         if kind not in self._TRANSACTION_NAMES:
-            raise ValueError(f"unsupported staged sewing creation: {kind}")
+            msg = f"unsupported staged sewing creation: {kind}"
+            raise ValueError(msg)
         self.App, self.Gui = App, Gui
         self.kind = kind
+        self._initial_selection = tuple(initial_selection)
         self.form = QtWidgets.QWidget()
         self.form.setWindowTitle("Cloth Sewing — staged creation")
         layout = QtWidgets.QVBoxLayout(self.form)
@@ -268,8 +278,10 @@ class SewingCreationTaskPanel:
         self._viewport_view = None
         self._viewport_callback = None
         self._viewport_picks = []
+        self._initial_preview_pending = bool(self._initial_selection)
         self._refresh_selection()
         self.preview()
+        self._initial_preview_pending = False
 
         from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
 
@@ -278,7 +290,37 @@ class SewingCreationTaskPanel:
         mark_button(self.cancel_button, "secondary")
         apply_panel_style(self.form)
 
+    def _restore_initial_pattern_selection(self):
+        """Restore captured edge references when the task panel clears subelement selection."""
+        from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
+        try:
+            current_selection = tuple(_collect_selected_pattern_edges())
+        except (ImportError, RuntimeError, TypeError, ValueError):
+            current_selection = ()
+        if self._viewport_picks:
+            selected_edges = tuple(
+                (obj, int(component[4:]) - 1) for obj, component in self._viewport_picks
+            )
+        else:
+            selected_edges = self._initial_selection
+        if (
+            not self._initial_preview_pending
+            and current_selection
+            and (
+                all(edge in current_selection for edge in selected_edges)
+                or any(edge not in selected_edges for edge in current_selection)
+            )
+        ):
+            return
+        if not selected_edges:
+            return
+        self.Gui.Selection.clearSelection()
+        for obj, edge in selected_edges:
+            self.Gui.Selection.addSelection(obj, "Edge%d" % (int(edge) + 1))
+
     def _builder(self):
+        self._restore_initial_pattern_selection()
         if self.kind == "seam":
             from freecad_cloth.sewing.SewingCommands import create_seam_from_selection
 
@@ -298,6 +340,8 @@ class SewingCreationTaskPanel:
             count = len(_collect_selected_pattern_edges())
         except (ImportError, ValueError):
             count = 0
+        if count == 0:
+            count = len(self._initial_selection)
         if self._viewport_picks:
             picked = " → ".join(
                 "{} / {}".format(getattr(obj, "Label", getattr(obj, "Name", "PatternPiece")), edge)
@@ -375,7 +419,12 @@ class SewingCreationTaskPanel:
         if getattr(self, "viewport_pick_button", None) is not None:
             self.viewport_pick_button.setText("Pick edges in viewport")
 
-    def _viewport_mouse_event(self, event):
+    def _viewport_mouse_event(self, event: dict[str, str | tuple[int, int]]) -> None:
+        """Handle viewport clicks and collect valid PatternPiece edge selections.
+
+        Args:
+            event: FreeCAD mouse-event fields, including button, state, and position.
+        """
         if not self._viewport_picking or self._closing:
             return
         if str(event.get("State", "")).upper() != "DOWN":
@@ -427,7 +476,12 @@ class SewingCreationTaskPanel:
                     state="success",
                 )
 
-    def _show_error(self, exc):
+    def _show_error(self, exc: Exception) -> None:
+        """Display a preview error and keep the staged creation uncommitted.
+
+        Args:
+            exc: Failure raised while preparing or validating the preview.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(
@@ -437,7 +491,12 @@ class SewingCreationTaskPanel:
         )
         self.commit_button.setEnabled(False)
 
-    def _show_status(self, text):
+    def _show_status(self, text: str) -> None:
+        """Display a successful status message and enable the commit action.
+
+        Args:
+            text: User-facing explanation of the current successful state.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(self.feedback, text, state="success")
@@ -465,10 +524,13 @@ class SewingCreationTaskPanel:
         return True
 
     def _schedule_close_dialog(self):
-        try:
-            from PySide import QtCore
-        except ImportError:
+        if TYPE_CHECKING:
             from PySide2 import QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         timer = QtCore.QTimer(self.form)
         timer.setSingleShot(True)
         timer.timeout.connect(_close_active_task_dialog)
@@ -505,9 +567,9 @@ class SewingCreationTaskPanel:
         return 0
 
 
-def show_sewing_creation_task(kind):
+def show_sewing_creation_task(kind, initial_selection=()):
     _App, Gui, _QtWidgets = _modules()
-    panel = SewingCreationTaskPanel(kind)
+    panel = SewingCreationTaskPanel(kind, initial_selection=initial_selection)
     Gui.Control.showDialog(panel)
     if hasattr(panel.form, "isVisible") and not panel.form.isVisible():
         panel.form.show()

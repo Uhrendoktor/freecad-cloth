@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Small headless-safe adapter for FreeCAD GUI command registration."""
 
 from collections.abc import Callable, Mapping
@@ -11,7 +12,12 @@ class GuiCommandRegistrar(Protocol):
     """Minimal FreeCAD GUI command-registration interface."""
 
     def addCommand(self, name: str, command: "FunctionCommand") -> None:
-        """Register a named command with FreeCAD GUI."""
+        """Register one command instance under its stable GUI identifier.
+
+        Args:
+            name: Command identifier used by FreeCAD's menus and toolbars.
+            command: Handler object implementing the FreeCAD command protocol.
+        """
         ...
 
 
@@ -36,7 +42,14 @@ _ICON_ALIASES = {
 
 
 def icon_for_command(command: str) -> str:
-    """Return the canonical installed SVG path for a command icon."""
+    """Resolve a command identifier to its canonical installed SVG icon.
+
+    Args:
+        command: Stable FreeCAD command identifier.
+
+    Returns:
+        Absolute path of the matching SVG resource.
+    """
     name = str(command)
     return str(_ICON_DIR / (_ICON_ALIASES.get(name, name) + ".svg"))
 
@@ -50,16 +63,31 @@ class FunctionCommand:
         tooltip: str | None = None,
         command_name: str | None = None,
     ) -> None:
+        """Create an adapter for one command callback.
+
+        Args:
+            function: Callable invoked when the user activates the command.
+            tooltip: Optional help text shown by FreeCAD.
+            command_name: Stable command identifier used to locate its icon.
+        """
         self.function = function
         self.tooltip = tooltip
         self.command_name = command_name or getattr(function, "__name__", "command")
 
     def Activated(self) -> object:
-        """Provide the public Activated operation."""
+        """Invoke the wrapped command handler.
+
+        Returns:
+            Result returned by the command handler.
+        """
         return self.function()
 
     def GetResources(self) -> dict[str, str]:
-        """Provide the public GetResources operation."""
+        """Build the menu, tooltip, and icon resources for FreeCAD.
+
+        Returns:
+            FreeCAD command resource strings keyed by their protocol names.
+        """
         return {
             "MenuText": str(getattr(self.function, "__name__", "command"))
             .replace("_", " ")
@@ -73,7 +101,12 @@ def register_commands(
     gui: GuiCommandRegistrar,
     commands: Mapping[str, CommandCallable],
 ) -> None:
-    """Register ``name -> callable`` pairs with FreeCAD's command protocol."""
+    """Register named callables with FreeCAD's command protocol.
+
+    Args:
+        gui: FreeCAD GUI object that implements the command-registration protocol.
+        commands: Mapping from stable command identifiers to their callable handlers.
+    """
     if not hasattr(gui, "addCommand"):
         return
     for name, function in commands.items():

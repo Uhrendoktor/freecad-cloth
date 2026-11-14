@@ -1,6 +1,7 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for Pattern workbench mark command enablement."""
 
-import freecad_cloth.pattern.PatternMarks as PatternMarks
+from freecad_cloth.pattern import PatternMarks
 
 
 class _Selection:

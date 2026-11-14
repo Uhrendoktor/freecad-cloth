@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD Cloth workbench package marker.
 
 The GUI registration remains in InitGui.py; this module intentionally has no

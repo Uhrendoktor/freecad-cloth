@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -49,7 +50,8 @@ def test_repair_does_not_hide_physical_length_mismatch():
         assert "length mismatch" in str(exc)
         assert "not hidden" in str(exc)
     else:
-        raise AssertionError("length mismatch was silently hidden")
+        msg = "length mismatch was silently hidden"
+        raise AssertionError(msg)
 
 
 def test_repair_command_is_registered_with_context_activation():

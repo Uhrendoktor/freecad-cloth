@@ -1,16 +1,20 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD GUI controls for the Cloth Simulation workbench."""
 
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 
 def _modules():
     import FreeCAD as App
     import FreeCADGui as Gui
 
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtCore, QtWidgets
+    else:
+        try:
+            from PySide import QtCore, QtWidgets
+        except ImportError:
+            from PySide2 import QtCore, QtWidgets
     return App, Gui, QtCore, QtWidgets
 
 
@@ -313,7 +317,12 @@ class SimulationTaskPanel:
         self._selection_changed()
         return self.scene
 
-    def step(self, count):
+    def step(self, count: int) -> None:
+        """Advance the active scene and refresh its visible simulation state.
+
+        Args:
+            count: Number of solver steps to execute.
+        """
         scene = self._ensure_scene()
         scene.Steps = int(scene.Steps) + int(count)
         scene.Document.recompute()
@@ -322,7 +331,8 @@ class SimulationTaskPanel:
         if self.Gui.activeDocument():
             self.Gui.activeDocument().activeView().fitAll()
 
-    def reset(self):
+    def reset(self) -> None:
+        """Reset runtime state while retaining the selected cloth and drape target."""
         if self.scene is not None:
             from freecad_cloth.simulation.SimulationObjects import reset_scene
 
@@ -357,16 +367,31 @@ class SimulationTaskPanel:
             )
         )
 
-    def accept(self):
+    def accept(self) -> bool:
+        """Commit current panel values to the active simulation document.
+
+        Returns:
+            True after the current panel values have been committed.
+        """
         self._ensure_scene().Document.recompute()
         return True
 
-    def reject(self):
+    def reject(self) -> bool:
+        """Close the task panel without changing its persisted selections.
+
+        Returns:
+            True after the task panel has closed or the close request was unnecessary.
+        """
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
             self.Gui.Control.closeDialog()
         return True
 
-    def getStandardButtons(self):
+    def getStandardButtons(self) -> int:
+        """Return the native OK and Cancel buttons for FreeCAD's task-panel host.
+
+        Returns:
+            The combined Qt dialog-button flags requested by the workbench host.
+        """
         _, _, _, QtWidgets = _modules()
         return QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
 

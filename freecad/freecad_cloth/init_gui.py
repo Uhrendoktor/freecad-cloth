@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD 1.1 namespaced GUI entry point for FreeCAD Cloth."""
 
 from pathlib import Path

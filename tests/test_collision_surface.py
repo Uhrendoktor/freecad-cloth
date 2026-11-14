@@ -1,8 +1,9 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless behavioral tests for the neutral collision-surface value object."""
 
 import pytest
 
-from freecad_cloth.shared.collision import CollisionSurface, surface_from_triangles
+from freecad_cloth.shared.Collision import CollisionSurface, surface_from_triangles
 
 
 def _triangle_surface():

@@ -1,13 +1,19 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import math
+from typing import cast
 
+from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
 )
 from freecad_cloth.simulation.PatternSimulationAdapter import (
+    ResolvedSimulationPattern,
+    _PatternPieceFeature,
     resolve_simulation_pattern,
 )
+from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 
 
 class _Point:
@@ -61,6 +67,7 @@ class _Placement:
 
 class _Piece:
     PatternType = "PatternPiece"
+    TypeId = "Part::FeaturePython"
     Placement = None
     SeamAllowance = 0.0
     GrainlineAngle = 0.0
@@ -71,41 +78,19 @@ class _Piece:
         self.PieceId = piece_id
         self.Label = piece_id
         self.Name = piece_id
+        self.PropertiesList = ["PieceId", "GeometryAuthority", "Sketch"]
         self.Sketch = sketch
-        self.GeometryAuthority = "Sketcher" if sketch is not None else "Legacy"
+        self.GeometryAuthority = "Sketcher" if sketch is not None else "PatternParameters"
 
     @property
     def SewingOutline(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy outline")
+        msg = "Sketch-authoritative adapter accessed legacy outline"
+        raise AssertionError(msg)
 
     @property
     def DraftingBoundary(self):
-        raise AssertionError("Sketch-authoritative adapter accessed legacy drafting boundary")
-
-
-class _LegacyPiece:
-    PatternType = "PatternPiece"
-    GeometryAuthority = "Legacy"
-    Sketch = None
-    Placement = None
-    SeamAllowance = 0.0
-    GrainlineAngle = 0.0
-    Width = 10.0
-    Height = 10.0
-
-    def __init__(self, piece_id):
-        self.PieceId = piece_id
-        self.Label = piece_id
-        self.Name = piece_id
-        self.SewingOutline = repr(
-            [
-                (0.0, 0.0),
-                (10.0, 0.0),
-                (10.0, 10.0),
-                (0.0, 10.0),
-            ]
-        )
-        self.DraftingBoundary = self.SewingOutline
+        msg = "Sketch-authoritative adapter accessed legacy drafting boundary"
+        raise AssertionError(msg)
 
 
 class _Seam:
@@ -146,19 +131,6 @@ class _Doc:
         self.Objects = list(objects)
 
 
-def _edge_reference(piece_id, boundary):
-    samples = tuple(tuple(point) for point in boundary.samples)
-    points = ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1]))
-    provenance = (
-        "PatternIR",
-        "Sketcher",
-        boundary.kind,
-        tuple(float(value) for value in boundary.parameter_range),
-        samples,
-    )
-    return capture_edge_reference(piece_id, boundary.id, points, provenance).signature
-
-
 def _square_sketch(prefix, curved=False, bend=1.0):
     geometry = [
         LineSegment((0.0, 0.0), (10.0, 0.0)),
@@ -175,7 +147,7 @@ def _square_sketch(prefix, curved=False, bend=1.0):
     return _Sketch(geometry, ids)
 
 
-def test_sketch_authority_resolves_to_pattern_ir_without_reading_legacy_outline():
+def test_sketch_authority_resolves_to_pattern_ir_without_reading_cached_outline():
     front = _Piece("front", _square_sketch("front", curved=True))
     doc = _Doc([front])
 
@@ -220,39 +192,6 @@ def test_semantic_seam_ids_and_provenance_survive_resolution():
     assert current.stitch_group == "waist"
 
 
-def test_legacy_piece_uses_explicit_patternir_fallback():
-    legacy = _LegacyPiece("legacy")
-    resolved = resolve_simulation_pattern(_Doc([legacy]), [legacy])
-
-    assert [boundary.id for boundary in resolved.pattern.piece("legacy").boundaries] == [
-        "legacy:edge:0",
-        "legacy:edge:1",
-        "legacy:edge:2",
-        "legacy:edge:3",
-    ]
-
-
-def test_legacy_integer_seam_reference_resolves_to_semantic_id():
-    front = _LegacyPiece("front")
-    back = _LegacyPiece("back")
-    seam = _Seam(
-        "front-back",
-        "front",
-        "back",
-        "",
-        "",
-        "",
-        "",
-        edge_a=1,
-        edge_b=3,
-    )
-    resolved = resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
-    current = resolved.pattern.seams[0]
-
-    assert current.edge_a == "front:edge:1"
-    assert current.edge_b == "back:edge:3"
-
-
 def test_sketcher_authority_without_sketch_fails_closed():
     front = _Piece("front", None)
     front.GeometryAuthority = "Sketcher"
@@ -261,7 +200,19 @@ def test_sketcher_authority_without_sketch_fails_closed():
     except MissingEdgeReference as exc:
         assert "Sketch-authoritative" in str(exc)
         return
-    raise AssertionError("Sketcher authority without a Sketch must not use legacy fallback")
+    msg = "Sketcher authority without a Sketch must not use legacy fallback"
+    raise AssertionError(msg)
+
+
+def test_pattern_parameters_without_sketch_fail_closed():
+    piece = _Piece("parameterized", None)
+    try:
+        resolve_simulation_pattern(_Doc([piece]), [piece])
+    except MissingEdgeReference as exc:
+        assert "geometry authority" in str(exc)
+        return
+    msg = "PatternParameters without a native Sketch must not be simulated"
+    raise AssertionError(msg)
 
 
 def test_native_sketch_edit_with_same_semantic_id_fails_closed():
@@ -285,19 +236,8 @@ def test_native_sketch_edit_with_same_semantic_id_fails_closed():
         resolve_simulation_pattern(_Doc([front, back, seam]), [front, back])
     except ChangedEdgeReference:
         return
-    raise AssertionError(
-        "native Sketcher geometry changes must invalidate the simulation reference"
-    )
-
-
-def test_native_and_legacy_pieces_can_share_one_simulation_pattern():
-    front = _Piece("front", _square_sketch("front"))
-    back = _LegacyPiece("back")
-    resolved = resolve_simulation_pattern(_Doc([front, back]), [front, back])
-    pattern = resolved.pattern
-
-    assert pattern.piece("front").boundaries[0].id == "front:bottom"
-    assert pattern.piece("back").boundaries[0].id == "back:edge:0"
+    msg = "native Sketcher geometry changes must invalidate the simulation reference"
+    raise AssertionError(msg)
 
 
 def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
@@ -383,3 +323,23 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
     print("Pattern simulation adapter tests passed")
+
+
+def test_resolved_pattern_retains_native_feature_without_runtime_protocol_probe() -> None:
+    """Retain FreeCAD feature proxies without evaluating their SWIG attributes as a class test."""
+    boundary = BoundaryIR(
+        id="piece:edge",
+        kind="line",
+        samples=((0.0, 0.0, 0.0), (1.0, 0.0, 0.0)),
+    )
+    piece_ir = PieceIR(id="piece", name="Piece", boundaries=(boundary,))
+    pattern = PatternIR((piece_ir,), ())
+    native_feature = object()
+
+    resolved = ResolvedSimulationPattern(
+        pattern,
+        {"piece": cast("_PatternPieceFeature", native_feature)},
+        (),
+    )
+
+    assert resolved.pieces["piece"] is native_feature

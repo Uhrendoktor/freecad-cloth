@@ -1,8 +1,7 @@
-"""Block increases in missing-annotation debt for every changed Python file.
+"""Block increases in missing-annotation and generic-object debt in changed Python files.
 
-The repository has existing annotation debt. This gate compares Ruff's annotation
-diagnostics per file and rule against the merge base, so new or changed code must
-not add debt while unrelated historical debt can be retired incrementally.
+The repository has existing annotation debt. This gate compares Ruff annotation diagnostics
+and generic-object type annotations against the merge base, so changed code cannot add debt.
 """
 
 from __future__ import annotations
@@ -15,6 +14,8 @@ import sys
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
+
+from tools.check_documentation_contract import object_annotation_violations
 
 RULES = (
     "ANN001",
@@ -42,6 +43,7 @@ def changed_python_sources(base: str) -> dict[str, str | None]:
             f"{base_ref}...HEAD",
             "--",
             "*.py",
+            "*.pyi",
         ],
         check=True,
         capture_output=True,
@@ -115,6 +117,11 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
     return dict(counts)
 
 
+def object_annotation_regression(current: int, baseline: int) -> tuple[int, int] | None:
+    """Return baseline/current counts when changed code adds generic object annotations."""
+    return (baseline, current) if current > baseline else None
+
+
 def _base_source(base: str, path: str) -> str | None:
     """Read a file from the target branch; return None when it did not exist there."""
     result = subprocess.run(
@@ -138,7 +145,7 @@ def main() -> int:
     args = parser.parse_args()
     changed = changed_python_sources(args.base)
     if not changed:
-        print("changed-python-annotations=skipped files=0", flush=True)
+        print("changed-python-types=skipped files=0", flush=True)
         return 0
 
     regressions: list[str] = []
@@ -161,14 +168,28 @@ def main() -> int:
         ):
             regressions.append(f"{path}: {rule} increased from {previous_count} to {current_count}")
 
+        current_object_count = len(object_annotation_violations(current_source, path))
+        previous_object_count = (
+            len(object_annotation_violations(previous_source, base_path))
+            if previous_source is not None and base_path is not None
+            else 0
+        )
+        object_delta = object_annotation_regression(current_object_count, previous_object_count)
+        if object_delta is not None:
+            previous_count, current_count = object_delta
+            regressions.append(
+                f"{path}: generic object annotations increased from "
+                f"{previous_count} to {current_count}"
+            )
+
     if regressions:
-        print("changed-python-annotations=failed", file=sys.stderr)
+        print("changed-python-types=failed", file=sys.stderr)
         print("\n".join(regressions), file=sys.stderr)
         return 1
 
     print(
-        f"changed-python-annotations=passed files={len(changed)} "
-        "policy=no per-file annotation debt increase",
+        f"changed-python-types=passed files={len(changed)} "
+        "policy=no annotation or generic-object debt increase",
         flush=True,
     )
     return 0

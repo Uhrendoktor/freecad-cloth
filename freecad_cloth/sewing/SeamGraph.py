@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD-independent sewing graph and assembly metadata.
 
 ``PatternModel.Seam`` is the authoritative semantic seam contract.  The graph
@@ -50,12 +51,26 @@ class Transform3D:
 
     @classmethod
     def identity(cls) -> "Transform3D":
-        """Provide the public identity operation."""
+        """Construct the neutral 4x4 identity transform.
+
+        Returns:
+            Transform with no translation or rotation."""
         return cls()
 
     @classmethod
     def translation(cls, x: float, y: float, z: float = 0.0) -> "Transform3D":
-        """Provide the public translation operation."""
+        """Construct a translation-only assembly transform.
+
+        Args:
+            x: Translation along the model X axis.
+            y: Translation along the model Y axis.
+            z: Translation along the model Z axis.
+
+        Returns:
+            Transform whose translation column contains the supplied coordinates.
+
+        Raises:
+            ValueError: If any translation component is non-finite."""
         values = list(cls().matrix)
         values[3], values[7], values[11] = (
             validate_finite_number(x),
@@ -65,12 +80,22 @@ class Transform3D:
         return cls(tuple(values))
 
     def apply(self, point: Sequence[float]) -> tuple[float, float, float]:
-        """Provide the public apply operation."""
+        """Apply this homogeneous transform to one three-dimensional point.
+
+        Args:
+            point: Finite XYZ point in the transform's source coordinate frame.
+
+        Returns:
+            Transformed XYZ coordinates in the destination frame.
+
+        Raises:
+            ValueError: If the point or resulting homogeneous scale is invalid."""
         x, y, z = validate_points3d((point,))[0]
         m = self.matrix
         w = m[12] * x + m[13] * y + m[14] * z + m[15]
         if not isfinite(w) or abs(w) < 1e-12:
-            raise ValueError("assembly transform produced invalid homogeneous scale")
+            msg = "assembly transform produced invalid homogeneous scale"
+            raise ValueError(msg)
         result = (
             (m[0] * x + m[1] * y + m[2] * z + m[3]) / w,
             (m[4] * x + m[5] * y + m[6] * z + m[7]) / w,
@@ -97,41 +122,64 @@ class SeamPair:
 
     @property
     def id(self) -> str:
-        """Return the stable identifier."""
+        """Return the stable identifier.
+
+        Returns:
+            Canonical seam ID shared with the underlying semantic seam."""
         return self.seam.id
 
     @property
     def piece_a(self) -> str:
-        """Return the first referenced pattern piece."""
+        """Return the first referenced pattern piece.
+
+        Returns:
+            Persistent ID of the pattern piece on seam side A."""
         return self.seam.piece_a
 
     @property
     def edge_a(self) -> EdgeRef:
-        """Return the first referenced edge."""
+        """Return the first referenced edge.
+
+        Returns:
+            Semantic edge reference on seam side A."""
         return self.seam.edge_a
 
     @property
     def piece_b(self) -> str:
-        """Return the second referenced pattern piece."""
+        """Return the second referenced pattern piece.
+
+        Returns:
+            Persistent ID of the pattern piece on seam side B."""
         return self.seam.piece_b
 
     @property
     def edge_b(self) -> EdgeRef:
-        """Return the second referenced edge."""
+        """Return the second referenced edge.
+
+        Returns:
+            Semantic edge reference on seam side B."""
         return self.seam.edge_b
 
     @property
     def reversed_b(self) -> bool:
-        """Read reversal from the canonical seam; never copy it into the pair."""
+        """Read reversal from the canonical seam; never copy it into the pair.
+
+        Returns:
+            True when seam side B is explicitly traversed in reverse."""
         return self.seam.reversed_b
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate this value against its canonical seam metadata.
+
+        Raises:
+            ValueError: If stitch-group or alignment metadata disagrees with the seam."""
         self.seam.validate()
         if self.stitch_group != (self.seam.stitch_group or self.seam.id):
-            raise ValueError("stitch group disagrees with canonical seam metadata")
+            msg = "stitch group disagrees with canonical seam metadata"
+            raise ValueError(msg)
         if self.alignment != self.seam.alignment:
-            raise ValueError("alignment disagrees with canonical seam metadata")
+            msg = "alignment disagrees with canonical seam metadata"
+            raise ValueError(msg)
 
 
 @pydantic_dataclass
@@ -143,21 +191,38 @@ class SeamGraph:
     assembly_transforms: dict[str, Transform3D] = field(default_factory=dict)
 
     def add_piece(self, piece: PatternPiece) -> None:
-        """Add a pattern piece to this collection."""
+        """Add a validated pattern piece and initialize its assembly transform.
+
+        Args:
+            piece: Canonical pattern piece being added to the graph.
+
+        Raises:
+            ValueError: If the piece is invalid or its ID is already present."""
         piece.validate()
         if piece.id in self.pieces:
-            raise ValueError(f"duplicate pattern piece id: {piece.id}")
+            msg = f"duplicate pattern piece id: {piece.id}"
+            raise ValueError(msg)
         self.pieces[piece.id] = piece
         self.assembly_transforms.setdefault(piece.id, Transform3D.identity())
 
     def add_seam(self, seam: Seam, stitch_group: str = "", alignment: str = "endpoints") -> None:
         # Legacy seam adapters may expose the canonical Seam through to_seam();
         # the graph stays independent of their concrete adapter modules.
-        """Add a seam relationship to this collection."""
+        """Add a seam relationship and retain its non-semantic presentation metadata.
+
+        Args:
+            seam: Canonical seam or adapter exposing the canonical seam conversion.
+            stitch_group: Optional presentation group; the canonical seam remains authoritative.
+            alignment: Optional correspondence alignment mode for the seam.
+
+        Raises:
+            TypeError: If the supplied value is neither a Seam nor a canonical seam adapter.
+            ValueError: If the seam is invalid, duplicates an existing ID, or references missing pieces."""
         if not isinstance(seam, Seam):
             to_seam = getattr(seam, "to_seam", None)
             if to_seam is None:
-                raise TypeError("seam must be PatternModel.Seam or a canonical seam adapter")
+                msg = "seam must be PatternModel.Seam or a canonical seam adapter"
+                raise TypeError(msg)
             seam = to_seam()
         if stitch_group or alignment != "endpoints":
             seam = replace(
@@ -168,19 +233,32 @@ class SeamGraph:
         pair = SeamPair(seam, stitch_group=seam.stitch_group, alignment=seam.alignment)
         pair.validate()
         if seam.id in self.seams:
-            raise ValueError(f"duplicate seam id: {seam.id}")
+            msg = f"duplicate seam id: {seam.id}"
+            raise ValueError(msg)
         self._validate_seam_reference(seam)
         self.seams[seam.id] = pair
 
     def set_transform(self, piece_id: str, transform: Transform3D) -> None:
-        """Set the transform associated with an object."""
+        """Set the assembly transform associated with one pattern piece.
+
+        Args:
+            piece_id: Persistent ID of the pattern piece to position.
+            transform: Validated 4x4 assembly transform.
+
+        Raises:
+            TypeError: If the supplied transform is not a Transform3D.
+            ValueError: If the piece ID is unknown."""
         self._require_piece(piece_id)
         if not isinstance(transform, Transform3D):
-            raise TypeError("transform must be a Transform3D")
+            msg = "transform must be a Transform3D"
+            raise TypeError(msg)
         self.assembly_transforms[piece_id] = transform
 
     def validate(self) -> None:
-        """Validate this value and raise ValueError when its state is invalid."""
+        """Validate piece, seam, and assembly-transform consistency.
+
+        Raises:
+            ValueError: If a piece, seam reference, or required transform is invalid."""
         for piece in self.pieces.values():
             piece.validate()
         for pair in self.seams.values():
@@ -188,7 +266,8 @@ class SeamGraph:
             self._validate_seam_reference(pair.seam)
         for piece_id in self.pieces:
             if piece_id not in self.assembly_transforms:
-                raise ValueError(f"missing assembly transform for piece: {piece_id}")
+                msg = f"missing assembly transform for piece: {piece_id}"
+                raise ValueError(msg)
 
     def stitch_pairs(
         self,
@@ -196,13 +275,25 @@ class SeamGraph:
         seam_ids: Iterable[str] = (),
         edge_points: Mapping[tuple[str, EdgeRef], Sequence[Sequence[float]]] | None = None,
     ) -> tuple[tuple[int, int], ...]:
-        """Return deterministic particle-index stitch pairs for selected seams."""
+        """Return deterministic particle-index stitch pairs for selected seams.
+
+        Args:
+            edge_vertices: Mesh vertex indices keyed by piece ID and semantic edge reference.
+            seam_ids: Optional seam IDs to sample; an empty iterable selects all seams.
+            edge_points: Optional sampled edge coordinates used for arc-length correspondence.
+
+        Returns:
+            Ordered particle-index pairs connecting the two sides of each selected seam.
+
+        Raises:
+            ValueError: If a seam ID, edge lookup, edge point record, or sampled range is invalid."""
         requested_seams = tuple(seam_ids)
         selected = requested_seams or tuple(self.seams)
         pairs = []
         for seam_id in selected:
             if seam_id not in self.seams:
-                raise ValueError(f"unknown seam id: {seam_id}")
+                msg = f"unknown seam id: {seam_id}"
+                raise ValueError(msg)
             seam = self.seams[seam_id].seam
             a = self._edge_vertices(edge_vertices, seam.piece_a, seam.edge_a)
             b = self._edge_vertices(edge_vertices, seam.piece_b, seam.edge_b)
@@ -229,14 +320,22 @@ class SeamGraph:
     ) -> tuple[Sequence[float], ...]:
         key = (piece_id, edge_index)
         if key not in edge_points:
-            raise ValueError(f"missing mesh edge points for {piece_id}:{edge_index}")
+            msg = f"missing mesh edge points for {piece_id}:{edge_index}"
+            raise ValueError(msg)
         points = tuple(edge_points[key])
         if len(points) != expected_count:
-            raise ValueError(f"mesh edge points do not match vertices for {piece_id}:{edge_index}")
+            msg = f"mesh edge points do not match vertices for {piece_id}:{edge_index}"
+            raise ValueError(msg)
         return points
 
     def to_metadata(self) -> dict:
-        """Return deterministic JSON-friendly document metadata."""
+        """Return deterministic JSON-friendly document metadata.
+
+        Returns:
+            Stable piece IDs, seam semantics, presentation metadata, and assembly transforms.
+
+        Raises:
+            ValueError: If the graph fails canonical piece, seam, or transform validation."""
         self.validate()
         return {
             "pieces": tuple(sorted(self.pieces)),
@@ -268,13 +367,16 @@ class SeamGraph:
         a = self._require_piece(seam.piece_a)
         b = self._require_piece(seam.piece_b)
         if isinstance(seam.edge_a, int) and seam.edge_a >= len(a.outline):
-            raise ValueError("seam edge index is outside the pattern boundary")
+            msg = "seam edge index is outside the pattern boundary"
+            raise ValueError(msg)
         if isinstance(seam.edge_b, int) and seam.edge_b >= len(b.outline):
-            raise ValueError("seam edge index is outside the pattern boundary")
+            msg = "seam edge index is outside the pattern boundary"
+            raise ValueError(msg)
 
     def _require_piece(self, piece_id: str) -> PatternPiece:
         if piece_id not in self.pieces:
-            raise ValueError(f"unknown pattern piece: {piece_id}")
+            msg = f"unknown pattern piece: {piece_id}"
+            raise ValueError(msg)
         return self.pieces[piece_id]
 
     @staticmethod
@@ -285,23 +387,27 @@ class SeamGraph:
     ) -> tuple[int, ...]:
         key = (piece_id, edge_index)
         if key not in edge_vertices:
-            raise ValueError(f"missing mesh edge vertices for {piece_id}:{edge_index}")
+            msg = f"missing mesh edge vertices for {piece_id}:{edge_index}"
+            raise ValueError(msg)
         raw_values = tuple(edge_vertices[key])
         if any(
             not isinstance(index, int) or isinstance(index, bool) or index < 0
             for index in raw_values
         ):
-            raise ValueError(f"mesh edge {piece_id}:{edge_index} contains invalid vertex indices")
+            msg = f"mesh edge {piece_id}:{edge_index} contains invalid vertex indices"
+            raise ValueError(msg)
         values = tuple(raw_values)
         if len(values) < 2:
-            raise ValueError(f"mesh edge {piece_id}:{edge_index} needs at least two vertices")
-        return cast(tuple[int, ...], values)
+            msg = f"mesh edge {piece_id}:{edge_index} needs at least two vertices"
+            raise ValueError(msg)
+        return cast("tuple[int, ...]", values)
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
     span = end - start
     if count < 2 or span <= 0.0:
-        raise ValueError("seam range must contain at least two samples")
+        msg = "seam range must contain at least two samples"
+        raise ValueError(msg)
     last = len(values) - 1
     result = []
     for i in range(count):

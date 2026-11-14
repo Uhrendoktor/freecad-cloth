@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression coverage for target-authoritative Simulation integration."""
 
 import unittest

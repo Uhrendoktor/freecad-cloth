@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD Cloth Python package.
 
 All Cloth implementation modules live below this package boundary. The

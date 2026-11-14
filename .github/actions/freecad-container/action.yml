@@ -16,7 +16,7 @@ inputs:
     required: false
     default: ""
   runner-writable-path:
-    description: Optional safe workspace-relative directory to make writable after the batch command so the host runner can append evidence.
+    description: Optional safe workspace-relative directory copied back with evidence so the host runner can append evidence.
     required: false
     default: ""
 runs:
@@ -40,7 +40,8 @@ runs:
         fi
         echo "docker-pull=failed timeout=180s image=$IMAGE" >&2
         exit 1
-    - name: Run command in FreeCAD container
+
+    - name: Transfer checkout and run command in FreeCAD container
       shell: bash
       env:
         IMAGE: ${{ inputs.image }}
@@ -50,26 +51,39 @@ runs:
         RUNNER_WRITABLE_PATH: ${{ inputs.runner-writable-path }}
       run: |
         set -euo pipefail
-        env_file="$RUNNER_TEMP/freecad-container-${GITHUB_JOB}.env"
-        {
-          printf '%s\n' "PYTHONPATH=/workspace"
-          printf '%s\n' "QT_X11_NO_MITSHM=1"
-          printf '%s\n' "QT_QPA_PLATFORM=xcb"
-          printf '%s\n' "LIBGL_ALWAYS_SOFTWARE=1"
-          printf '%s\n' "XDG_RUNTIME_DIR=/tmp/runtime-cloth"
-          printf '%s\n' "DISPLAY=:99"
-          printf '%s\n' "TINI_SUBREAPER=1"
-          if [ -n "$EXTRA_ENV" ]; then
-            printf '%s\n' "$EXTRA_ENV"
+        workspace="${GITHUB_WORKSPACE:?GITHUB_WORKSPACE is required}"
+        temp_root="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
+        mkdir -p "$temp_root"
+        job_key="$(printf '%s' "${GITHUB_JOB:-freecad}" | LC_ALL=C tr -cs 'A-Za-z0-9._-' '-')"
+        run_id="${GITHUB_RUN_ID:-$$}"
+        run_attempt="${GITHUB_RUN_ATTEMPT:-1}"
+        execution_key="freecad-$run_id-$run_attempt-$job_key"
+        workspace_archive="$temp_root/$execution_key.tar"
+        env_file="$temp_root/$execution_key.env"
+        command_file="$temp_root/$execution_key.sh"
+        output_root="$temp_root/$execution_key-output"
+        container_id=""
+
+        cleanup() {
+          if [[ -n "$container_id" ]]; then
+            docker rm -f "$container_id" >/dev/null 2>&1 || true
           fi
-        } >"$env_file"
+          rm -f "$workspace_archive" "$env_file" "$command_file"
+          rm -rf "$output_root"
+        }
+        trap cleanup EXIT
+
         timeout_seconds="$TIMEOUT_SECONDS"
+        if [[ ! "$timeout_seconds" =~ ^[0-9]+$ ]]; then
+          echo "timeout-seconds must be an integer between 0 and 360" >&2
+          exit 2
+        fi
         if [ "$timeout_seconds" -gt 360 ]; then
           echo "timeout-seconds must be <= 360" >&2
           exit 2
         fi
-        command_to_run="$INPUT_COMMAND"
-        if [ -n "$RUNNER_WRITABLE_PATH" ]; then
+
+        if [[ -n "$RUNNER_WRITABLE_PATH" ]]; then
           case "$RUNNER_WRITABLE_PATH" in
             /*|..|../*|*/..|*/../*|*\\*)
               echo "runner-writable-path must stay inside the workspace" >&2
@@ -80,34 +94,92 @@ runs:
             echo "runner-writable-path contains unsupported characters" >&2
             exit 2
           fi
-          command_to_run="$INPUT_COMMAND; command_status=\$?; chmod a+wx \"/workspace/$RUNNER_WRITABLE_PATH\" 2>/dev/null || true; exit \$command_status"
         fi
+
+        # A self-hosted runner may itself run in a container while Docker uses a
+        # different mount namespace. Export the exact checked-out tree instead of
+        # bind-mounting the runner's private GITHUB_WORKSPACE path into the daemon.
+        git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD
+        # Preserve evidence produced by earlier container invocations in this job.
+        for relative_path in artifacts docs/images/generated; do
+          if [[ -d "$workspace/$relative_path" ]]; then
+            tar -rf "$workspace_archive" -C "$workspace" "$relative_path"
+          fi
+        done
+        tar -tf "$workspace_archive" >/dev/null
+
+        {
+          printf '%s\n' "PYTHONPATH=/workspace"
+          printf '%s\n' "QT_X11_NO_MITSHM=1"
+          printf '%s\n' "QT_QPA_PLATFORM=xcb"
+          printf '%s\n' "LIBGL_ALWAYS_SOFTWARE=1"
+          printf '%s\n' "XDG_RUNTIME_DIR=/tmp/runtime-cloth"
+          printf '%s\n' "DISPLAY=:99"
+          printf '%s\n' "TINI_SUBREAPER=1"
+          if [[ -n "$EXTRA_ENV" ]]; then
+            printf '%s\n' "$EXTRA_ENV"
+          fi
+        } >"$env_file"
+
+        {
+          printf '#!/usr/bin/env bash\n'
+          printf 'set -euo pipefail\n'
+          printf 'mkdir -p /workspace\n'
+          printf 'tar -xf /tmp/freecad-workspace.tar -C /workspace\n'
+          printf 'cd /workspace\n'
+          printf 'set +e\n'
+          printf 'bash -lc %q\n' "$INPUT_COMMAND"
+          printf 'command_status=$?\n'
+          if [[ -n "$RUNNER_WRITABLE_PATH" ]]; then
+            printf 'chmod a+wx %q 2>/dev/null || true\n' "/workspace/$RUNNER_WRITABLE_PATH"
+          fi
+          printf 'exit "$command_status"\n'
+        } >"$command_file"
+
+        container_name="$execution_key"
+        container_id="$(docker create --name "$container_name" --init --security-opt seccomp=unconfined --shm-size=1g --env-file "$env_file" --workdir /tmp "$IMAGE" bash /tmp/freecad-container-command.sh)"
+        docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"
+        docker cp "$command_file" "$container_id:/tmp/freecad-container-command.sh"
+
         set +e
         container_timeout_seconds=$((timeout_seconds + 10))
-        timeout --signal=TERM --kill-after=5s "${container_timeout_seconds}s" \
-          docker run --rm --init --security-opt seccomp=unconfined --shm-size=1g \
-          --env-file "$env_file" \
-          -v "$GITHUB_WORKSPACE:/workspace:rw" \
-          -w /workspace \
-          "$IMAGE" bash -lc "$command_to_run"
+        timeout --signal=TERM --kill-after=5s "${container_timeout_seconds}s" docker start --attach "$container_id"
         status=$?
         set -e
-        if [ "$status" -ne 0 ]; then
+
+        copy_back_directory() {
+          local relative_path="$1"
+          local stage_directory="$2"
+          mkdir -p "$stage_directory"
+          if docker cp "$container_id:/workspace/$relative_path/." "$stage_directory/" >/dev/null 2>&1; then
+            mkdir -p "$workspace/$relative_path"
+            cp -a "$stage_directory/." "$workspace/$relative_path/"
+          fi
+        }
+
+        # Restore logs/manifests and generated visuals before validators and uploads run.
+        copy_back_directory "artifacts" "$output_root/artifacts"
+        copy_back_directory "docs/images/generated" "$output_root/generated"
+
+        case "$RUNNER_WRITABLE_PATH" in
+          ""|artifacts|artifacts/*|docs/images/generated|docs/images/generated/*)
+            ;;
+          *)
+            copy_back_directory "$RUNNER_WRITABLE_PATH" "$output_root/runner-writable"
+            ;;
+        esac
+
+        if [[ "$status" -ne 0 ]]; then
           echo "freecad-command-failed status=$status"
-          echo "freecad-container-selfcheck-start"
-          docker run --rm --init --security-opt seccomp=unconfined "$IMAGE" bash -lc             'set -e; echo "python=$(command -v python3)"; python3 --version;              test -f /workspace/tools/ci/run_freecad.py;              test -x /opt/freecad/AppRun;              python3 -m py_compile /workspace/tools/ci/run_freecad.py;              echo "freecad-container-selfcheck=passed"' || true
-          echo "freecad-container-selfcheck-end"
+          echo "freecad-container-image=$IMAGE"
           echo "freecad-command-logs-start"
           found=0
           while IFS= read -r log; do
             found=1
             echo "===== $log ====="
             tail -n 200 "$log" || true
-          done < <(
-            find "$GITHUB_WORKSPACE/artifacts" "$GITHUB_WORKSPACE/docs/images/generated" \
-              -type f -name '*.log' -print 2>/dev/null
-          )
-          if [ "$found" -eq 0 ]; then
+          done < <(find "$workspace/artifacts" "$workspace/docs/images/generated" -type f -name '*.log' -print 2>/dev/null)
+          if [[ "$found" -eq 0 ]]; then
             echo "no workflow log files found"
           fi
           echo "freecad-command-logs-end"

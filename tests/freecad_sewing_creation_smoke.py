@@ -1,24 +1,28 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Real-FreeCAD smoke coverage for public staged sewing Preview/Commit/Cancel."""
 
 import os
 import re
 import sys
 import traceback
+from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING, Protocol
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import contextlib
+import importlib
 
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 from pivy import coin
 
-import freecad_cloth.pattern.PatternCommands  # registers Pattern commands
-import freecad_cloth.sewing.SewingNetworkCommands  # noqa: F401  # registers network commands
+importlib.import_module("freecad_cloth.sewing.SewingNetworkCommands")  # registers network commands
+
 from freecad_cloth.sewing.SeamOverlay import (
     seam_highlights_enabled,
     seam_overlay_respects_depth,
@@ -32,6 +36,60 @@ from tests.support.freecad_input import (
     click_widget,
     focus_main_window,
 )
+from tests.support.freecad_input import (
+    wait_for_task_dialog_close as wait_for_task_dialog_close_common,
+)
+
+_Point2D = tuple[float, float]
+_GeometrySegments = tuple[tuple[str, tuple[_Point2D, ...]], ...]
+
+
+class _FixtureViewObject(Protocol):
+    LineColor: tuple[float, float, float]
+    LineWidth: float
+    ShapeColor: tuple[float, float, float]
+    Transparency: float
+    Visibility: bool
+
+
+class _FixtureVector(Protocol):
+    x: float
+    y: float
+    z: float
+
+
+class _FixtureShape(Protocol):
+    def copy(self) -> "_FixtureShape": ...
+    def translate(self, vector: _FixtureVector) -> None: ...
+
+
+class _FixtureSketch(Protocol):
+    Visibility: bool
+    ViewObject: _FixtureViewObject
+
+
+class _FixturePiece(Protocol):
+    Label: str
+    PieceId: str
+    Shape: _FixtureShape
+    Visibility: bool
+    Sketch: _FixtureSketch
+    ViewObject: _FixtureViewObject
+
+
+class _FixtureDisplayObject(Protocol):
+    Label: str
+    Name: str
+    Shape: _FixtureShape
+    Visibility: bool
+    ViewObject: _FixtureViewObject
+
+
+class _FixtureDocument(Protocol):
+    def addObject(self, type_id: str, name: str) -> _FixtureDisplayObject: ...
+    def recompute(self) -> None: ...
+    def removeObject(self, name: str) -> None: ...
+
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
 _ORIGINAL_DEPTH_SETTING = seam_overlay_respects_depth()
@@ -46,72 +104,158 @@ LOG = []
 LOG_PATH.write_text("", encoding="utf-8")
 
 
-def _curved_shape(line_length, curve_span, curve_height, x_offset=0.0):
+def _curved_geometry_segments(
+    line_length: float,
+    curve_span: float,
+    curve_height: float,
+    x_offset: float = 0.0,
+) -> _GeometrySegments:
     x_offset = float(x_offset)
-    p0 = App.Vector(x_offset, 0, 0)
-    p1 = App.Vector(x_offset + float(line_length), 0, 0)
-    p2 = App.Vector(x_offset + float(line_length), 40, 0)
-    p3 = App.Vector(x_offset + float(line_length) - float(curve_span), 40, 0)
-    curve = Part.BezierCurve()
-    curve.setPoles(
-        [
-            p2,
-            App.Vector(
-                x_offset + float(line_length),
-                40 + float(curve_height),
-                0,
-            ),
-            App.Vector(
-                x_offset + float(line_length) - float(curve_span),
-                40 + float(curve_height),
-                0,
-            ),
-            p3,
-        ]
-    )
-    return Part.Face(
-        Part.Wire(
-            [
-                Part.makeLine(p0, p1),
-                Part.makeLine(p1, p2),
-                curve.toShape(),
-                Part.makeLine(p3, p0),
-            ]
-        )
+    line_length = float(line_length)
+    curve_span = float(curve_span)
+    curve_height = float(curve_height)
+    p0 = (x_offset, 0.0)
+    p1 = (x_offset + line_length, 0.0)
+    p2 = (x_offset + line_length, 40.0)
+    p3 = (x_offset + line_length - curve_span, 40.0)
+    control_a = (x_offset + line_length, 40.0 + curve_height)
+    control_b = (x_offset + line_length - curve_span, 40.0 + curve_height)
+    return (
+        ("line", (p0, p1)),
+        ("line", (p1, p2)),
+        ("bspline", (p2, control_a, control_b, p3)),
+        ("line", (p3, p0)),
     )
 
 
-def add_curved_piece(
-    doc, name, piece_id, line_length, curve_span=80.0, curve_height=90.0, x_offset=0.0
-):
-    obj = doc.addObject("Part::Feature", name)
-    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
-    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(line_length)
-    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = 40.0 + float(
-        curve_height
-    )
-    x_offset = float(x_offset)
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(
-        [
-            (x_offset, 0.0),
-            (x_offset + float(line_length), 0.0),
-            (x_offset + float(line_length), 40.0),
-            (x_offset + float(line_length) - float(curve_span), 40.0),
-        ]
-    )
-    obj.Shape = _curved_shape(line_length, curve_span, curve_height, x_offset=x_offset)
+def _create_native_fixture_piece(
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    outline: Sequence[_Point2D],
+    geometry_segments: _GeometrySegments | None = None,
+) -> _FixturePiece:
+    """Build test pieces through the same Sketcher-authority path as production."""
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternObjects import add_pattern_piece
+    from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+    piece = PatternPiece(name, outline, id=str(piece_id))
+    obj = add_pattern_piece(doc, piece)
+    sketch = create_sketch_for_piece(piece, doc, geometry_segments=geometry_segments)
+    doc.recompute()
+    # Keep the filled PatternPiece presentation visible for the UI recording;
+    # the linked Sketcher object remains the sole geometry authority.
+    # The document-object and view-provider visibility properties are
+    # both exposed by FreeCAD; set both so recompute/view-provider updates
+    # cannot leave the filled Part feature hidden behind its authoring sketch.
+    obj.Visibility = True
+    obj.ViewObject.Visibility = True
+    sketch.Visibility = False
+    sketch.ViewObject.Visibility = False
     return obj
 
 
-def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offset=0.0):
-    """Create a standard Part feature carrying the sewing workflow's piece contract."""
-    obj = doc.addObject("Part::Feature", name)
-    obj.Label = name
-    obj.addProperty("App::PropertyString", "PatternType", "Cloth").PatternType = "PatternPiece"
-    obj.addProperty("App::PropertyString", "PieceId", "Cloth").PieceId = str(piece_id)
-    obj.addProperty("App::PropertyLength", "Width", "Parameters").Width = float(width)
-    obj.addProperty("App::PropertyLength", "Height", "Parameters").Height = float(height)
+def _create_fixture_display_overlay(
+    doc: _FixtureDocument,
+    piece: _FixturePiece,
+    *,
+    name: str,
+    color: tuple[float, float, float],
+) -> _FixtureDisplayObject:
+    """Create a native Part display copy while retaining the Sketcher owner for selection."""
+    overlay = doc.addObject("Part::Feature", name)
+    shape = piece.Shape.copy()
+    shape.translate(App.Vector(0.0, 0.0, 0.2))
+    overlay.Shape = shape
+    overlay.Label = name
+    overlay.Visibility = True
+    overlay.ViewObject.Visibility = True
+    overlay.ViewObject.ShapeColor = color
+    overlay.ViewObject.LineColor = color
+    overlay.ViewObject.LineWidth = 4.0
+    overlay.ViewObject.Transparency = 0
+    return overlay
+
+
+def _replace_curved_piece_geometry(
+    doc: _FixtureDocument,
+    obj: _FixturePiece,
+    *,
+    line_length: float,
+    curve_span: float,
+    curve_height: float,
+    x_offset: float = 0.0,
+) -> None:
+    from freecad_cloth.pattern.PatternModel import PatternPiece
+    from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
+
+    line_length = float(line_length)
+    curve_span = float(curve_span)
+    x_offset = float(x_offset)
+    outline = [
+        (x_offset, 0.0),
+        (x_offset + line_length, 0.0),
+        (x_offset + line_length, 40.0),
+        (x_offset + line_length - curve_span, 40.0),
+    ]
+    piece = PatternPiece(str(obj.Label), outline, id=str(obj.PieceId))
+    sketch = create_sketch_for_piece(
+        piece,
+        doc,
+        geometry_segments=_curved_geometry_segments(
+            line_length, curve_span, curve_height, x_offset=x_offset
+        ),
+    )
+    doc.recompute()
+    obj.Visibility = True
+    obj.ViewObject.Visibility = True
+    sketch.Visibility = False
+    sketch.ViewObject.Visibility = False
+
+
+def _curved_edge_length(line_length: float, curve_span: float, curve_height: float) -> float:
+    points = _curved_geometry_segments(line_length, curve_span, curve_height)[2][1]
+    curve = Part.BSplineCurve()
+    curve.interpolate([App.Vector(x, y, 0.0) for x, y in points])
+    return float(curve.toShape().Length)
+
+
+def add_curved_piece(
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    line_length: float,
+    curve_span: float = 80.0,
+    curve_height: float = 90.0,
+    x_offset: float = 0.0,
+) -> _FixturePiece:
+    outline = [
+        (float(x_offset), 0.0),
+        (float(x_offset) + float(line_length), 0.0),
+        (float(x_offset) + float(line_length), 40.0),
+        (float(x_offset) + float(line_length) - float(curve_span), 40.0),
+    ]
+    return _create_native_fixture_piece(
+        doc,
+        name,
+        piece_id,
+        outline,
+        geometry_segments=_curved_geometry_segments(
+            line_length, curve_span, curve_height, x_offset=x_offset
+        ),
+    )
+
+
+def add_rectangular_piece(
+    doc: _FixtureDocument,
+    name: str,
+    piece_id: str,
+    width: float = 100.0,
+    height: float = 100.0,
+    x_offset: float = 0.0,
+) -> _FixturePiece:
+    """Create a native Sketcher-backed PatternPiece test fixture."""
     x_offset = float(x_offset)
     outline = [
         (x_offset, 0.0),
@@ -119,13 +263,7 @@ def add_rectangular_piece(doc, name, piece_id, width=100.0, height=100.0, x_offs
         (x_offset + float(width), float(height)),
         (x_offset, float(height)),
     ]
-    obj.addProperty("App::PropertyString", "SewingOutline", "Cloth").SewingOutline = repr(outline)
-    # Keep BREP edge order identical to SewingOutline order. Part.makePlane()
-    # returns a face whose native Edge1..Edge4 order does not match this boundary.
-    vertices = [App.Vector(x, y, 0.0) for x, y in outline]
-    wire = Part.makePolygon(vertices + [vertices[0]])
-    obj.Shape = Part.Face(wire)
-    return obj
+    return _create_native_fixture_piece(doc, name, piece_id, outline)
 
 
 def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
@@ -138,10 +276,13 @@ def edge_sample_spacing(edge, parameters=(0.0, 0.07, 0.19, 0.43, 0.71, 1.0)):
 
 
 def process_events():
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     QtWidgets.QApplication.processEvents()
     Gui.updateGui()
     QtWidgets.QApplication.processEvents()
@@ -307,7 +448,8 @@ def save_seam_overlay_hover_animation(document, seam_ids, filename):
                 set_seam_highlights_enabled(enabled)
             controller = refresh_seam_overlay(document) if enabled else None
             if enabled:
-                assert controller is not None and controller.root is not None
+                assert controller is not None
+                assert controller.root is not None
                 controller.refresh(
                     document,
                     active_seam_id=hovered,
@@ -387,20 +529,13 @@ def save_seam_overlay_options_evidence(filename):
         process_events()
 
 
-def wait_for_task_close():
-    try:
-        from PySide import QtCore, QtWidgets
-    except ImportError:
-        from PySide2 import QtCore, QtWidgets
-    for _ in range(80):
-        active = Gui.Control.activeDialog()
-        if active is None or not bool(active):
-            return
-        loop = QtCore.QEventLoop()
-        QtCore.QTimer.singleShot(0, loop.quit)
-        loop.exec()
-        QtWidgets.QApplication.processEvents()
-    raise AssertionError("task dialog did not close after the requested Commit/Cancel action")
+def wait_for_task_close() -> None:
+    """Require the staged sewing task to close after the requested user action."""
+    wait_for_task_dialog_close_common(
+        Gui,
+        "task dialog did not close after the requested Commit/Cancel action",
+        failure_type=AssertionError,
+    )
 
 
 def select_edges(*items):
@@ -421,10 +556,13 @@ def open_public(command):
     assert getattr(panel, "form", None) is not None
     active = Gui.Control.activeDialog()
     assert active is not None, command + " did not open an active task dialog"
-    try:
-        from PySide import QtWidgets
-    except ImportError:
+    if TYPE_CHECKING:
         from PySide2 import QtWidgets
+    else:
+        try:
+            from PySide import QtWidgets
+        except ImportError:
+            from PySide2 import QtWidgets
     widgets = [panel.form] + list(panel.form.findChildren(QtWidgets.QWidget))
     dialog_text = " | ".join(
         str(getter())
@@ -448,6 +586,7 @@ def close_public_task(panel=None):
 
 doc = None
 recorder = None
+display_overlays: list[_FixtureDisplayObject] = []
 _success = False
 try:
     record("smoke=started")
@@ -469,7 +608,20 @@ try:
     piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b", x_offset=130.0)
     piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c", x_offset=260.0)
     doc.recompute()
-    record("fixtures=created pieces=3")
+    display_overlays = [
+        _create_fixture_display_overlay(
+            doc,
+            piece,
+            name=f"{piece.Label}Display",
+            color=color,
+        )
+        for piece, color in (
+            (piece_a, (0.34, 0.65, 0.88)),
+            (piece_b, (0.94, 0.62, 0.30)),
+        )
+    ]
+    doc.recompute()
+    record("fixtures=created pieces=3 sketcher-authorities=3 native-display-overlays=2")
 
     # Record from the real sewing workbench and let Fit All establish a valid
     # camera center and clipping range. Then set only the orthographic height;
@@ -485,16 +637,63 @@ try:
         (piece_a, (0.34, 0.65, 0.88)),
         (piece_b, (0.94, 0.62, 0.30)),
     )
+    piece_c.Visibility = False
     piece_c.ViewObject.Visibility = False
     for piece, color in recording_pieces:
         view_object = piece.ViewObject
+        piece.Visibility = True
         view_object.Visibility = True
+        sketch = piece.Sketch
+        sketch.Visibility = False
+        sketch.ViewObject.Visibility = False
         view_object.ShapeColor = color
         # Standard Part view providers render stable colored face and edge cues.
         view_object.LineColor = color
         view_object.LineWidth = 4.0
         view_object.Transparency = 0
     doc.recompute()
+    # Reapply the display-copy colors and visibility after recompute. The
+    # selected PatternPiece remains the Sketcher authority; the Part features
+    # exist only to render the two mating faces in the visual capture.
+    for piece, color in recording_pieces:
+        piece.Visibility = True
+        piece.ViewObject.Visibility = True
+        piece.ViewObject.ShapeColor = color
+        piece.ViewObject.LineColor = color
+        piece.ViewObject.LineWidth = 4.0
+        piece.ViewObject.Transparency = 0
+        piece.Sketch.Visibility = False
+        piece.Sketch.ViewObject.Visibility = False
+    for overlay, (_piece, color) in zip(display_overlays, recording_pieces, strict=True):
+        overlay.Visibility = True
+        overlay.ViewObject.Visibility = True
+        overlay.ViewObject.ShapeColor = color
+        overlay.ViewObject.LineColor = color
+        overlay.ViewObject.LineWidth = 4.0
+        overlay.ViewObject.Transparency = 0
+    process_events()
+    view.redraw()
+    process_events()
+    record(
+        "fixture-visibility="
+        + repr(
+            {
+                piece.Label: {
+                    "document": bool(piece.Visibility),
+                    "view": bool(piece.ViewObject.Visibility),
+                    "sketch_document": bool(piece.Sketch.Visibility),
+                    "sketch_view": bool(piece.Sketch.ViewObject.Visibility),
+                    "faces": len(piece.Shape.Faces),
+                    "area": round(float(piece.Shape.Area), 3),
+                    "valid": bool(piece.Shape.isValid()),
+                    "shape_color": tuple(
+                        round(float(value), 3) for value in piece.ViewObject.ShapeColor[:3]
+                    ),
+                }
+                for piece, _color in recording_pieces
+            }
+        )
+    )
     view.setCameraType("Orthographic")
     view.viewTop()
     view.fitAll()
@@ -529,7 +728,8 @@ try:
     view_size = view.getSize()
     view_width, view_height = float(view_size[0]), float(view_size[1])
     if view_width <= 0.0 or view_height <= 0.0:
-        raise RuntimeError("seam-assignment GIF has an invalid viewport size")
+        msg = "seam-assignment GIF has an invalid viewport size"
+        raise RuntimeError(msg)
     aspect = view_width / view_height
     extent_x, extent_y = xmax - xmin, ymax - ymin
     # Reserve a clear strip on the right for FreeCAD's staged sewing task panel.
@@ -561,10 +761,11 @@ try:
         view.getCamera(),
     )
     if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
-        raise RuntimeError(
+        msg = (
             "seam-assignment GIF camera did not apply the requested world-space framing: "
             f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
         )
+        raise RuntimeError(msg)
     record(
         "seam-camera=passed bounds=(%.2f,%.2f)-(%.2f,%.2f) "
         "height=%.2f viewport=%dx%d"
@@ -609,10 +810,40 @@ try:
     recorder.hold(800)
     select_edges((piece_a, 0), (piece_b, 0))
     recorder.hold(800)
+    from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
+    selected_before_command = tuple(_collect_selected_pattern_edges())
+    record(
+        "seam-selection-before-command="
+        + repr(tuple((str(obj.Name), int(edge)) for obj, edge in selected_before_command))
+    )
     panel = open_public("ClothSewing_CreateSeam")
     recorder.hold(1100)
-    assert any(getattr(obj, "SeamId", "") for obj in panel.session.created), (
-        "1:1 preview did not create a seam"
+    selected_after_command = tuple(_collect_selected_pattern_edges())
+    created_seams = tuple(
+        obj for obj in panel.session.created if str(getattr(obj, "SeamId", "")).strip()
+    )
+    record(
+        "seam-preview-diagnostics="
+        + repr(
+            {
+                "initial_selection": tuple(
+                    (str(obj.Name), int(edge)) for obj, edge in panel._initial_selection
+                ),
+                "current_selection": tuple(
+                    (str(obj.Name), int(edge)) for obj, edge in selected_after_command
+                ),
+                "created": tuple(str(obj.SeamId) for obj in created_seams),
+                "feedback": str(panel.feedback.text()),
+            }
+        )
+    )
+    assert created_seams, (
+        "1:1 preview did not create a seam: "
+        f"initial_selection={panel._initial_selection!r} "
+        f"selected_before_command={selected_before_command!r} "
+        f"selected_after_command={selected_after_command!r} "
+        f"feedback={panel.feedback.text()!r}"
     )
     assert "Preview valid" in panel.feedback.text()
     assert Gui.Control.activeDialog() is not None
@@ -623,8 +854,12 @@ try:
     wait_for_task_close()
     recorder.hold(800)
     recorder.stop()
-    piece_c.ViewObject.Visibility = True
+    for overlay in display_overlays:
+        doc.removeObject(overlay.Name)
+    display_overlays.clear()
     doc.recompute()
+    piece_c.Visibility = True
+    piece_c.ViewObject.Visibility = True
     view.fitAll()
     process_events()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
@@ -735,20 +970,7 @@ try:
         f"curved-sampling=passed max_spacing={max(curve_spacings):.6f} min_spacing={min(curve_spacings):.6f}"
     )
 
-    probe = Part.BezierCurve()
-    probe.setPoles(
-        [
-            App.Vector(0, 40, 0),
-            App.Vector(0, 160, 0),
-            App.Vector(-50, 160, 0),
-            App.Vector(-50, 40, 0),
-        ]
-    )
-    probe_points = probe.toShape().discretize(Number=64)
-    b_curve_length = sum(
-        ((left.x - right.x) ** 2 + (left.y - right.y) ** 2 + (left.z - right.z) ** 2) ** 0.5
-        for left, right in zip(probe_points, probe_points[1:], strict=False)
-    )
+    b_curve_length = _curved_edge_length(50.0, 50.0, 120.0)
     b_line_length = float(
         curved_a.Shape.Edges[0].Length + curved_a.Shape.Edges[2].Length - b_curve_length
     )
@@ -759,7 +981,9 @@ try:
         b_line_length,
         curve_span=50.0,
         curve_height=120.0,
-        x_offset=140.0,
+        # The interpolated B-spline extends beyond its endpoint X range.
+        # Keep this visual/selection fixture clear of CurvedA with margin.
+        x_offset=200.0,
     )
     doc.recompute()
     assert curved_a.Shape.isValid() and not curved_a.Shape.isNull(), (
@@ -767,6 +991,21 @@ try:
     )
     assert curved_b.Shape.isValid() and not curved_b.Shape.isNull(), (
         "CurvedB must be a valid, non-self-intersecting pattern face"
+    )
+    record(
+        "curved-fixture-bounds="
+        + repr(
+            {
+                "a_x": (
+                    float(curved_a.Shape.BoundBox.XMin),
+                    float(curved_a.Shape.BoundBox.XMax),
+                ),
+                "b_x": (
+                    float(curved_b.Shape.BoundBox.XMin),
+                    float(curved_b.Shape.BoundBox.XMax),
+                ),
+            }
+        )
     )
     assert float(curved_a.Shape.BoundBox.XMax) < float(curved_b.Shape.BoundBox.XMin), (
         "curved seam-overlay fixtures must be spatially separated"
@@ -782,22 +1021,24 @@ try:
         ),
         None,
     )
-    assert curved_preview is not None and curved_preview.Status == "Valid"
+    assert curved_preview is not None
+    assert curved_preview.Status == "Valid"
     assert len(curved_preview.Seams) == 3
-    assert curved_preview.SideACount == 2 and curved_preview.SideBCount == 2
+    assert curved_preview.SideACount == 2
+    assert curved_preview.SideBCount == 2
 
-    curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (-5.0, 40.0)])
-    curved_a.Shape = _curved_shape(100.0, 105.0, 90.0)
-    doc.recompute()
+    _replace_curved_piece_geometry(
+        doc, curved_a, line_length=100.0, curve_span=105.0, curve_height=90.0
+    )
     assert curved_panel.accept() is False
     assert "Preview validation failed" in curved_panel.feedback.text()
     record("stale-endpoint-invalidation=passed commit-blocked=true")
     curved_panel.cancel_button.click()
     wait_for_task_close()
 
-    curved_a.SewingOutline = repr([(0.0, 0.0), (100.0, 0.0), (100.0, 40.0), (20.0, 40.0)])
-    curved_a.Shape = _curved_shape(100.0, 80.0, 90.0)
-    doc.recompute()
+    _replace_curved_piece_geometry(
+        doc, curved_a, line_length=100.0, curve_span=80.0, curve_height=90.0
+    )
     select_edges((curved_a, 0), (curved_a, 2), (curved_b, 0), (curved_b, 2))
     curved_panel = open_public("ClothSewing_CreateMNSewing")
     curved_preview = next(
@@ -865,11 +1106,40 @@ try:
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
 
+    # Native Sketch-authoritative pattern features are selected by the seam
+    # commands, but their FeaturePython view provider is not the reliable filled
+    # face renderer used by this visual acceptance. Keep temporary Part copies
+    # visible while the curved-pair screenshots and hover-state GIF are captured.
+    display_overlays.extend(
+        (
+            _create_fixture_display_overlay(
+                doc,
+                curved_a,
+                name="CurvedADisplay",
+                color=(0.34, 0.65, 0.88),
+            ),
+            _create_fixture_display_overlay(
+                doc,
+                curved_b,
+                name="CurvedBDisplay",
+                color=(0.94, 0.62, 0.30),
+            ),
+        )
+    )
+    doc.recompute()
+
     # Isolate the curved seam example from earlier smoke fixtures in this document.
     # The screenshots and hover GIF should describe one pair of mating edges, not
     # superimpose the curved pieces on the earlier rectangular examples.
     overlay_visible_names = {
-        str(obj.Name) for obj in (curved_a, curved_b, curved_network, *curved_network.Seams)
+        str(obj.Name)
+        for obj in (
+            curved_a,
+            curved_b,
+            curved_network,
+            *curved_network.Seams,
+            *display_overlays,
+        )
     }
     overlay_visibility = []
     for obj in doc.Objects:
@@ -945,7 +1215,8 @@ try:
 
     network_panel = get_active_network_task_panel()
     assert network_panel is not None
-    assert getattr(network_panel, "form", None) is not None and network_panel.form.isVisible()
+    assert getattr(network_panel, "form", None) is not None
+    assert network_panel.form.isVisible()
     evidence_label = getattr(network_panel, "correspondence", None)
     assert evidence_label is not None
     assert str(evidence_label.objectName()) == "ClothSewingNetworkCorrespondenceEvidence"
@@ -1005,6 +1276,9 @@ try:
         view_object = getattr(obj, "ViewObject", None)
         if view_object is not None:
             view_object.Visibility = was_visible
+    for display_overlay in display_overlays:
+        doc.removeObject(display_overlay.Name)
+    display_overlays.clear()
     doc.recompute()
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
@@ -1103,6 +1377,11 @@ finally:
 
             release_all_input()
             recorder.stop()
+    if doc is not None:
+        for overlay in display_overlays:
+            with contextlib.suppress(Exception):
+                doc.removeObject(overlay.Name)
+        display_overlays.clear()
     with contextlib.suppress(Exception):
         set_seam_highlights_enabled(_ORIGINAL_HIGHLIGHTS_ENABLED)
         set_seam_overlay_respect_depth(_ORIGINAL_DEPTH_SETTING)

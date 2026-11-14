@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 import sys
 from pathlib import Path
 
@@ -79,10 +80,12 @@ def test_invalid_allowance_and_notch_references_are_rejected():
     except ValueError:
         pass
     else:
-        raise AssertionError("negative allowance should fail")
+        msg = "negative allowance should fail"
+        raise AssertionError(msg)
     try:
         add_notches(derive_cut_boundary(pattern, 1), [Notch("bad", "missing", 0.5)])
     except ValueError:
         pass
     else:
-        raise AssertionError("unknown notch segment should fail")
+        msg = "unknown notch segment should fail"
+        raise AssertionError(msg)

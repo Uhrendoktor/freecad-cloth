@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
@@ -29,6 +30,7 @@ def test_graph_rejects_unknown_piece_and_edge():
     value = graph()
     try:
         value.add_seam(Seam("a", 0, "missing", 0, id="bad"))
-        raise AssertionError("unknown piece should be rejected")
+        msg = "unknown piece should be rejected"
+        raise AssertionError(msg)
     except ValueError as exc:
         assert "unknown pattern piece" in str(exc)
