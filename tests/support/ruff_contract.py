@@ -18,17 +18,6 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     project = tomllib.loads(project_file.read_text(encoding="utf-8"))
     lint = project["tool"]["ruff"]["lint"]
     allowed_ignores: set[str] = set()
-    allowed_per_file = {
-        "tests/**/*.py": ["S101"],
-        "freecad_cloth/pattern/PatternCommands.py": ["BLE001"],
-        "freecad_cloth/pattern/PatternTopologyRepairGui.py": ["BLE001"],
-        "freecad_cloth/simulation/RealtimePreview.py": ["BLE001"],
-        "freecad_cloth/simulation/SimulationQualityGui.py": ["BLE001"],
-        "tests/freecad_*.py": ["BLE001"],
-        "tests/support/pbd_contact_helpers.py": ["BLE001"],
-        "tools/benchmark_workbenches.py": ["BLE001"],
-        "tools/ci/python_validation.py": ["BLE001"],
-    }
     bootstrap_paths = {
         "tools/ci/check_visual_assets_and_budget.py",
         "tools/ci/validate_acceptance.py",
