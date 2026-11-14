@@ -22,9 +22,7 @@ def find_runner_readiness_job(
     suffix = " / Selected runner readiness"
     for job in jobs:
         name = job.get("name")
-        if isinstance(name, str) and (
-            name == "Selected runner readiness" or name.endswith(suffix)
-        ):
+        if isinstance(name, str) and (name == "Selected runner readiness" or name.endswith(suffix)):
             return job
     return None
 
