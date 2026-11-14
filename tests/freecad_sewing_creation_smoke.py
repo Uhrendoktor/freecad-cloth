@@ -45,6 +45,7 @@ _GeometrySegments = tuple[tuple[str, tuple[_Point2D, ...]], ...]
 
 
 class _FixtureViewObject(Protocol):
+    DisplayMode: str
     Visibility: bool
 
 
@@ -125,6 +126,7 @@ def _create_native_fixture_piece(
     # cannot leave the filled Part feature hidden behind its authoring sketch.
     obj.Visibility = True
     obj.ViewObject.Visibility = True
+    obj.ViewObject.DisplayMode = "Shaded"
     sketch.Visibility = False
     sketch.ViewObject.Visibility = False
     return obj
@@ -162,6 +164,7 @@ def _replace_curved_piece_geometry(
     doc.recompute()
     obj.Visibility = True
     obj.ViewObject.Visibility = True
+    obj.ViewObject.DisplayMode = "Shaded"
     sketch.Visibility = False
     sketch.ViewObject.Visibility = False
 
@@ -584,12 +587,29 @@ try:
         sketch = piece.Sketch
         sketch.Visibility = False
         sketch.ViewObject.Visibility = False
+        view_object.DisplayMode = "Shaded"
         view_object.ShapeColor = color
         # Standard Part view providers render stable colored face and edge cues.
         view_object.LineColor = color
         view_object.LineWidth = 4.0
         view_object.Transparency = 0
     doc.recompute()
+    # Reapply the shaded presentation after FeaturePython recompute. The
+    # Sketch-authoritative proxy regenerates the BREP, but its view provider
+    # must remain in a face-rendering mode for this visual acceptance capture.
+    for piece, color in recording_pieces:
+        piece.Visibility = True
+        piece.ViewObject.Visibility = True
+        piece.ViewObject.DisplayMode = "Shaded"
+        piece.ViewObject.ShapeColor = color
+        piece.ViewObject.LineColor = color
+        piece.ViewObject.LineWidth = 4.0
+        piece.ViewObject.Transparency = 0
+        piece.Sketch.Visibility = False
+        piece.Sketch.ViewObject.Visibility = False
+    process_events()
+    view.redraw()
+    process_events()
     record(
         "fixture-visibility="
         + repr(
@@ -600,6 +620,12 @@ try:
                     "sketch_document": bool(piece.Sketch.Visibility),
                     "sketch_view": bool(piece.Sketch.ViewObject.Visibility),
                     "faces": len(piece.Shape.Faces),
+                    "area": round(float(piece.Shape.Area), 3),
+                    "valid": bool(piece.Shape.isValid()),
+                    "display_mode": str(piece.ViewObject.DisplayMode),
+                    "shape_color": tuple(
+                        round(float(value), 3) for value in piece.ViewObject.ShapeColor[:3]
+                    ),
                 }
                 for piece, _color in recording_pieces
             }
