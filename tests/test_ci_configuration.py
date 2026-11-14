@@ -210,10 +210,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         'runner_scope="${RUNNER_NAME:-runner}|${RUNNER_TEMP:-}|${GITHUB_WORKSPACE:-}"'
         in container_action
     )
-    assert (
-        'runner_key="$(printf %s "$runner_scope" | sha256sum | cut -c1-12)"'
-        in container_action
-    )
+    assert 'runner_key="$(printf %s "$runner_scope" | sha256sum | cut -c1-12)"' in container_action
     assert 'execution_key="freecad-$run_id-$run_attempt-$job_key-$runner_key"' in container_action
     assert "420" not in container_action, 'Expected "420" not in container_action.'
     assert "--no-deps -e ." in action, 'Expected "--no-deps -e ." in action.'
