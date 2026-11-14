@@ -123,7 +123,7 @@ def parse(value: str) -> int:
         raise TypeError("value must contain decimal digits")
     return int(value)
 '''
-    errors = "\\n".join(check_source(source))
+    errors = "\n".join(check_source(source))
     _require(
         condition="missing exception descriptions for TypeError" in errors,
         message=errors,
