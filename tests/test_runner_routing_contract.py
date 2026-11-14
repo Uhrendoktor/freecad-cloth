@@ -197,10 +197,12 @@ def test_jobs_check_out_before_loading_local_composite_actions() -> None:
         if local_action < 0:
             continue
         checkout = block.find("uses: actions/checkout@")
-        assert checkout >= 0 and checkout < local_action, (
+        assert checkout >= 0
+        assert checkout < local_action, (
             f"{name} must check out the revision before loading a local action."
         )
-        if block[local_action:].startswith("uses: ./.github/actions/freecad-test"):
+        first_action = block[local_action:].splitlines()[0]
+        if first_action == "uses: ./.github/actions/freecad-test":
             step_end = block.find("\n      - ", local_action)
             if step_end < 0:
                 step_end = len(block)
