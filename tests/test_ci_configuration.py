@@ -991,14 +991,14 @@ def test_pyright_uses_strict_mode_for_entire_python_repository() -> None:
     )
 
 
-def test_ty_warning_diagnostics_remain_blocking() -> None:
+def test_ty_all_diagnostics_remain_blocking() -> None:
     """Keep warning-level ty diagnostics fatal for the curated simulation core."""
     config = TY_CONFIG.read_text(encoding="utf-8")
-    require(condition=ty_warnings_are_blocking(config), message="ty warnings must fail validation.")
-    tampered = config.replace("error-on-warning = true", "error-on-warning = false")
+    require(condition=ty_warnings_are_blocking(config), message="All ty diagnostics must fail validation.")
+    tampered = config.replace('all = "error"', 'all = "warn"')
     require(
         condition=not ty_warnings_are_blocking(tampered),
-        message="Disabling ty warning failures must be detected.",
+        message="Downgrading all ty diagnostics to warnings must be detected.",
     )
 
 
@@ -1185,6 +1185,6 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
     }
     assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
     assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
-    assert commands["Pyright production inventory"] == ("pyright", "-p", "pyrightconfig.json")
+    assert commands["Pyright all Python files"] == ("pyright", "-p", "pyrightconfig.json")
     assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
     assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")
