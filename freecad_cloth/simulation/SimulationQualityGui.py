@@ -66,6 +66,8 @@ class SimulationQualityTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content)
 
         workflow = QtWidgets.QGroupBox("Workflow readiness")
         workflow_layout = QtWidgets.QVBoxLayout(workflow)
@@ -82,7 +84,7 @@ class SimulationQualityTaskPanel:
             label.setWordWrap(True)
             self.workflow_labels[key] = label
             workflow_layout.addWidget(label)
-        root.addWidget(workflow)
+        content_layout.addWidget(workflow)
 
         context = QtWidgets.QGroupBox("Context")
         cform = QtWidgets.QFormLayout(context)
@@ -95,7 +97,7 @@ class SimulationQualityTaskPanel:
         )
         cform.addRow("Target", self.target_context)
         cform.addRow("", self.refresh_target_button)
-        root.addWidget(context)
+        content_layout.addWidget(context)
 
         fitting = QtWidgets.QGroupBox("Arrange / Fit")
         flayout = QtWidgets.QVBoxLayout(fitting)
@@ -124,7 +126,7 @@ class SimulationQualityTaskPanel:
         fit_buttons.addWidget(self.snap_to_target_button)
         fit_buttons.addWidget(self.reset_arrangement_button)
         flayout.addLayout(fit_buttons)
-        root.addWidget(fitting)
+        content_layout.addWidget(fitting)
 
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText("Expert physics settings")
@@ -135,7 +137,7 @@ class SimulationQualityTaskPanel:
         self.advanced_toggle.setToolTip(
             "Normal fitting uses presets. Expand this section only when precise solver or collision values are needed."
         )
-        root.addWidget(self.advanced_toggle)
+        content_layout.addWidget(self.advanced_toggle)
 
         quality = QtWidgets.QGroupBox("Simulation quality")
         qform = QtWidgets.QFormLayout(quality)
@@ -154,7 +156,7 @@ class SimulationQualityTaskPanel:
         qform.addRow("Particle distance (mm)", self.particle_distance)
         qform.addRow("Solver iterations", self.iterations)
         qform.addRow("Solver substeps", self.substeps)
-        root.addWidget(quality)
+        content_layout.addWidget(quality)
         for widget in (self.particle_distance, self.iterations, self.substeps):
             label = qform.labelForField(widget)
             if label is not None:
@@ -186,7 +188,7 @@ class SimulationQualityTaskPanel:
             ("Transparency (%)", self.transparency),
         ):
             fform.addRow(label, widget)
-        root.addWidget(fabric)
+        content_layout.addWidget(fabric)
         for widget in (
             self.density,
             self.thickness,
@@ -209,12 +211,16 @@ class SimulationQualityTaskPanel:
         self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset)
         cform.addRow("Fallback sphere radius (mm)", self.collision_radius)
-        root.addWidget(collision)
+        content_layout.addWidget(collision)
         solver = QtWidgets.QGroupBox("Run")
         sform = QtWidgets.QFormLayout(solver)
         self.steps = self._spin(0, 1000000, 0)
         sform.addRow("Simulation steps", self.steps)
-        root.addWidget(solver)
+        content_layout.addWidget(solver)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
 
         self._expert_widgets = (fabric, collision, solver)
         buttons = QtWidgets.QHBoxLayout()
