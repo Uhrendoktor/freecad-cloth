@@ -150,7 +150,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         'Expected one bounded 360-second simulation turntable budget.'
     )
     assert tunic_audit.count("continue-on-error: true") == 2, (
-        'Expected only the realtime diagnostic steps to be non-blocking.'
+        "Expected only the realtime diagnostic steps to be non-blocking."
     )
     assert "continue-on-error: true" in realtime_step, (
         "The realtime metric capture is diagnostic-only for this PR."
