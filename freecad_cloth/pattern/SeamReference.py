@@ -14,6 +14,7 @@ import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Self
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 
 from freecad_cloth.common.JsonTypes import JsonValue
@@ -23,7 +24,7 @@ type _ProvenanceValue = JsonValue | tuple["_ProvenanceValue", ...]
 type _EdgeRecordValue = JsonValue | tuple["_EdgeRecordValue", ...]
 type _EdgeRecord = Mapping[str, _EdgeRecordValue]
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
+
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
 
