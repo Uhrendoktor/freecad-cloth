@@ -15,8 +15,22 @@ def gh(*args: str) -> str:
     ).stdout
 
 
+def find_runner_readiness_job(
+    jobs: list[dict[str, object]],
+) -> dict[str, object] | None:
+    """Find the readiness sentinel with or without its reusable-workflow prefix."""
+    suffix = " / Selected runner readiness"
+    for job in jobs:
+        name = job.get("name")
+        if isinstance(name, str) and (
+            name == "Selected runner readiness" or name.endswith(suffix)
+        ):
+            return job
+    return None
+
+
 def main() -> int:
-    """Prefer the configured local runner and dispatch the hosted fallback when needed."""
+    """Wait for local-runner readiness and dispatch the hosted fallback when needed."""
     repo = os.environ["REPO"]
     run_id = os.environ["GITHUB_RUN_ID"]
     ref = os.environ["GITHUB_REF_NAME"]
@@ -25,15 +39,14 @@ def main() -> int:
         jobs = json.loads(gh("api", f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")).get(
             "jobs", []
         )
-        sentinel = next(
-            (job for job in jobs if job.get("name") == "Selected runner readiness"), None
-        )
+        sentinel = find_runner_readiness_job(jobs)
         state = sentinel.get("status", "missing") if sentinel else "missing"
         conclusion = sentinel.get("conclusion", "") if sentinel else ""
-        if state == "in_progress" or conclusion == "success":
-            print(f"runner-watchdog=local-started state={state} conclusion={conclusion}")
+        if conclusion == "success":
+            print(f"runner-watchdog=local-ready state={state} conclusion={conclusion}")
             return 0
         if state == "completed":
+            print(f"runner-watchdog=local-not-ready conclusion={conclusion or 'unknown'}")
             break
         time.sleep(5)
     subprocess.run(
