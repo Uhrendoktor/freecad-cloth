@@ -60,6 +60,34 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     Seams: Sequence[_SeamFeature]
 
 
+class _RangeEditor(Protocol):
+    """Numeric Qt control used for one normalized seam-range endpoint."""
+
+    def setRange(self, _minimum: float, _maximum: float) -> None:
+        """Limit the editor to a normalized parameter interval."""
+        ...
+
+    def setDecimals(self, _decimals: int) -> None:
+        """Set the displayed decimal precision."""
+        ...
+
+    def setSingleStep(self, _step: float) -> None:
+        """Set the keyboard/wheel increment."""
+        ...
+
+    def setValue(self, _value: float) -> None:
+        """Set the currently displayed endpoint."""
+        ...
+
+    def value(self) -> float:
+        """Return the current numeric endpoint."""
+        ...
+
+    def setEnabled(self, _enabled: bool) -> None:
+        """Enable or disable the endpoint editor."""
+        ...
+
+
 def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str, str], ...]:
     """Collect non-valid statuses from canonical sewing-network members.
 
@@ -175,9 +203,7 @@ class SewingNetworkTaskPanel:
         self.seam_filter = QtWidgets.QLineEdit()
         self.seam_filter.setPlaceholderText("Filter by piece, edge or status…")
         self.seam_filter.setClearButtonEnabled(True)
-        self.seam_filter.setToolTip(
-            "Search both sides of a seam and its validation status."
-        )
+        self.seam_filter.setToolTip("Search both sides of a seam and its validation status.")
         seam_layout.addWidget(self.seam_filter)
         self.seam_list = QtWidgets.QListWidget()
         self.seam_list.setObjectName("ClothSewingNetworkSeamList")
@@ -203,10 +229,10 @@ class SewingNetworkTaskPanel:
         )
         self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
         for label, field in (
-            ("Side A start (0–1)", self.start_a),
-            ("Side A end (0–1)", self.end_a),
-            ("Side B start (0–1)", self.start_b),
-            ("Side B end (0–1)", self.end_b),
+            ("Side A start (0-1)", self.start_a),
+            ("Side A end (0-1)", self.end_a),
+            ("Side B start (0-1)", self.start_b),
+            ("Side B end (0-1)", self.end_b),
         ):
             range_form.addRow(label, field)
         detail_layout.addLayout(range_form)
@@ -304,7 +330,7 @@ class SewingNetworkTaskPanel:
             seam.ReversedB = reversed_b
 
     @staticmethod
-    def _range_spin(qt_widgets: ModuleType):
+    def _range_spin(qt_widgets: ModuleType) -> _RangeEditor:
         """Create one precise normalized edge-range editor.
 
         Args:
