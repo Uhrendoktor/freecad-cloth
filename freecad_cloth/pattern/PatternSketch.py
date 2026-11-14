@@ -167,7 +167,7 @@ def create_sketch_for_piece(
     )
     if existing is not None:
         if geometry_segments is not None:
-            existing.clear()
+            existing.deleteAllGeometry()
             _add_native_geometry(existing, geometry_segments)
             existing.SemanticEdgeIds = [
                 f"{piece.id}:edge:{i}" for i in range(len(geometry_segments))
