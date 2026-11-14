@@ -784,7 +784,6 @@ if __name__ == "__main__":
     print("sewing GUI relative-tolerance regression passed")
 
 
-
 def test_network_editor_search_covers_both_sides_and_status() -> None:
     """Keep seam identity, both edge references, and validation searchable."""
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
