@@ -16,6 +16,23 @@ The central pattern is **native shell, purpose-built interaction**: controls rem
 
 These sources inform the rules below; the exact spacing and component choices are Cloth conventions rather than claimed upstream requirements.
 
+## Reference study: complex EDA interfaces
+
+The exact public repository named `KICAD_Blocks` is a library of reusable schematic/PCB blocks, not a UI implementation. The more relevant interaction reference is [KiCAD JLCPCB tools](https://github.com/Bouni/kicad-jlcpcb-tools), especially its [design-variant controller](https://github.com/Bouni/kicad-jlcpcb-tools/blob/main/variant/controller.py), [matrix model](https://github.com/Bouni/kicad-jlcpcb-tools/blob/main/variant/matrix_model.py), and [matrix view](https://github.com/Bouni/kicad-jlcpcb-tools/blob/main/variant/matrix_view.py). Its [README](https://github.com/Bouni/kicad-jlcpcb-tools#design-variants-kicad-10) documents difference filtering, per-variant editing, explicit output selection, multi-component batch actions, copy/paste, and variant-column reordering.
+
+Useful ideas to adapt:
+
+- **Separate the data projection from the view and command coordinator.** The reference computes aligned rows, sorting, filtering, comparison state and validated clipboard plans in a UI-independent model; the controller performs board operations; the view handles selection, painting, keyboard/mouse input and column sizing. Cloth panels should keep geometry/document mutation out of widget callbacks where practical. A small typed panel-state/helper layer is preferable to one large panel class that reads, transforms and writes domain objects while building its form.
+- **Make identity survive presentation changes.** The reference routes edits through component IDs, variant names and captured targets rather than assuming a visible row/column remains the same after filtering or sorting. Cloth lists and tables should likewise retain document-object identity or semantic IDs; row numbers are presentation coordinates, not domain identity.
+- **Use a matrix only when comparison is the task.** A resizable EDA window can justify grouped variant columns, frozen identity columns, shared row boundaries, difference-only filtering and selected-cell/batch operations. A compact FreeCAD task panel cannot show that many simultaneous fields legibly. Prefer a searchable collection plus one focused detail form there; reserve tables for true row/column comparison or batch editing.
+- **Make high-density operations discoverable but explicit.** Put filters and the output/current-target selector beside the collection they affect. Offer batch actions only when a meaningful multi-selection exists. Keep copy/paste targets, destination scope and field compatibility explicit; never infer a destination from whichever row happens to be under the pointer.
+- **Treat theme, font and display scale as runtime inputs.** The reference recalculates rendering for system-color and DPI changes and measures columns against the actual font. Cloth should let Qt's current style/palette draw standard controls, use layout size policies rather than pixel-fixed fields, and refresh any custom-drawn viewport or cell content when palette/font/DPI changes.
+- **Use status and difference cues redundantly.** A modified cell/row should remain understandable without color alone. Use a concise label, icon/shape or textual state alongside palette-aware highlighting; tooltips are supplementary detail rather than the only way to discover meaning.
+
+Qt's [Model/View programming guide](https://doc.qt.io/qt-6/model-view-programming.html) explains why model/view separation helps when sorting, filtering and selection must stay synchronized. Its [layout management guide](https://doc.qt.io/qt-6/layout.html) covers nested responsive layouts, and the [QScrollArea reference](https://doc.qt.io/qt-6/qscrollarea.html) documents the child-widget sizing and layout requirements that scrolling panels must respect. FreeCAD's [Qt task-panel guide](https://freecad.github.io/Addon-Academy/Guides/Code/Qt/) confirms that `Gui.Control.showDialog()` hosts the panel's `form` inside the existing Combo View task area and supplies the native OK/Cancel footer. Cloth should keep this host model rather than opening a separate top-level window for iterative options.
+
+These references are design inputs, not templates to copy wholesale. The EDA matrix is optimized for a wide standalone work surface; Cloth remains a compact, viewport-first FreeCAD workbench.
+
 ## Principles
 
 1. **The viewport is the primary canvas.** Prefer direct manipulation, selection, handles, overlays and immediate previews when the user is working spatially. Keep numeric entry as a precision path, not the compulsory first step.
