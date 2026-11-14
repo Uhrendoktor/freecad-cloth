@@ -108,7 +108,6 @@ jobs:
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
           git push --force-with-lease="refs/heads/${PR_BRANCH}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${PR_BRANCH}"
-
           # GITHUB_TOKEN pushes do not reliably start follow-on PR workflows; dispatch the full checks explicitly.
           gh workflow run commit-validation.yml --repo "${GITHUB_REPOSITORY}" --ref "${PR_BRANCH}" -f runner_mode=hosted -f execution_mode=full -f pr_number="${PR_NUMBER}"
           for _ in $(seq 1 30); do
@@ -187,6 +186,8 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request' || inputs.runner_mode == 'hosted') && 'ubuntu-latest' || fromJSON('["self-hosted","linux","x64","docker"]') }}
     timeout-minutes: 2
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with: {persist-credentials: false}
       - run: python3 tools/ci/check_docker_workspace_mount.py
   runner_watchdog:
     name: Local runner watchdog with hosted fallback
@@ -308,7 +309,6 @@ jobs:
             CLOTH_PBD_SUBSTEPS=8
             CLOTH_PBD_COLLISION_MODE=mesh
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2
-
   python:
     name: Python validation (${{ matrix.group }})
     if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
