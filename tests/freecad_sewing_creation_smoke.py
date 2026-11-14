@@ -1106,11 +1106,40 @@ try:
     assert seam_color_snapshot(refreshed_network.Seams) == baseline_seam_colors
     record("seam-colors-context=passed")
 
+    # Native Sketch-authoritative pattern features are selected by the seam
+    # commands, but their FeaturePython view provider is not the reliable filled
+    # face renderer used by this visual acceptance. Keep temporary Part copies
+    # visible while the curved-pair screenshots and hover-state GIF are captured.
+    display_overlays.extend(
+        (
+            _create_fixture_display_overlay(
+                doc,
+                curved_a,
+                name="CurvedADisplay",
+                color=(0.34, 0.65, 0.88),
+            ),
+            _create_fixture_display_overlay(
+                doc,
+                curved_b,
+                name="CurvedBDisplay",
+                color=(0.94, 0.62, 0.30),
+            ),
+        )
+    )
+    doc.recompute()
+
     # Isolate the curved seam example from earlier smoke fixtures in this document.
     # The screenshots and hover GIF should describe one pair of mating edges, not
     # superimpose the curved pieces on the earlier rectangular examples.
     overlay_visible_names = {
-        str(obj.Name) for obj in (curved_a, curved_b, curved_network, *curved_network.Seams)
+        str(obj.Name)
+        for obj in (
+            curved_a,
+            curved_b,
+            curved_network,
+            *curved_network.Seams,
+            *display_overlays,
+        )
     }
     overlay_visibility = []
     for obj in doc.Objects:
@@ -1247,6 +1276,9 @@ try:
         view_object = getattr(obj, "ViewObject", None)
         if view_object is not None:
             view_object.Visibility = was_visible
+    for display_overlay in display_overlays:
+        doc.removeObject(display_overlay.Name)
+    display_overlays.clear()
     doc.recompute()
 
     curved_save = LOG_PATH.parent / "curved-mn-roundtrip.FCStd"
