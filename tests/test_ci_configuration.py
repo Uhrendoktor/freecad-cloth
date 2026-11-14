@@ -27,7 +27,7 @@ from tools.ci.validate_ci_structure import (
     missing_ruff_commands,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
-    ty_warnings_are_blocking,
+    ty_all_diagnostics_are_errors,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -994,10 +994,10 @@ def test_pyright_uses_strict_mode_for_entire_python_repository() -> None:
 def test_ty_all_diagnostics_remain_blocking() -> None:
     """Require every ty rule to produce errors for the complete tracked inventory."""
     config = TY_CONFIG.read_text(encoding="utf-8")
-    require(condition=ty_warnings_are_blocking(config), message="All ty diagnostics must fail validation.")
+    require(condition=ty_all_diagnostics_are_errors(config), message="All ty diagnostics must fail validation.")
     tampered = config.replace('all = "error"', 'all = "warn"')
     require(
-        condition=not ty_warnings_are_blocking(tampered),
+        condition=not ty_all_diagnostics_are_errors(tampered),
         message="Downgrading all ty diagnostics to warnings must be detected.",
     )
 
