@@ -101,6 +101,35 @@ def parse(value: str, radix: int) -> int:
     _require(condition="missing descriptive Raises section" in errors, message=errors)
 
 
+def test_every_explicitly_raised_exception_needs_its_own_description() -> None:
+    """Reject a Raises section that omits one exception raised by the function."""
+    source = '''"""Documentation checker fixture module."""
+
+def parse(value: str) -> int:
+    """Parse an integer value.
+
+    Args:
+        value: Text that should contain an integer.
+
+    Returns:
+        Parsed integer value.
+
+    Raises:
+        ValueError: If the value is empty.
+    """
+    if not value:
+        raise ValueError("value is empty")
+    if not value.isdecimal():
+        raise TypeError("value must contain decimal digits")
+    return int(value)
+'''
+    errors = "\\n".join(check_source(source))
+    _require(
+        condition="missing exception descriptions for TypeError" in errors,
+        message=errors,
+    )
+
+
 def test_placeholder_and_name_only_descriptions_are_rejected() -> None:
     """Reject placeholder prose even when all required docstring sections exist."""
     source = '''"""Documentation checker fixture module."""
