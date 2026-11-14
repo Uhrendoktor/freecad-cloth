@@ -1169,6 +1169,10 @@ class AvatarPoseTaskPanel:
         tool_row.addStretch(1)
         root.addLayout(tool_row)
 
+        scroll_content = QtWidgets.QWidget()
+        scroll_layout = QtWidgets.QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
         self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
@@ -1215,7 +1219,7 @@ class AvatarPoseTaskPanel:
         self.precision_widget = precision_widget
         self.precision_widget.setVisible(False)
         self.precision.toggled.connect(self._toggle_precision)
-        root.addWidget(selected)
+        scroll_layout.addWidget(selected)
 
         joint_toggle_row = QtWidgets.QHBoxLayout()
         self.joint_list_toggle = QtWidgets.QToolButton()
@@ -1226,7 +1230,7 @@ class AvatarPoseTaskPanel:
         self.joint_list_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         joint_toggle_row.addWidget(self.joint_list_toggle)
         joint_toggle_row.addStretch(1)
-        root.addLayout(joint_toggle_row)
+        scroll_layout.addLayout(joint_toggle_row)
 
         joint_list_widget = QtWidgets.QWidget()
         joint_list_layout = QtWidgets.QVBoxLayout(joint_list_widget)
@@ -1237,7 +1241,11 @@ class AvatarPoseTaskPanel:
         self.joints.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self._populate_joints()
         joint_list_layout.addWidget(self.joints)
-        root.addWidget(joint_list_widget)
+        scroll_layout.addWidget(joint_list_widget)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(scroll_content, QtWidgets), 1)
         self.joint_list_widget = joint_list_widget
         self.joint_list_widget.setVisible(False)
         self.joint_list_toggle.toggled.connect(self._toggle_joint_list)
