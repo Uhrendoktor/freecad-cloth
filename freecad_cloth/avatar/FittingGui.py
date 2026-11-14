@@ -978,8 +978,8 @@ class FittingTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothInteractiveArrangeTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
-        content = QtWidgets.QWidget()
-        content_layout = QtWidgets.QVBoxLayout(content)
+        anchor_content = QtWidgets.QWidget()
+        anchor_content_layout = QtWidgets.QVBoxLayout(anchor_content)
 
         context = QtWidgets.QGroupBox("Fitting")
         context_layout = QtWidgets.QVBoxLayout(context)
@@ -987,7 +987,7 @@ class FittingTaskPanel:
         self.context.setWordWrap(True)
         self.context.setProperty("clothRole", "hint")
         context_layout.addWidget(self.context)
-        content_layout.addWidget(context)
+        root.addWidget(context)
 
         actions = QtWidgets.QGroupBox("Arrange")
         action_layout = QtWidgets.QVBoxLayout(actions)
@@ -1008,7 +1008,7 @@ class FittingTaskPanel:
         buttons.addWidget(self.reset_button)
         buttons.addWidget(self.fit_button)
         action_layout.addLayout(buttons)
-        content_layout.addWidget(actions)
+        root.addWidget(actions)
 
         anchors = QtWidgets.QGroupBox("Surface snap target")
         anchor_layout = QtWidgets.QVBoxLayout(anchors)
@@ -1042,11 +1042,11 @@ class FittingTaskPanel:
         )
         self.anchor_hint.setWordWrap(True)
         anchor_layout.addWidget(self.anchor_hint)
-        content_layout.addWidget(anchors)
+        anchor_content_layout.addWidget(anchors)
 
         from freecad_cloth.common.UiDesign import make_scroll_area
 
-        root.addWidget(make_scroll_area(content, QtWidgets), 1)
+        root.addWidget(make_scroll_area(anchor_content, QtWidgets), 1)
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
