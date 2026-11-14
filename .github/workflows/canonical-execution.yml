@@ -190,6 +190,7 @@ jobs:
       - name: Verify Docker daemon availability
         run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
       - name: Verify Docker can bind-mount the runner workspace
+        if: ${{ inputs.runner_mode != 'hosted' && github.event_name != 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
