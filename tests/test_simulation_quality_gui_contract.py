@@ -238,3 +238,69 @@ def test_reject_restores_snapshot_before_closing_dialog(
         condition=calls == ["restore", "close"],
         message="Rejecting the panel must restore values before closing the dialog.",
     )
+
+
+
+def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> None:
+    """Show the numeric quality fields when expert physics settings are expanded."""
+    panel = SimulationQualityTaskPanel.__new__(SimulationQualityTaskPanel)
+
+    class Visibility:
+        """Capture the current visibility state of a panel control."""
+
+        def __init__(self) -> None:
+            """Initialize the control as hidden."""
+            self.visible = False
+
+        def setVisible(self, enabled: bool) -> None:
+            """Record a visibility change.
+
+            Args:
+                enabled: Whether the control should be visible.
+            """
+            self.visible = bool(enabled)
+
+    class Disclosure:
+        """Capture the disclosure arrow state."""
+
+        def setArrowType(self, arrow: str) -> None:
+            """Record the active disclosure arrow.
+
+            Args:
+                arrow: Arrow state selected by the panel.
+            """
+            self.arrow = arrow
+
+    panel.QtCore = SimpleNamespace(
+        Qt=SimpleNamespace(DownArrow="down", RightArrow="right")
+    )
+    panel.advanced_toggle = Disclosure()
+    panel._expert_widgets = (Visibility(), Visibility(), Visibility())
+    panel._expert_quality_widgets = tuple(Visibility() for _ in range(6))
+    panel._set_status = lambda _message: None
+
+    _panel_method(panel, "_set_expert_visibility")(True)
+    require(
+        condition=all(
+            widget.visible
+            for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
+        ),
+        message="Expanding expert settings must reveal every solver, fabric, collision, and quality control.",
+    )
+    require(
+        condition=panel.advanced_toggle.arrow == "down",
+        message="Expanded expert settings must use the down disclosure arrow.",
+    )
+
+    _panel_method(panel, "_set_expert_visibility")(False)
+    require(
+        condition=not any(
+            widget.visible
+            for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
+        ),
+        message="Collapsing expert settings must hide every expert control.",
+    )
+    require(
+        condition=panel.advanced_toggle.arrow == "right",
+        message="Collapsed expert settings must use the right disclosure arrow.",
+    )
