@@ -288,6 +288,7 @@ jobs:
         uses: ./.github/actions/freecad-container
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "${{ matrix.group == 'core' && 360 || 120 }}"
           command: >-
             bash -lc 'set -o pipefail; mkdir -p artifacts; python3 tools/ci/python_validation.py "${{ matrix.group }}" 2>&1 | tee artifacts/python-validation.log'
           environment: CLOTH_CI_ENABLE_PBD=0
