@@ -78,7 +78,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="Only the documented FreeCAD loader import-order exception may remain globally ignored.",
+        message="No Ruff rules may be globally ignored.",
     )
     require(
         condition=lint.get("per-file-ignores") == expected_per_file,
