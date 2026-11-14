@@ -106,6 +106,9 @@ ignore = [
   # Preserve legacy printf formatting in FreeCAD console/status messages.
   "UP031",
 
+  # A documented exception may propagate from a called API without being explicitly raised here.
+  "DOC502",
+
   # Host callback methods must retain instance binding even when their body does not use self.
   "PLR6301",
 ]
