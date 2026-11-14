@@ -45,8 +45,16 @@ _GeometrySegments = tuple[tuple[str, tuple[_Point2D, ...]], ...]
 
 
 class _FixtureViewObject(Protocol):
-    DisplayMode: str
+    LineColor: tuple[float, float, float]
+    LineWidth: float
+    ShapeColor: tuple[float, float, float]
+    Transparency: float
     Visibility: bool
+
+
+class _FixtureShape(Protocol):
+    def copy(self) -> _FixtureShape: ...
+    def translate(self, vector: object) -> None: ...
 
 
 class _FixtureSketch(Protocol):
@@ -57,13 +65,24 @@ class _FixtureSketch(Protocol):
 class _FixturePiece(Protocol):
     Label: str
     PieceId: str
+    Shape: _FixtureShape
     Visibility: bool
     Sketch: _FixtureSketch
     ViewObject: _FixtureViewObject
 
 
+class _FixtureDisplayObject(Protocol):
+    Label: str
+    Name: str
+    Shape: _FixtureShape
+    Visibility: bool
+    ViewObject: _FixtureViewObject
+
+
 class _FixtureDocument(Protocol):
+    def addObject(self, type_id: str, name: str) -> _FixtureDisplayObject: ...
     def recompute(self) -> None: ...
+    def removeObject(self, name: str) -> None: ...
 
 
 _ORIGINAL_HIGHLIGHTS_ENABLED = seam_highlights_enabled()
@@ -126,10 +145,31 @@ def _create_native_fixture_piece(
     # cannot leave the filled Part feature hidden behind its authoring sketch.
     obj.Visibility = True
     obj.ViewObject.Visibility = True
-    obj.ViewObject.DisplayMode = "Shaded"
     sketch.Visibility = False
     sketch.ViewObject.Visibility = False
     return obj
+
+
+def _create_fixture_display_overlay(
+    doc: _FixtureDocument,
+    piece: _FixturePiece,
+    *,
+    name: str,
+    color: tuple[float, float, float],
+) -> _FixtureDisplayObject:
+    """Create a native Part display copy while retaining the Sketcher owner for selection."""
+    overlay = doc.addObject("Part::Feature", name)
+    shape = piece.Shape.copy()
+    shape.translate(App.Vector(0.0, 0.0, 0.2))
+    overlay.Shape = shape
+    overlay.Label = name
+    overlay.Visibility = True
+    overlay.ViewObject.Visibility = True
+    overlay.ViewObject.ShapeColor = color
+    overlay.ViewObject.LineColor = color
+    overlay.ViewObject.LineWidth = 4.0
+    overlay.ViewObject.Transparency = 0
+    return overlay
 
 
 def _replace_curved_piece_geometry(
@@ -164,7 +204,6 @@ def _replace_curved_piece_geometry(
     doc.recompute()
     obj.Visibility = True
     obj.ViewObject.Visibility = True
-    obj.ViewObject.DisplayMode = "Shaded"
     sketch.Visibility = False
     sketch.ViewObject.Visibility = False
 
@@ -541,6 +580,7 @@ def close_public_task(panel=None):
 
 doc = None
 recorder = None
+display_overlays: list[_FixtureDisplayObject] = []
 _success = False
 try:
     record("smoke=started")
@@ -562,7 +602,20 @@ try:
     piece_b = add_rectangular_piece(doc, "SmokeB", "smoke-b", x_offset=130.0)
     piece_c = add_rectangular_piece(doc, "SmokeC", "smoke-c", x_offset=260.0)
     doc.recompute()
-    record("fixtures=created pieces=3")
+    display_overlays = [
+        _create_fixture_display_overlay(
+            doc,
+            piece,
+            name=f"{piece.Label}Display",
+            color=color,
+        )
+        for piece, color in (
+            (piece_a, (0.34, 0.65, 0.88)),
+            (piece_b, (0.94, 0.62, 0.30)),
+        )
+    ]
+    doc.recompute()
+    record("fixtures=created pieces=3 sketcher-authorities=3 native-display-overlays=2")
 
     # Record from the real sewing workbench and let Fit All establish a valid
     # camera center and clipping range. Then set only the orthographic height;
@@ -587,7 +640,6 @@ try:
         sketch = piece.Sketch
         sketch.Visibility = False
         sketch.ViewObject.Visibility = False
-        view_object.DisplayMode = "Shaded"
         view_object.ShapeColor = color
         # Standard Part view providers render stable colored face and edge cues.
         view_object.LineColor = color
@@ -600,13 +652,19 @@ try:
     for piece, color in recording_pieces:
         piece.Visibility = True
         piece.ViewObject.Visibility = True
-        piece.ViewObject.DisplayMode = "Shaded"
         piece.ViewObject.ShapeColor = color
         piece.ViewObject.LineColor = color
         piece.ViewObject.LineWidth = 4.0
         piece.ViewObject.Transparency = 0
         piece.Sketch.Visibility = False
         piece.Sketch.ViewObject.Visibility = False
+    for overlay, (_piece, color) in zip(display_overlays, recording_pieces, strict=True):
+        overlay.Visibility = True
+        overlay.ViewObject.Visibility = True
+        overlay.ViewObject.ShapeColor = color
+        overlay.ViewObject.LineColor = color
+        overlay.ViewObject.LineWidth = 4.0
+        overlay.ViewObject.Transparency = 0
     process_events()
     view.redraw()
     process_events()
@@ -622,7 +680,6 @@ try:
                     "faces": len(piece.Shape.Faces),
                     "area": round(float(piece.Shape.Area), 3),
                     "valid": bool(piece.Shape.isValid()),
-                    "display_mode": str(piece.ViewObject.DisplayMode),
                     "shape_color": tuple(
                         round(float(value), 3) for value in piece.ViewObject.ShapeColor[:3]
                     ),
@@ -791,8 +848,12 @@ try:
     wait_for_task_close()
     recorder.hold(800)
     recorder.stop()
-    piece_c.ViewObject.Visibility = True
+    for overlay in display_overlays:
+        doc.removeObject(overlay.Name)
+    display_overlays.clear()
     doc.recompute()
+    piece_c.Visibility = True
+    piece_c.ViewObject.Visibility = True
     view.fitAll()
     process_events()
     assert any(getattr(obj, "SeamId", "") for obj in doc.Objects if obj.Name not in before), (
@@ -1261,6 +1322,11 @@ finally:
 
             release_all_input()
             recorder.stop()
+    if doc is not None:
+        for overlay in display_overlays:
+            with contextlib.suppress(Exception):
+                doc.removeObject(overlay.Name)
+        display_overlays.clear()
     with contextlib.suppress(Exception):
         set_seam_highlights_enabled(_ORIGINAL_HIGHLIGHTS_ENABLED)
         set_seam_overlay_respect_depth(_ORIGINAL_DEPTH_SETTING)
