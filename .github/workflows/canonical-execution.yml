@@ -152,6 +152,9 @@ jobs:
       contents: read
       pull-requests: read
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Reject untrusted merge-group pull requests
         if: ${{ github.event_name == 'merge_group' }}
         env:
@@ -161,7 +164,7 @@ jobs:
         run: |
           pulls="$(gh api "repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls?per_page=100")"
           jq -e 'length > 0 and all(.[]; .head.repo.full_name == env.REPOSITORY and .user.login != "dependabot[bot]")' <<< "$pulls" >/dev/null || { echo "::error::Untrusted merge-group PR; local execution refused."; exit 1; }
-      - run: timeout --signal=TERM --kill-after=5s 20s docker info >/dev/null
+      - run: python3 tools/ci/check_docker_workspace_mount.py
   pbd_validation_image:
     name: Build/publish pinned PBD image
     if: ${{ inputs.execution_mode != 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}

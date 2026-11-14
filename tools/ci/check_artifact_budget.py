@@ -49,6 +49,50 @@ def _safe_error_body_preview(body: bytes) -> str:
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
 
 
+def latest_artifacts_by_name(
+    artifacts: Iterable[Mapping[str, object]],
+) -> list[Mapping[str, object]]:
+    """Keep the newest upload for each logical artifact name across run attempts.
+
+    Args:
+        artifacts: Artifact uploads returned by the workflow-run API.
+
+    Returns:
+        The latest upload for each artifact name, sorted by name.
+
+    Raises:
+        ValueError: If duplicate uploads cannot be ordered deterministically.
+    """
+    latest: dict[str, Mapping[str, object]] = {}
+    for artifact in artifacts:
+        name = artifact.get("name")
+        if not isinstance(name, str) or not name:
+            msg = f"artifact has invalid name: {artifact!r}"
+            raise ValueError(msg)
+        previous = latest.get(name)
+        if previous is None:
+            latest[name] = artifact
+            continue
+
+        current_created = artifact.get("created_at")
+        previous_created = previous.get("created_at")
+        current_id = artifact.get("id")
+        previous_id = previous.get("id")
+        if (
+            not isinstance(current_created, str)
+            or not isinstance(previous_created, str)
+            or not isinstance(current_id, int)
+            or isinstance(current_id, bool)
+            or not isinstance(previous_id, int)
+            or isinstance(previous_id, bool)
+        ):
+            msg = f"duplicate artifact name {name!r} lacks creation time or artifact ID"
+            raise ValueError(msg)
+        if (current_created, current_id) > (previous_created, previous_id):
+            latest[name] = artifact
+    return [latest[name] for name in sorted(latest)]
+
+
 def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
     """Return the accumulated stored size of workflow artifacts in bytes.
 
@@ -275,10 +319,12 @@ def main() -> int:
         sys.stderr.write(f"GITHUB_RUN_ID is not an integer: {run_id_text!r}\n")
         return 2
 
-    artifacts = fetch_run_artifacts(repository, run_id, token)
+    uploads = fetch_run_artifacts(repository, run_id, token)
+    artifacts = latest_artifacts_by_name(uploads)
     total = accumulated_size(artifacts)
     sys.stdout.write(
-        f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes artifacts={len(artifacts)}\n"
+        f"artifact-budget={total}/{MAX_ARTIFACT_BYTES} bytes "
+        f"artifacts={len(artifacts)} uploads={len(uploads)}\n"
     )
     for artifact in sorted(artifacts, key=lambda item: str(item.get("name", ""))):
         sys.stdout.write(

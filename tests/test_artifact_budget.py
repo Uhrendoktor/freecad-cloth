@@ -10,6 +10,7 @@ from tools.ci.check_artifact_budget import (
     API_USER_AGENT,
     MAX_ARTIFACT_BYTES,
     accumulated_size,
+    latest_artifacts_by_name,
     request_artifact_payload,
 )
 
@@ -141,3 +142,48 @@ def test_artifact_api_error_reports_empty_response_metadata() -> None:
             "/repos/owner/repository/actions/runs/42/artifacts",
             {},
         )
+
+
+def test_retry_uploads_count_only_the_latest_artifact_with_each_name() -> None:
+    """Count the newest upload when a workflow retry duplicates artifact names."""
+    artifacts = [
+        {
+            "id": 10,
+            "name": "realtime-preview",
+            "size_in_bytes": 3_500,
+            "created_at": "2026-11-14T12:24:05Z",
+        },
+        {
+            "id": 20,
+            "name": "tunic-audit",
+            "size_in_bytes": 2_239_912,
+            "created_at": "2026-11-14T12:26:16Z",
+        },
+        {
+            "id": 30,
+            "name": "realtime-preview",
+            "size_in_bytes": 2_995,
+            "created_at": "2026-11-14T12:29:44Z",
+        },
+        {
+            "id": 40,
+            "name": "tunic-audit",
+            "size_in_bytes": 2_244_914,
+            "created_at": "2026-11-14T12:31:47Z",
+        },
+    ]
+
+    latest = latest_artifacts_by_name(artifacts)
+
+    assert [item["name"] for item in latest] == ["realtime-preview", "tunic-audit"]
+    assert accumulated_size(latest) == 2_247_909
+
+
+def test_duplicate_artifact_name_requires_creation_metadata() -> None:
+    """Fail closed when duplicate uploads cannot be ordered deterministically."""
+    artifacts = [
+        {"id": 1, "name": "evidence", "size_in_bytes": 100, "created_at": "2026-11-14T12:00:00Z"},
+        {"id": 2, "name": "evidence", "size_in_bytes": 200},
+    ]
+    with pytest.raises(ValueError, match="lacks creation time or artifact ID"):
+        latest_artifacts_by_name(artifacts)
