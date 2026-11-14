@@ -71,6 +71,7 @@ def test_local_runner_readiness_checks_docker_workspace_bind_mount() -> None:
     source = WORKFLOW.read_text(encoding="utf-8")
     readiness = _job_block(source, "local_runner_readiness")
     assert "docker info" in readiness
+    assert "inputs.runner_mode != 'hosted' && github.event_name != 'pull_request'" in readiness
     assert "busybox:1.36.1" in readiness
     assert "type=bind,source=${probe_dir},target=/probe" in readiness
     assert "docker-workspace-bind-mount=ready" in readiness
