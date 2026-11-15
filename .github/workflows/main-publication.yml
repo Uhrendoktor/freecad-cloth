@@ -26,5 +26,6 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: publication
+      runner_group: ${{ vars.FREECAD_CUDA_RUNNER_GROUP || 'ubuntu-latest' }}
       diagnostic_controls: false
       pr_number: ""
