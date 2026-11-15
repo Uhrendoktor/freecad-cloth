@@ -73,15 +73,15 @@ def test_pull_requests_are_trusted_before_using_the_local_runner() -> None:
 def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
     """Route canonical jobs through a configured GPU group or CPU-only fallback."""
     source = WORKFLOW.read_text(encoding="utf-8")
-    job_source = source.split("\\njobs:\\n", 1)[1]
+    job_source = source.split("\njobs:\n", 1)[1]
     blocks = re.findall(
-        r"(?ms)^  ([A-Za-z0-9_-]+):\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
+        r"(?ms)^  ([A-Za-z0-9_-]+):\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
         job_source,
     )
     assert blocks
     for name, block in blocks:
         expected = "runs-on: ubuntu-latest" if name == "guarded-rebase-pr" else (
-            "runs-on: \${{ inputs.runner_group }}"
+            "runs-on: ${{ inputs.runner_group }}"
         )
         assert expected in block, f"{name} must use its configured GitHub-hosted runner."
         assert "self-hosted" not in block
@@ -198,7 +198,7 @@ def test_no_privileged_runner_discovery_or_second_workflow() -> None:
     for marker in ("CLOTH_RUNNER_DISCOVERY_TOKEN", "runner_router:", "*/5 * * * *"):
         assert marker not in shared
     maintenance = _job_block(shared, "maintenance-cleanup")
-    assert "runs-on: \${{ inputs.runner_group }}" in maintenance
+    assert "runs-on: ${{ inputs.runner_group }}" in maintenance
     assert "github.event_name == 'schedule'" in maintenance
     assert "RUN MAINTENANCE CLEANUP" in maintenance
 
