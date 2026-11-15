@@ -1,7 +1,7 @@
 # Tool State
 
 ```yaml
-schema: 23
+schema: 24
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
