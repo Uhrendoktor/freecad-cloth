@@ -279,7 +279,7 @@ def test_one_shot_retention_run_uses_the_configured_hosted_runner() -> None:
 
     assert f"!({activation})" in readiness
     assert f"!({activation})" in image
-    assert "runs-on: ${{ inputs.runner_group }}" in cleanup
+    assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in cleanup
     assert "default: ubuntu-latest" in workflow
     assert "self-hosted" not in workflow
     assert "runner_watchdog" not in workflow
