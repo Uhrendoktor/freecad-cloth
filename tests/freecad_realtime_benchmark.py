@@ -482,15 +482,15 @@ def main() -> None:
             "NUMEXPR_NUM_THREADS",
         )
         try:
-            runtime_cgroup_cpu_max = Path("/sys/fs/cgroup/cpu.max").read_text(
-                encoding="utf-8"
-            ).strip()
+            runtime_cgroup_cpu_max = (
+                Path("/sys/fs/cgroup/cpu.max").read_text(encoding="utf-8").strip()
+            )
         except OSError:
             runtime_cgroup_cpu_max = None
         try:
-            runtime_cgroup_cpu_stat = Path("/sys/fs/cgroup/cpu.stat").read_text(
-                encoding="utf-8"
-            ).strip()
+            runtime_cgroup_cpu_stat = (
+                Path("/sys/fs/cgroup/cpu.stat").read_text(encoding="utf-8").strip()
+            )
         except OSError:
             runtime_cgroup_cpu_stat = None
         result = {
@@ -511,9 +511,7 @@ def main() -> None:
             "timer_interval_ms": int(timer.interval()),
             "elapsed_s": elapsed,
             "process_cpu_elapsed_s": process_cpu_elapsed,
-            "mean_cpu_cores_used": (
-                process_cpu_elapsed / elapsed if elapsed > 0.0 else None
-            ),
+            "mean_cpu_cores_used": (process_cpu_elapsed / elapsed if elapsed > 0.0 else None),
             "mean_frame_interval_ms": mean_interval_ms,
             "p95_frame_interval_ms": p95_interval_ms,
             "max_frame_interval_ms": max_interval_ms,
