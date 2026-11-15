@@ -261,8 +261,8 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup, 'Expected "packages: write" in cleanup.'
 
 
-def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
-    """Run scheduled retention without hosted fallback or cancellation logic."""
+def test_one_shot_retention_run_uses_the_configured_hosted_runner() -> None:
+    """Run scheduled retention on the configured hosted runner without a watchdog."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -279,8 +279,9 @@ def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
 
     assert f"!({activation})" in readiness
     assert f"!({activation})" in image
-    assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
-    assert "ubuntu-latest" not in workflow
+    assert "runs-on: \${{ inputs.runner_group }}" in cleanup
+    assert "default: ubuntu-latest" in workflow
+    assert "self-hosted" not in workflow
     assert "runner_watchdog" not in workflow
     assert (
         "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
