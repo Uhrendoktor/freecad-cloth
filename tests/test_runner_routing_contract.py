@@ -83,11 +83,11 @@ def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
         expected = (
             "runs-on: ubuntu-latest"
             if name == "guarded-rebase-pr"
-            else "runs-on: ${{ inputs.runner_group }}"
+            else "runs-on: ${{ fromJSON(inputs.runner_target) }}"
         )
         assert expected in block, f"{name} must use its configured GitHub-hosted runner."
         assert "self-hosted" not in block
-    assert "runner_group:" in source
+    assert "runner_target:" in source
     assert "default: ubuntu-latest" in source
     assert "runner_watchdog" not in source
     assert "fallback_source_run" not in source
@@ -147,7 +147,8 @@ def test_manual_validation_and_publication_use_gpu_group_with_cpu_fallback() -> 
     merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
     for source in (commit, merge, publication):
-        assert "FREECAD_CUDA_RUNNER_GROUP || 'ubuntu-latest'" in source
+        assert "FREECAD_CUDA_RUNNER_GROUP != ''" in source
+        assert 'format(\'{{"group":"{0}"}}\'' in source
         assert "runner_mode" not in source
         assert "fallback_source_run" not in source
     assert "workflow_dispatch:" in commit
@@ -198,7 +199,7 @@ def test_no_privileged_runner_discovery_or_second_workflow() -> None:
     for marker in ("CLOTH_RUNNER_DISCOVERY_TOKEN", "runner_router:", "*/5 * * * *"):
         assert marker not in shared
     maintenance = _job_block(shared, "maintenance-cleanup")
-    assert "runs-on: ${{ inputs.runner_group }}" in maintenance
+    assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in maintenance
     assert "github.event_name == 'schedule'" in maintenance
     assert "RUN MAINTENANCE CLEANUP" in maintenance
 
