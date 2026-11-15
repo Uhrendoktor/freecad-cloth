@@ -540,9 +540,7 @@ def main() -> None:
                     key: os.environ.get(key, "unset") for key in runtime_thread_keys
                 },
                 "cuda_runner_probe": os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false"),
-                "cuda_runner_reason": os.environ.get(
-                    "CLOTH_CI_CUDA_REASON", "unspecified"
-                ),
+                "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
                 "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
                 "cuda_device_nodes": sorted(
                     path.name for path in Path("/dev").glob("nvidia*") if path.exists()
