@@ -27,6 +27,7 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: full
+      runner_group: ${{ vars.FREECAD_CUDA_RUNNER_GROUP || 'ubuntu-latest' }}
       diagnostic_controls: false
       pr_number: ""
 
@@ -34,7 +35,7 @@ jobs:
     name: Required pre-merge validation
     if: ${{ always() }}
     needs: [full-validation]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
       contents: read
