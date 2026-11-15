@@ -70,25 +70,55 @@ def test_pull_requests_are_trusted_before_using_the_local_runner() -> None:
     assert "[full-validation]" in entry
 
 
-def test_every_canonical_job_uses_only_the_self_hosted_docker_runner() -> None:
-    """Require every canonical job to avoid GitHub-hosted runner minutes."""
+def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
+    """Route canonical jobs through a configured GPU group or CPU-only fallback."""
     source = WORKFLOW.read_text(encoding="utf-8")
-    job_source = source.split("\njobs:\n", 1)[1]
+    job_source = source.split("\\njobs:\\n", 1)[1]
     blocks = re.findall(
-        r"(?ms)^  ([A-Za-z0-9_-]+):\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        r"(?ms)^  ([A-Za-z0-9_-]+):\\n(.*?)(?=^  [A-Za-z0-9_-]+:\\n|\\Z)",
         job_source,
     )
     assert blocks
     for name, block in blocks:
-        assert "runs-on: [self-hosted, linux, x64, docker]" in block, (
-            f"{name} must use the configured self-hosted Docker runner."
+        expected = "runs-on: ubuntu-latest" if name == "guarded-rebase-pr" else (
+            "runs-on: \${{ inputs.runner_group }}"
         )
-    assert "ubuntu-latest" not in source
+        assert expected in block, f"{name} must use its configured GitHub-hosted runner."
+        assert "self-hosted" not in block
+    assert "runner_group:" in source
+    assert "default: ubuntu-latest" in source
     assert "runner_watchdog" not in source
     assert "fallback_source_run" not in source
 
 
-def test_local_runner_readiness_checks_docker_workspace_transfer() -> None:
+def test_cuda_runner_is_optional_and_freecad_container_keeps_cpu_fallback() -> None:
+    """Pass NVIDIA devices only when both the host and container probes succeed."""
+    action = (
+        ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "command -v nvidia-smi" in action
+    assert "nvidia-smi -L" in action
+    assert "docker run --rm --gpus all" in action
+    assert "gpu_docker_args=(--gpus all)" in action
+    assert 'cuda_mode="cpu-fallback"' in action
+    assert "freecad-container-compute=$cuda_mode" in action
+
+    profile = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    preview = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
+        encoding="utf-8"
+    )
+    for field in (
+        '"cuda_runner_probe"',
+        '"cuda_runner_mode"',
+        '"cuda_runner_reason"',
+        '"cuda_device_nodes"',
+        '"simulation_backend_device": "cpu"',
+    ):
+        assert field in profile
+    assert '"simulation_backend_device": "cpu"' in preview
+
+
+def test_hosted_runner_readiness_checks_docker_workspace_transfer() -> None:
     """Require checkout and the bidirectional workspace probe before work starts."""
     source = WORKFLOW.read_text(encoding="utf-8")
     readiness = _job_block(source, "local_runner_readiness")
@@ -97,8 +127,8 @@ def test_local_runner_readiness_checks_docker_workspace_transfer() -> None:
     assert "python3 tools/ci/check_docker_workspace_transfer.py" in readiness
 
 
-def test_local_readiness_gates_quality_and_image_work() -> None:
-    """Start static checks and the PBD image build only after local readiness."""
+def test_runner_readiness_gates_quality_and_image_work() -> None:
+    """Start static checks and the PBD image build only after hosted readiness."""
     source = WORKFLOW.read_text(encoding="utf-8")
     quality = _job_block(source, "agent-quality")
     image = _job_block(source, "pbd_validation_image")
@@ -110,23 +140,22 @@ def test_local_readiness_gates_quality_and_image_work() -> None:
     assert "commits/${HEAD_SHA}/pulls" in readiness
 
 
-def test_manual_validation_and_publication_have_no_hosted_fallback() -> None:
-    """Keep dispatch, schedule, merge-queue, and publication paths local-only."""
+def test_manual_validation_and_publication_use_gpu_group_with_cpu_fallback() -> None:
+    """Route dispatch, publication and merge validation through the hosted runner setting."""
     workflows = ROOT / ".github" / "workflows"
     commit = (workflows / "commit-validation.yml").read_text(encoding="utf-8")
     merge = (workflows / "merge-validation.yml").read_text(encoding="utf-8")
     publication = (workflows / "main-publication.yml").read_text(encoding="utf-8")
+    for source in (commit, merge, publication):
+        assert "FREECAD_CUDA_RUNNER_GROUP || 'ubuntu-latest'" in source
+        assert "runner_mode" not in source
+        assert "fallback_source_run" not in source
     assert "workflow_dispatch:" in commit
-    assert "runner_mode" not in commit
-    assert "fallback_source_run" not in commit
     assert "execution_mode: full" in commit
-    assert "runs-on: [self-hosted, linux, x64, docker]" in merge
-    assert "runner_mode" not in merge
-    assert "fallback_source_run" not in merge
+    assert "runs-on: ubuntu-latest" in merge
     assert "push:" in publication
     assert "branches: [main]" in publication
     assert "workflow_dispatch:" not in publication
-    assert "ubuntu-latest" not in merge + publication
 
 
 def test_reusable_dependency_environments_and_docker_images_are_persistent() -> None:
@@ -169,7 +198,7 @@ def test_no_privileged_runner_discovery_or_second_workflow() -> None:
     for marker in ("CLOTH_RUNNER_DISCOVERY_TOKEN", "runner_router:", "*/5 * * * *"):
         assert marker not in shared
     maintenance = _job_block(shared, "maintenance-cleanup")
-    assert "runs-on: [self-hosted, linux, x64, docker]" in maintenance
+    assert "runs-on: \${{ inputs.runner_group }}" in maintenance
     assert "github.event_name == 'schedule'" in maintenance
     assert "RUN MAINTENANCE CLEANUP" in maintenance
 
