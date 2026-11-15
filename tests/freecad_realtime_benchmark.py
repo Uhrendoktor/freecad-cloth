@@ -491,6 +491,11 @@ def main() -> None:
                 "python_version": sys.version.split()[0],
                 "freecad_version": freecad_version,
                 "cpu_count": os.cpu_count(),
+                "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
+                "cuda_device_nodes": sorted(
+                    path.name for path in Path("/dev").glob("nvidia*") if path.exists()
+                ),
+                "simulation_backend_device": "cpu",
                 "libgl_always_software": os.environ.get("LIBGL_ALWAYS_SOFTWARE", "unset"),
             },
             "pass": passed,
