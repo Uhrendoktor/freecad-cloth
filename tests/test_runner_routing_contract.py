@@ -80,8 +80,10 @@ def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
     )
     assert blocks
     for name, block in blocks:
-        expected = "runs-on: ubuntu-latest" if name == "guarded-rebase-pr" else (
-            "runs-on: ${{ inputs.runner_group }}"
+        expected = (
+            "runs-on: ubuntu-latest"
+            if name == "guarded-rebase-pr"
+            else "runs-on: ${{ inputs.runner_group }}"
         )
         assert expected in block, f"{name} must use its configured GitHub-hosted runner."
         assert "self-hosted" not in block
