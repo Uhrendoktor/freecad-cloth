@@ -111,7 +111,7 @@ The canonical workflow is intentionally parallel: runner readiness and the Posit
 Runtime rules:
 
 - Run Ruff format checks and lint read-only over every tracked Python file on every quality-gate invocation; the workflow must report style errors rather than silently rewriting the checkout.
-- Pull immutable, content-derived CI images only when they are not already present on a warm self-hosted runner. Hosted runners will naturally take the pull path.
+- Pull immutable, content-derived CI images only when they are not already present on the selected runner. Ephemeral GitHub-hosted runners naturally take the pull path.
 - The PBD image build publishes the image; downstream jobs are responsible for pulling it. The builder does not perform a second verification pull because that would duplicate the network transfer on an otherwise disposable runner.
 - Superseded workflow runs are cancelled whenever their triggering ref is not `refs/heads/main`; main runs, including the push produced by a merged PR, are never cancelled by concurrency.
 - Use GitHub-hosted dependency caching where supported. The static Python gate caches its pip download cache using pyproject.toml as the dependency key.
