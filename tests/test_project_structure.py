@@ -332,7 +332,7 @@ def test_canonical_workflow_uses_configured_hosted_runner_and_cpu_fallback() -> 
     wrapper = (root / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
     runner = (root / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     require(
-        condition=("runs-on: \${{ inputs.runner_group }}" in workflow),
+        condition=("runs-on: ${{ inputs.runner_group }}" in workflow),
         message="canonical jobs must use the configured hosted runner input",
     )
     require(
@@ -426,7 +426,7 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
-        condition=("runs-on: \${{ inputs.runner_group }}" in publish),
+        condition=("runs-on: ${{ inputs.runner_group }}" in publish),
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
