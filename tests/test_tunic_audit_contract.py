@@ -935,6 +935,11 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
         '"mean_cpu_cores_used"',
         '"simulation_complete"',
         '"acceptance_gates"',
+        '"cuda_runner_probe"',
+        '"cuda_runner_mode"',
+        '"cuda_runner_reason"',
+        '"cuda_device_nodes"',
+        '"simulation_backend_device": "cpu"',
         '"artifacts/tunic-audit/production-pbd-profile.json"',
         '"artifacts/freecad-realtime/metrics.json"',
         "scene.SolverSubsteps",
@@ -978,3 +983,22 @@ def test_production_profile_is_finalized_only_after_authoritative_acceptance() -
     assert 'profile.get("simulation_complete", False)' in simulation
     assert '"target_clearance_and_penetration": True' in simulation
     assert '"drape_visual_diagnostics": True' in simulation
+
+
+def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
+    """Keep Fast-preview timing separate while retaining resource evidence without CUDA."""
+    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
+        encoding="utf-8"
+    )
+    required = (
+        '"cuda_runner_mode"',
+        '"cuda_device_nodes"',
+        '"simulation_backend_device": "cpu"',
+        '"process_cpu_elapsed_s"',
+        '"mean_cpu_cores_used"',
+        '"cgroup_cpu_max"',
+        '"cgroup_cpu_stat"',
+        '"thread_environment"',
+    )
+    missing = tuple(fragment for fragment in required if fragment not in benchmark)
+    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"
