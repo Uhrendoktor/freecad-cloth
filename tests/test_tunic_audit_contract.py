@@ -987,9 +987,7 @@ def test_production_profile_is_finalized_only_after_authoritative_acceptance() -
 
 def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
     """Keep Fast-preview timing separate while retaining resource evidence without CUDA."""
-    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
-        encoding="utf-8"
-    )
+    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(encoding="utf-8")
     required = (
         '"cuda_runner_mode"',
         '"cuda_device_nodes"',
