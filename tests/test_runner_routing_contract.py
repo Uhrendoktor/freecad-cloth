@@ -106,9 +106,7 @@ def test_cuda_runner_is_optional_and_freecad_container_keeps_cpu_fallback() -> N
     assert "freecad-container-compute=$cuda_mode" in action
 
     profile = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
-    preview = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(
-        encoding="utf-8"
-    )
+    preview = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(encoding="utf-8")
     for field in (
         '"cuda_runner_probe"',
         '"cuda_runner_mode"',
