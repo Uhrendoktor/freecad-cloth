@@ -391,11 +391,13 @@ def main() -> None:
         deadline.timeout.connect(on_deadline)
 
         started = time.perf_counter()
+        started_process = time.process_time()
         deadline.start(TIMEOUT_MS)
         active_preview.start()
         execute_loop = getattr(event_loop, "exec", None) or event_loop.exec_
         execute_loop()
         elapsed = time.perf_counter() - started
+        process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
 
         mean_interval_ms = (
@@ -454,6 +456,43 @@ def main() -> None:
         except (AttributeError, TypeError):
             freecad_version = "unknown"
 
+        runtime_cpu_info = Path("/proc/cpuinfo")
+        runtime_cpu_model = None
+        if runtime_cpu_info.is_file():
+            runtime_cpu_model = next(
+                (
+                    line.split(":", 1)[1].strip()
+                    for line in runtime_cpu_info.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("model name")
+                ),
+                None,
+            )
+        runtime_cpu_affinity = (
+            sorted(int(cpu) for cpu in os.sched_getaffinity(0))
+            if hasattr(os, "sched_getaffinity")
+            else []
+        )
+        runtime_thread_keys = (
+            "OMP_NUM_THREADS",
+            "OMP_DYNAMIC",
+            "OMP_PROC_BIND",
+            "OMP_PLACES",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        )
+        try:
+            runtime_cgroup_cpu_max = Path("/sys/fs/cgroup/cpu.max").read_text(
+                encoding="utf-8"
+            ).strip()
+        except OSError:
+            runtime_cgroup_cpu_max = None
+        try:
+            runtime_cgroup_cpu_stat = Path("/sys/fs/cgroup/cpu.stat").read_text(
+                encoding="utf-8"
+            ).strip()
+        except OSError:
+            runtime_cgroup_cpu_stat = None
         result = {
             "schema_version": 1,
             "backend": getattr(backend, "name", "unknown"),
@@ -471,6 +510,10 @@ def main() -> None:
             "frames_advanced": frames_advanced,
             "timer_interval_ms": int(timer.interval()),
             "elapsed_s": elapsed,
+            "process_cpu_elapsed_s": process_cpu_elapsed,
+            "mean_cpu_cores_used": (
+                process_cpu_elapsed / elapsed if elapsed > 0.0 else None
+            ),
             "mean_frame_interval_ms": mean_interval_ms,
             "p95_frame_interval_ms": p95_interval_ms,
             "max_frame_interval_ms": max_interval_ms,
@@ -491,6 +534,17 @@ def main() -> None:
                 "python_version": sys.version.split()[0],
                 "freecad_version": freecad_version,
                 "cpu_count": os.cpu_count(),
+                "cpu_model": runtime_cpu_model,
+                "cpu_affinity": runtime_cpu_affinity,
+                "cgroup_cpu_max": runtime_cgroup_cpu_max,
+                "cgroup_cpu_stat": runtime_cgroup_cpu_stat,
+                "thread_environment": {
+                    key: os.environ.get(key, "unset") for key in runtime_thread_keys
+                },
+                "cuda_runner_probe": os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false"),
+                "cuda_runner_reason": os.environ.get(
+                    "CLOTH_CI_CUDA_REASON", "unspecified"
+                ),
                 "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
                 "cuda_device_nodes": sorted(
                     path.name for path in Path("/dev").glob("nvidia*") if path.exists()
