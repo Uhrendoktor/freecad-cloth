@@ -323,8 +323,8 @@ def test_turntable_frame_counts_validate_after_restore() -> None:
     )
 
 
-def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
-    """Keep every canonical job local and run strict analysis inside the FreeCAD image."""
+def test_canonical_workflow_uses_configured_hosted_runner_and_cpu_fallback() -> None:
+    """Use a configured CUDA-capable runner group with ubuntu-latest as fallback."""
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
@@ -332,28 +332,32 @@ def test_canonical_workflow_uses_only_the_persistent_local_runner() -> None:
     wrapper = (root / "tools" / "ci" / "run_strict_quality.sh").read_text(encoding="utf-8")
     runner = (root / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
     require(
-        condition=("runs-on: [self-hosted, linux, x64, docker]" in workflow),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        condition=("runs-on: \${{ inputs.runner_group }}" in workflow),
+        message="canonical jobs must use the configured hosted runner input",
     )
     require(
-        condition=("ubuntu-latest" not in workflow and "runner_watchdog" not in workflow),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        condition=(
+            "default: ubuntu-latest" in workflow
+            and "self-hosted" not in workflow
+            and "runner_watchdog" not in workflow
+        ),
+        message="canonical workflow must retain the hosted CPU fallback and no self-hosted route",
     )
     require(
         condition=("bash tools/ci/run_strict_quality.sh" in workflow),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        message="strict quality must stay in the canonical workflow",
     )
     require(
         condition=("RUNNER_TOOL_CACHE" in wrapper and "--system-site-packages" in runner),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        message="strict quality must keep the persistent dependency cache",
     )
     require(
         condition=("needs: [local_runner_readiness, pbd_validation_image]" in workflow),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        message="static quality must wait for runner and PBD image readiness",
     )
     require(
         condition=("fallback_source_run" not in workflow and "inputs.runner_mode" not in workflow),
-        message="test_canonical_workflow_uses_only_the...: required condition failed",
+        message="canonical runner routing must remain a single execution path",
     )
 
 
@@ -422,7 +426,7 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
-        condition=("runs-on: [self-hosted, linux, x64, docker]" in publish),
+        condition=("runs-on: \${{ inputs.runner_group }}" in publish),
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
