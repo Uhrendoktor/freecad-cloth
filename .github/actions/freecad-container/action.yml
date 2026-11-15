@@ -98,7 +98,7 @@ runs:
           fi
         fi
 
-        # A self-hosted runner may itself run in a container while Docker uses a
+        # A hosted runner may itself run in a container while Docker uses a
         # different mount namespace. Export the exact checked-out tree instead of
         # bind-mounting the runner's private GITHUB_WORKSPACE path into the daemon.
         git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD
