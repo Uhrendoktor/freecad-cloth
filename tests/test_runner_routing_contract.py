@@ -54,8 +54,8 @@ def test_one_canonical_workflow() -> None:
     assert "workflow_run:" not in shared
 
 
-def test_pull_requests_are_trusted_before_using_the_local_runner() -> None:
-    """Allow same-repository, non-Dependabot PRs onto the persistent runner only."""
+def test_pull_requests_are_trusted_before_using_the_configured_hosted_runner() -> None:
+    """Allow same-repository, non-Dependabot PRs into the configured hosted group."""
     workflow_dir = ROOT / ".github" / "workflows"
     entry = (workflow_dir / "commit-validation.yml").read_text(encoding="utf-8")
     fast = _job_block(entry, "fast-feedback")
