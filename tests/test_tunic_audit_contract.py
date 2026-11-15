@@ -958,8 +958,7 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
     assert '"scene_steps_requested": scene_steps_requested' in profile
     assert (
         "write_profile_checkpoint(\n                backend_steps_completed,\n"
-        "                elapsed_ms,\n                process_cpu_elapsed_ms,"
-        in profile
+        "                elapsed_ms,\n                process_cpu_elapsed_ms," in profile
     )
     assert "backend_class.step = original_backend_step" in profile
     assert "projector_class.project = original_project" in profile
