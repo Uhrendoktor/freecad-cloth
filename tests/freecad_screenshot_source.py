@@ -2213,7 +2213,9 @@ def _run_production_tunic_drape(
                 }
         return dict(sorted(records.items()))
 
-    def runtime_limits() -> dict[str, str | int | float | list[int] | dict[str, str] | None]:
+    def runtime_limits() -> dict[
+        str, str | int | float | bool | list[int] | list[str] | dict[str, str] | None
+    ]:
         def read_runtime_file(path: str) -> str | None:
             try:
                 return pathlib.Path(path).read_text(encoding="utf-8").strip()
@@ -2244,6 +2246,10 @@ def _run_production_tunic_drape(
                 ),
                 None,
             )
+        cuda_device_nodes = sorted(
+            path.name for path in pathlib.Path("/dev").glob("nvidia*") if path.exists()
+        )
+        cuda_available = os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false").lower() == "true"
         thread_keys = (
             "OMP_NUM_THREADS",
             "OMP_DYNAMIC",
@@ -2268,6 +2274,13 @@ def _run_production_tunic_drape(
             "cgroup_cpu_pressure": read_runtime_file("/sys/fs/cgroup/cpu.pressure"),
             "cgroup_memory_max": read_runtime_file("/sys/fs/cgroup/memory.max"),
             "thread_environment": {key: os.environ.get(key, "unset") for key in thread_keys},
+            "cuda_runner_probe": cuda_available,
+            "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
+            "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
+            "cuda_device_nodes": cuda_device_nodes,
+            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "unset"),
+            "nvidia_driver_version": read_runtime_file("/proc/driver/nvidia/version"),
+            "simulation_backend_device": "cpu",
         }
 
     def write_profile_checkpoint(
