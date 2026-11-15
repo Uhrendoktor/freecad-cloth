@@ -95,9 +95,9 @@ def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
 
 def test_cuda_runner_is_optional_and_freecad_container_keeps_cpu_fallback() -> None:
     """Pass NVIDIA devices only when both the host and container probes succeed."""
-    action = (
-        ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
-    ).read_text(encoding="utf-8")
+    action = (ROOT / ".github" / "actions" / "freecad-container" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "command -v nvidia-smi" in action
     assert "nvidia-smi -L" in action
     assert "docker run --rm --gpus all" in action
