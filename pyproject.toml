@@ -235,6 +235,7 @@ extend-ignore-names = [
   "Faces",
   "Solids",
   "getConstruction",
+  "addGeometry",
   "SewingOutline",
   "DraftingBoundary",
   "openTransaction",

@@ -31,6 +31,26 @@ type NativeBoundaryFlag = bool
 type GeometryConstructionFlag = bool
 
 
+class _NativeSketchGeometry(Protocol):
+    """Line-segment geometry inserted into a native Sketcher profile."""
+
+    StartPoint: _NativeVector
+    EndPoint: _NativeVector
+
+
+class _NativeRotation(Protocol):
+    """Quaternion representation exposed by a FreeCAD placement rotation."""
+
+    Q: tuple[float, float, float, float]
+
+
+class _NativePlacement(Protocol):
+    """Location and orientation values exposed by a FreeCAD Placement."""
+
+    Base: _NativeVector
+    Rotation: _NativeRotation
+
+
 class _NativeVector(Protocol):
     """Read-only XYZ coordinates exposed by FreeCAD vectors."""
 
@@ -76,7 +96,7 @@ class _NativeMesh(Protocol):
 
     Topology: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag) -> bool:
         """Test whether a point lies inside the native triangle mesh."""
         ...
 
@@ -108,7 +128,7 @@ class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
 
     PieceId: str
     PatternType: str
-    Placement: object
+    Placement: _NativePlacement
     Sketch: _Sketch
     ViewObject: _ViewProvider
 
@@ -177,7 +197,11 @@ class _Sketch(FreeCADDocumentObjectProtocol, Protocol):
     Document: _SketchDocument
     ViewObject: _ViewProvider
 
-    def addGeometry(self, geometry: object, construction: GeometryConstructionFlag) -> int:
+    def addGeometry(
+        self,
+        geometry: _NativeSketchGeometry,
+        construction: GeometryConstructionFlag,
+    ) -> int:
         """Add one native geometry element and return its Sketcher index."""
         ...
 
@@ -395,7 +419,8 @@ def mesh_geometry(
             )
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
-        raise RuntimeError(f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}")
+        msg = f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}"
+        raise RuntimeError(msg)
     vertices, triangles = shape.tessellate(1.0)
     return (
         tuple((float(v.x), float(v.y), float(v.z)) for v in vertices),

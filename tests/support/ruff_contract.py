@@ -234,6 +234,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "Faces",
         "Solids",
         "getConstruction",
+        "addGeometry",
         "SewingOutline",
         "DraftingBoundary",
         "openTransaction",
