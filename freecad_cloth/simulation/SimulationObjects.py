@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol, Self, cast
+from typing import TYPE_CHECKING, Protocol, Self, TypedDict, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
@@ -75,6 +75,17 @@ class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
 
     PatternType: str
     PieceId: str
+
+
+class _PanelSimulationData(TypedDict):
+    """Global mesh topology retained for one authored PatternPiece."""
+
+    offset: int
+    vertex_count: int
+    boundary_edges: tuple[tuple[int, ...], ...]
+    positions: tuple[tuple[float, float, float], ...]
+    triangles: tuple[tuple[int, int, int], ...]
+    piece: _PatternPieceDocumentObject
 
 
 class _NativeMeshVector(Protocol):
@@ -440,7 +451,10 @@ def _simulation_source_signature(obj, pieces):
     )
 
 
-def _resolve_inter_cloth_groups(obj, panel_data):
+def _resolve_inter_cloth_groups(
+    obj: _SimulationFeature,
+    panel_data: Mapping[str, _PanelSimulationData],
+) -> dict[str, tuple[tuple[int, int, int], ...]]:
     """Resolve persistent garment-group assignments to exact global triangle indices.
 
     Args:
@@ -820,7 +834,7 @@ class SimulationProxy:
         mesh_builder = piece_mesh or _piece_mesh
         positions = []
         triangles_global = []
-        panel_data = {}
+        panel_data: dict[str, _PanelSimulationData] = {}
         panels = list(obj.DrapePanels)
         for index, piece in enumerate(pieces):
             piece_ir = resolved.piece(str(piece.PieceId))
@@ -831,7 +845,10 @@ class SimulationProxy:
             )
             offset = len(positions)
             positions.extend(vertices)
-            triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
+            triangles: tuple[tuple[int, int, int], ...] = tuple(
+                tuple(int(vertex_index) + offset for vertex_index in triangle)
+                for triangle in triangles
+            )
             triangles_global.extend(triangles)
             edges = tuple(
                 tuple(int(vertex_index) + offset for vertex_index in edge) for edge in boundary

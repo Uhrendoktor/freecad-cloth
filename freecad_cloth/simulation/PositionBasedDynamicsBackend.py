@@ -31,6 +31,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
 
     from freecad_cloth.shared.Collision import CollisionSurface
+    from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
     from freecad_cloth.simulation.ClothSolver import ClothSystem
 
 _MM = 1000.0
@@ -709,7 +710,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         ):
             msg = "inter-cloth clearance must be positive and finite"
             raise ValueError(msg)
-        self._inter_cloth_metrics = None
+        self._inter_cloth_metrics: InterClothContactMetrics | None = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -1102,7 +1103,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
 
     @property
-    def inter_cloth_metrics(self):
+    def inter_cloth_metrics(self) -> InterClothContactMetrics | None:
         """Return the latest measured contact projection result for the garment groups."""
         return self._inter_cloth_metrics
 

@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
@@ -32,7 +34,7 @@ def _require(condition: bool, message: str) -> None:
         raise ValueError(message)
 
 
-def _number(record: Mapping[str, object], key: str) -> float:
+def _number(record: Mapping[str, JsonValue], key: str) -> float:
     """Read one finite numeric manifest value."""
     value = record.get(key)
     _require(
@@ -42,7 +44,7 @@ def _number(record: Mapping[str, object], key: str) -> float:
     return float(value)
 
 
-def _image_file(root: Path, record: Mapping[str, object]) -> Path:
+def _image_file(root: Path, record: Mapping[str, JsonValue]) -> Path:
     """Resolve a manifest image path while rejecting paths outside the artifact root."""
     raw_path = record.get("file")
     _require(isinstance(raw_path, str) and bool(raw_path.strip()), "image file path is missing")
@@ -55,7 +57,7 @@ def _image_file(root: Path, record: Mapping[str, object]) -> Path:
 
 
 
-def _finite_vector(value: object, name: str, size: int) -> list[float]:
+def _finite_vector(value: JsonValue, name: str, size: int) -> list[float]:
     """Validate one finite coordinate vector in the outfit scene map."""
     _require(isinstance(value, list) and len(value) == size, "%s must contain %d coordinates" % (name, size))
     values = []
@@ -71,9 +73,9 @@ def _finite_vector(value: object, name: str, size: int) -> list[float]:
 
 
 def _validate_scene_map(
-    scene_map: object,
-    piece_ids: list[object],
-    group_assignments: list[object],
+    scene_map: JsonValue,
+    piece_ids: list[JsonValue],
+    group_assignments: list[JsonValue],
     clearance_mm: float,
 ) -> dict[str, int]:
     """Validate exact CAD geometry, world transforms, landmarks and semantic seam links."""
@@ -132,7 +134,7 @@ def _validate_scene_map(
     _require(seen_groups == set(EXPECTED_GROUPS), "scene map is missing a garment group")
 
     _require(isinstance(piece_records, list) and len(piece_records) == EXPECTED_PIECES, "scene map needs twelve panel geometry records")
-    pieces_by_id: dict[str, Mapping[str, object]] = {}
+    pieces_by_id: dict[str, Mapping[str, JsonValue]] = {}
     for piece in piece_records:
         _require(isinstance(piece, dict), "panel geometry record must be an object")
         piece_id = piece.get("piece_id")
@@ -240,7 +242,7 @@ def _validate_scene_map(
     }
 
 
-def validate_manifest(manifest_path: Path | str, expected_commit: str | None = None) -> dict[str, object]:
+def validate_manifest(manifest_path: Path | str, expected_commit: str | None = None) -> JsonObject:
     """Validate outfit provenance, independent garment groups, metrics and rendered artifacts.
 
     Args:
@@ -317,7 +319,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(clearance > 0.0, "inter-cloth clearance must be positive")
     scene_map_counts = _validate_scene_map(manifest.get("scene_map"), piece_ids, group_assignments, clearance)
 
-    checkpoint_map: dict[int, Mapping[str, object]] = {}
+    checkpoint_map: dict[int, Mapping[str, JsonValue]] = {}
     for raw_checkpoint in checkpoints:
         _require(isinstance(raw_checkpoint, dict), "checkpoint record must be an object")
         raw_step = raw_checkpoint.get("step")

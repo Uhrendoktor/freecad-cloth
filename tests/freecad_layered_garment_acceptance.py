@@ -14,7 +14,15 @@ import math
 import os
 import sys
 import time
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from freecad_cloth.common.JsonTypes import JsonObject
+
+if TYPE_CHECKING:
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
+    from freecad_cloth.simulation.SimulationObjects import SimulationProxy
 
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
@@ -68,7 +76,7 @@ def _events() -> None:
         application.processEvents()
 
 
-def _landmark_world(avatar, name: str):
+def _landmark_world(avatar: App.DocumentObject, name: str) -> App.Vector:
     """Resolve one named arrangement landmark into the shared world frame."""
     raw = next(
         (
@@ -87,14 +95,14 @@ def _landmark_world(avatar, name: str):
 
 
 def _make_piece(
-    doc,
+    doc: App.Document,
     name: str,
     width_mm: float,
     height_mm: float,
-    placement,
+    placement: App.Placement,
     grainline_angle: float,
     outline_points: tuple[tuple[float, float], ...] | None = None,
-):
+) -> App.DocumentObject:
     """Create one native Sketcher pattern profile and adopt it as the pattern authority."""
     sketch = doc.addObject("Sketcher::SketchObject", name + "Source")
     points = outline_points or (
@@ -140,21 +148,21 @@ def _make_piece(
 
 
 def _make_ring(
-    doc,
+    doc: App.Document,
     garment_id: str,
     radius_x_mm: float,
     radius_y_mm: float,
     bottom_z_mm: float,
     height_mm: float,
-    rotation_front,
-    rotation_right,
-    rotation_back,
-    rotation_left,
+    rotation_front: App.Rotation,
+    rotation_right: App.Rotation,
+    rotation_back: App.Rotation,
+    rotation_left: App.Rotation,
     center_x: float,
     center_y: float,
     *,
     hem_flare_mm: float = 0.0,
-):
+) -> dict[str, App.DocumentObject]:
     """Create four sewn panels; optional flare widens the lower skirt hem.
 
     The trapezoids remain planar. A small rigid tilt maps their sloped side
@@ -228,7 +236,7 @@ def _make_ring(
     return pieces
 
 
-def _edge_id(piece, index: int) -> str:
+def _edge_id(piece: App.DocumentObject, index: int) -> str:
     """Return one persistent semantic boundary ID from its source Sketcher profile."""
     identifiers = tuple(str(value) for value in piece.Sketch.SemanticEdgeIds)
     edge_id = identifiers[index]
@@ -238,17 +246,17 @@ def _edge_id(piece, index: int) -> str:
 
 
 def _add_seam(
-    doc,
-    piece_a,
+    doc: App.Document,
+    piece_a: App.DocumentObject,
     edge_a: int,
-    piece_b,
+    piece_b: App.DocumentObject,
     edge_b: int,
     seam_id: str,
     *,
     reversed_b: bool,
     stitch_group: str,
     kind: str = "plain",
-):
+) -> App.DocumentObject:
     """Persist and validate one semantic edge-to-edge sewing relationship."""
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
@@ -274,7 +282,11 @@ def _add_seam(
     return obj
 
 
-def _sew_ring(doc, garment_id: str, pieces):
+def _sew_ring(
+    doc: App.Document,
+    garment_id: str,
+    pieces: Mapping[str, App.DocumentObject],
+) -> list[App.DocumentObject]:
     """Close one four-panel shell using four persistent side-seam relationships."""
     order = ("front", "right", "back", "left")
     seams = []
@@ -295,7 +307,12 @@ def _sew_ring(doc, garment_id: str, pieces):
     return seams
 
 
-def _save_png(view, path: Path, camera_action, label: str) -> dict[str, object]:
+def _save_png(
+    view: Gui.View3DInventorViewer,
+    path: Path,
+    camera_action: Callable[[], None],
+    label: str,
+) -> JsonObject:
     """Capture a fixed orthographic view and verify its pixels independently."""
     from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
@@ -325,7 +342,11 @@ def _save_png(view, path: Path, camera_action, label: str) -> dict[str, object]:
     }
 
 
-def _seam_measurements(backend, provenance, seam_objects):
+def _seam_measurements(
+    backend: PositionBasedDynamicsBackend,
+    provenance: Mapping[str, Sequence[tuple[int, int]]],
+    seam_objects: Mapping[str, App.DocumentObject],
+) -> list[JsonObject]:
     """Measure stitch-pair gaps and join each measurement to its semantic seam record."""
     positions = tuple(backend.positions())
     measurements = []
@@ -361,7 +382,7 @@ def _seam_measurements(backend, provenance, seam_objects):
     return measurements
 
 
-def _world_landmarks(avatar):
+def _world_landmarks(avatar: App.DocumentObject) -> list[JsonObject]:
     """Export every persisted mannequin arrangement landmark in document world millimetres."""
     records = []
     for raw in getattr(avatar, "ArrangementPoints", ()) or ():
@@ -384,7 +405,11 @@ def _world_landmarks(avatar):
     return records
 
 
-def _piece_scene_map(pieces, base, garment_group_by_piece):
+def _piece_scene_map(
+    pieces: Sequence[App.DocumentObject],
+    base: SimulationProxy,
+    garment_group_by_piece: Mapping[str, str],
+) -> list[JsonObject]:
     """Export exact source boundary, placement and derived solver identities for every piece."""
     from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
 
@@ -465,7 +490,10 @@ def _piece_scene_map(pieces, base, garment_group_by_piece):
     return result
 
 
-def _body_clearance(scene, backend) -> dict[str, object]:
+def _body_clearance(
+    scene: App.DocumentObject,
+    backend: PositionBasedDynamicsBackend,
+) -> dict[str, int | float]:
     """Measure sampled clothing clearance to the active authoritative DrapeTarget."""
     from freecad_cloth.common.MeshValidation import nearest_surface_clearance
     from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
@@ -481,7 +509,11 @@ def _body_clearance(scene, backend) -> dict[str, object]:
     }
 
 
-def _capture_six_views(view, directory: Path, checkpoint: int):
+def _capture_six_views(
+    view: Gui.View3DInventorViewer,
+    directory: Path,
+    checkpoint: int,
+) -> list[JsonObject]:
     """Capture all six principal orthographic views for one solver checkpoint."""
     actions = (
         ("front", view.viewFront),
