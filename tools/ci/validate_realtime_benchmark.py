@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import cast
 
-if not __package__:
+if __package__ is None or __package__ == ""
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ci.repository_paths import add_repository_root
