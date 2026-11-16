@@ -196,6 +196,76 @@ def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None
     assert "derived from the custom drafting outline" in width_tooltips[-1]
     assert "derived from the custom drafting outline" in height_tooltips[-1]
 
+def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None:
+    """Keep viewport camera changes behind the explicit task-panel action."""
+    piece = SimpleNamespace(Name="FrontPiece", Label="Front")
+    calls: list[tuple[object, ...]] = []
+    view = SimpleNamespace(
+        viewTop=lambda: calls.append(("top",)),
+        fitAll=lambda: calls.append(("fit",)),
+    )
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel.obj = piece
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+
+    assert panel._focus_piece() is True
+
+    assert calls == [("clear",), ("select", piece), ("top",), ("fit",)]
+
+
+def test_pattern_piece_apply_does_not_change_viewport_camera() -> None:
+    """Applying piece properties must not silently change the current camera."""
+    piece = SimpleNamespace(
+        Label="Front",
+        GeometryMode="Rectangle",
+        Width=100.0,
+        Height=60.0,
+        SeamAllowance=4.0,
+        GrainlineAngle=15.0,
+    )
+    focus_enabled: list[bool] = []
+    viewport_calls: list[str] = []
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel.obj = piece
+    panel._sketch_authoritative = False
+    panel.name = SimpleNamespace(text=lambda: "Front edited")
+    panel.mode = SimpleNamespace(currentText=lambda: "Rectangle")
+    panel.width = SimpleNamespace(value=lambda: 120.0)
+    panel.height = SimpleNamespace(value=lambda: 70.0)
+    panel.allowance = SimpleNamespace(value=lambda: 5.0)
+    panel.grain = SimpleNamespace(value=lambda: 20.0)
+    panel.App = _App()
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(
+            activeView=lambda: SimpleNamespace(
+                viewTop=lambda: viewport_calls.append("top"),
+                fitAll=lambda: viewport_calls.append("fit"),
+            )
+        )
+    )
+    panel.focus_piece = SimpleNamespace(setEnabled=focus_enabled.append)
+
+    panel._apply()
+
+    assert piece.Label == "Front edited"
+    assert (piece.Width, piece.Height, piece.SeamAllowance, piece.GrainlineAngle) == (
+        120.0,
+        70.0,
+        5.0,
+        20.0,
+    )
+    assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+    assert focus_enabled == [True]
+    assert viewport_calls == [], "Property application must leave the current camera unchanged."
+
+
 def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
     """Restore editable properties while preserving the linked Sketcher object."""
     sketch = SimpleNamespace(Name="AuthoritativeSketch")
