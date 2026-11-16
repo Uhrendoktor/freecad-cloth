@@ -96,7 +96,9 @@ class _NativeMesh(Protocol):
 
     Topology: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag) -> bool:
+    def isInside(
+        self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag
+    ) -> bool:
         """Test whether a point lies inside the native triangle mesh."""
         ...
 
