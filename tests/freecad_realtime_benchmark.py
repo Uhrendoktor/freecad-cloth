@@ -252,7 +252,12 @@ def main() -> None:
         _PreviewPanel,
         _Triangle,
     )
-    from freecad_cloth.simulation.RealtimePreview import _prepare, _Preview, _qt
+    from freecad_cloth.simulation.RealtimePreview import (
+        _prepare,
+        _Preview,
+        _qt,
+        _timer_wakeup_compensation_ms,
+    )
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     qt_core = _qt()
@@ -646,6 +651,10 @@ def main() -> None:
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
             "timer_interval_ms": int(timer.interval()),
+            "timer_wakeup_lateness": _timing_summary(active_preview._timer_wakeup_lateness_ms),
+            "timer_wakeup_compensation_ms": _timer_wakeup_compensation_ms(
+                active_preview._timer_wakeup_lateness_ms
+            ),
             "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,
             "process_cpu_elapsed_s": process_cpu_elapsed,
