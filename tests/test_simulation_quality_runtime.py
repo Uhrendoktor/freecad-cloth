@@ -225,7 +225,12 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     base.collision_surface = _COLLISION_SENTINEL
     base.panel_triangles = {"DrapePanelA": ((0, 1, 2),)}
     base.last_steps = 0
-    preview_publications: list[tuple[str, tuple[tuple[float, float, float], ...], object]] = []
+    type _PreviewPublication = tuple[
+        str,
+        tuple[tuple[float, float, float], ...],
+        tuple[tuple[int, int, int], ...],
+    ]
+    preview_publications: list[_PreviewPublication] = []
     proxy.set_preview_mesh_publisher(
         lambda panel, positions, triangles: preview_publications.append(
             (panel.Name, positions, triangles)
