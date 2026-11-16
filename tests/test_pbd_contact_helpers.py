@@ -1,11 +1,11 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
+import sys
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Never, NoReturn, cast
 
 import pytest
-import sys
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
@@ -24,7 +24,7 @@ PBD_COLLISION_MIN_CELLS = 16
 PBD_COLLISION_MAX_CELLS = 256
 
 if TYPE_CHECKING:
-    from tests.support.pbd_contact_helpers import _EventApplication
+    from tests.support.pbd_contact_helpers import _EventApplication, _SourceFeature
 
 
 def test_surface_distance_fallback_uses_spatial_index() -> None:
@@ -155,7 +155,7 @@ def test_inside_outside_prefers_native_shape_before_mesh_fallback(
         ),
         Topology=((), ()),
     )
-    source = SimpleNamespace(Shape=shape, Mesh=mesh)
+    source = cast("_SourceFeature", SimpleNamespace(Shape=shape, Mesh=mesh))
 
     assert inside_outside(((1.0, 2.0, 3.0),), source) == "inside"
     assert calls == [((1.0, 2.0, 3.0), 1e-6, True)]
