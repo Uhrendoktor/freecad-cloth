@@ -82,7 +82,9 @@ ignore = [
   # Conflicts with Ruff format or mutually exclusive pydocstyle conventions.
   "COM812",
   "COM819",
+  "D203",
   "D206",
+  "D213",
   "D300",
   "E111",
   "E114",
