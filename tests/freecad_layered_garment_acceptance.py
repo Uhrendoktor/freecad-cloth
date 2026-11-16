@@ -390,14 +390,16 @@ def _seam_measurements(
 
 def _world_landmarks(avatar: App.DocumentObject) -> list[JsonObject]:
     """Export every persisted mannequin arrangement landmark in document world millimetres."""
+    from freecad_cloth.avatar.avatar_arrangement import arrangement_point_map
+
+    coordinates_by_name = arrangement_point_map(
+        getattr(avatar, "ArrangementPoints", ()) or ()
+    )
     records = []
-    for raw in getattr(avatar, "ArrangementPoints", ()) or ():
-        name, separator, coordinate_text = str(raw).partition("|")
-        if not separator or not name:
-            continue
+    for name, coordinate_text in coordinates_by_name.items():
         local = tuple(float(value) for value in coordinate_text.split(","))
         if len(local) != 3 or not all(math.isfinite(value) for value in local):
-            raise RuntimeError("invalid persisted mannequin landmark: " + str(raw))
+            raise RuntimeError("invalid persisted mannequin landmark: " + str(name))
         world = avatar.Placement.multVec(App.Vector(*local))
         records.append(
             {
