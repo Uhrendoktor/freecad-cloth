@@ -800,6 +800,38 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     assert app_doc.calls == ["recompute", "commit"]
 
 
+def test_network_editor_can_focus_the_selected_seam_and_both_pieces_in_3d() -> None:
+    """Frame the active master/detail seam using the existing native focus command."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    seams = (_ReferenceSeam("seam-1"), _ReferenceSeam("seam-2"))
+    selection_calls: list[tuple[object, ...]] = []
+    selection = SimpleNamespace(
+        clearSelection=lambda: selection_calls.append(("clear",)),
+        addSelection=lambda obj: selection_calls.append(("select", obj)),
+    )
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._seams = seams
+    panel._current_row = 1
+    panel.Gui = SimpleNamespace(Selection=selection)
+    panel.status = _TaskPanelLabel()
+    focus_calls: list[str] = []
+
+    with patch(
+        "freecad_cloth.sewing.SewingCommands.focus_selected_seam_3d",
+        side_effect=lambda: focus_calls.append("focus"),
+    ):
+        assert panel._focus_selected_seam_in_viewport() is True
+
+    assert selection_calls == [("clear",), ("select", seams[1])]
+    assert focus_calls == ["focus"]
+    assert "seam-2" in panel.status.text
+    assert panel.status.properties["clothState"] == "info"
+
+
 if __name__ == "__main__":
     test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
     test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
