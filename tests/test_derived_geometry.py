@@ -2,6 +2,8 @@
 
 from shapely.geometry import Polygon
 
+
+
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     add_notches,
@@ -15,12 +17,14 @@ from freecad_cloth.pattern.PatternGeometry import (
     rectangle,
 )
 
+
 def test_zero_allowance_preserves_sewing_boundary():
     pattern = rectangle(100, 60)
     derived = derive_cut_boundary(pattern, 0)
     assert [edge.points for edge in derived.cut_boundary] == [
         (segment.start, segment.end) for segment in pattern.segments
     ]
+
 
 def test_rectangle_allowance_is_outward_and_deterministic():
     pattern = rectangle(100, 60)
@@ -30,6 +34,7 @@ def test_rectangle_allowance_is_outward_and_deterministic():
     assert first.sewing_boundary is pattern
     assert first.cut_boundary[0].points[0] == (0.0, -5.0)
     assert first.cut_boundary[0].points[1] == (100.0, -5.0)
+
 
 def test_per_edge_override_and_curve_are_supported():
     pattern = ParametricPattern(
@@ -44,6 +49,7 @@ def test_per_edge_override_and_curve_are_supported():
     assert derived.cut_boundary[1].points[0] == (14.0, 0.0)
     assert len(derived.cut_boundary[2].points) == 8
 
+
 def test_per_edge_allowance_produces_a_valid_joined_cut_contour() -> None:
     pattern = rectangle(100.0, 60.0)
     derived = derive_cut_boundary(pattern, 5.0, {"right": 10.0})
@@ -56,12 +62,14 @@ def test_per_edge_allowance_produces_a_valid_joined_cut_contour() -> None:
     assert abs(height - 70.0) < 1e-6
     assert contour[0] != contour[-1]
 
+
 def test_notches_use_stable_segment_ids_and_normalized_positions():
     pattern = rectangle(100, 60)
     derived = derive_cut_boundary(pattern, 5)
     derived = add_notches(derived, [Notch("waist", "right", 0.5)])
     assert notch_point(pattern, derived.notches[0]) == (100.0, 30.0)
     assert derived.notches[0].id == "waist"
+
 
 def test_invalid_allowance_and_notch_references_are_rejected():
     pattern = rectangle(10, 10)

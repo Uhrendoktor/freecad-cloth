@@ -2,6 +2,8 @@
 
 import pytest
 
+
+
 from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_INVALID_RANGE,
     STATUS_LENGTH_MISMATCH,
@@ -13,6 +15,7 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     correspondence_samples,
     map_parameter,
 )
+
 
 def test_equal_length_seam_is_valid():
     report = analyze_correspondence(120.0, 120.0)
