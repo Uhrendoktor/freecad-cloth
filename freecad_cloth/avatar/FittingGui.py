@@ -950,7 +950,8 @@ class ViewportAnchorPicker:
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
         self.panel._set_status(
-            f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; target changes "
+            f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; "
+            "target changes "
             "invalidate the anchor, and the anchor does not attach cloth to the surface.",
             state="success",
         )
@@ -1002,14 +1003,16 @@ class FittingTaskPanel:
         actions = QtWidgets.QGroupBox("Arrange")
         action_layout = QtWidgets.QVBoxLayout(actions)
         self.instruction = QtWidgets.QLabel(
-            "Drag a pattern piece. Blue crosshairs mark where its placement origin will snap; release to commit."
+            "Drag a pattern piece. Blue crosshairs mark where its placement origin will snap; "
+            "release to commit."
         )
         self.instruction.setWordWrap(True)
         action_layout.addWidget(self.instruction)
         self.snap = QtWidgets.QCheckBox("Snap to arrangement points")
         self.snap.setChecked(True)
         self.snap.setToolTip(
-            "When a dragged piece is close to an arrangement point, preview and apply its saved orientation."
+            "When a dragged piece is close to an arrangement point, preview and apply "
+            "its saved orientation."
         )
         action_layout.addWidget(self.snap)
         buttons = QtWidgets.QHBoxLayout()
@@ -1147,7 +1150,8 @@ class FittingTaskPanel:
         )
         suffix = f" | {stale} stale anchor(s) excluded" if stale else ""
         self.context.setText(
-            f"{len(pieces)} piece(s) | {len(point_objects)} snap point(s) | Target: {target_name}{suffix}"
+            f"{len(pieces)} piece(s) | {len(point_objects)} snap point(s) | "
+            f"Target: {target_name}{suffix}"
         )
 
     def reset_arrangement(self):
