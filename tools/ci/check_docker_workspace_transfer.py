@@ -98,7 +98,8 @@ def validate_workspace_transfer(
             )
             response = returned_marker.read_text(encoding="utf-8")
             if response != marker:
-                raise RuntimeError("Docker workspace transfer did not preserve marker contents")
+                msg = "Docker workspace transfer did not preserve marker contents"
+                raise RuntimeError(msg)
         finally:
             if created:
                 run_command(["docker", "rm", "--force", container_name], False, 10)
