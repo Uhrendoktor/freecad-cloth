@@ -602,7 +602,13 @@ class SimulationQualityTaskPanel:
             self.arrange_fit_button.setEnabled(False)
             self.snap_to_target_button.setEnabled(False)
             self.refresh_target_button.setEnabled(False)
-            self.target_context.setText("No simulation scene is selected.")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.target_context,
+                "No simulation scene is selected.",
+                state="warning",
+            )
             self._set_status(
                 message or "Create or select a Cloth Simulation object.",
                 state="warning",
@@ -623,7 +629,13 @@ class SimulationQualityTaskPanel:
         self.run_button.setEnabled(not blocked)
         self.reset_button.setEnabled(True)
         self.arrange_fit_button.setEnabled(True)
-        self.target_context.setText(str(target_info["message"]))
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.target_context,
+            str(target_info["message"]),
+            state="error" if blocked else ("success" if target_info["state"] == "ready" else "info"),
+        )
         target = getattr(self.scene, "DrapeTarget", None)
         source = getattr(target, "SourceObject", None)
         if target_info["state"] == "disabled":
