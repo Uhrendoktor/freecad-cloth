@@ -610,6 +610,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         stitches: Iterable[tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "mesh",
+        inter_cloth_groups: Mapping[str, Sequence[tuple[int, int, int]]] | None = None,
+        inter_cloth_clearance_mm: float = 1.0,
     ) -> None:
         """Initialize the native PBD model, constraints, and optional collision surface.
 
@@ -620,6 +622,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             stitches: Particle-index pairs to constrain as sewn together.
             collision_surface: Optional triangle mesh used as the immutable collision target.
             collision_mode: The collision representation, currently required to be mesh.
+            inter_cloth_groups: Independent garment group IDs mapped to global triangle indices.
+            inter_cloth_clearance_mm: Minimum requested separation between garment groups.
 
         Raises:
             RuntimeError: Raised when the native pyPBD binding is unavailable.
@@ -688,6 +692,24 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._collision_configured_tolerance_mm: float | None = None
         self._collision_effective_tolerance_mm: float | None = None
         self._collision_projector: object | None = None
+        self._inter_cloth_groups = {
+            str(group_id): tuple(
+                tuple(int(index) for index in triangle)
+                for triangle in group_triangles
+            )
+            for group_id, group_triangles in (inter_cloth_groups or {}).items()
+        }
+        if self._inter_cloth_groups and len(self._inter_cloth_groups) < 2:
+            msg = "inter-cloth contact needs at least two independent garment groups"
+            raise ValueError(msg)
+        self._inter_cloth_clearance_mm = float(inter_cloth_clearance_mm)
+        if self._inter_cloth_groups and (
+            not np.isfinite(self._inter_cloth_clearance_mm)
+            or self._inter_cloth_clearance_mm <= 0.0
+        ):
+            msg = "inter-cloth clearance must be positive and finite"
+            raise ValueError(msg)
+        self._inter_cloth_metrics = None
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -983,6 +1005,72 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             if inward_speed < 0.0:
                 particles.setVelocity(index, velocity - inward_speed * normal_pbd)
 
+
+    def _project_inter_cloth_positions(self) -> None:
+        """Separate independent garment groups after each native PBD timestep.
+
+        Contact is projected in world millimetres after the native solver pass.
+        The same correction directions are used to remove inward normal velocity,
+        preventing the next frame from immediately re-entering the opposing cloth.
+        """
+        if len(self._inter_cloth_groups) < 2:
+            self._inter_cloth_metrics = None
+            return
+
+        from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            self._inter_cloth_metrics = None
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        inverse_masses = np.asarray(
+            [
+                0.0
+                if index in self._pin_indices
+                else 1.0 / max(float(particles.getMass(index)), 1e-12)
+                for index in range(self._particle_count)
+            ],
+            dtype=np.float64,
+        )
+        corrected_mm, contact_directions, metrics = project_inter_cloth_contacts(
+            positions_mm,
+            self._inter_cloth_groups,
+            inverse_masses,
+            clearance_mm=self._inter_cloth_clearance_mm,
+            stitches=self._stitches,
+        )
+        moved_indices = np.flatnonzero(
+            np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7
+        )
+        pinned = set(self._pin_indices)
+        for raw_index in moved_indices:
+            index = int(raw_index)
+            if index in pinned:
+                continue
+            position = corrected_mm[index]
+            particles.setPosition(
+                index,
+                np.asarray(
+                    (position[0] / _MM, position[2] / _MM, position[1] / _MM),
+                    dtype=np.float64,
+                ),
+            )
+            normal = contact_directions[index]
+            if float(np.linalg.norm(normal)) > 1e-10:
+                normal_pbd = np.asarray((normal[0], normal[2], normal[1]), dtype=np.float64)
+                velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
+                inward_speed = float(np.dot(velocity, normal_pbd))
+                if inward_speed < 0.0:
+                    particles.setVelocity(index, velocity - inward_speed * normal_pbd)
+        self._inter_cloth_metrics = metrics
+
+    @property
+    def inter_cloth_metrics(self):
+        """Return the latest measured contact projection result for the garment groups."""
+        return self._inter_cloth_metrics
+
     def step(
         self,
         dt: float = 1.0 / 60.0,
@@ -1037,6 +1125,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             int(iterations),
         )
         timestep.step(self._model)
+        self._project_collision_positions()
+        self._project_inter_cloth_positions()
+        # Cross-cloth response can push fabric back toward the avatar, so preserve
+        # the authoritative body shell after the garment-group projection.
         self._project_collision_positions()
         self._time += float(dt)
 
