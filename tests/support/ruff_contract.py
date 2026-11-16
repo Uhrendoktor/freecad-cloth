@@ -85,6 +85,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "tools/ci/check_docker_workspace_transfer.py": ["T201"],
         "tools/ci/check_pydantic_models.py": ["T201"],
         "freecad_cloth/avatar/AnnyAvatarBackend.py": ["T201"],
+        "freecad_cloth/shared/SeamColors.py": ["FBT001"],
         "tools/ci/check_visual_asset_contract.py": ["E402"],
         "tools/ci/maintenance_cleanup.py": ["E402"],
         "tools/ci/validate_realtime_benchmark.py": ["E402"],
@@ -128,5 +129,5 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=lint.get("per-file-ignores") == expected_per_file,
-        message="Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, and native callbacks.",
+        message="Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, native callbacks, and preserved public signatures.",
     )

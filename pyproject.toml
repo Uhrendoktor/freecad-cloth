@@ -187,6 +187,9 @@ ignore = [
 "tests/freecad_interactive_arrange_acceptance.py" = ["E402"]
 "tests/freecad_avatar_shape_editor_acceptance.py" = ["E402"]
 
+# Keep the established positional boolean argument of this public shared helper.
+"freecad_cloth/shared/SeamColors.py" = ["FBT001"]
+
 # FreeCAD task and teardown callbacks must contain native SWIG/Qt exceptions.
 "freecad_cloth/pattern/PatternCommands.py" = ["BLE001"]
 "freecad_cloth/pattern/PatternTopologyRepairGui.py" = ["BLE001"]
