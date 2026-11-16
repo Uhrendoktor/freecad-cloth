@@ -64,6 +64,7 @@ class ClosedPullRequestLookup:
         default_branch: Branch name that must never be selected for deletion.
         activity_epochs: Verified activity timestamps keyed by commit SHA.
         cutoff_epoch: Timestamp boundary for looking up recently active closed PR heads.
+        open_pr_numbers: PR numbers whose generated evidence refs must remain available.
     """
 
     repo: str
@@ -82,6 +83,7 @@ class BranchRetentionPolicy:
         activity_epochs: Commit activity timestamps keyed by full SHA.
         cutoff_epoch: Latest timestamp that qualifies as stale.
         closed_pr_head_shas: Exact closed-PR head SHAs allowed through the cutoff.
+        open_pr_numbers: PR numbers whose generated evidence refs are still in use.
     """
 
     activity_epochs: dict[str, float]
@@ -524,8 +526,8 @@ def stale_unprotected_branches(
 ) -> list[ApiJsonObject]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
-    Reserved evidence/publication refs, open pull-request heads, and branches with
-    missing activity evidence are retained. Results are ordered oldest first.
+    Reserved documentation refs, evidence refs for open PRs, open pull-request heads,
+    and branches with missing activity evidence are retained. Results are ordered oldest first.
 
     Args:
         branches: Branch records returned by GitHub for the repository.
@@ -904,6 +906,7 @@ def _branch_head_shas(
     Args:
         branches: Branch records returned by GitHub.
         open_heads: Branch names used by open pull requests.
+        open_pr_numbers: PR numbers whose generated evidence refs must be retained.
         default_branch: Branch name that must never be selected for deletion.
 
     Returns:
@@ -939,6 +942,7 @@ def _cleanup_stale_branches(
     Args:
         repo: Full owner/repository name queried through GitHub.
         open_heads: Branch names used by open pull requests.
+        open_pr_numbers: PR numbers whose generated evidence refs must be retained.
         default_branch: Branch name that must never be selected for deletion.
         branch_cutoff: Unix timestamp before which a branch is considered stale.
 
