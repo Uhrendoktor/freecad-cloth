@@ -5,8 +5,8 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
-from math import ceil, isfinite
-from threading import Event, Lock, Thread, current_thread
+from math import isfinite
+from threading import Condition, Event, Thread, current_thread
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -16,8 +16,8 @@ if TYPE_CHECKING:
 
 _PREVIEW = None
 _PREVIEW_TARGET_FPS = 60.0
-_FRAME_CLOCK_LEAD_MS = 15.0
-_MAX_PENDING_FRAME_DEADLINES = 2
+_INITIAL_GUI_QUEUE_DELAY_MS = 5.0
+_QUEUE_DELAY_SMOOTHING = 0.35
 _FRAME_DISPATCH_SAMPLE_LIMIT = 120
 
 
@@ -34,8 +34,6 @@ class _FrameDispatcher(Protocol):
 
     def set_callback(self, callback: Callable[[float, float, float], None]) -> None: ...
 
-    def set_on_dispatch(self, callback: Callable[[], None]) -> None: ...
-
     def start(self) -> None: ...
 
     def stop(self) -> None: ...
@@ -43,36 +41,14 @@ class _FrameDispatcher(Protocol):
     def snapshot(self) -> dict[str, int | float | str]: ...
 
 
-def _deadline_timer_interval_ms(deadline: float, now: float) -> int:
-    """Return a non-early integer Qt timer interval for a monotonic deadline."""
-    if not isfinite(deadline) or not isfinite(now):
-        msg = "preview frame deadline and clock time must be finite"
-        raise ValueError(msg)
-    remaining_ms = 1000.0 * (deadline - now)
-    return 0 if remaining_ms <= 0.0 else max(1, int(ceil(remaining_ms)))
-
-
-def _append_pending_deadline(
-    pending: list[tuple[float, float, float]],
-    deadline: tuple[float, float, float],
-    *,
-    limit: int = _MAX_PENDING_FRAME_DEADLINES,
-) -> bool:
-    """Append a scheduled, emitted, and dispatched timestamp tuple within the queue bound."""
-    if len(pending) >= limit:
-        return False
-    pending.append(deadline)
-    return True
-
-
 class _FrameClock:
-    """Emit deadline-paced frame pulses without relying on Qt timer wakeup granularity."""
+    """Pace GUI frames from acknowledged callback starts and observed queue delay."""
 
     def __init__(self, pulse: _PulseSignal, target_fps: float) -> None:
-        """Initialize a coalescing monotonic clock.
+        """Initialize a feedback-paced, single-outstanding-frame scheduler.
 
         Args:
-            pulse: Qt signal that queues a scheduled deadline onto the GUI thread.
+            pulse: Qt signal that queues a frame request onto the GUI thread.
             target_fps: Requested interactive frame rate.
         """
         if not isfinite(target_fps) or target_fps <= 0.0:
@@ -80,26 +56,31 @@ class _FrameClock:
             raise ValueError(msg)
         self._emit = pulse.emit
         self._period_s = 1.0 / float(target_fps)
-        self._lead_s = _FRAME_CLOCK_LEAD_MS / 1000.0
         self._stop_event = Event()
-        self._lock = Lock()
+        self._condition = Condition()
         self._pending = False
         self._signals_emitted = 0
         self._coalesced_pulses = 0
         self._missed_deadlines = 0
+        self._frame_ack_serial = 0
+        self._last_frame_started_at: float | None = None
+        self._queue_delay_estimate_ms = _INITIAL_GUI_QUEUE_DELAY_MS
         self._worker_wakeup_lateness_ms: list[float] = []
-        self._thread: Thread | None = None
         self.target_fps = float(target_fps)
+        self._thread: Thread | None = None
 
     def start(self) -> None:
-        """Start the monotonic worker clock with one frame of lead time."""
+        """Start the worker and pace each next deadline from a GUI frame acknowledgement."""
         if self._thread is not None and self._thread.is_alive():
             return
-        with self._lock:
+        with self._condition:
             self._pending = False
             self._signals_emitted = 0
             self._coalesced_pulses = 0
             self._missed_deadlines = 0
+            self._frame_ack_serial = 0
+            self._last_frame_started_at = None
+            self._queue_delay_estimate_ms = _INITIAL_GUI_QUEUE_DELAY_MS
             self._worker_wakeup_lateness_ms.clear()
         self._stop_event.clear()
         self._thread = Thread(
@@ -110,34 +91,49 @@ class _FrameClock:
         self._thread.start()
 
     def stop(self) -> None:
-        """Stop and join the worker so no pulse can outlive the preview controller."""
+        """Stop the worker, release waiters, and clear the single outstanding pulse."""
         self._stop_event.set()
+        with self._condition:
+            self._pending = False
+            self._condition.notify_all()
         thread = self._thread
         if thread is not None and thread is not current_thread():
             thread.join(timeout=1.0)
         if thread is None or not thread.is_alive():
             self._thread = None
 
-    def consume_frame(self) -> None:
-        """Allow the worker to queue one future frame after the GUI receives this pulse."""
-        with self._lock:
-            self._pending = False
-
-    def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
-        """Queue one frame and retain worker wake timing before GUI dispatch.
+    def frame_started(self, started_at: float, emitted_at: float) -> None:
+        """Acknowledge a GUI frame and update the prediction of queued-signal delay.
 
         Args:
-            scheduled_at: Monotonic deadline associated with this frame pulse.
+            started_at: Monotonic time at the beginning of the GUI frame callback.
+            emitted_at: Monotonic time when the worker emitted this frame request.
+        """
+        queue_delay_ms = max(0.0, 1000.0 * (started_at - emitted_at))
+        with self._condition:
+            self._pending = False
+            self._frame_ack_serial += 1
+            self._last_frame_started_at = float(started_at)
+            self._queue_delay_estimate_ms = (
+                (1.0 - _QUEUE_DELAY_SMOOTHING) * self._queue_delay_estimate_ms
+                + _QUEUE_DELAY_SMOOTHING * queue_delay_ms
+            )
+            self._condition.notify_all()
+
+    def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
+        """Emit one frame request, refusing a second outstanding GUI event.
+
+        Args:
+            scheduled_at: Predicted GUI callback deadline.
             emitted_at: Actual worker emission time, or the current time for direct tests.
 
         Returns:
-            True when a signal was emitted, or False when an already-pending pulse
-            coalesced this deadline.
+            True when a signal was emitted, or False when a previous request is pending.
         """
         actual_emission = time.perf_counter() if emitted_at is None else float(emitted_at)
-        pulse_deadline = scheduled_at - self._lead_s
-        worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - pulse_deadline))
-        with self._lock:
+        with self._condition:
+            emission_deadline = scheduled_at - self._queue_delay_estimate_ms / 1000.0
+            worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
             self._worker_wakeup_lateness_ms.append(worker_lateness_ms)
             if len(self._worker_wakeup_lateness_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._worker_wakeup_lateness_ms[0]
@@ -149,26 +145,30 @@ class _FrameClock:
         try:
             self._emit(float(scheduled_at), actual_emission)
         except Exception:
-            self.consume_frame()
+            with self._condition:
+                self._pending = False
+                self._condition.notify_all()
             self._stop_event.set()
             raise
         return True
 
     def snapshot(self) -> dict[str, int | float | str]:
-        """Return immutable scheduler metadata for independent benchmark validation."""
-        with self._lock:
+        """Return the feedback-pacer state for independent benchmark validation."""
+        with self._condition:
             return {
-                "mode": "threaded-queued-deadline-with-gui-timer",
+                "mode": "threaded-feedback-phase-locked",
                 "target_fps": self.target_fps,
-                "lead_ms": _FRAME_CLOCK_LEAD_MS,
+                "initial_queue_delay_ms": _INITIAL_GUI_QUEUE_DELAY_MS,
+                "queue_delay_estimate_ms": self._queue_delay_estimate_ms,
                 "signals_emitted": self._signals_emitted,
                 "coalesced_pulses": self._coalesced_pulses,
                 "missed_deadlines": self._missed_deadlines,
+                "outstanding_pulses": int(self._pending),
             }
 
     def worker_wakeup_metrics(self) -> dict[str, int | float]:
-        """Summarize time spent waking the worker before it emits the GUI pulse."""
-        with self._lock:
+        """Summarize timer wake timing relative to the predicted queue-adjusted emission."""
+        with self._condition:
             samples = tuple(self._worker_wakeup_lateness_ms)
         if not samples:
             return {"samples": 0, "mean_ms": 0.0, "p95_ms": 0.0, "max_ms": 0.0}
@@ -182,32 +182,47 @@ class _FrameClock:
         }
 
     def _run(self) -> None:
-        """Wait on monotonic deadlines and skip missed periods rather than catch up."""
+        """Emit before each predicted start, then wait for its GUI acknowledgement."""
         period = self._period_s
         next_deadline = time.perf_counter() + period
         while not self._stop_event.is_set():
-            pulse_deadline = next_deadline - self._lead_s
-            wait_s = max(0.0, pulse_deadline - time.perf_counter())
+            with self._condition:
+                queue_delay_estimate_ms = self._queue_delay_estimate_ms
+                ack_before = self._frame_ack_serial
+            emission_deadline = next_deadline - queue_delay_estimate_ms / 1000.0
+            wait_s = max(0.0, emission_deadline - time.perf_counter())
             if self._stop_event.wait(wait_s):
                 return
             now = time.perf_counter()
-            lateness = now - pulse_deadline
+            lateness = now - emission_deadline
             if lateness >= period:
-                skipped = int(lateness // period)
-                with self._lock:
-                    self._missed_deadlines += skipped
-                next_deadline += skipped * period
-            self.request_frame(next_deadline, now)
-            next_deadline += period
+                with self._condition:
+                    self._missed_deadlines += int(lateness // period)
+            if not self.request_frame(next_deadline, now):
+                with self._condition:
+                    while not self._stop_event.is_set() and self._frame_ack_serial == ack_before:
+                        self._condition.wait()
+                if self._stop_event.is_set():
+                    return
+            else:
+                with self._condition:
+                    while not self._stop_event.is_set() and self._frame_ack_serial == ack_before:
+                        self._condition.wait()
+                if self._stop_event.is_set():
+                    return
+            with self._condition:
+                acknowledged_start = self._last_frame_started_at
+            if acknowledged_start is not None:
+                next_deadline = acknowledged_start + period
 
 
 def _make_frame_dispatcher(
     callback: Callable[[float, float, float], None],
 ) -> _FrameDispatcher:
-    """Create a GUI-thread receiver that pre-arms precise timers for frame deadlines.
+    """Create a GUI-thread receiver for feedback-paced frame requests.
 
     Args:
-        callback: Preview callback receiving deadline, worker emission, and GUI dispatch times.
+        callback: Preview callback receiving target, worker-emission, and GUI-dispatch times.
 
     Returns:
         A Qt signal bridge retained by the preview controller.
@@ -223,120 +238,43 @@ def _make_frame_dispatcher(
         raise RuntimeError(msg)
 
     class _Dispatcher(QtCore.QObject):
-        """Bridge early worker pulses to a bounded precise-timer deadline queue."""
+        """Deliver one queued worker pulse directly to the GUI-thread callback."""
 
         pulse = signal_factory(float, float)
 
         def __init__(self) -> None:
             super().__init__()
             self._callback = callback
-            self._on_dispatch: Callable[[], None] = lambda: None
-            self._timer = QtCore.QTimer(self)
-            self._timer.setTimerType(QtCore.Qt.PreciseTimer)
-            self._timer.setSingleShot(True)
-            self._timer.timeout.connect(self._timer_fired)
-            self._active_deadline: tuple[float, float, float] | None = None
-            self._pending_deadlines: list[tuple[float, float, float]] = []
-            self._coalesced_deadlines = 0
-            self._timer_rearms = 0
-            self._max_pending_depth = 0
             self._stopped = True
+            self._dispatches = 0
             self.pulse.connect(self.dispatch, QtCore.Qt.QueuedConnection)
 
         def start(self) -> None:
-            """Reset the bounded deadline queue before starting a new preview."""
-            self._timer.stop()
-            self._active_deadline = None
-            self._pending_deadlines.clear()
-            self._coalesced_deadlines = 0
-            self._timer_rearms = 0
-            self._max_pending_depth = 0
+            """Enable queued frame delivery for a new preview session."""
             self._stopped = False
+            self._dispatches = 0
 
         def stop(self) -> None:
-            """Cancel the active GUI timer and discard queued deadlines."""
+            """Ignore any queued signal that arrives after preview shutdown."""
             self._stopped = True
-            self._timer.stop()
-            self._active_deadline = None
-            self._pending_deadlines.clear()
 
         def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
             self._callback = next_callback
 
-        def set_on_dispatch(self, next_callback: Callable[[], None]) -> None:
-            """Release worker-clock backpressure as soon as a pulse reaches the GUI thread."""
-            self._on_dispatch = next_callback
-
         @slot_factory(float, float)
         def dispatch(self, scheduled_at: float, emitted_at: float) -> None:
-            """Queue one deadline and arm a precise timer rather than simulating immediately."""
+            """Run immediately when the GUI thread accepts the high-level queued signal."""
             if self._stopped:
                 return
-            self._on_dispatch()
-            deadline = (
-                float(scheduled_at),
-                float(emitted_at),
-                time.perf_counter(),
-            )
-            if self._active_deadline is None:
-                self._arm(deadline, allow_late=True)
-                return
-            if not _append_pending_deadline(self._pending_deadlines, deadline):
-                self._coalesced_deadlines += 1
-                return
-            self._max_pending_depth = max(self._max_pending_depth, len(self._pending_deadlines))
-
-        def _arm(
-            self,
-            deadline: tuple[float, float, float],
-            *,
-            allow_late: bool,
-        ) -> None:
-            """Arm one timer, dropping stale queued deadlines instead of catching up."""
-            if self._stopped:
-                return
-            now = time.perf_counter()
-            if deadline[0] <= now and not allow_late:
-                self._coalesced_deadlines += 1
-                self._arm_next()
-                return
-            self._active_deadline = deadline
-            self._timer.start(_deadline_timer_interval_ms(deadline[0], now))
-
-        def _arm_next(self) -> None:
-            """Arm the next still-future deadline, skipping queued frames already overdue."""
-            now = time.perf_counter()
-            while self._pending_deadlines and not self._stopped:
-                deadline = self._pending_deadlines.pop(0)
-                if deadline[0] <= now:
-                    self._coalesced_deadlines += 1
-                    continue
-                self._arm(deadline, allow_late=False)
-                return
-
-        @slot_factory()
-        def _timer_fired(self) -> None:
-            """Run one frame at its deadline, then arm the next future frame."""
-            if self._stopped or self._active_deadline is None:
-                return
-            deadline = self._active_deadline
-            now = time.perf_counter()
-            if now < deadline[0]:
-                self._timer_rearms += 1
-                self._timer.start(_deadline_timer_interval_ms(deadline[0], now))
-                return
-            self._active_deadline = None
-            self._callback(*deadline)
-            self._arm_next()
+            dispatched_at = time.perf_counter()
+            self._dispatches += 1
+            self._callback(float(scheduled_at), float(emitted_at), dispatched_at)
 
         def snapshot(self) -> dict[str, int | float | str]:
-            """Return GUI timer and bounded-queue counters for the benchmark artifact."""
+            """Return the number of worker pulses accepted by the GUI event loop."""
             return {
-                "deadline_timer": "QTimer.PreciseTimer",
-                "pending_deadlines_dropped": self._coalesced_deadlines,
-                "timer_rearms": self._timer_rearms,
-                "max_pending_depth": self._max_pending_depth,
-                "pending_deadlines": len(self._pending_deadlines),
+                "dispatch_mode": "Qt.QueuedConnection",
+                "queued_dispatches": self._dispatches,
             }
 
     return cast("_FrameDispatcher", _Dispatcher())
@@ -423,7 +361,6 @@ class _Preview:
         self.scene = scene
         self._dispatcher = _make_frame_dispatcher(self.tick)
         self._frame_clock = _FrameClock(self._dispatcher.pulse, _PREVIEW_TARGET_FPS)
-        self._dispatcher.set_on_dispatch(self._frame_clock.consume_frame)
         self.running = False
         self._overlay_refresh_ticks = 0
         self._mesh_preview: RealtimeMeshPreview | None = None
@@ -526,7 +463,7 @@ class _Preview:
         self._dispatcher.stop()
 
     def frame_scheduler_metrics(self) -> dict[str, int | float | str]:
-        """Return worker-clock and GUI deadline-queue counters for validation."""
+        """Return worker pacing state and GUI queued-dispatch counters."""
         metrics = self._frame_clock.snapshot()
         metrics.update(self._dispatcher.snapshot())
         return metrics
@@ -549,6 +486,8 @@ class _Preview:
             dispatched_at: Time the GUI thread received and queued the deadline.
         """
         started_at = time.perf_counter()
+        if emitted_at is not None:
+            self._frame_clock.frame_started(started_at, emitted_at)
         if scheduled_at is not None:
             dispatch_lateness_ms = max(0.0, 1000.0 * (started_at - scheduled_at))
             self._frame_dispatch_lateness_ms.append(dispatch_lateness_ms)

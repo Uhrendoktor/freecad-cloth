@@ -1,43 +1,37 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Contracts for the realtime preview's coalescing monotonic frame clock."""
+"""Contracts for the feedback-paced realtime preview frame clock."""
 
 from math import inf, nan
 
-from freecad_cloth.simulation.RealtimePreview import (
-    _append_pending_deadline,
-    _deadline_timer_interval_ms,
-    _FrameClock,
-)
+from freecad_cloth.simulation.RealtimePreview import _FrameClock
 
 
-def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one() -> None:
-    """Keep at most one queued Qt callback while the GUI thread is busy."""
-    emitted: list[float] = []
+def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
+    """Coalesce pulses until the GUI acknowledges the current frame start."""
+    emitted: list[tuple[float, float]] = []
 
     class Pulse:
         """Record queued signal emissions without requiring a Qt application."""
 
-        def emit(self, scheduled_at: float, _emitted_at: float) -> None:
-            emitted.append(scheduled_at)
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
 
     clock = _FrameClock(Pulse(), 60.0)
+    assert clock.request_frame(10.0, 9.995) is True
+    assert clock.request_frame(10.0 + 1.0 / 60.0, 10.0) is False
+    assert emitted == [(10.0, 9.995)]
+    snapshot = clock.snapshot()
+    assert snapshot["mode"] == "threaded-feedback-phase-locked"
+    assert snapshot["signals_emitted"] == 1
+    assert snapshot["coalesced_pulses"] == 1
+    assert snapshot["outstanding_pulses"] == 1
 
-    assert clock.request_frame(10.0, 10.0 - 0.015) is True
-    assert clock.request_frame(10.0 + 1.0 / 60.0, 10.0 + 1.0 / 60.0 - 0.015) is False
-    assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.015) is False
-    assert emitted == [10.0]
-    assert clock.snapshot() == {
-        "mode": "threaded-queued-deadline-with-gui-timer",
-        "target_fps": 60.0,
-        "lead_ms": 15.0,
-        "signals_emitted": 1,
-        "coalesced_pulses": 2,
-        "missed_deadlines": 0,
-    }
-
-    clock.consume_frame()
-    assert clock.request_frame(10.0 + 3.0 / 60.0, 10.0 + 3.0 / 60.0 - 0.015) is True
-    assert emitted == [10.0, 10.0 + 3.0 / 60.0]
+    clock.frame_started(10.001, 9.995)
+    snapshot = clock.snapshot()
+    assert snapshot["outstanding_pulses"] == 0
+    assert snapshot["queue_delay_estimate_ms"] == 5.35
+    assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.00535) is True
+    assert len(emitted) == 2
     clock.stop()
 
 
@@ -63,7 +57,7 @@ def test_frame_clock_stop_is_safe_before_start_and_idempotent() -> None:
     """Allow normal cleanup after startup failures and repeated Stop commands."""
 
     class Pulse:
-        """Provide a no-op signal for clock lifecycle coverage."""
+        """Provide a no-op signal for lifecycle coverage."""
 
         def emit(self, _scheduled_at: float, _emitted_at: float) -> None:
             pass
@@ -71,44 +65,26 @@ def test_frame_clock_stop_is_safe_before_start_and_idempotent() -> None:
     clock = _FrameClock(Pulse(), 60.0)
     clock.stop()
     clock.stop()
-    assert clock.snapshot()["signals_emitted"] == 0
+    snapshot = clock.snapshot()
+    assert snapshot["signals_emitted"] == 0
+    assert snapshot["outstanding_pulses"] == 0
 
 
-def test_deadline_timer_interval_never_fires_early() -> None:
-    """Round positive waits up to the next whole millisecond for precise Qt timers."""
-    assert _deadline_timer_interval_ms(2.0, 1.9991) == 1
-    assert _deadline_timer_interval_ms(2.0, 1.9989) == 2
-    assert _deadline_timer_interval_ms(1.0, 1.0) == 0
-    assert _deadline_timer_interval_ms(0.5, 1.0) == 0
+def test_frame_clock_smooths_observed_gui_queue_delay() -> None:
+    """Use a weighted estimate so the next frame is emitted before its target."""
+    emitted: list[tuple[float, float]] = []
 
+    class Pulse:
+        """Collect frame pulses for deterministic feedback tests."""
 
-def test_deadline_timer_rejects_nonfinite_clock_values() -> None:
-    """Reject invalid monotonic clock inputs before arming Qt timers."""
-    for deadline, now in ((inf, 0.0), (1.0, nan), (nan, inf)):
-        try:
-            _deadline_timer_interval_ms(deadline, now)
-        except ValueError as exc:
-            assert "must be finite" in str(exc)
-        else:
-            raise AssertionError("Non-finite frame deadline was accepted.")
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
 
-
-def test_gui_deadline_queue_is_bounded_and_preserves_earliest_frames() -> None:
-    """Retain only two future deadlines and drop later pulses rather than grow a backlog."""
-    pending: list[tuple[float, float, float]] = []
-    first = (2.0, 1.985, 1.99)
-    second = (3.0, 2.985, 2.99)
-    third = (4.0, 3.985, 3.99)
-    assert _append_pending_deadline(pending, first) is True
-    assert _append_pending_deadline(pending, second) is True
-    assert _append_pending_deadline(pending, third) is False
-    assert pending == [first, second]
-
-
-def test_gui_deadline_queue_accepts_a_new_deadline_after_consumption() -> None:
-    """Allow the bounded queue to resume after the GUI timer consumes an entry."""
-    pending = [(2.0, 1.985, 1.99), (3.0, 2.985, 2.99)]
-    pending.pop(0)
-    next_deadline = (4.0, 3.985, 3.99)
-    assert _append_pending_deadline(pending, next_deadline) is True
-    assert pending == [(3.0, 2.985, 2.99), next_deadline]
+    clock = _FrameClock(Pulse(), 60.0)
+    initial = clock.snapshot()["queue_delay_estimate_ms"]
+    assert initial == 5.0
+    clock.frame_started(2.010, 2.000)
+    assert clock.snapshot()["queue_delay_estimate_ms"] == 6.75
+    clock.request_frame(2.0 + 1.0 / 60.0, 2.0 + 1.0 / 60.0 - 0.00675)
+    assert len(emitted) == 1
+    clock.stop()

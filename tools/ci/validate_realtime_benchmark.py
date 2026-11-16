@@ -175,7 +175,7 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
 
 
 def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
-    """Validate the worker-clock identity, backpressure counters, and GUI dispatch timing.
+    """Validate the phase-locked worker clock and its single-outstanding-pulse contract.
 
     Args:
         metrics: Decoded realtime benchmark artifact.
@@ -188,14 +188,17 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         return
 
     scheduler = cast("JsonObject", scheduler_value)
-    if scheduler.get("mode") != "threaded-queued-deadline-with-gui-timer":
-        errors.append("frame_scheduler.mode must be threaded-queued-deadline-with-gui-timer")
+    if scheduler.get("mode") != "threaded-feedback-phase-locked":
+        errors.append("frame_scheduler.mode must be threaded-feedback-phase-locked")
     target_fps = _number(scheduler.get("target_fps"))
     if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
         errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
-    lead_ms = _number(scheduler.get("lead_ms"))
-    if lead_ms is None or abs(lead_ms - 15.0) > 1e-9:
-        errors.append("frame_scheduler.lead_ms must equal 15")
+    initial_delay = _number(scheduler.get("initial_queue_delay_ms"))
+    if initial_delay is None or abs(initial_delay - 5.0) > 1e-9:
+        errors.append("frame_scheduler.initial_queue_delay_ms must equal 5")
+    queue_delay = _number(scheduler.get("queue_delay_estimate_ms"))
+    if queue_delay is None or queue_delay < 0.0:
+        errors.append("frame_scheduler.queue_delay_estimate_ms must be finite and non-negative")
 
     emitted = _integer(scheduler.get("signals_emitted"))
     if emitted is None or emitted < (frames or MIN_FRAMES):
@@ -204,18 +207,15 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         value = _integer(scheduler.get(key))
         if value is None or value < 0:
             errors.append(f"frame_scheduler.{key} must be a non-negative integer")
-    if scheduler.get("deadline_timer") != "QTimer.PreciseTimer":
-        errors.append("frame_scheduler.deadline_timer must be QTimer.PreciseTimer")
-    for key in ("pending_deadlines_dropped", "timer_rearms", "max_pending_depth"):
-        value = _integer(scheduler.get(key))
-        if value is None or value < 0:
-            errors.append(f"frame_scheduler.{key} must be a non-negative integer")
-    max_pending_depth = _integer(scheduler.get("max_pending_depth"))
-    if max_pending_depth is not None and max_pending_depth > 2:
-        errors.append("frame_scheduler.max_pending_depth must not exceed 2")
-    pending_deadlines = _integer(scheduler.get("pending_deadlines"))
-    if pending_deadlines != 0:
-        errors.append("frame_scheduler.pending_deadlines must be zero at benchmark completion")
+    outstanding = _integer(scheduler.get("outstanding_pulses"))
+    if outstanding != 0:
+        errors.append("frame_scheduler.outstanding_pulses must be zero at benchmark completion")
+    dispatch_mode = scheduler.get("dispatch_mode")
+    if dispatch_mode != "Qt.QueuedConnection":
+        errors.append("frame_scheduler.dispatch_mode must be Qt.QueuedConnection")
+    queued_dispatches = _integer(scheduler.get("queued_dispatches"))
+    if queued_dispatches is None or queued_dispatches < (frames or MIN_FRAMES):
+        errors.append("frame_scheduler.queued_dispatches must cover the measured frames")
 
     dispatch_value = metrics.get("frame_dispatch_lateness")
     if not isinstance(dispatch_value, dict):
