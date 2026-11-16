@@ -21,6 +21,7 @@ class CommandOptions:
     Attributes:
         cwd: Working directory inherited by the child process.
         env: Complete child environment mapping, or None to inherit the parent.
+        input_text: Optional UTF-8 text written to the child's standard input.
         check: Whether an unsuccessful exit status should raise a command error.
         capture_output: Whether stdout and stderr should be captured as text.
         timeout: Maximum runtime in seconds, or None for an unbounded process.
@@ -28,6 +29,7 @@ class CommandOptions:
 
     cwd: str | PathLike[str] | None = None
     env: Mapping[str, str] | None = None
+    input_text: str | None = None
     check: bool = True
     capture_output: bool = False
     timeout: float | None = None
@@ -87,12 +89,14 @@ async def _execute(args: tuple[str, ...], options: CommandOptions) -> CommandRes
         *args,
         cwd=options.cwd,
         env=dict(options.env) if options.env is not None else None,
+        stdin=asyncio.subprocess.PIPE if options.input_text is not None else None,
         stdout=pipe,
         stderr=pipe,
     )
     try:
         async with asyncio.timeout(options.timeout):
-            stdout_bytes, stderr_bytes = await process.communicate()
+            input_bytes = options.input_text.encode("utf-8") if options.input_text is not None else None
+            stdout_bytes, stderr_bytes = await process.communicate(input_bytes)
     except TimeoutError as exc:
         if process.returncode is None:
             process.kill()

@@ -1,3 +1,4 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Block increases in missing-annotation and generic-object debt in changed Python files.
 
 The repository has existing annotation debt. This gate compares Ruff annotation diagnostics
@@ -9,11 +10,15 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import subprocess
 import sys
 from collections import Counter
-from collections.abc import Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+from tools.ci.command_runner import CommandOptions, run_command
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 from tools.check_documentation_contract import object_annotation_violations
 
@@ -31,9 +36,16 @@ RULES = (
 
 
 def changed_python_sources(base: str) -> dict[str, str | None]:
-    """Map each changed Python path to its base path, or None for newly added files."""
+    """Map each changed Python path to its base path, or None for newly added files.
+
+    Args:
+        base: Target branch name used as the merge-base comparison reference.
+
+    Returns:
+        Changed Python paths mapped to their previous path, or None when newly added.
+    """
     base_ref = f"origin/{base}"
-    result = subprocess.run(
+    result = run_command(
         [
             "git",
             "diff",
@@ -45,11 +57,9 @@ def changed_python_sources(base: str) -> dict[str, str | None]:
             "*.py",
             "*.pyi",
         ],
-        check=True,
-        capture_output=True,
-        text=True,
+        options=CommandOptions(check=True, capture_output=True, timeout=30),
     )
-    fields = result.stdout.split("\0")
+    fields = (result.stdout or "").split("\0")
     changed: dict[str, str | None] = {}
     index = 0
     while index < len(fields):
@@ -75,7 +85,15 @@ def annotation_regressions(
     current: Mapping[str, int],
     baseline: Mapping[str, int],
 ) -> tuple[tuple[str, int, int], ...]:
-    """Return rules whose current violation count exceeds the base count."""
+    """Return rules whose current violation count exceeds the base count.
+
+    Args:
+        current: Current diagnostic totals by Ruff rule code.
+        baseline: Diagnostic totals measured at the target branch base.
+
+    Returns:
+        Rule codes whose current total exceeds the baseline, with both counts.
+    """
     return tuple(
         (rule, baseline.get(rule, 0), current.get(rule, 0))
         for rule in RULES
@@ -84,7 +102,18 @@ def annotation_regressions(
 
 
 def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
-    """Count selected annotation diagnostics in source using a stable isolated Ruff run."""
+    """Count selected annotation diagnostics in source using an isolated Ruff run.
+
+    Args:
+        source: Python source text analyzed through standard input.
+        filename: Original filename used to label diagnostics and config matching.
+
+    Returns:
+        Ruff annotation diagnostic totals by rule code.
+
+    Raises:
+        RuntimeError: If Ruff cannot analyze the source or returns invalid JSON.
+    """
     command = [
         sys.executable,
         "-m",
@@ -101,9 +130,17 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
         filename,
         "-",
     ]
-    result = subprocess.run(command, input=source, check=False, capture_output=True, text=True)
-    if result.returncode not in (0, 1):
-        detail = result.stderr.strip() or result.stdout.strip()
+    result = run_command(
+        command,
+        options=CommandOptions(
+            check=False,
+            capture_output=True,
+            input_text=source,
+            timeout=30,
+        ),
+    )
+    if result.returncode not in {0, 1}:
+        detail = (result.stderr or "").strip() or (result.stdout or "").strip()
         msg = f"Ruff could not analyze {filename}: {detail}"
         raise RuntimeError(msg)
     try:
@@ -120,25 +157,46 @@ def _ruff_annotation_counts(source: str, filename: str) -> dict[str, int]:
 
 
 def object_annotation_regression(current: int, baseline: int) -> tuple[int, int] | None:
-    """Return baseline/current counts when changed code adds generic object annotations."""
+    """Return baseline/current counts when changed code adds generic object annotations.
+
+    Args:
+        current: Number of generic object annotations in the changed source.
+        baseline: Number of generic object annotations in its base version.
+
+    Returns:
+        Baseline and current totals when debt increased, otherwise None.
+    """
     return (baseline, current) if current > baseline else None
 
 
 def _base_source(base: str, path: str) -> str | None:
-    """Read a file from the target branch; return None when it did not exist there."""
-    result = subprocess.run(
+    """Read a file from the target branch; return None when it did not exist there.
+
+    Args:
+        base: Target branch name containing the previous source version.
+        path: Repository-relative path read from that branch.
+
+    Returns:
+        Source text from the target branch, or None when the path is absent.
+    """
+    result = run_command(
         ["git", "show", f"origin/{base}:{path}"],
-        check=False,
-        capture_output=True,
-        text=True,
+        options=CommandOptions(check=False, capture_output=True, timeout=15),
     )
     if result.returncode != 0:
         return None
-    return result.stdout
+    return result.stdout or ""
 
 
 def main() -> int:
-    """Fail when a changed Python file adds missing-annotation violations."""
+    """Fail when a changed Python file adds missing-annotation violations.
+
+    Returns:
+        Zero when changed Python sources add no annotation or generic-object debt.
+
+    Raises:
+        SystemExit: If command-line arguments are invalid.
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--base",

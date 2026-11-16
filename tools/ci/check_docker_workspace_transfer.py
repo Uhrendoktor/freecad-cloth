@@ -1,9 +1,10 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify Docker can transfer checked-out workspace files into and out of a container."""
 
 from __future__ import annotations
 
 import os
-import subprocess
+from tools.ci.command_runner import CommandOptions, run_command
 import tempfile
 from pathlib import Path
 from typing import Protocol
@@ -20,12 +21,33 @@ class CommandRunner(Protocol):
 
 
 def _run_command(command: list[str], *, check: bool, timeout: int) -> int:
-    """Execute one bounded Docker command and return its exit status."""
-    return subprocess.run(command, check=check, timeout=timeout).returncode
+    """Execute one bounded Docker command and return its exit status.
+
+    Args:
+        command: Docker executable and discrete command-line arguments.
+        check: Whether a nonzero status should raise a command execution error.
+        timeout: Maximum command runtime in seconds.
+
+    Returns:
+        Exit status reported by the Docker process.
+    """
+    result = run_command(
+        command,
+        options=CommandOptions(check=check, timeout=timeout),
+    )
+    return result.returncode
 
 
 def should_run_probe(runner_mode: str, event_name: str) -> bool:
-    """Run the workspace probe only for events assigned to the local runner."""
+    """Run the workspace probe only for events assigned to the local runner.
+
+    Args:
+        runner_mode: Configured CI runner mode.
+        event_name: GitHub event that triggered the workflow.
+
+    Returns:
+        True when the current event should run the Docker workspace probe.
+    """
     return runner_mode == "local" and event_name in {
         "push",
         "pull_request",
@@ -115,7 +137,11 @@ def validate_workspace_transfer(
 
 
 def main() -> int:
-    """Run the transfer check only for local-first trusted workflow executions."""
+    """Run the transfer check only for local-first trusted workflow executions.
+
+    Returns:
+        Zero after the probe passes or is intentionally skipped.
+    """
     runner_mode = os.environ.get("CLOTH_CI_RUNNER_MODE", "local")
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     if not should_run_probe(runner_mode, event_name):

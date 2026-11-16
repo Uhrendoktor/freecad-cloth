@@ -128,3 +128,21 @@ def test_run_command_terminates_a_child_that_exceeds_its_timeout() -> None:
             [_python_executable(), "-c", "import time; time.sleep(1)"],
             options=CommandOptions(timeout=COMMAND_TIMEOUT_SECONDS),
         )
+
+
+
+def test_run_command_writes_text_to_standard_input() -> None:
+    """Forward explicit UTF-8 input to a child without using a shell."""
+    result = run_command(
+        [
+            _python_executable(),
+            "-c",
+            "import sys; print(sys.stdin.read().upper())",
+        ],
+        options=CommandOptions(capture_output=True, input_text="stdin-contract\n"),
+    )
+
+    require(
+        condition=result.stdout == "STDIN-CONTRACT\n",
+        message="Command runner must write the configured input text to standard input.",
+    )
