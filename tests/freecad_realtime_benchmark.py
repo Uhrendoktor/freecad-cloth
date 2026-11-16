@@ -18,7 +18,12 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+
+    import numpy as np
+    import numpy.typing as npt
+
+    from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -32,6 +37,23 @@ FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
+
+
+type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+type _MeshProjectCallable = Callable[
+    [MeshCollisionProjector, npt.NDArray[np.float64]],
+    _ProjectionResult,
+]
+type _StitchedPairsCallable = Callable[
+    [
+        MeshCollisionProjector,
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+        Sequence[tuple[int, int]],
+        Sequence[int],
+    ],
+    _ProjectionResult,
+]
 
 
 def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
@@ -355,28 +377,28 @@ def main() -> None:
                 record_stage("collision_projection_total", started_at)
 
         def timed_mesh_project(
-            projector: object,
-            points_mm: object,
-        ) -> tuple[object, object]:
+            projector: MeshCollisionProjector,
+            points_mm: npt.NDArray[np.float64],
+        ) -> _ProjectionResult:
             started_at = time.perf_counter()
             try:
-                original = cast("Callable[..., tuple[object, object]]", original_mesh_project)
+                original = cast("_MeshProjectCallable", original_mesh_project)
                 return original(projector, points_mm)
             finally:
                 if not inside_stitched_reconciliation[0]:
                     record_stage("mesh_collision_projector", started_at)
 
         def timed_stitched_pairs(
-            projector: object,
-            positions_mm: object,
-            contact_normals: object,
-            stitches: object,
-            pinned_indices: object = (),
-        ) -> tuple[object, object]:
+            projector: MeshCollisionProjector,
+            positions_mm: npt.NDArray[np.float64],
+            contact_normals: npt.NDArray[np.float64],
+            stitches: Sequence[tuple[int, int]],
+            pinned_indices: Sequence[int] = (),
+        ) -> _ProjectionResult:
             started_at = time.perf_counter()
             inside_stitched_reconciliation[0] = True
             try:
-                original = cast("Callable[..., tuple[object, object]]", original_stitched_pairs)
+                original = cast("_StitchedPairsCallable", original_stitched_pairs)
                 return original(
                     projector,
                     positions_mm,
@@ -661,16 +683,22 @@ def main() -> None:
                     key: os.environ.get(key, "unset") for key in runtime_thread_keys
                 },
                 "pypbd_module": str(getattr(getattr(backend, "_pbd", None), "__file__", "unknown")),
-                "openmp_runtime_libraries": sorted(
-                    {
-                        line.rsplit("/", 1)[-1].split(" ", 1)[0]
-                        for line in Path("/proc/self/maps").read_text(encoding="utf-8").splitlines()
-                        if any(
-                            token in line.lower()
-                            for token in ("libgomp", "libomp", "libiomp")
-                        )
-                    }
-                ) if Path("/proc/self/maps").is_file() else [],
+                "openmp_runtime_libraries": (
+                    sorted(
+                        {
+                            line.rsplit("/", 1)[-1].split(" ", 1)[0]
+                            for line in Path("/proc/self/maps")
+                            .read_text(encoding="utf-8")
+                            .splitlines()
+                            if any(
+                                token in line.lower()
+                                for token in ("libgomp", "libomp", "libiomp")
+                            )
+                        }
+                    )
+                    if Path("/proc/self/maps").is_file()
+                    else []
+                ),
                 "cuda_runner_probe": os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false"),
                 "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
                 "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
