@@ -321,9 +321,6 @@ def test_realtime_benchmark_uses_the_production_priority_event_frame_clock() -> 
     assert "QEventLoop" in attributes, "canonical CI contract"
     assert "set_tick_callback" in attributes, "canonical CI contract"
     assert "stop_frame_clock" in attributes, "canonical CI contract"
-    assert "QCoreApplication" in attributes, "canonical CI contract"
-    assert "postEvent" in attributes, "canonical CI contract"
-    assert "HighEventPriority" in string_constants, "canonical CI contract"
     assert "WARMUP_FRAMES" in identifiers, "canonical CI contract"
     assert "FRAMES" in identifiers, "canonical CI contract"
     assert "frame_scheduler" in string_constants, "canonical CI contract"
@@ -334,6 +331,21 @@ def test_realtime_benchmark_uses_the_production_priority_event_frame_clock() -> 
     assert "validate_realtime_benchmark.py" in (
         ROOT / ".github" / "workflows" / "canonical-execution.yml"
     ).read_text(encoding="utf-8"), "canonical CI contract"
+
+
+def test_realtime_preview_dispatch_uses_priority_posted_qt_events() -> None:
+    """Require the worker frame request to use Qt's explicit high-priority event path."""
+    source_path = ROOT / "freecad_cloth" / "simulation" / "RealtimePreview.py"
+    parsed = ast.parse(source_path.read_text(encoding="utf-8"))
+    attributes = {node.attr for node in ast.walk(parsed) if isinstance(node, ast.Attribute)}
+    string_constants = {
+        node.value
+        for node in ast.walk(parsed)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    }
+    assert "postEvent" in attributes, "canonical CI contract"
+    assert "QCoreApplication" in string_constants, "canonical CI contract"
+    assert "HighEventPriority" in string_constants, "canonical CI contract"
 
 
 def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
