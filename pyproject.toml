@@ -266,18 +266,16 @@ extend-ignore-names = [
 "tests/test_validation_models.py" = ["PT011"]
 
 # Acceptance/CLI diagnostics deliberately use contextual built-in exception messages.
-"tests/freecad_screenshot_source.py" = ["TRY003"]
+"tests/freecad_screenshot_source.py" = ["TRY003", "E402"]
 "tests/freecad_simulation_quality_acceptance.py" = ["TRY003"]
 "tests/test_scene_understanding_report.py" = ["TRY003"]
 "tests/test_sewing_workbench.py" = ["TRY003"]
-"tools/ci/check_changed_python_types.py" = ["TRY003"]
-"tools/ci/check_docker_workspace_transfer.py" = ["TRY003"]
+"tools/ci/check_changed_python_types.py" = ["TRY003", "T201"]
+"tools/ci/check_docker_workspace_transfer.py" = ["TRY003", "T201"]
 "tools/ci/validate_ci_structure.py" = ["TRY003"]
 
 # These CI tools have stable stdout contracts consumed by Actions and developers.
-"tools/ci/check_changed_python_types.py" = ["T201"]
 "tools/ci/check_explicit_any_annotations.py" = ["T201"]
-"tools/ci/check_docker_workspace_transfer.py" = ["T201"]
 "tools/ci/check_pydantic_models.py" = ["T201"]
 
 # Native FreeCAD console diagnostics are intentionally visible to the user.
@@ -331,7 +329,6 @@ extend-ignore-names = [
 "tests/freecad_garment_e2e_smoke.py" = ["E402"]
 "tests/freecad_pattern_export_smoke.py" = ["E402"]
 "tests/freecad_simulation_turntable.py" = ["E402"]
-"tests/freecad_screenshot_source.py" = ["E402"]
 "tests/freecad_sewing_creation_smoke.py" = ["E402"]
 "tests/freecad_avatar_pose_ui_acceptance.py" = ["E402"]
 "tests/freecad_interactive_arrange_acceptance.py" = ["E402"]
