@@ -118,6 +118,35 @@ def _test_contains_named_declaration(tree: ast.Module, name: str) -> bool:
     )
 
 
+def _serialization_reason_is_specific(reason: str) -> bool:
+    """Check whether an exemption identifies a FreeCAD serialization incompatibility.
+
+    Args:
+        reason: Human-readable reason recorded for a serialization exception.
+
+    Returns:
+        True only when the reason names FreeCAD, serialization, and incompatibility.
+    """
+    normalized = reason.casefold()
+    required_terms = ("freecad", "serialization", "incompatib")
+    return all(term in normalized for term in required_terms)
+
+
+def _test_reference_is_valid(test_reference: list[str]) -> bool:
+    """Check the repository path and declaration name in an exemption reference.
+
+    Args:
+        test_reference: Parts split from a tests-path and test-name reference.
+
+    Returns:
+        True when exactly one test module and a named test declaration are supplied.
+    """
+    if len(test_reference) != EXPECTED_TEST_REFERENCE_PARTS:
+        return False
+    test_path, test_name = test_reference
+    return test_path.startswith("tests/") and test_name.startswith("test_")
+
+
 def serialization_exception_is_justified(
     path: str, *, exceptions: dict[str, tuple[str, str]] | None = None
 ) -> bool:
@@ -135,16 +164,8 @@ def serialization_exception_is_justified(
     if exception is None:
         return False
     reason, regression_test = exception
-    normalized_reason = reason.casefold()
     test_reference = regression_test.split("#", maxsplit=1)
-    if (
-        "freecad" not in normalized_reason
-        or "serialization" not in normalized_reason
-        or "incompatib" not in normalized_reason
-        or len(test_reference) != EXPECTED_TEST_REFERENCE_PARTS
-        or not test_reference[0].startswith("tests/")
-        or not test_reference[1].startswith("test_")
-    ):
+    if not _serialization_reason_is_specific(reason) or not _test_reference_is_valid(test_reference):
         return False
     test_path = ROOT / test_reference[0]
     if not test_path.is_file():

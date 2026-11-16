@@ -35,12 +35,46 @@ _IGNORED_DIRECTORIES = frozenset(
 )
 
 
+def _is_explicit_any_reference(
+    node: ast.AST,
+    any_names: set[str],
+    typing_modules: set[str],
+) -> bool:
+    """Return whether one AST name or attribute is an imported Any reference.
+
+    Args:
+        node: AST node inspected for a direct type-name reference.
+        any_names: Imported aliases for typing.Any.
+        typing_modules: Imported aliases for typing and typing_extensions.
+
+    Returns:
+        True when the node names one of the unrestricted Any symbols.
+    """
+    if isinstance(node, ast.Name):
+        return node.id in any_names
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "Any"
+        and isinstance(node.value, ast.Name)
+        and node.value.id in typing_modules
+    )
+
+
 def _contains_explicit_any(
     node: ast.AST,
     any_names: set[str],
     typing_modules: set[str],
 ) -> bool:
-    """Return whether type syntax references an imported Any name or typing.Any."""
+    """Return whether type syntax references an imported Any name or typing.Any.
+
+    Args:
+        node: Root expression whose nested type syntax should be inspected.
+        any_names: Imported aliases for typing.Any.
+        typing_modules: Imported aliases for typing and typing_extensions.
+
+    Returns:
+        True when the expression contains an unrestricted Any reference.
+    """
     pending = [node]
     while pending:
         current = pending.pop()
@@ -51,19 +85,21 @@ def _contains_explicit_any(
                 nested = None
             if nested is not None:
                 pending.append(nested)
-        elif (isinstance(current, ast.Name) and current.id in any_names) or (
-            isinstance(current, ast.Attribute)
-            and current.attr == "Any"
-            and isinstance(current.value, ast.Name)
-            and current.value.id in typing_modules
-        ):
+        elif _is_explicit_any_reference(current, any_names, typing_modules):
             return True
         pending.extend(ast.iter_child_nodes(current))
     return False
 
 
 def _type_comment_roots(comment: str) -> tuple[ast.AST, ...]:
-    """Parse an assignment type comment or a legacy function-signature comment."""
+    """Parse an assignment type comment or a legacy function-signature comment.
+
+    Args:
+        comment: Type-comment source text from an AST declaration.
+
+    Returns:
+        Parsed expression roots for supported assignment and function type comments.
+    """
     try:
         return (ast.parse(comment, mode="eval").body,)
     except SyntaxError:
