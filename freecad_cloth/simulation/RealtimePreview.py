@@ -1,9 +1,15 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
+from __future__ import annotations
+
 from collections.abc import Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
+
+if TYPE_CHECKING:
+    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
+    from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None
 
@@ -116,12 +122,14 @@ class _Preview:
             _PreviewPanel,
             _Triangle,
         )
+        from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
         proxy = self.scene.Proxy
         if proxy is None or not hasattr(proxy, "set_preview_mesh_publisher"):
             msg = "Realtime preview requires the quality-aware mesh publication path"
             raise RuntimeError(msg)
-        base = proxy._base_or_restore()
+        quality_proxy = cast("QualitySimulationProxy", proxy)
+        base = quality_proxy._base_or_restore()
         backend = getattr(base, "backend", None)
         if backend is None:
             msg = "Realtime preview requires an initialized solver backend"
@@ -138,10 +146,10 @@ class _Preview:
             self.scene.FabricRoughness,
         )
         try:
-            proxy.set_preview_mesh_publisher(mesh_preview.publish)
+            quality_proxy.set_preview_mesh_publisher(mesh_preview.publish)
             mesh_preview.publish_all(panels, backend.positions(), panel_triangles)
         except Exception:
-            proxy.set_preview_mesh_publisher(None)
+            quality_proxy.set_preview_mesh_publisher(None)
             mesh_preview.close()
             raise
         self._mesh_preview = mesh_preview
@@ -156,7 +164,7 @@ class _Preview:
         self.running = False
         proxy = self.scene.Proxy
         if proxy is not None and hasattr(proxy, "set_preview_mesh_publisher"):
-            proxy.set_preview_mesh_publisher(None)
+            cast("QualitySimulationProxy", proxy).set_preview_mesh_publisher(None)
         mesh_preview = self._mesh_preview
         self._mesh_preview = None
         if mesh_preview is not None:
@@ -170,8 +178,9 @@ class _Preview:
                             setattr(self.scene, name, value)
                     self.scene.Document.recompute()
                 elif proxy is not None and hasattr(proxy, "_publish_state"):
-                    base = proxy._base_or_restore()
-                    proxy._publish_state(self.scene, base)
+                    quality_proxy = cast("QualitySimulationProxy", proxy)
+                    base = quality_proxy._base_or_restore()
+                    quality_proxy._publish_state(self.scene, base)
             except (ReferenceError, RuntimeError):
                 pass
         self._message("Realtime preview stopped")
