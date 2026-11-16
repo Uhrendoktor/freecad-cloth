@@ -3,6 +3,8 @@
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -56,9 +58,6 @@ def test_task_panel_exposes_freecad_lifecycle_methods_without_gui_import() -> No
 
 def test_simulation_status_warns_when_the_drape_target_is_not_ready() -> None:
     """Do not mark a finite simulation as ready while its collision target is missing."""
-    from unittest.mock import patch
-    from types import SimpleNamespace
-
     panel = SimulationTaskPanel.__new__(SimulationTaskPanel)
     panel.scene = SimpleNamespace(
         FiniteState=True,
