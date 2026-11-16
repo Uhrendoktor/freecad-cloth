@@ -635,7 +635,7 @@ def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
-    assert "p95_frame_interval_ms exceeds the 30 FPS budget" in validator
+    assert "p95_frame_interval_ms exceeds the 60 FPS budget" in validator
 
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
