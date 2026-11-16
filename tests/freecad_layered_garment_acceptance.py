@@ -287,7 +287,7 @@ def _save_png(view, path: Path, camera_action, label: str) -> dict[str, object]:
         min_opaque_pixels=IMAGE_WIDTH * IMAGE_HEIGHT // 2,
     )
     return {
-        "file": path.name,
+        "file": str(path.relative_to(OUTPUT)),
         "label": label,
         "width": int(metrics["width"]),
         "height": int(metrics["height"]),
