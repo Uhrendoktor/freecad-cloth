@@ -295,6 +295,7 @@ class SewingCreationTaskPanel:
 
         mark_button(self.preview_button, "secondary")
         mark_button(self.viewport_pick_button, "secondary")
+        mark_button(self.focus_edges_button, "secondary")
         mark_button(self.commit_button, "primary")
         mark_button(self.cancel_button, "secondary")
         apply_panel_style(self.form)
