@@ -64,7 +64,7 @@ class CorrespondenceReport:
         """
         return correspondence_recovery(self.status)
 
-    def evidence(self) -> dict:
+    def evidence(self) -> dict[str, str | float | bool]:
         """Return the shared headless/GUI correspondence evidence contract.
 
         Returns:
@@ -241,7 +241,7 @@ def arc_length_vertex_indices(
     values, points = inputs.values, inputs.points
     count, start, end = inputs.count, inputs.start, inputs.end
 
-    cumulative = [0.0]
+    cumulative: list[float] = [0.0]
     for first, second in zip(points, points[1:], strict=False):
         next_distance = cumulative[-1] + math.dist(first, second)
         if not math.isfinite(next_distance):

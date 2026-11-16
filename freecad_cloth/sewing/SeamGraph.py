@@ -304,7 +304,7 @@ class SeamGraph:
         """
         requested_seams = tuple(seam_ids)
         selected = requested_seams or tuple(self.seams)
-        pairs = []
+        pairs: list[tuple[int, int]] = []
         for seam_id in selected:
             if seam_id not in self.seams:
                 msg = f"unknown seam id: {seam_id}"
@@ -343,7 +343,7 @@ class SeamGraph:
             raise ValueError(msg)
         return points
 
-    def to_metadata(self) -> dict:
+    def to_metadata(self) -> dict[str, object]:
         """Return deterministic JSON-friendly document metadata.
 
         Returns:
@@ -419,13 +419,15 @@ class SeamGraph:
         return cast("tuple[int, ...]", values)
 
 
-def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
+def _sample_indices(
+    values: Sequence[int], start: float, end: float, count: int
+) -> list[int]:
     span = end - start
     if count < 2 or span <= 0.0:
         msg = "seam range must contain at least two samples"
         raise ValueError(msg)
     last = len(values) - 1
-    result = []
+    result: list[int] = []
     for i in range(count):
         t = start + span * i / (count - 1)
         index = min(last, max(0, int(round(t * last))))

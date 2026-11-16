@@ -7,11 +7,11 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 
 
-def piece(name, ident):
+def piece(name: str, ident: str) -> PatternPiece:
     return PatternPiece(name, [(0, 0), (10, 0), (10, 10), (0, 10)], id=ident)
 
 
-def graph():
+def graph() -> SeamGraph:
     value = SeamGraph()
     value.add_piece(piece("left", "left"))
     value.add_piece(piece("right", "right"))
@@ -19,7 +19,7 @@ def graph():
     return value
 
 
-def test_seam_graph_validates_references_and_keeps_metadata_stable():
+def test_seam_graph_validates_references_and_keeps_metadata_stable() -> None:
     value = graph()
     first = value.to_metadata()
     second = value.to_metadata()
@@ -27,7 +27,7 @@ def test_seam_graph_validates_references_and_keeps_metadata_stable():
     assert first["seams"][0][:3] == ("side", "waist", "endpoints")
 
 
-def test_seam_semantics_are_canonical():
+def test_seam_semantics_are_canonical() -> None:
     seam = Seam(
         "left", 1, "right", 3, id="side", alignment="uniform", stitch_group="waist", kind="hem"
     )
@@ -42,7 +42,7 @@ def test_seam_semantics_are_canonical():
     assert value.to_metadata()["seams"][0][-1] == "hem"
 
 
-def test_reversed_normalized_ranges_generate_deterministic_stitches():
+def test_reversed_normalized_ranges_generate_deterministic_stitches() -> None:
     value = graph()
     edges = {("left", 1): (10, 11, 12, 13, 14), ("right", 3): (20, 21, 22, 23, 24)}
     assert value.stitch_pairs(edges) == ((10, 20), (11, 21), (12, 22), (13, 23), (14, 24))
@@ -54,7 +54,7 @@ def test_reversed_normalized_ranges_generate_deterministic_stitches():
     assert value.stitch_pairs(edges) == ((10, 24), (11, 23), (12, 22), (13, 21), (14, 20))
 
 
-def test_assembly_transform_is_separate_from_pattern_metadata():
+def test_assembly_transform_is_separate_from_pattern_metadata() -> None:
     value = graph()
     value.set_transform("right", Transform3D.translation(100, 0, 5))
     assert value.pieces["right"].outline == [(0, 0), (10, 0), (10, 10), (0, 10)]
@@ -62,7 +62,7 @@ def test_assembly_transform_is_separate_from_pattern_metadata():
     assert value.to_metadata()["assembly_transforms"][1][0] == "right"
 
 
-def test_invalid_seam_piece_or_edge_is_rejected():
+def test_invalid_seam_piece_or_edge_is_rejected() -> None:
     value = SeamGraph()
     value.add_piece(piece("left", "left"))
     with pytest.raises(ValueError, match="unknown pattern piece"):
@@ -72,7 +72,7 @@ def test_invalid_seam_piece_or_edge_is_rejected():
         value.add_seam(Seam("left", 9, "right", 0, id="bad-edge"))
 
 
-def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
+def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density() -> None:
     value = graph()
     edges = {("left", 1): (10, 11, 12, 13), ("right", 3): (20, 21, 22)}
     points = {
@@ -82,7 +82,7 @@ def test_arc_length_stitch_mapping_ignores_nonuniform_boundary_vertex_density():
     assert value.stitch_pairs(edges, edge_points=points) == ((10, 20), (12, 21), (13, 22))
 
 
-def test_true_mn_arc_length_mapping_uses_member_ranges_and_nonuniform_sampling():
+def test_true_mn_arc_length_mapping_uses_member_ranges_and_nonuniform_sampling() -> None:
     value = SeamGraph()
     value.add_piece(piece("left", "left"))
     value.add_piece(piece("right", "right"))
@@ -114,7 +114,7 @@ def test_true_mn_arc_length_mapping_uses_member_ranges_and_nonuniform_sampling()
     )
 
 
-def test_true_mn_arc_length_mapping_reversal_is_explicit():
+def test_true_mn_arc_length_mapping_reversal_is_explicit() -> None:
     value = SeamGraph()
     value.add_piece(piece("left", "left"))
     value.add_piece(piece("right", "right"))
@@ -129,13 +129,13 @@ def test_true_mn_arc_length_mapping_reversal_is_explicit():
     assert value.stitch_pairs(edges, edge_points=points) == ((10, 23), (11, 22), (12, 21), (13, 20))
 
 
-def test_missing_mesh_edge_vertices_is_rejected():
+def test_missing_mesh_edge_vertices_is_rejected() -> None:
     value = graph()
     with pytest.raises(ValueError, match="missing mesh edge"):
         value.stitch_pairs({("left", 1): (1, 2, 3)})
 
 
-def test_empty_seam_id_iterator_matches_default_all_seams():
+def test_empty_seam_id_iterator_matches_default_all_seams() -> None:
     value = graph()
     edges = {("left", 1): (10, 11, 12, 13, 14), ("right", 3): (20, 21, 22, 23, 24)}
     assert value.stitch_pairs(edges, seam_ids=iter(())) == value.stitch_pairs(edges)
