@@ -41,7 +41,6 @@ jobs:
   fast-feedback:
     # Preserve the required "Explicit full validation" check context; this alias still selects execution_mode: fast.
     name: Explicit full validation
-    name: Fast PR feedback
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.title, '[full-validation]') }}
     # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
