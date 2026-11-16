@@ -236,6 +236,24 @@ pixels. This gives a reviewer enough structured context to ask for an exact
 piece, edge, landmark, or contact pair while still inspecting the real rendered
 outfit.
 
+The current validation fixture is a deliberately simplified construction case:
+a longline four-panel shirt shell overlaps a four-panel waistband on a flared
+four-panel A-line skirt. The waistband belongs to the skirt's garment group;
+the shirt and skirt remain separate solver groups. The shirt hem overlaps the
+waistband vertically so cloth-to-cloth contact is mandatory rather than inferred
+from a visual gap. This fixture validates multi-piece sewing, separate garment
+identity, contact, and persistence. It is **not** yet a graded production shirt:
+it does not include sleeves, a collar, a button placket, size grading, or a
+calibrated woven-fabric constitutive model.
+
+The positive `InterClothResidualPenetration` field is a **requested-clearance
+deficit**: requested layer separation minus the closest sampled edge/triangle
+distance. It is not signed volumetric intersection depth. The runtime
+re-measures residual pairs after the final mannequin collision projection, and
+the artifact validator requires zero remaining edge/triangle pairs below the
+requested clearance. Mesh intersections, body fit/coverage, seam integrity,
+and visual plausibility remain separate acceptance questions.
+
 ## Failure ordering and anti-optimization gates
 
 The intended diagnosis ladder is:

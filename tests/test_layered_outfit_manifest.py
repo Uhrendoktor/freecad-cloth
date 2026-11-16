@@ -32,9 +32,9 @@ def _valid_artifact(root: Path) -> Path:
     image_inventory = (
         ("step-000-axonometric.png", "initial arranged layered outfit"),
         ("step-001-axonometric.png", "layered outfit motion at step 1"),
-        ("step-005-axonometric.png", "layered outfit motion at step 5"),
+        ("step-015-axonometric.png", "layered outfit motion at step 15"),
         *(
-            ("final-six-view/step-015-%s.png" % side, side)
+            ("final-six-view/step-060-%s.png" % side, side)
             for side in ("front", "rear", "right", "left", "top", "bottom")
         ),
     )
@@ -89,7 +89,7 @@ def _valid_artifact(root: Path) -> Path:
             }
         )
     checkpoints = []
-    for step in (1, 5, 15):
+    for step in (1, 15, 60):
         checkpoints.append(
             {
                 "step": step,
@@ -97,6 +97,7 @@ def _valid_artifact(root: Path) -> Path:
                 "finite": True,
                 "contact_count": 24,
                 "corrected_particle_count": 32,
+                "remaining_contact_count": 0,
                 "max_penetration_before_mm": 1.0,
                 "residual_penetration_mm": 0.0,
                 "max_seam_gap_mm": 0.2,
@@ -182,6 +183,7 @@ def _valid_artifact(root: Path) -> Path:
             "garment_group_b": "skirt",
             "minimum_requested_clearance_mm": 8.0,
             "measurement_method": "two-sided edge-to-triangle position projection",
+            "metric_semantics": "positive residual value is the requested clearance deficit (requested gap minus closest sampled edge/triangle distance), not signed volumetric intersection depth",
         },
     }
     manifest = {
@@ -268,7 +270,7 @@ def test_validator_rejects_blank_rendered_view(tmp_path: Path) -> None:
     """A present but visually blank PNG must not satisfy the six-view contract."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    blank_path = tmp_path / "final-six-view" / "step-015-left.png"
+    blank_path = tmp_path / "final-six-view" / "step-060-left.png"
     _write_png(blank_path, blank=True)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 

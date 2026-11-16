@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 EXPECTED_PIECES = 12
 EXPECTED_SEAMS = 16
 EXPECTED_GROUPS = frozenset({"shirt", "skirt"})
-EXPECTED_CHECKPOINTS = (1, 5, 15)
+EXPECTED_CHECKPOINTS = (1, 15, 60)
 EXPECTED_VIEWS = frozenset({"front", "rear", "right", "left", "top", "bottom"})
 EXPECTED_IMAGE_WIDTH = 960
 EXPECTED_IMAGE_HEIGHT = 720
@@ -226,6 +226,12 @@ def _validate_scene_map(
         abs(_number(relation, "minimum_requested_clearance_mm") - clearance_mm) <= 1e-9,
         "scene map inter-garment clearance disagrees with the simulation setting",
     )
+    metric_semantics = relation.get("metric_semantics")
+    _require(
+        isinstance(metric_semantics, str)
+        and "not signed volumetric intersection depth" in metric_semantics,
+        "scene map must define the residual value as a clearance deficit, not signed volume penetration",
+    )
     return {
         "landmarks": len(landmarks),
         "pieces": len(piece_records),
@@ -344,6 +350,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             isinstance(checkpoint.get("corrected_particle_count"), int)
             and int(checkpoint["corrected_particle_count"]) > 0,
             "no cloth particles were corrected by inter-garment contact at step %d" % step,
+        )
+        _require(
+            checkpoint.get("remaining_contact_count") == 0,
+            "residual edge/triangle contacts remain below requested clearance at step %d" % step,
         )
         _require(
             _number(checkpoint, "residual_penetration_mm") <= MAXIMUM_RESIDUAL_PENETRATION_MM,
