@@ -23,8 +23,8 @@ EXPECTED_SOURCE_TYPE = "FreeCAD Geometry"
 
 type _ScalarValue = bool | float | int
 STAGED_PREVIEW_MESSAGE = (
-    "Staged target edits. Apply & Refresh to rebuild collision geometry; "
-    "Cancel leaves the document unchanged."
+    "Staged target edits. Apply & Refresh commits the collision settings now; "
+    "Cancel closes without applying further edits."
 )
 EXPECTED_STALE_STATUS = "Target status: stale — source changed"
 MISSING_SOURCE_MESSAGE = "Select a collision object"
