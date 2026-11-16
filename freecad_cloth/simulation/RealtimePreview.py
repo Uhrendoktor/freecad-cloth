@@ -217,9 +217,9 @@ class _FrameClock:
                 queue_delay_estimate_ms = self._queue_delay_estimate_ms
                 worker_wakeup_estimate_ms = self._worker_wakeup_estimate_ms
                 ack_before = self._frame_ack_serial
-            emission_deadline = next_deadline - (
-                queue_delay_estimate_ms + worker_wakeup_estimate_ms
-            ) / 1000.0
+            emission_deadline = (
+                next_deadline - (queue_delay_estimate_ms + worker_wakeup_estimate_ms) / 1000.0
+            )
             wait_s = max(0.0, emission_deadline - time.perf_counter())
             if self._stop_event.wait(wait_s):
                 return
