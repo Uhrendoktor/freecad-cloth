@@ -130,7 +130,6 @@ def test_run_command_terminates_a_child_that_exceeds_its_timeout() -> None:
         )
 
 
-
 def test_run_command_writes_text_to_standard_input() -> None:
     """Forward explicit UTF-8 input to a child without using a shell."""
     result = run_command(

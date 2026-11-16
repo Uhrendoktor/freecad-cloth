@@ -95,7 +95,9 @@ async def _execute(args: tuple[str, ...], options: CommandOptions) -> CommandRes
     )
     try:
         async with asyncio.timeout(options.timeout):
-            input_bytes = options.input_text.encode("utf-8") if options.input_text is not None else None
+            input_bytes = (
+                options.input_text.encode("utf-8") if options.input_text is not None else None
+            )
             stdout_bytes, stderr_bytes = await process.communicate(input_bytes)
     except TimeoutError as exc:
         if process.returncode is None:
