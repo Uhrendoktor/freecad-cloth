@@ -339,14 +339,14 @@ class DrapeTargetTaskPanel:
 
         viewport_actions = qt_widgets.QWidget()
         viewport_layout = qt_widgets.QHBoxLayout(viewport_actions)
-        self.pick_source_button = qt_widgets.QPushButton("Pick in 3D view")
+        self.pick_source_button = qt_widgets.QPushButton("Pick in 3D")
         self.pick_source_button.setToolTip(
             "Choose a mannequin, shape, or mesh by clicking it in the FreeCAD viewport."
         )
         self.cancel_pick_button = qt_widgets.QPushButton("Cancel pick")
         self.cancel_pick_button.setToolTip("Leave viewport-picking mode without changing the target.")
         self.cancel_pick_button.setVisible(False)
-        self.show_source_button = qt_widgets.QPushButton("Select in 3D view")
+        self.show_source_button = qt_widgets.QPushButton("Highlight in 3D")
         self.show_source_button.setToolTip(
             "Highlight the selected collision source in the FreeCAD viewport."
         )
