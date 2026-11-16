@@ -1,13 +1,23 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for explicit semantic-edge topology repair."""
 
-from typing import TYPE_CHECKING
+from __future__ import annotations
+
+from types import ModuleType
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
+    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
-def _gui_modules():
+class _ComboBoxProtocol(Protocol):
+    def addItem(self, text: str, userData: object = None) -> None: ...
+
+    def currentData(self) -> object: ...
+
+
+def _gui_modules() -> tuple[ModuleType, ModuleType]:
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
@@ -23,7 +33,7 @@ def _gui_modules():
 class PatternTopologyRepairTaskPanel:
     """Show invalid seam sides and require an explicit current-edge mapping."""
 
-    def __init__(self, doc):
+    def __init__(self, doc: object) -> None:
         Gui, QtWidgets = _gui_modules()
         from freecad_cloth.pattern.PatternTopologyRepair import (
             current_edge_candidates,
@@ -41,7 +51,7 @@ class PatternTopologyRepairTaskPanel:
                 "Nothing is remapped automatically."
             )
         )
-        self.rows = []
+        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol]] = []
         grid = QtWidgets.QGridLayout()
         for col, title in enumerate(("Seam", "Side", "Reason", "Current edge")):
             grid.addWidget(QtWidgets.QLabel(title), 0, col)
@@ -70,11 +80,11 @@ class PatternTopologyRepairTaskPanel:
         )
         apply_panel_style(self.form)
 
-    def accept(self):
+    def accept(self) -> bool:
         from freecad_cloth.pattern.PatternTopologyRepair import apply_repair_plan
 
-        repairs = [
-            (seam, side, combo.currentData())
+        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [
+            (seam, side, str(combo.currentData()))
             for seam, side, combo in self.rows
             if combo.currentData()
         ]
@@ -100,15 +110,15 @@ class PatternTopologyRepairTaskPanel:
         self.Gui.Control.closeDialog()
         return True
 
-    def reject(self):
+    def reject(self) -> bool:
         self.Gui.Control.closeDialog()
         return True
 
-    def getStandardButtons(self):
+    def getStandardButtons(self) -> int:
         return 0x00000400 | 0x00800000
 
 
-def show_topology_repair_task(doc):
+def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:
     Gui, _QtWidgets = _gui_modules()
     panel = PatternTopologyRepairTaskPanel(doc)
     Gui.Control.showDialog(panel)

@@ -248,6 +248,7 @@ extend-ignore-names = [
   "EdgeBId",
   "EdgeBSignature",
   "EdgeB",
+  "currentData",
   "viewTop",
   "QtWidgets",
   "QtCore",

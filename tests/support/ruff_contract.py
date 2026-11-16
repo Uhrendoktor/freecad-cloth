@@ -247,6 +247,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "EdgeBId",
         "EdgeBSignature",
         "EdgeB",
+        "currentData",
         "viewTop",
     }
     host_api_variables = {
