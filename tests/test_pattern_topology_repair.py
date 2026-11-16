@@ -127,6 +127,29 @@ def test_viewport_native_sketch_index_resolves_exact_semantic_edge():
     assert record["id"] == current_edge_candidates(seam, "A")[2]["id"]
 
 
+def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_geometry():
+    """Keep EdgeN mapped to original Sketcher Geometry index when construction is skipped."""
+    piece = _piece()
+    geometry = piece.Sketch.Geometry
+    piece.Sketch.Geometry = (geometry[0], geometry[1], *geometry[2:])
+    piece.Sketch.SemanticEdgeIds = (
+        "front:edge:0",
+        "",
+        "front:edge:1",
+        "front:edge:2",
+        "front:edge:3",
+    )
+    piece.Sketch.getConstruction = lambda index: index == 1
+    seam = _seam(piece)
+
+    # FreeCAD's SketchObject::buildShape increments geoId before skipping construction
+    # geometry, so the visible native Edge3 still identifies Geometry[2].
+    record = current_edge_candidate_for_sketch_index(seam, "A", 2)
+
+    assert record["id"] == "front:edge:1"
+    assert record["id"] == current_edge_candidates(seam, "A")[1]["id"]
+
+
 def test_viewport_native_sketch_index_rejects_nonexistent_edge():
     """Fail closed when a viewport edge index is outside the current Sketcher source."""
     seam = _seam(_piece())
