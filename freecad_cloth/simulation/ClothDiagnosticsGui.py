@@ -285,7 +285,7 @@ class DiagnosticsTaskPanel:
         self.map_button = QtWidgets.QPushButton("Create diagnostic map")
         self.focus_button = QtWidgets.QPushButton("Focus cloth panels in 3D")
         self.focus_button.setToolTip(
-            "Select the source cloth panels and frame them in the viewport without changing camera orientation."
+            "Select source cloth panels and frame them without changing camera orientation."
         )
         self.export_button = QtWidgets.QPushButton("Export analysis data…")
         from freecad_cloth.common.UiDesign import mark_button
@@ -370,12 +370,20 @@ class DiagnosticsTaskPanel:
         from freecad_cloth.common.UiDesign import set_status
 
         if not self._source_panels:
-            set_status(self.status, "No source cloth panels are available to focus.", state="warning")
+            set_status(
+                self.status,
+                "No source cloth panels are available to focus.",
+                state="warning",
+            )
             return False
         _App, Gui, _QtWidgets = _qt()
         active = Gui.activeDocument()
         if active is None:
-            set_status(self.status, "Open the simulation document to focus its cloth panels.", state="error")
+            set_status(
+                self.status,
+                "Open the simulation document to focus its cloth panels.",
+                state="error",
+            )
             return False
         selection = Gui.Selection
         selection.clearSelection()
