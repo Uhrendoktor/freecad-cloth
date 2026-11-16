@@ -1,8 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient Coin3D mesh presentation for interactive cloth preview frames."""
 
-from collections.abc import Sequence
 from typing import Protocol, cast
+
+from collections.abc import Sequence
 
 
 type _Position = tuple[float, float, float]
@@ -107,9 +108,9 @@ class RealtimeMeshPreview:
             RuntimeError: If no active GUI document is available.
             ValueError: If the fabric color does not contain three channels.
         """
-        from pivy import coin
-
         import FreeCADGui as Gui
+
+        from pivy import coin
 
         active_document = Gui.activeDocument()
         if active_document is None:
@@ -146,7 +147,12 @@ class RealtimeMeshPreview:
                 material = cast("_CoinMaterial", coin.SoMaterial())
                 material.diffuseColor = material_color
                 material.transparency = material_transparency
-                material.specularColor = (material_specular,) * 3
+                material_specular_color: tuple[float, float, float] = (
+            material_specular,
+            material_specular,
+            material_specular,
+        )
+        material.specularColor = material_specular_color
                 material.shininess = material_shininess
                 coordinates = cast("_CoordinateNode", coin.SoCoordinate3())
                 indexed_faces = cast("_IndexedFaceNode", coin.SoIndexedFaceSet())
