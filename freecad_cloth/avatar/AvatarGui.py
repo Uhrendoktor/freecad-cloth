@@ -201,6 +201,9 @@ class AvatarTaskPanel:
 
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(display_layout, QtWidgets)
         self.skin_offset = QtWidgets.QDoubleSpinBox()
         self.skin_offset.setRange(0.0, 50.0)
         self.skin_offset.setDecimals(1)
@@ -301,6 +304,9 @@ class AvatarTaskPanel:
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox(title)
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
         for key, label in fields:
             box = QtWidgets.QDoubleSpinBox()
             box.setRange(1.0, 3000.0)
@@ -331,6 +337,9 @@ class AvatarTaskPanel:
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox("Body composition")
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
         self.mass_target_enabled = QtWidgets.QCheckBox("Fit target body mass")
         self.mass_target_enabled.setToolTip(
             "Optionally constrain clad-body's differentiable mass_kg measurement. "
@@ -694,6 +703,9 @@ class AvatarTaskPanel:
 
         group = QtWidgets.QGroupBox("Body shape")
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
 
         gender_row = QtWidgets.QHBoxLayout()
         gender_row.addWidget(QtWidgets.QLabel("Feminine"))
