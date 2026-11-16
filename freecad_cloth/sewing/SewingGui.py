@@ -145,7 +145,10 @@ def repair_correspondence_settings(
         seam.StartB, seam.EndB = 0.0, 1.0
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
-        msg = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+        msg = (
+            "length mismatch requires editing the pattern or seam ranges; "
+            "it was not hidden by changing tolerance"
+        )
         raise ValueError(msg)
     return "seam correspondence is already valid"
 
@@ -316,7 +319,8 @@ class SewingTaskPanel:
             state="success" if current_status.lower() == "valid" else "error",
         )
         self.lengths.setText(
-            f"{float(self.obj.LengthA):.2f} / {float(self.obj.LengthB):.2f} mm (Δ {float(self.obj.LengthDifference):.2f})"
+            f"{float(self.obj.LengthA):.2f} / {float(self.obj.LengthB):.2f} mm "
+            f"(Δ {float(self.obj.LengthDifference):.2f})"
         )
         report = correspondence_report(
             self.seam,
