@@ -469,7 +469,8 @@ class SewingCreationTaskPanel:
 
                 set_status(
                     self.feedback,
-                    "Seam preview shown. Review the matching color and A/B labels, then Commit or Cancel.",
+                    "Seam preview shown. Review the matching color and A/B labels, then "
+                    "Commit or Cancel.",
                     state="success",
                 )
 
