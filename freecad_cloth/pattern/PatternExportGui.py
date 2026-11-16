@@ -93,8 +93,9 @@ class PatternExportTaskPanel:
         self.format.currentTextChanged.connect(self._format_changed)
         self._format_changed(self.format.currentText())
 
-        from freecad_cloth.common.UiDesign import apply_panel_style
+        from freecad_cloth.common.UiDesign import apply_panel_style, configure_form_layout
 
+        configure_form_layout(layout, QtWidgets)
         apply_panel_style(self.form)
 
     def _format_changed(self, value):
