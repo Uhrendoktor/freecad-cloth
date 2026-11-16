@@ -162,7 +162,10 @@ class SewingTaskPanel:
         self.seam = getattr(obj, "Seam", None)
         self._transaction_active = False
         self.form = QtWidgets.QWidget()
-        layout = QtWidgets.QFormLayout(self.form)
+        self.form.setObjectName("ClothSewingOperationTaskPanel")
+        root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        layout = QtWidgets.QFormLayout(content)
         seam_id = str(getattr(self.seam, "SeamId", "")) if self.seam else ""
         piece_a = getattr(self.seam, "PieceA", None) if self.seam else None
         piece_b = getattr(self.seam, "PieceB", None) if self.seam else None
@@ -207,7 +210,6 @@ class SewingTaskPanel:
         self.lengths.setWordWrap(True)
         self.correspondence = QtWidgets.QLabel()
         self.correspondence.setWordWrap(True)
-        layout.addRow("Status", self.status)
         layout.addRow("Seam lengths", self.lengths)
         layout.addRow("Correspondence", self.correspondence)
         self.reverse_button = QtWidgets.QPushButton("Reverse B")
@@ -238,6 +240,17 @@ class SewingTaskPanel:
         self.edit_b_button = QtWidgets.QPushButton("Edit side B in Sketcher")
         self.edit_b_button.clicked.connect(lambda: self.edit_sketch_side("B"))
         layout.addRow("Sketcher B", self.edit_b_button)
+
+        from freecad_cloth.common.UiDesign import (
+            apply_panel_style,
+            configure_form_layout,
+            make_scroll_area,
+            set_status,
+        )
+
+        configure_form_layout(layout, QtWidgets)
+        root.addWidget(self.status)
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
         self._original = {
             "Tolerance": float(obj.Tolerance),
             "RelativeTolerance": float(getattr(obj, "RelativeTolerance", 0.05)),
@@ -253,8 +266,6 @@ class SewingTaskPanel:
         }
         self._begin_transaction()
         self._refresh()
-
-        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
 
         set_status(self.seam_info, self.seam_info.text(), state="info")
         apply_panel_style(self.form)
@@ -296,7 +307,7 @@ class SewingTaskPanel:
         self._transaction_active = False
         return False
 
-    def _refresh(self):
+    def _refresh(self, message: str | None = None):
         from freecad_cloth.common.UiDesign import set_status
 
         current_status = str(self.obj.Status)
@@ -316,6 +327,8 @@ class SewingTaskPanel:
         )
         if report is None:
             set_status(self.correspondence, "No seam correspondence", state="warning")
+            if message:
+                set_status(self.status, message, state="info")
             return
         set_status(
             self.correspondence,
@@ -339,6 +352,8 @@ class SewingTaskPanel:
                 )
             )
         )
+        if message:
+            set_status(self.status, message, state="info")
 
     def focus_3d(self):
         if self.seam is None:
