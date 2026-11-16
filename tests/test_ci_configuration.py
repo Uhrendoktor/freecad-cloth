@@ -938,8 +938,7 @@ def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten() -
 def test_workflow_run_cap_reserves_slot_for_current_cleanup_run() -> None:
     """Leave nine completed runs so the current cleanup workflow becomes number ten."""
     runs = [
-        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
-        for run_id in range(1, 13)
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"} for run_id in range(1, 13)
     ]
     deleted_paths: list[str] = []
     result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
