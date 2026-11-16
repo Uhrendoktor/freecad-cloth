@@ -442,7 +442,9 @@ class SewingNetworkTaskPanel:
         """
         self._store_selected_range()
         self._current_row = int(row)
-        self.focus_seam_button.setEnabled(0 <= self._current_row < len(self._seams))
+        focus_button = getattr(self, "focus_seam_button", None)
+        if focus_button is not None:
+            focus_button.setEnabled(0 <= self._current_row < len(self._seams))
         if not 0 <= self._current_row < len(self._seams):
             from freecad_cloth.common.UiDesign import set_status
 
