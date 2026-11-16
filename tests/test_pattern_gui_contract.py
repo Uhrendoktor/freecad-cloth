@@ -3,7 +3,7 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.pattern import PatternGui
+from freecad_cloth.pattern import PatternExportGui, PatternGui
 
 EXPECTED_RECOMPUTE_COUNT = 1
 EXPECTED_ORIGINAL_WIDTH_MM = 100.0
@@ -353,3 +353,25 @@ def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
     assert obj.SeamAllowance == EXPECTED_ORIGINAL_ALLOWANCE_MM
     assert obj.GrainlineAngle == EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG
     assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+
+
+
+def test_pattern_export_focus_action_selects_and_frames_source_without_changing_camera() -> None:
+    """Expose a source-focus action while preserving the current viewport orientation."""
+    piece = SimpleNamespace(Name="FrontPiece")
+    calls: list[tuple[object, ...]] = []
+    view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    panel = PatternExportGui.PatternExportTaskPanel.__new__(PatternExportGui.PatternExportTaskPanel)
+    panel.piece = piece
+    panel.App = SimpleNamespace(ActiveDocument=object())
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+
+    assert panel.focus_source_in_3d() is True
+    assert calls == [("clear",), ("select", piece), ("fit",)]
