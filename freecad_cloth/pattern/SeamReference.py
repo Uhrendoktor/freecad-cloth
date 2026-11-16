@@ -63,7 +63,7 @@ class EdgeReference:
     edge_id: str
     signature: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not str(self.piece_id).strip():
             msg = "piece_id must not be empty"
             raise ValueError(msg)
@@ -74,7 +74,7 @@ class EdgeReference:
             msg = "signature must contain native Sketcher provenance"
             raise ValueError(msg)
 
-    def as_dict(self):
+    def as_dict(self) -> dict[str, str]:
         """Serialize this reference to a dictionary.
 
         Returns:

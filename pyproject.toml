@@ -257,7 +257,8 @@ extend-ignore-names = [
 
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
-"tests/**/*.py" = ["S101", "PLR2004", "T201"]
+# Unit-style test functions intentionally use Python's implicit None return, like Rust unit tests.
+"tests/**/*.py" = ["S101", "PLR2004", "T201", "ANN201"]
 
 # These tests assert public exception classes where message text is not a contract.
 "tests/test_avatar_provider.py" = ["PT011"]
