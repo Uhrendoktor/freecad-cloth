@@ -1,7 +1,7 @@
 name: Commit validation
 run-name: Commit validation
 
-# PR updates run fast feedback by default. Add [full-validation] to the PR title for an explicit full run.
+# PR updates run fast feedback by default. Use [ui-validation] for focused UI regressions or [full-validation] only for an explicitly requested full run.
 # Merge-queue candidates always receive the dedicated Required pre-merge validation gate.
 
 on:
@@ -15,11 +15,11 @@ on:
         type: boolean
         default: false
       execution_mode:
-        description: Manually dispatched runs use full validation.
+        description: Manually dispatched runs may use full or focused UI validation.
         required: false
         type: choice
         default: full
-        options: [full]
+        options: [full, ui-targeted]
       pr_number:
         description: Optional PR number for explicitly requested full validation and simulation evidence.
         required: false
@@ -40,7 +40,7 @@ permissions:
 jobs:
   fast-feedback:
     name: Fast PR feedback
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.title, '[full-validation]') }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.title, '[full-validation]') && !contains(github.event.pull_request.title, '[ui-validation]') }}
     # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
       actions: write
@@ -50,6 +50,20 @@ jobs:
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: fast
+      diagnostic_controls: false
+      pr_number: ""
+
+  ui-targeted-validation:
+    name: Targeted UI validation
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[ui-validation]') }}
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      pull-requests: read
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: ui-targeted
       diagnostic_controls: false
       pr_number: ""
 
@@ -80,6 +94,20 @@ jobs:
       execution_mode: full
       diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
       pr_number: ${{ inputs.pr_number || '' }}
+
+  targeted-ui-validation:
+    name: Targeted UI validation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'ui-targeted' }}
+    permissions:
+      actions: write
+      contents: read
+      packages: write
+      pull-requests: read
+    uses: ./.github/workflows/canonical-execution.yml
+    with:
+      execution_mode: ui-targeted
+      diagnostic_controls: false
+      pr_number: ""
 
   scheduled-validation:
     name: Scheduled static validation
