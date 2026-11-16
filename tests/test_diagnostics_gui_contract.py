@@ -150,14 +150,18 @@ def test_metric_selection_refreshes_definition_range_and_action_state(
     _install_panel_dependencies(monkeypatch)
     panel = ClothDiagnosticsGui.DiagnosticsTaskPanel(cast("object", object()))
 
-    assert panel.definition.text == "Formula: stress formula | Units: unit | Read-only derived analysis"
+    assert panel.definition.text == (
+        "Formula: stress formula | Units: unit | Read-only derived analysis"
+    )
     assert panel.status.text.startswith("Stress map: 2 faces")
     assert panel.map_button.enabled is True
     assert panel.export_button.enabled is True
 
     panel.metric.setCurrentText("strain")
 
-    assert panel.definition.text == "Formula: strain formula | Units: unit | Read-only derived analysis"
+    assert panel.definition.text == (
+        "Formula: strain formula | Units: unit | Read-only derived analysis"
+    )
     assert panel.status.text.startswith("Strain map: 2 faces")
     assert panel.map_button.enabled is True
     assert panel.export_button.enabled is True
