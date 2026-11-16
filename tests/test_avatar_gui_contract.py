@@ -8,6 +8,7 @@ the GUI implementation source.
 
 import math
 from dataclasses import fields
+from types import SimpleNamespace
 
 from freecad_cloth.avatar import AvatarCommands
 from freecad_cloth.avatar.AvatarGui import AvatarTaskPanel
