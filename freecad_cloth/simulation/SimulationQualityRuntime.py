@@ -325,7 +325,8 @@ class QualitySimulationProxy:
                 _write_mesh(panel, positions, triangles)
             else:
                 publisher(panel, positions, triangles)
-        self._apply_presentation(obj)
+        if publisher is None:
+            self._apply_presentation(obj)
         obj.Steps = int(base.last_steps)
         obj.SimulatedTime = base.backend.time
         obj.ParticleCount = len(positions)
