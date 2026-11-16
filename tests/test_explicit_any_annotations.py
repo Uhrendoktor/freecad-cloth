@@ -71,7 +71,6 @@ def test_parse_errors_fail_closed() -> None:
     assert result and result[0].startswith("broken.py:1: invalid Python syntax")
 
 
-
 def test_python_inventory_includes_stub_files(tmp_path: Path) -> None:
     """Enumerate both Python implementation files and declaration stubs."""
     package = tmp_path / "sample"
