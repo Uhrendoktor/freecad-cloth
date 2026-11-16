@@ -323,7 +323,7 @@ def _validate_versioned_realtime_metadata(data: JsonObject) -> None:
         _realtime_failure(data)
 
 
-def _finite_realtime_metric(data: dict, name: str) -> float:
+def _finite_realtime_metric(data: JsonObject, name: str) -> float:
     """Read one finite non-boolean numeric metric from a JSON payload.
 
     Args:
