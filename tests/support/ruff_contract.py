@@ -20,9 +20,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     allowed_ignores = {
         "COM812",
         "COM819",
-        "D203",
         "D206",
-        "D213",
         "D300",
         "E111",
         "E114",
@@ -32,7 +30,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "PLC0415",
         "PLR6301",
         "UP031",
-    "DOC502",
+        "DOC502",
         "Q000",
         "Q001",
         "Q002",
@@ -122,6 +120,10 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=lint.get("preview") is True,
         message="Ruff preview rules must remain enabled repository-wide.",
+    )
+    require(
+        condition=project["tool"]["ruff"]["lint"]["pydocstyle"]["convention"] == "google",
+        message="Ruff docstring rules must use the repository's documented Google convention.",
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
