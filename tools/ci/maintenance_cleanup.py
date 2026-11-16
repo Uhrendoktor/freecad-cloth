@@ -26,6 +26,8 @@ MAX_RUN_QUERY_SPLITS = 16
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
+RESERVED_BRANCH_NAMES = frozenset({"docs/screenshots"})
+EVIDENCE_BRANCH_PREFIX = "simulation-evidence/pr-"
 
 
 def gh_json(*args: str) -> object:
@@ -42,6 +44,14 @@ def gh_delete(*args: str) -> None:
 def epoch(value: str) -> float:
     """Convert an ISO-8601 timestamp to a Unix epoch."""
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+
+
+def is_open_pr_evidence_branch(name: str, open_pr_numbers: set[int]) -> bool:
+    """Return whether an evidence ref belongs to a pull request that is still open."""
+    if not name.startswith(EVIDENCE_BRANCH_PREFIX):
+        return False
+    number_text = name.removeprefix(EVIDENCE_BRANCH_PREFIX)
+    return number_text.isdecimal() and int(number_text) in open_pr_numbers
 
 
 def paginated_api_items(
@@ -228,18 +238,22 @@ def stale_unprotected_branches(
     activity_epochs: dict[str, float],
     cutoff_epoch: float,
     closed_pr_head_shas: dict[str, set[str]] | None = None,
+    open_pr_numbers: set[int] | None = None,
 ) -> list[dict[str, object]]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
-    Open pull-request heads and branches with missing activity evidence are
-    retained. Results are ordered oldest first for predictable bounded cleanup.
+    Open PR heads, evidence refs for open PRs, reserved documentation refs, and
+    branches with missing activity evidence are retained. Results are ordered
+    oldest first for predictable bounded cleanup.
     """
+    active_pr_numbers = open_pr_numbers if open_pr_numbers is not None else set()
     stale: list[tuple[float, dict[str, object]]] = []
     for branch in branches:
         name = branch.get("name")
         if (
             not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
+            or name in RESERVED_BRANCH_NAMES
+            or is_open_pr_evidence_branch(name, active_pr_numbers)
             or name == default_branch
             or name in open_heads
             or branch.get("protected") is not False
@@ -260,6 +274,80 @@ def stale_unprotected_branches(
         stale.append((activity, branch))
     stale.sort(key=lambda item: (item[0], str(item[1].get("name", ""))))
     return [branch for _, branch in stale]
+
+
+def cleanup_stale_branch_refs(repo: str, cutoff_epoch: float) -> tuple[int, int, int, set[str]]:
+    """Delete stale unprotected refs while retaining documentation and open-PR evidence."""
+    pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
+    open_heads: set[str] = set()
+    open_pr_numbers: set[int] = set()
+    protected_shas: set[str] = set()
+    for pull_request in pull_requests:
+        number = pull_request.get("number")
+        if isinstance(number, int):
+            open_pr_numbers.add(number)
+        head = pull_request.get("head")
+        if isinstance(head, dict):
+            ref, sha = head.get("ref"), head.get("sha")
+            if isinstance(ref, str):
+                open_heads.add(ref)
+            if isinstance(sha, str):
+                protected_shas.add(sha)
+
+    repository_data = gh_json("api", f"repos/{repo}")
+    default_branch = (
+        repository_data.get("default_branch") if isinstance(repository_data, dict) else None
+    )
+    if not isinstance(default_branch, str):
+        raise RuntimeError("GitHub repository metadata omitted the default branch")
+
+    branches = list(paginated_api_items(f"repos/{repo}/branches"))
+    branch_shas: set[str] = set()
+    for branch in branches:
+        name = branch.get("name")
+        commit = branch.get("commit")
+        if (
+            not isinstance(name, str)
+            or name in RESERVED_BRANCH_NAMES
+            or is_open_pr_evidence_branch(name, open_pr_numbers)
+            or name == default_branch
+            or name in open_heads
+            or branch.get("protected") is not False
+        ):
+            continue
+        sha = commit.get("sha") if isinstance(commit, dict) else None
+        if isinstance(sha, str):
+            branch_shas.add(sha)
+
+    # Resolve all candidate activity before deleting anything; incomplete GraphQL data
+    # aborts the branch pass instead of treating an unknown branch as stale.
+    activity_epochs = branch_activity_epochs(repo, branch_shas)
+    closed_pr_heads = closed_pr_head_shas_by_branch(
+        repo, branches, open_heads, default_branch, activity_epochs, cutoff_epoch
+    )
+    stale_branches = stale_unprotected_branches(
+        branches,
+        open_heads,
+        default_branch,
+        activity_epochs,
+        cutoff_epoch,
+        closed_pr_heads,
+        open_pr_numbers,
+    )
+    selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
+    removed_branches = 0
+    for branch in selected_branches:
+        name = branch.get("name")
+        if not isinstance(name, str):
+            raise RuntimeError("GitHub returned a stale branch without a name")
+        gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
+        removed_branches += 1
+    return (
+        len(branches),
+        removed_branches,
+        len(stale_branches) - len(selected_branches),
+        protected_shas,
+    )
 
 
 def pbd_validation_tag(dockerfile_contents: bytes) -> str:
@@ -658,7 +746,12 @@ def main() -> int:
     parser.add_argument(
         "--runs-only",
         action="store_true",
-        help="prune old completed Actions runs without branch or package cleanup",
+        help="prune completed Actions runs without branch or package cleanup",
+    )
+    parser.add_argument(
+        "--branches-and-runs-only",
+        action="store_true",
+        help="prune stale branches and completed Actions runs without package cleanup",
     )
     args = parser.parse_args()
     repo = os.environ["REPO"]
@@ -677,59 +770,25 @@ def main() -> int:
         )
         return 0
 
-    pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
-    open_heads: set[str] = set()
-    protected_shas: set[str] = set()
-    for pull_request in pull_requests:
-        head = pull_request.get("head")
-        if isinstance(head, dict):
-            ref, sha = head.get("ref"), head.get("sha")
-            if isinstance(ref, str):
-                open_heads.add(ref)
-            if isinstance(sha, str):
-                protected_shas.add(sha)
+    if args.branches_and_runs_only:
+        branches_seen, removed_branches, branch_pending, _ = cleanup_stale_branch_refs(
+            repo, branch_cutoff
+        )
+        run_result = cleanup_workflow_runs_to_cap(repo)
+        print(
+            "maintenance-cleanup=passed mode=branches-and-runs-only "
+            f"branches_seen={branches_seen} removed_branches={removed_branches} "
+            f"stale_branches_pending={branch_pending} "
+            f"total_runs_before={run_result['total_before']} keep_runs={run_result['keep']} "
+            f"removed_runs={run_result['deleted']} "
+            f"remaining_runs={run_result['remaining_estimate']} "
+            f"runs_pending={run_result['pending']}"
+        )
+        return 0
 
-    repository_data = gh_json("api", f"repos/{repo}")
-    default_branch = (
-        repository_data.get("default_branch") if isinstance(repository_data, dict) else None
+    branches_seen, removed_branches, stale_branches_pending, protected_shas = (
+        cleanup_stale_branch_refs(repo, branch_cutoff)
     )
-    if not isinstance(default_branch, str):
-        raise RuntimeError("GitHub repository metadata omitted the default branch")
-
-    branches = list(paginated_api_items(f"repos/{repo}/branches"))
-    branch_shas: set[str] = set()
-    for branch in branches:
-        name = branch.get("name")
-        commit = branch.get("commit")
-        if (
-            not isinstance(name, str)
-            or name.startswith("simulation-evidence/")
-            or name == default_branch
-            or name in open_heads
-            or branch.get("protected") is not False
-        ):
-            continue
-        sha = commit.get("sha") if isinstance(commit, dict) else None
-        if isinstance(sha, str):
-            branch_shas.add(sha)
-
-    # Resolve all candidate activity before deleting anything; incomplete GraphQL data
-    # aborts the branch pass instead of treating an unknown branch as stale.
-    activity_epochs = branch_activity_epochs(repo, branch_shas)
-    closed_pr_heads = closed_pr_head_shas_by_branch(
-        repo, branches, open_heads, default_branch, activity_epochs, branch_cutoff
-    )
-    stale_branches = stale_unprotected_branches(
-        branches, open_heads, default_branch, activity_epochs, branch_cutoff, closed_pr_heads
-    )
-    selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
-    removed_branches = 0
-    for branch in selected_branches:
-        name = branch.get("name")
-        if not isinstance(name, str):
-            raise RuntimeError("GitHub returned a stale branch without a name")
-        gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
-        removed_branches += 1
 
     recent_runs, stale_run_inventory = completed_workflow_runs(repo, run_cutoff)
     stale = stale_completed_runs(stale_run_inventory, run_cutoff)
@@ -763,9 +822,9 @@ def main() -> int:
     package_result = cleanup_pbd_package_versions(repo, protected_shas, run_cutoff)
     print(
         "maintenance-cleanup=passed "
-        f"branches_seen={len(branches)} "
+        f"branches_seen={branches_seen} "
         f"removed_branches={removed_branches} "
-        f"stale_branches_pending={len(stale_branches) - len(selected_branches)} "
+        f"stale_branches_pending={stale_branches_pending} "
         f"removed_runs={len(selected)} stale_runs_pending={len(stale) - len(selected)} "
         f"package_cleanup={package_result['status']} "
         f"package_versions_seen={package_result['versions_seen']} "
