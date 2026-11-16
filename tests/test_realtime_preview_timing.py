@@ -3,7 +3,10 @@
 
 from math import inf, isclose, nan
 
+from freecad_cloth.simulation import RealtimePreview
 from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
+
+import pytest
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
@@ -102,3 +105,87 @@ def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
     assert _sample_p95_ms([]) == 0.0
     assert _sample_p95_ms([4.25]) == 4.25
     assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0
+
+
+
+def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post the frame pulse with high priority and dispatch it on the receiver thread."""
+    posted: list[tuple[object, object, int]] = []
+    high_priority = 7
+
+    class FakeEvent:
+        """Minimal custom Qt event with a registered integer type."""
+
+        _next_type = 1000
+
+        @classmethod
+        def registerEventType(cls) -> int:
+            cls._next_type += 1
+            return cls._next_type
+
+        def __init__(self, event_type: int) -> None:
+            self._event_type = event_type
+
+        def type(self) -> int:
+            return self._event_type
+
+    class FakeQObject:
+        """Minimal QObject base that accepts custom events."""
+
+        def __init__(self) -> None:
+            pass
+
+        def event(self, _event: object) -> bool:
+            return False
+
+    class FakeApplication:
+        """Capture worker-thread postEvent calls for the regression assertion."""
+
+        @staticmethod
+        def postEvent(receiver: object, event: object, priority: int) -> None:
+            posted.append((receiver, event, priority))
+
+    class FakeQt:
+        """Expose the Qt event priority used by the dispatcher."""
+
+        HighEventPriority = high_priority
+
+    class FakeQtCore:
+        """Supply only the Qt API surface used to create and post frame events."""
+
+        QEvent = FakeEvent
+        QObject = FakeQObject
+        QCoreApplication = FakeApplication
+        Qt = FakeQt
+
+    callbacks: list[tuple[float, float, float]] = []
+
+    def on_frame(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
+        callbacks.append((scheduled_at, emitted_at, dispatched_at))
+
+    monkeypatch.setattr(RealtimePreview, "_qt", lambda: FakeQtCore)
+    dispatcher = RealtimePreview._make_frame_dispatcher(on_frame)
+    dispatcher.start()
+    dispatcher.pulse.emit(10.0, 9.5)
+
+    assert len(posted) == 1
+    receiver, event, priority = posted[0]
+    assert priority == high_priority
+    assert receiver is dispatcher
+    assert dispatcher.event(event) is True
+    assert len(callbacks) == 1
+    assert callbacks[0][0:2] == (10.0, 9.5)
+    assert callbacks[0][2] >= 0.0
+    assert dispatcher.snapshot() == {
+        "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
+        "queued_dispatches": 1,
+    }
+
+    dispatcher.stop()
+    dispatcher.pulse.emit(11.0, 10.5)
+    assert len(posted) == 2
+    receiver, event, _priority = posted[1]
+    assert receiver.event(event) is True
+    assert len(callbacks) == 1

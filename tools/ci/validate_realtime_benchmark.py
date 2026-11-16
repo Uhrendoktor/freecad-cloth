@@ -212,8 +212,10 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     if outstanding != 0:
         errors.append("frame_scheduler.outstanding_pulses must be zero at benchmark completion")
     dispatch_mode = scheduler.get("dispatch_mode")
-    if dispatch_mode != "Qt.QueuedConnection":
-        errors.append("frame_scheduler.dispatch_mode must be Qt.QueuedConnection")
+    if dispatch_mode != "QCoreApplication.postEvent(HighEventPriority)":
+        errors.append(
+            "frame_scheduler.dispatch_mode must be QCoreApplication.postEvent(HighEventPriority)"
+        )
     queued_dispatches = _integer(scheduler.get("queued_dispatches"))
     if queued_dispatches is None or queued_dispatches < (frames or MIN_FRAMES):
         errors.append("frame_scheduler.queued_dispatches must cover the measured frames")

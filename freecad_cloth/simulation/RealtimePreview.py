@@ -259,61 +259,84 @@ class _FrameClock:
 def _make_frame_dispatcher(
     callback: Callable[[float, float, float], None],
 ) -> _FrameDispatcher:
-    """Create a GUI-thread receiver for feedback-paced frame requests.
+    """Create a GUI-thread receiver for high-priority worker frame events.
 
     Args:
         callback: Preview callback receiving target, worker-emission, and GUI-dispatch times.
 
     Returns:
-        A Qt signal bridge retained by the preview controller.
+        A Qt event receiver retained by the preview controller.
 
     Raises:
-        RuntimeError: If the active PySide binding does not expose signal/slot factories.
+        RuntimeError: If the active Qt binding does not expose custom events and posting.
     """
     QtCore = _qt()
-    signal_factory = getattr(QtCore, "Signal", None) or getattr(QtCore, "pyqtSignal", None)
-    slot_factory = getattr(QtCore, "Slot", None) or getattr(QtCore, "pyqtSlot", None)
-    if not callable(signal_factory) or not callable(slot_factory):
-        msg = "Realtime preview requires Qt signal and slot factories"
-        raise RuntimeError(msg)
+    event_type = int(QtCore.QEvent.registerEventType())
+    event_priority = int(QtCore.Qt.HighEventPriority)
+
+    class _FramePulseEvent(QtCore.QEvent):
+        """Carry the target and worker timestamps to the GUI thread."""
+
+        def __init__(self, scheduled_at: float, emitted_at: float) -> None:
+            super().__init__(event_type)
+            self.scheduled_at = float(scheduled_at)
+            self.emitted_at = float(emitted_at)
+
+    class _PulsePoster:
+        """Post a single custom event through Qt's thread-safe event queue."""
+
+        def __init__(self, receiver: object) -> None:
+            self._receiver = receiver
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            QtCore.QCoreApplication.postEvent(
+                self._receiver,
+                _FramePulseEvent(scheduled_at, emitted_at),
+                event_priority,
+            )
 
     class _Dispatcher(QtCore.QObject):
-        """Deliver one queued worker pulse directly to the GUI-thread callback."""
-
-        pulse = signal_factory(float, float)
+        """Deliver one high-priority custom event to the GUI-thread callback."""
 
         def __init__(self) -> None:
             super().__init__()
             self._callback = callback
             self._stopped = True
             self._dispatches = 0
-            self.pulse.connect(self.dispatch, QtCore.Qt.QueuedConnection)
+            self.pulse = _PulsePoster(self)
 
         def start(self) -> None:
-            """Enable queued frame delivery for a new preview session."""
+            """Enable event delivery for a new preview session."""
             self._stopped = False
             self._dispatches = 0
 
         def stop(self) -> None:
-            """Ignore any queued signal that arrives after preview shutdown."""
+            """Ignore any already-posted pulse after preview shutdown."""
             self._stopped = True
 
         def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
             self._callback = next_callback
 
-        @slot_factory(float, float)
-        def dispatch(self, scheduled_at: float, emitted_at: float) -> None:
-            """Run immediately when the GUI thread accepts the high-level queued signal."""
-            if self._stopped:
-                return
-            dispatched_at = time.perf_counter()
-            self._dispatches += 1
-            self._callback(float(scheduled_at), float(emitted_at), dispatched_at)
+        def event(self, event: object) -> bool:
+            """Dispatch frame events before normal-priority posted GUI events."""
+            event_type_method = getattr(event, "type", None)
+            if not callable(event_type_method) or event_type_method() != event_type:
+                return super().event(event)
+            if not self._stopped:
+                frame_event = cast("_FramePulseEvent", event)
+                dispatched_at = time.perf_counter()
+                self._dispatches += 1
+                self._callback(
+                    frame_event.scheduled_at,
+                    frame_event.emitted_at,
+                    dispatched_at,
+                )
+            return True
 
         def snapshot(self) -> dict[str, int | float | str]:
-            """Return the number of worker pulses accepted by the GUI event loop."""
+            """Return the high-priority GUI event delivery mode and accepted pulse count."""
             return {
-                "dispatch_mode": "Qt.QueuedConnection",
+                "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
                 "queued_dispatches": self._dispatches,
             }
 

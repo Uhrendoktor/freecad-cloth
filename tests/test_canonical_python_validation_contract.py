@@ -205,7 +205,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
             "outstanding_pulses": 0,
-            "dispatch_mode": "Qt.QueuedConnection",
+            "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
             "queued_dispatches": 150,
         },
         "worker_wakeup_lateness": {
