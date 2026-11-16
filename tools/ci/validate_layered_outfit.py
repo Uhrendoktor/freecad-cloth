@@ -20,6 +20,7 @@ EXPECTED_CHECKPOINTS = (1, 5, 15)
 EXPECTED_VIEWS = frozenset({"front", "rear", "right", "left", "top", "bottom"})
 EXPECTED_IMAGE_WIDTH = 960
 EXPECTED_IMAGE_HEIGHT = 720
+EXPECTED_IMAGE_COUNT = 9
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MAXIMUM_SEAM_GAP_MM = 12.0
 MINIMUM_BODY_CLEARANCE_MM = 5.0
@@ -165,6 +166,18 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             _number(checkpoint, "max_seam_gap_mm") <= MAXIMUM_SEAM_GAP_MM,
             "sewn panel gap exceeds tolerance at step %d" % step,
         )
+        seams = checkpoint.get("seams")
+        _require(isinstance(seams, list) and len(seams) == EXPECTED_SEAMS,
+            "checkpoint does not contain all sixteen seam measurements at step %d" % step)
+        seam_ids = [
+            str(record.get("seam_id", ""))
+            for record in seams
+            if isinstance(record, dict)
+        ]
+        _require(
+            len(seam_ids) == EXPECTED_SEAMS and len(set(seam_ids)) == EXPECTED_SEAMS,
+            "checkpoint seam measurements are incomplete or duplicated at step %d" % step,
+        )
         body = checkpoint.get("body")
         _require(isinstance(body, dict), "body collision measurements are missing at step %d" % step)
         _require(
@@ -175,6 +188,8 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             _number(body, "minimum_unsigned_clearance_mm") >= MINIMUM_BODY_CLEARANCE_MM,
             "mannequin clearance is too small at step %d" % step,
         )
+
+    from freecad_cloth.common.VisualCaptureValidation import validate_png_capture
 
     image_paths: dict[str, Path] = {}
     for raw_image in images:
@@ -189,7 +204,17 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             and raw_image.get("height") == EXPECTED_IMAGE_HEIGHT,
             "image record dimensions are incorrect: %s" % raw_label,
         )
+        metrics = validate_png_capture(
+            image_path,
+            expected_width=EXPECTED_IMAGE_WIDTH,
+            expected_height=EXPECTED_IMAGE_HEIGHT,
+            min_nonwhite_pixels=128,
+            min_distinct_rgb=2,
+            min_opaque_pixels=EXPECTED_IMAGE_WIDTH * EXPECTED_IMAGE_HEIGHT // 2,
+        )
+        _require(metrics["nonwhite_pixels"] >= 128, "rendered image is visually blank: %s" % raw_label)
 
+    _require(len(images) == EXPECTED_IMAGE_COUNT, "expected nine motion and final-view PNG artifacts")
     final_views = {
         label
         for label in image_paths
