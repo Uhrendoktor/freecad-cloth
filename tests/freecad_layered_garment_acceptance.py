@@ -15,7 +15,6 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
 
 TESTS_DIR = Path(__file__).resolve().parent
 if str(TESTS_DIR) not in sys.path:
@@ -30,16 +29,12 @@ import FreeCADGui as Gui
 import Part
 import Sketcher
 
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
 
 OUTPUT = Path(os.environ.get("CLOTH_LAYERED_OUTFIT_DIR", "artifacts/layered-outfit"))
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
 CHECKPOINTS = (0, 1, 5, 15)
-GARMENT_VIEW_NAMES = ("front", "rear", "right", "left", "top", "bottom")
 SEAM_EDGE_A = 1
 SEAM_EDGE_B = 3
 SEAM_BOTTOM_EDGE = 0
@@ -49,22 +44,6 @@ MINIMUM_SEAMS = 16
 MINIMUM_CONTACTS = 1
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
-
-
-class _Vector(Protocol):
-    """Native FreeCAD vector coordinates used for exact mannequin landmarks."""
-
-    x: float
-    y: float
-    z: float
-
-
-class _Placement(Protocol):
-    """Native placement transform used to map local avatar landmarks to world space."""
-
-    def multVec(self, vector: _Vector) -> _Vector:
-        """Transform one avatar-local vector into document coordinates."""
-        ...
 
 
 def _log(message: str) -> None:
@@ -79,7 +58,10 @@ def _log(message: str) -> None:
 def _events() -> None:
     """Refresh FreeCAD's viewport and process queued Qt events."""
     Gui.updateGui()
-    from PySide2 import QtWidgets
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide2 import QtWidgets
 
     application = QtWidgets.QApplication.instance()
     if application is not None:
@@ -616,6 +598,15 @@ def run_acceptance() -> None:
                 raise RuntimeError(
                     "draped garment penetrated the mannequin at step %d" % step
                 )
+            if float(body_metrics["minimum_unsigned_clearance_mm"]) < MINIMUM_BODY_CLEARANCE_MM:
+                raise RuntimeError(
+                    "mannequin clearance %.3f mm is below %.3f mm at step %d"
+                    % (
+                        float(body_metrics["minimum_unsigned_clearance_mm"]),
+                        MINIMUM_BODY_CLEARANCE_MM,
+                        step,
+                    )
+                )
             checkpoint_images = []
             if step == CHECKPOINTS[-1]:
                 checkpoint_images = _capture_six_views(
@@ -663,9 +654,12 @@ def run_acceptance() -> None:
                 )
             )
 
-        expected_groups = set(str(value) for value in scene.GarmentGroups)
-        if len(expected_groups) != MINIMUM_PIECES:
+        expected_groups = tuple(str(value) for value in scene.GarmentGroups)
+        if len(set(expected_groups)) != MINIMUM_PIECES:
             raise RuntimeError("garment group assignment inventory is incomplete or ambiguous")
+        garment_group_ids = {entry.split("|", 1)[0] for entry in expected_groups}
+        if garment_group_ids != {"shirt", "skirt"}:
+            raise RuntimeError("outfit must retain exactly two independently simulated garments")
         save_path = OUTPUT / "layered-outfit.FCStd"
         doc.recompute()
         doc.saveAs(str(save_path))
@@ -693,9 +687,15 @@ def run_acceptance() -> None:
             raise RuntimeError("reloaded multi-piece simulation rebuilt a non-finite solver")
         if int(scene.InterClothContactCount) < MINIMUM_CONTACTS:
             raise RuntimeError("reloaded solver did not retain inter-garment contact activation")
+        reloaded_base = scene.Proxy._base_or_restore()
+        reloaded_backend = reloaded_base.backend
         _log(
             "save-reload=passed pieces=%d groups=%d contacts=%d"
-            % (len(scene.ClothPieces), len(set(saved_groups)), int(scene.InterClothContactCount))
+            % (
+                len(scene.ClothPieces),
+                len({entry.split("|", 1)[0] for entry in saved_groups}),
+                int(scene.InterClothContactCount),
+            )
         )
 
         manifest = {
@@ -704,7 +704,7 @@ def run_acceptance() -> None:
             "provenance": {
                 "commit_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
                 "document": save_path.name,
-                "backend": str(getattr(scene.Proxy._base_or_restore().backend, "name", "")),
+                "backend": str(getattr(reloaded_backend, "name", "")),
                 "units": "mm",
                 "world_frame": {
                     "origin": "FreeCAD document world origin",
@@ -715,8 +715,8 @@ def run_acceptance() -> None:
             "outfit": {
                 "description": "Twelve-panel shirt, skirt and waistband with two independent garment groups",
                 "piece_count": len(scene.ClothPieces),
-                "seam_count": len(base.seam_stitch_pairs),
-                "garment_group_count": len(set(entry.split("|", 1)[0] for entry in saved_groups)),
+                "seam_count": len(reloaded_base.seam_stitch_pairs),
+                "garment_group_count": len({entry.split("|", 1)[0] for entry in saved_groups}),
                 "piece_ids": list(saved_piece_ids),
                 "garment_groups": list(saved_groups),
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
