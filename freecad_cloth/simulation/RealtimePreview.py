@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Sequence
-from math import isfinite
+from math import ceil, isfinite
 from threading import Condition, Event, Thread, current_thread
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
