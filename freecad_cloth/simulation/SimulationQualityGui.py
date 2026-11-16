@@ -138,7 +138,8 @@ class SimulationQualityTaskPanel:
         self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
         self.advanced_toggle.setToolTip(
-            "Normal fitting uses presets. Expand this section only when precise solver or collision values are needed."
+            "Normal fitting uses presets. Expand this section only when precise solver "
+            "or collision values are needed."
         )
         content_layout.addWidget(self.advanced_toggle)
 
@@ -150,7 +151,8 @@ class SimulationQualityTaskPanel:
         self.pin_mode = QtWidgets.QComboBox()
         self.pin_mode.addItems(PIN_MODE_NAMES)
         self.pin_mode.setToolTip(
-            "Automatic preserves legacy behavior; Explicit uses only PinSelection; None creates the simulation with zero solver pins."
+            "Automatic preserves legacy behavior; Explicit uses only PinSelection; None "
+            "creates the simulation with zero solver pins."
         )
         self.particle_distance = self._double(0.25, 100.0, 4.0, 2)
         self.iterations = self._spin(1, 200, 8)
@@ -634,7 +636,11 @@ class SimulationQualityTaskPanel:
         set_status(
             self.target_context,
             str(target_info["message"]),
-            state="error" if blocked else ("success" if target_info["state"] == "ready" else "info"),
+            state=(
+                "error"
+                if blocked
+                else ("success" if target_info["state"] == "ready" else "info")
+            ),
         )
         target = getattr(self.scene, "DrapeTarget", None)
         source = getattr(target, "SourceObject", None)
