@@ -390,6 +390,29 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
     assert "s2 (Missing reference)" in panel.warning.text
 
 
+def test_sewing_network_no_filter_results_use_warning_status() -> None:
+    """Make an empty filtered list explicit and disable the detail editor."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._current_row = 0
+    panel._seams = ()
+    panel._range_values = []
+    panel._range_fields = ()
+    panel._loading_range = False
+    panel.network = _ReferenceNetwork(())
+    panel.selected_seam_label = _TaskPanelLabel()
+    enabled: list[bool] = []
+    panel._set_range_editor_enabled = enabled.append
+    panel._store_selected_range = lambda: None
+
+    panel._select_seam_row(-1)
+
+    assert panel.selected_seam_label.text == "No seams match the current filter."
+    assert panel.selected_seam_label.properties["clothState"] == "warning"
+    assert enabled == [False]
+
+
 def test_sewing_network_commands_expose_free_sewing_and_editor() -> None:
     """Verify public commands expose free sewing and network editing."""
     from freecad_cloth.sewing import SewingNetworkCommands
