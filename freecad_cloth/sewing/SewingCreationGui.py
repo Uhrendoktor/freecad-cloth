@@ -257,7 +257,7 @@ class SewingCreationTaskPanel:
 
         self.focus_edges_button = QtWidgets.QPushButton("Focus selected edges in 3D")
         self.focus_edges_button.setToolTip(
-            "Select the staged or currently selected pattern edges and frame them without changing camera orientation."
+            "Select staged pattern edges and frame them without changing camera orientation."
         )
         self.focus_edges_button.setEnabled(bool(self._initial_selection))
         self.focus_edges_button.clicked.connect(self.focus_selected_edges_in_3d)
