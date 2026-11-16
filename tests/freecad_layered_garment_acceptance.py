@@ -14,6 +14,7 @@ import math
 import os
 import sys
 import time
+import traceback
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -549,13 +550,16 @@ def run_acceptance() -> None:
     doc = App.newDocument("LayeredOutfitAcceptance")
     _log("document-created")
     try:
+        _log("before-avatar-create")
         avatar = create_avatar(attach_collision=False, doc=doc)
+        _log("avatar-created")
         avatar.Label = "Layered Outfit Mannequin"
         avatar.ViewObject.Visibility = True
 
         shoulder_left = _landmark_world(avatar, "shoulder_left")
         shoulder_right = _landmark_world(avatar, "shoulder_right")
         hip = _landmark_world(avatar, "hip")
+        _log("mannequin-landmarks-resolved")
         center_x = 0.5 * (float(shoulder_left.x) + float(shoulder_right.x))
         shoulder_width = abs(float(shoulder_right.x) - float(shoulder_left.x))
         if shoulder_width <= 100.0:
@@ -564,6 +568,7 @@ def run_acceptance() -> None:
         from freecad_cloth.simulation.DrapeTarget import collision_surface
 
         body_surface = collision_surface(avatar, 1.0, 5.0)
+        _log("mannequin-collision-surface-built")
         hip_z = float(hip.z)
         shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
         skirt_bottom_z = hip_z - 520.0
@@ -1027,7 +1032,8 @@ OUTPUT.mkdir(parents=True, exist_ok=True)
 try:
     run_acceptance()
 except BaseException as error:
-    _log("layered-outfit-acceptance=failed error=%r" % (error,))
-    App.Console.PrintError("Layered outfit acceptance failed: %s\n" % error)
+    detail = traceback.format_exc()
+    _log("layered-outfit-acceptance=failed error=%r\n%s" % (error, detail))
+    App.Console.PrintError("Layered outfit acceptance failed: %s\n%s" % (error, detail))
     os._exit(1)
 os._exit(0)
