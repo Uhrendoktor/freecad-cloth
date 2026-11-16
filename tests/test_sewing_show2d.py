@@ -144,25 +144,35 @@ def test_seam_tangent_frame_supports_world_vertical_and_oblique_segments():
     assert side == (0.0, 1.0, 0.0)
     assert length == 10.0
 
-    vertical = _seam_tangent_frame((4.0, 2.0, 0.0), (4.0, 2.0, 12.0))
+    vertical = _seam_tangent_frame(
+        (4.0, 2.0, 0.0),
+        (4.0, 2.0, 12.0),
+        (0.0, -1.0, 0.0),
+    )
     assert vertical is not None
     tangent, side, length = vertical
     assert tangent == (0.0, 0.0, 1.0)
-    assert side == (0.0, -1.0, 0.0)
+    assert side == (-1.0, 0.0, 0.0)
     assert length == 12.0
 
-    oblique = _seam_tangent_frame((0.0, 0.0, 0.0), (2.0, 3.0, 6.0))
+    oblique = _seam_tangent_frame(
+        (0.0, 0.0, 0.0),
+        (2.0, 3.0, 6.0),
+        (0.0, 0.0, 1.0),
+    )
     assert oblique is not None
     tangent, side, length = oblique
     assert abs(sum(value * value for value in tangent) - 1.0) < 1e-12
     assert abs(sum(value * value for value in side) - 1.0) < 1e-12
     assert abs(sum(tangent[index] * side[index] for index in range(3))) < 1e-12
+    assert abs(side[2]) < 1e-12
     assert length == 7.0
 
 
 def test_seam_tangent_frame_skips_degenerate_or_non_finite_segments():
     assert _seam_tangent_frame((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)) is None
     assert _seam_tangent_frame((0.0, 0.0, 0.0), (float("nan"), 0.0, 0.0)) is None
+    assert _seam_tangent_frame((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 0.0)) is None
 
 
 def test_seam_visual_markers_are_deterministic_and_directional():
