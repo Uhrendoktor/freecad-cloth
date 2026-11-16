@@ -116,6 +116,10 @@ ignore = [
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.flake8-annotations]
+# Python, like Rust, has an implicit unit return; require annotations only for value returns.
+suppress-none-returning = true
+
 [tool.ruff.lint.pep8-naming]
 # Keep exact native FreeCAD/Qt/Pivy/pyPBD API names and module aliases at adapter boundaries.
 extend-ignore-names = [
@@ -276,7 +280,7 @@ extend-ignore-names = [
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
 # Unit-style test functions intentionally use Python's implicit None return, like Rust unit tests.
-"tests/**/*.py" = ["S101", "PLR2004", "T201", "ANN201"]
+"tests/**/*.py" = ["S101", "PLR2004", "T201"]
 
 # These tests assert public exception classes where message text is not a contract.
 "tests/test_avatar_provider.py" = ["PT011"]
