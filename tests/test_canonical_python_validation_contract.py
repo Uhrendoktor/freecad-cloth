@@ -189,11 +189,17 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "expected_ticks": 150,
         "frames_advanced": 150,
         "frame_scheduler": {
-            "mode": "threaded-queued-deadline",
+            "mode": "threaded-queued-deadline-with-gui-timer",
             "target_fps": validate_realtime_benchmark.TARGET_FPS,
+            "lead_ms": 15.0,
             "signals_emitted": 150,
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
+            "deadline_timer": "QTimer.PreciseTimer",
+            "pending_deadlines_dropped": 0,
+            "timer_rearms": 0,
+            "max_pending_depth": 1,
+            "pending_deadlines": 0,
         },
         "worker_wakeup_lateness": {
             "samples": 120,

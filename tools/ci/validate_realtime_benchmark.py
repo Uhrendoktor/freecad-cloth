@@ -188,8 +188,8 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         return
 
     scheduler = cast("JsonObject", scheduler_value)
-    if scheduler.get("mode") != "threaded-queued-deadline":
-        errors.append("frame_scheduler.mode must be threaded-queued-deadline")
+    if scheduler.get("mode") != "threaded-queued-deadline-with-gui-timer":
+        errors.append("frame_scheduler.mode must be threaded-queued-deadline-with-gui-timer")
     target_fps = _number(scheduler.get("target_fps"))
     if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
         errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
@@ -201,6 +201,15 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         value = _integer(scheduler.get(key))
         if value is None or value < 0:
             errors.append(f"frame_scheduler.{key} must be a non-negative integer")
+    if scheduler.get("deadline_timer") != "QTimer.PreciseTimer":
+        errors.append("frame_scheduler.deadline_timer must be QTimer.PreciseTimer")
+    for key in ("pending_deadlines_dropped", "timer_rearms", "max_pending_depth"):
+        value = _integer(scheduler.get(key))
+        if value is None or value < 0:
+            errors.append(f"frame_scheduler.{key} must be a non-negative integer")
+    max_pending_depth = _integer(scheduler.get("max_pending_depth"))
+    if max_pending_depth is not None and max_pending_depth > 2:
+        errors.append("frame_scheduler.max_pending_depth must not exceed 2")
 
     dispatch_value = metrics.get("frame_dispatch_lateness")
     if not isinstance(dispatch_value, dict):
