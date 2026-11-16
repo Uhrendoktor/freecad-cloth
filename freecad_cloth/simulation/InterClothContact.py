@@ -416,6 +416,7 @@ def _accumulate_edge_triangle(
     clearance_mm: float,
     source_center: PointArray,
     target_center: PointArray,
+    fallback_sign: float,
     correction_sum: PointArray,
     correction_count: npt.NDArray[np.int64],
 ) -> tuple[bool, float]:
@@ -433,11 +434,15 @@ def _accumulate_edge_triangle(
     if penetration <= 1e-8:
         return False, 0.0
 
-    direction = (
-        difference / distance
-        if distance > 1e-10
-        else _contact_direction(normal, source_center, target_center)
-    )
+    if distance > 1e-10:
+        direction = difference / distance
+    else:
+        direction = _contact_direction(normal, source_center, target_center)
+        if float(np.linalg.norm(source_center - target_center)) <= 1e-10:
+            # Coincident group centroids provide no physical side cue. Use the
+            # stable sorted group order so the two directional passes cannot
+            # cancel each other's zero-distance correction.
+            direction = direction * float(fallback_sign)
     source_weights = np.asarray((1.0 - factor, factor), dtype=np.float64)
     source_masses = inverse_masses[source_ids]
     target_masses = inverse_masses[target_ids]
@@ -632,7 +637,10 @@ def project_inter_cloth_contacts(
             left = surfaces[left_id]
             for right_id in group_ids[left_index + 1 :]:
                 right = surfaces[right_id]
-                for source, target in ((left, right), (right, left)):
+                for source, target, fallback_sign in (
+                    (left, right, 1.0),
+                    (right, left, -1.0),
+                ):
                     source_center = current[np.unique(source.triangles)].mean(axis=0)
                     target_center = current[np.unique(target.triangles)].mean(axis=0)
                     for edge_index, edge in enumerate(source.edges):
@@ -657,6 +665,7 @@ def project_inter_cloth_contacts(
                                 clearance,
                                 source_center,
                                 target_center,
+                                fallback_sign,
                                 correction_sum,
                                 correction_count,
                             )
