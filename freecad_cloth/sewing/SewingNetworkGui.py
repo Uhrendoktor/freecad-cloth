@@ -250,7 +250,13 @@ class SewingNetworkTaskPanel:
             self.seam_list.setCurrentRow(0)
         else:
             self._set_range_editor_enabled(False)
-            self.selected_seam_label.setText("This network has no seam members.")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.selected_seam_label,
+                "This network has no seam members.",
+                state="warning",
+            )
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
@@ -419,15 +425,26 @@ class SewingNetworkTaskPanel:
         self._store_selected_range()
         self._current_row = int(row)
         if not 0 <= self._current_row < len(self._seams):
-            self.selected_seam_label.setText("No seams match the current filter.")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.selected_seam_label,
+                "No seams match the current filter.",
+                state="warning",
+            )
             self._set_range_editor_enabled(False)
             return
         seam = self._seams[self._current_row]
-        self.selected_seam_label.setText(
+        seam_status = str(getattr(seam, "Status", getattr(self.network, "Status", "Unknown")))
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.selected_seam_label,
             "Seam {} — {}".format(
                 str(getattr(seam, "SeamId", self._current_row + 1)),
-                str(getattr(seam, "Status", getattr(self.network, "Status", "Unknown"))),
-            )
+                seam_status,
+            ),
+            state="success" if seam_status.lower() in {"valid", "ok"} else "error",
         )
         self._loading_range = True
         for field, value in zip(
