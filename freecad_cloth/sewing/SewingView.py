@@ -66,6 +66,37 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
+def _seam_tangent_frame(start, end):
+    """Return a normalized 3D tangent, stable perpendicular, and segment length.
+
+    The reference axis is chosen least parallel to the tangent so the cross
+    product remains well-conditioned for horizontal, vertical, and oblique seams.
+    Degenerate or non-finite segments return None instead of emitting invalid
+    direction markers.
+    """
+    delta = tuple(float(end[index]) - float(start[index]) for index in range(3))
+    length = sum(component * component for component in delta) ** 0.5
+    if not length > 1e-12:
+        return None
+
+    tangent = tuple(component / length for component in delta)
+    axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+    reference = min(
+        axes,
+        key=lambda axis: abs(sum(tangent[index] * axis[index] for index in range(3))),
+    )
+    perpendicular = (
+        reference[1] * tangent[2] - reference[2] * tangent[1],
+        reference[2] * tangent[0] - reference[0] * tangent[2],
+        reference[0] * tangent[1] - reference[1] * tangent[0],
+    )
+    perpendicular_length = sum(value * value for value in perpendicular) ** 0.5
+    if not perpendicular_length > 1e-12:
+        return None
+    side = tuple(value / perpendicular_length for value in perpendicular)
+    return tangent, side, length
+
+
 def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
     """Build native presentation geometry for one semantic seam.
 
@@ -145,18 +176,42 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
             continue
         mid = len(points) // 2
         prev, nxt = points[max(0, mid - 1)], points[min(len(points) - 1, mid + 1)]
-        dx, dy = nxt.x - prev.x, nxt.y - prev.y
-        length = (dx * dx + dy * dy) ** 0.5
-        ux, uy = dx / length, dy / length
+        frame = _seam_tangent_frame(
+            (prev.x, prev.y, prev.z),
+            (nxt.x, nxt.y, nxt.z),
+        )
+        if frame is None:
+            continue
+        tangent, side, length = frame
         tip = points[mid]
         arrow_len = min(6.0, max(1.0, length * 0.3))
-        base = App.Vector(tip.x - ux * arrow_len, tip.y - uy * arrow_len, tip.z)
-        left = App.Vector(base.x + uy * arrow_len * 0.6, base.y - ux * arrow_len * 0.6, tip.z)
-        right = App.Vector(base.x - uy * arrow_len * 0.6, base.y + ux * arrow_len * 0.6, tip.z)
+        base = App.Vector(
+            tip.x - tangent[0] * arrow_len,
+            tip.y - tangent[1] * arrow_len,
+            tip.z - tangent[2] * arrow_len,
+        )
+        arrow_half_width = arrow_len * 0.6
+        left = App.Vector(
+            base.x + side[0] * arrow_half_width,
+            base.y + side[1] * arrow_half_width,
+            base.z + side[2] * arrow_half_width,
+        )
+        right = App.Vector(
+            base.x - side[0] * arrow_half_width,
+            base.y - side[1] * arrow_half_width,
+            base.z - side[2] * arrow_half_width,
+        )
         shapes.extend((Part.makeLine(tip, left), Part.makeLine(tip, right)))
-        nx, ny = -uy, ux
         notch_len = min(4.0, max(1.0, length * 0.2))
-        na = App.Vector(tip.x - nx * notch_len, tip.y - ny * notch_len, tip.z)
-        nb = App.Vector(tip.x + nx * notch_len, tip.y + ny * notch_len, tip.z)
+        na = App.Vector(
+            tip.x - side[0] * notch_len,
+            tip.y - side[1] * notch_len,
+            tip.z - side[2] * notch_len,
+        )
+        nb = App.Vector(
+            tip.x + side[0] * notch_len,
+            tip.y + side[1] * notch_len,
+            tip.z + side[2] * notch_len,
+        )
         shapes.append(Part.makeLine(na, nb))
     return Part.makeCompound(shapes)
