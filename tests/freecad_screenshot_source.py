@@ -2284,11 +2284,11 @@ def _run_production_tunic_drape(
         }
 
     def write_profile_checkpoint(
-        steps_completed: int,
+        backend_steps_completed: int,
         elapsed_ms: float,
         process_cpu_elapsed_ms: float,
         *,
-        scene_steps_requested: int,
+        scene_steps_completed: int,
     ) -> None:
         native = native_timing_snapshot()
         python_stages = {
@@ -2313,10 +2313,12 @@ def _run_production_tunic_drape(
         profile = {
             "schema_version": 1,
             "fixture": "canonical-two-panel-tunic-production",
-            "steps_completed": steps_completed,
+            "steps_completed": scene_steps_completed,
+            "backend_steps_completed": backend_steps_completed,
             "steps_requested": 90,
-            "scene_steps_requested": scene_steps_requested,
-            "simulation_complete": steps_completed == 90 and bool(scene.FiniteState),
+            "scene_steps_requested": 90,
+            "scene_steps_completed": scene_steps_completed,
+            "simulation_complete": scene_steps_completed == 90 and bool(scene.FiniteState),
             "audit_complete": False,
             "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
             "elapsed_production_ms": elapsed_ms,
@@ -2436,7 +2438,7 @@ def _run_production_tunic_drape(
                     backend_steps_completed,
                     backend_elapsed_ms,
                     backend_process_cpu_elapsed_ms,
-                    scene_steps_requested=int(scene.Steps),
+                    scene_steps_completed=int(scene.Steps),
                 )
 
     def timed_collision_projection(backend: "PositionBasedDynamicsBackend") -> None:
@@ -2486,9 +2488,11 @@ def _run_production_tunic_drape(
                 {
                     "schema_version": 1,
                     "fixture": "canonical-two-panel-tunic-production",
-                    "steps_completed": backend_steps_completed,
+                    "steps_completed": int(scene.Steps),
+                    "backend_steps_completed": backend_steps_completed,
                     "steps_requested": 90,
-                    "scene_steps_requested": int(scene.Steps),
+                    "scene_steps_requested": 90,
+                    "scene_steps_completed": int(scene.Steps),
                     "simulation_complete": False,
                     "audit_complete": False,
                     "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
@@ -2563,7 +2567,7 @@ def _run_production_tunic_drape(
                 backend_steps_completed,
                 elapsed_ms,
                 process_cpu_elapsed_ms,
-                scene_steps_requested=int(scene.Steps),
+                scene_steps_completed=int(scene.Steps),
             )
             log(
                 "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
