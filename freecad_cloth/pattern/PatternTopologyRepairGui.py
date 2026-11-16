@@ -76,7 +76,7 @@ class _TopologyRepairViewportPicker:
                 state="warning",
             )
             return
-        match = re.fullmatch(r"Edge\\s*(\\d+)", str(subelement_name or ""), flags=re.IGNORECASE)
+        match = re.fullmatch(r"Edge\s*(\d+)", str(subelement_name or ""), flags=re.IGNORECASE)
         if match is None or int(match.group(1)) < 1:
             self.panel._set_status(
                 "Pick a current outline edge, not a face or empty viewport space.",
