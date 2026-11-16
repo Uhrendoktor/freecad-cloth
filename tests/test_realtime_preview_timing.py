@@ -29,7 +29,7 @@ def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one()
     assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.015) is False
     assert emitted == [10.0]
     assert clock.snapshot() == {
-        "mode": "threaded-queued-deadline",
+        "mode": "threaded-queued-deadline-with-gui-timer",
         "target_fps": 60.0,
         "lead_ms": 15.0,
         "signals_emitted": 1,
@@ -69,7 +69,7 @@ def test_frame_clock_stop_is_safe_before_start_and_idempotent() -> None:
     class Pulse:
         """Provide a no-op signal for clock lifecycle coverage."""
 
-        def emit(self, _scheduled_at: float) -> None:
+        def emit(self, _scheduled_at: float, _emitted_at: float) -> None:
             pass
 
     clock = _FrameClock(Pulse(), 60.0)
@@ -100,16 +100,20 @@ def test_deadline_timer_rejects_nonfinite_clock_values() -> None:
 
 def test_gui_deadline_queue_is_bounded_and_preserves_earliest_frames() -> None:
     """Retain only two future deadlines and drop later pulses rather than grow a backlog."""
-    pending: list[float] = []
-    assert _append_pending_deadline(pending, 2.0) is True
-    assert _append_pending_deadline(pending, 3.0) is True
-    assert _append_pending_deadline(pending, 4.0) is False
-    assert pending == [2.0, 3.0]
+    pending: list[tuple[float, float, float]] = []
+    first = (2.0, 1.985, 1.99)
+    second = (3.0, 2.985, 2.99)
+    third = (4.0, 3.985, 3.99)
+    assert _append_pending_deadline(pending, first) is True
+    assert _append_pending_deadline(pending, second) is True
+    assert _append_pending_deadline(pending, third) is False
+    assert pending == [first, second]
 
 
 def test_gui_deadline_queue_accepts_a_new_deadline_after_consumption() -> None:
     """Allow the bounded queue to resume after the GUI timer consumes an entry."""
-    pending = [2.0, 3.0]
+    pending = [(2.0, 1.985, 1.99), (3.0, 2.985, 2.99)]
     pending.pop(0)
-    assert _append_pending_deadline(pending, 4.0) is True
-    assert pending == [3.0, 4.0]
+    next_deadline = (4.0, 3.985, 3.99)
+    assert _append_pending_deadline(pending, next_deadline) is True
+    assert pending == [(3.0, 2.985, 2.99), next_deadline]

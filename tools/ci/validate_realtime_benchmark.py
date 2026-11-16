@@ -193,6 +193,9 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     target_fps = _number(scheduler.get("target_fps"))
     if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
         errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
+    lead_ms = _number(scheduler.get("lead_ms"))
+    if lead_ms is None or abs(lead_ms - 15.0) > 1e-9:
+        errors.append("frame_scheduler.lead_ms must equal 15")
 
     emitted = _integer(scheduler.get("signals_emitted"))
     if emitted is None or emitted < (frames or MIN_FRAMES):
@@ -210,6 +213,9 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     max_pending_depth = _integer(scheduler.get("max_pending_depth"))
     if max_pending_depth is not None and max_pending_depth > 2:
         errors.append("frame_scheduler.max_pending_depth must not exceed 2")
+    pending_deadlines = _integer(scheduler.get("pending_deadlines"))
+    if pending_deadlines != 0:
+        errors.append("frame_scheduler.pending_deadlines must be zero at benchmark completion")
 
     dispatch_value = metrics.get("frame_dispatch_lateness")
     if not isinstance(dispatch_value, dict):

@@ -53,12 +53,15 @@ def _deadline_timer_interval_ms(deadline: float, now: float) -> int:
 
 
 def _append_pending_deadline(
-    pending: list[float], deadline: float, *, limit: int = _MAX_PENDING_FRAME_DEADLINES
+    pending: list[tuple[float, float, float]],
+    deadline: tuple[float, float, float],
+    *,
+    limit: int = _MAX_PENDING_FRAME_DEADLINES,
 ) -> bool:
-    """Append a future frame deadline only while the GUI timer queue has capacity."""
+    """Append a scheduled, emitted, and dispatched timestamp tuple within the queue bound."""
     if len(pending) >= limit:
         return False
-    pending.append(float(deadline))
+    pending.append(deadline)
     return True
 
 
@@ -155,7 +158,7 @@ class _FrameClock:
         """Return immutable scheduler metadata for independent benchmark validation."""
         with self._lock:
             return {
-                "mode": "threaded-queued-deadline",
+                "mode": "threaded-queued-deadline-with-gui-timer",
                 "target_fps": self.target_fps,
                 "lead_ms": _FRAME_CLOCK_LEAD_MS,
                 "signals_emitted": self._signals_emitted,
@@ -280,10 +283,9 @@ def _make_frame_dispatcher(
             if self._active_deadline is None:
                 self._arm(deadline, allow_late=True)
                 return
-            if len(self._pending_deadlines) >= _MAX_PENDING_FRAME_DEADLINES:
+            if not _append_pending_deadline(self._pending_deadlines, deadline):
                 self._coalesced_deadlines += 1
                 return
-            self._pending_deadlines.append(deadline)
             self._max_pending_depth = max(
                 self._max_pending_depth, len(self._pending_deadlines)
             )
