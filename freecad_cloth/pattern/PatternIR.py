@@ -13,8 +13,8 @@ from math import hypot
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import NormalizedRange, validate_finite_number
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Segment
+from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 Point3 = tuple[float, float, float]
@@ -318,7 +318,7 @@ class PatternIR:
             raise ValueError(msg)
         graph.validate()
         materials = materials or {}
-        pieces = []
+        pieces: list[PieceIR] = []
         edge_index_maps: dict[str, Mapping[int, str]] = {}
         for piece in graph.pieces.values():
             sketch = sketches.get(piece.id)
@@ -388,7 +388,7 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
     return ParametricPattern(segments)
 
 
-def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
+def _boundary_ir(segment: Segment, curve_samples: int) -> BoundaryIR:
     """Convert one parametric segment to a solver-neutral sampled boundary.
 
     Args:
@@ -408,7 +408,9 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     return BoundaryIR(segment.id, "curve", samples)
 
 
-def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
+def _sketch_boundaries(
+    sketch: object, piece_id: str, curve_samples: int
+) -> tuple[tuple[BoundaryIR, ...], dict[int, str]]:
     """Extract non-construction Sketcher geometry with stable semantic edge IDs.
 
     Args:
@@ -428,8 +430,8 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
         raise ValueError(msg)
 
     semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
-    boundaries = []
-    edge_index_map = {}
+    boundaries: list[BoundaryIR] = []
+    edge_index_map: dict[int, str] = {}
     for index, native in enumerate(geometry):
         if _is_construction(sketch, index):
             continue
@@ -667,7 +669,7 @@ def _orient_boundary(
     raise ValueError(msg)
 
 
-def _is_construction(sketch, index: int) -> bool:
+def _is_construction(sketch: object, index: int) -> bool:
     """Check whether a native sketch geometry element is construction-only.
 
     Args:
@@ -686,7 +688,7 @@ def _is_construction(sketch, index: int) -> bool:
         return False
 
 
-def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
+def _native_boundary(native: object, edge_id: str, curve_samples: int) -> BoundaryIR:
     """Sample one native Sketcher geometry object into a typed boundary record.
 
     Args:
@@ -703,8 +705,8 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     """
     type_name = type(native).__name__.lower().lstrip("_")
     if type_name == "linesegment":
-        start = _point3(native.StartPoint)
-        end = _point3(native.EndPoint)
+        start = _point3(getattr(native, "StartPoint"))
+        end = _point3(getattr(native, "EndPoint"))
         return BoundaryIR(edge_id, "line", (start, end))
 
     kind = {
@@ -735,7 +737,7 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     return BoundaryIR(edge_id, kind, samples, (first, last))
 
 
-def _native_parameter(native, name: str, default: float) -> float:
+def _native_parameter(native: object, name: str, default: float) -> float:
     """Read a finite numeric native-curve parameter or use its fallback.
 
     Args:
@@ -750,7 +752,7 @@ def _native_parameter(native, name: str, default: float) -> float:
     return validate_finite_number(value() if callable(value) else value)
 
 
-def _native_value(native, parameter: float):
+def _native_value(native: object, parameter: float) -> object:
     """Evaluate one native curve through the host's supported value method.
 
     Args:
@@ -773,7 +775,7 @@ def _native_value(native, parameter: float):
     raise ValueError(msg)
 
 
-def _point3(point) -> Point3:
+def _point3(point: object) -> Point3:
     """Convert a native vector-like sketch point into a plain XYZ tuple.
 
     Args:
@@ -782,7 +784,11 @@ def _point3(point) -> Point3:
     Returns:
         Three floating-point coordinates, using zero for an absent Z component.
     """
-    return (float(point.x), float(point.y), float(getattr(point, "z", 0.0)))
+    return (
+        float(getattr(point, "x")),
+        float(getattr(point, "y")),
+        float(getattr(point, "z", 0.0)),
+    )
 
 
 def _distance3(a: Point3, b: Point3) -> float:
@@ -799,7 +805,7 @@ def _distance3(a: Point3, b: Point3) -> float:
 
 
 def _resolve_edge(
-    reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
+    reference: EdgeRef, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
 ) -> str:
     """Resolve an integer or semantic seam edge reference to a stable boundary ID.
 
