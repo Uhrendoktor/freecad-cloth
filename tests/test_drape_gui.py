@@ -316,6 +316,50 @@ def test_viewport_pick_rejects_objects_from_another_document() -> None:
     assert selection.observers == [picker]
 
 
+def test_viewport_pick_rejects_unlisted_objects_and_remains_armed() -> None:
+    """Do not accept a document object unless it is in the panel's valid source list."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    unrelated = SimpleNamespace(Name="PatternSketch", Label="Pattern Sketch", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel.doc = SimpleNamespace(
+        Name="ClothDocument",
+        getObject=lambda name: unrelated if name == "PatternSketch" else source,
+    )
+
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    picker.addSelection("ClothDocument", "PatternSketch", "Face1")
+
+    assert picker.armed is True
+    assert panel._source_picker is picker
+    assert "not an available" in panel.status.text
+    assert panel.status.properties["clothState"] == "warning"
+    assert selection.observers == [picker]
+
+
+def test_viewport_pick_chooses_mannequin_provider_for_avatar_sources() -> None:
+    """Synchronize viewport selection with the matching mannequin provider."""
+    source = SimpleNamespace(
+        Name="ClothAvatar",
+        Label="Cloth Mannequin",
+        AvatarType="ClothAvatar",
+        Shape=object(),
+    )
+    panel, selection = _viewport_panel(source)
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    picker.addSelection("ClothDocument", "ClothAvatar", "")
+
+    assert panel.target_type.currentText() == "Mannequin"
+    assert panel.source.currentIndex() == 0
+    assert panel._source_picker is None
+    assert selection.observers == []
+
+
 def test_select_source_in_view_uses_native_selection_without_camera_changes() -> None:
     """Highlight the current collision source without altering the view camera."""
     source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
@@ -326,6 +370,20 @@ def test_select_source_in_view_uses_native_selection_without_camera_changes() ->
     assert selection.calls == [("clear",), ("select", source)]
     assert panel.status.properties["clothState"] == "info"
     assert "without moving the camera" in panel.status.text
+
+
+def test_accept_cancels_an_unfinished_viewport_pick_before_validation() -> None:
+    """Do not leave a selection observer installed after the native OK action."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    assert panel.accept() is False
+    assert picker.armed is False
+    assert selection.observers == []
+    assert panel._source_picker is None
 
 
 def test_cancel_and_reject_remove_viewport_selection_observer() -> None:
