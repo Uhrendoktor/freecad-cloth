@@ -109,7 +109,8 @@ The references are design inputs, not templates to copy wholesale. The useful pa
 - Viewport gizmos remain transient UI overlays, not document objects. Mouse handlers and scene-graph nodes must be removed when their interaction ends.
 - Show the result of direct manipulation quickly and preserve a numeric precision path for users who need exact values. Avoid auto-changing the camera unless the user explicitly requests fit-view.
 - When a task chooses an existing document object, consider paired actions: select it from the panel and highlight it in the viewport, or arm a one-shot viewport pick that updates the panel's existing selector. Keep the panel selector as the accessible fallback; do not build a second object browser or hide essential actions inside a Coin overlay.
-- Only add viewport controls when spatial context improves the task. Pose Mode rotation rings, Arrange/Fit drag and surface-anchor picking, Sewing Creation edge picking, Pattern Pen strokes, and Drape Target source picking are good cases; numerical solver settings and report/export options remain ordinary task-panel controls.
+- Only add viewport controls when spatial context improves the task. Existing examples include mannequin measurement handles, Pose Mode rotation rings, Arrange/Fit garment dragging and surface-anchor picking, Sewing Creation edge picking, sewing-operation Sketcher navigation, Pattern Pen strokes, sewing-network seam focus, and Drape Target source pick/highlight. Numerical solver settings and report/export options remain ordinary task-panel controls.
+- Make camera changes explicit. A “Focus selected seam” action may frame the two pattern pieces because the user asked for spatial context; merely selecting a source from a panel should highlight it without unexpectedly moving the camera.
 
 ## Feedback, validation and accessibility
 
