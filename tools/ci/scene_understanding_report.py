@@ -857,6 +857,56 @@ def _crossing_summary(
     ]
 
 
+def _layered_garment_scene(output_root: Path) -> JsonObject | None:
+    """Load the exact CAD scene map emitted by a layered garment acceptance run.
+
+    The report embeds authored Sketcher piece identities/transforms and measured
+    checkpoint relations verbatim. It does not infer geometry or garment contact
+    from screenshots. A malformed manifest is surfaced as unavailable evidence.
+    """
+    manifest_path = output_root / "layered-outfit-manifest.json"
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "state": "unavailable",
+            "reason": "layered-outfit-manifest.json is not valid JSON",
+        }
+    if not isinstance(manifest, dict):
+        return {
+            "state": "unavailable",
+            "reason": "layered outfit manifest root is not an object",
+        }
+    scene_map = manifest.get("scene_map")
+    outfit = manifest.get("outfit")
+    checkpoints = manifest.get("checkpoints")
+    if (
+        not isinstance(scene_map, dict)
+        or not isinstance(outfit, dict)
+        or not isinstance(checkpoints, list)
+    ):
+        return {
+            "state": "unavailable",
+            "reason": "layered outfit manifest is missing its CAD scene map or checkpoint inventory",
+        }
+    return {
+        "state": "available",
+        "manifest_path": "layered-outfit-manifest.json",
+        "provenance": manifest.get("provenance"),
+        "outfit": outfit,
+        "scene_map": scene_map,
+        "checkpoints": checkpoints,
+        "images": manifest.get("images", []),
+        "interpretation_limit": (
+            "The coordinate map and semantic relationships are authored CAD evidence. "
+            "Images provide human visual review; they are not the authority for piece identity, "
+            "world transforms, or collision measurements."
+        ),
+    }
+
+
 def build_report(progress_path: Path, output_root: Path, workspace: Path) -> JsonObject:
     """Build a machine-readable diagnosis using only the completed workflow files.
 
@@ -910,6 +960,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
         next_action = str(fit_assessment.get("next_action", next_action))
 
     crossings = _crossing_summary(assessment.invalid_geometry)
+    layered_scene = _layered_garment_scene(output_root)
 
     return {
         "schema": SCHEMA,
@@ -962,6 +1013,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "drape_metrics_json": metrics_payload,
         },
         "fit_assessment": fit_assessment,
+        "layered_garment_scene": layered_scene,
         "issues": issues,
         "next_action": next_action,
         "evidence": {
@@ -1480,6 +1532,81 @@ def _render_evidence_section(lines: list[str], report: JsonObject) -> None:
             )
 
 
+def _render_layered_garment_section(lines: list[str], report: JsonObject) -> None:
+    """Render measured multi-garment scene relations without inferring them from pixels."""
+    layered = _as_dict(report.get("layered_garment_scene"))
+    if not layered:
+        return
+    lines.extend(["", "## Layered garment spatial map", ""])
+    state = str(layered.get("state", "unavailable"))
+    lines.append("**Scene-map state:** " + state.upper())
+    if state != "available":
+        lines.append(str(layered.get("reason", "CAD scene map was not produced.")))
+        return
+    outfit = _as_dict(layered.get("outfit"))
+    scene_map = _as_dict(layered.get("scene_map"))
+    coordinate = _as_dict(scene_map.get("coordinate_system"))
+    lines.append(
+        "- Coordinate frame: millimetres; origin = "
+        + str(coordinate.get("origin", "not declared"))
+        + "; front = "
+        + str(coordinate.get("front_direction", "not declared"))
+        + "."
+    )
+    lines.append(
+        "- Authored panels: %s; semantic seams: %s; independent garment groups: %s."
+        % (
+            outfit.get("piece_count", "unknown"),
+            outfit.get("seam_count", "unknown"),
+            outfit.get("garment_group_count", "unknown"),
+        )
+    )
+    for raw_group in _as_list(scene_map.get("garment_groups")):
+        if not isinstance(raw_group, dict):
+            continue
+        group = cast("JsonObject", raw_group)
+        piece_ids = _as_list(group.get("piece_ids"))
+        lines.append(
+            "- **%s:** %d source pieces; independent of %s."
+            % (
+                group.get("id", "unknown"),
+                len(piece_ids),
+                ", ".join(str(value) for value in _as_list(group.get("independent_of"))),
+            )
+        )
+    relation = _as_dict(scene_map.get("inter_garment_relation"))
+    if relation:
+        lines.append(
+            "- Measured contact relation: %s ↔ %s; requested clearance = %s mm; method = %s."
+            % (
+                relation.get("garment_group_a", "unknown"),
+                relation.get("garment_group_b", "unknown"),
+                relation.get("minimum_requested_clearance_mm", "unknown"),
+                relation.get("measurement_method", "not declared"),
+            )
+        )
+    for raw_checkpoint in _as_list(layered.get("checkpoints")):
+        if not isinstance(raw_checkpoint, dict):
+            continue
+        checkpoint = cast("JsonObject", raw_checkpoint)
+        lines.append(
+            "- Step %s: contacts=%s; corrected particles=%s; residual penetration=%s mm; "
+            "maximum seam gap=%s mm."
+            % (
+                checkpoint.get("step", "unknown"),
+                checkpoint.get("contact_count", "not measured"),
+                checkpoint.get("corrected_particle_count", "not measured"),
+                checkpoint.get("residual_penetration_mm", "not measured"),
+                checkpoint.get("max_seam_gap_mm", "not measured"),
+            )
+        )
+    lines.append(
+        "The CAD scene map contains exact local/world panel geometry, semantic edge IDs, "
+        "mannequin landmarks and seam-to-piece references. Use those records for spatial "
+        "reasoning; do not reconstruct the 3D state from a single screenshot."
+    )
+
+
 def render_markdown(report: JsonObject) -> str:
     """Generate a readable summary that leads with the blocker, not solver metrics.
 
@@ -1520,6 +1647,8 @@ def render_markdown(report: JsonObject) -> str:
     _render_geometry_issues(lines, report)
 
     _render_placement_section(lines, report)
+
+    _render_layered_garment_section(lines, report)
 
     _render_evidence_section(lines, report)
 

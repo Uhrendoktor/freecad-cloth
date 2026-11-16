@@ -135,6 +135,7 @@ GROUPS = {
         "tests/test_simulation_dataflow.py",
         "tests/test_simulation_quality_signature.py",
         "tests/test_simulation_review_contract.py",
+        "tests/test_layered_outfit_manifest.py",
         "tests/test_visual_capture_validation.py",
         "tests/test_workbench_command_contract.py",
         "tests/test_workbench_contract.py",

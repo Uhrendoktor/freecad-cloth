@@ -210,6 +210,50 @@ Generate a dedicated annotated SVG from the same sampled boundary and intersecti
 
 A raw FreeCAD viewport is useful for UI regressions, but toolbars, task panels, tiny geometry, inconsistent zoom, and changing camera direction reduce its usefulness for spatial diagnosis. Retain it as evidence; add a purpose-built geometry view for reasoning.
 
+## Multi-garment CAD scene map
+
+For a layered outfit, extend the same artifact-first dossier with a CAD-derived
+scene graph rather than asking an image model to infer panel ownership or
+world transforms. The layered-outfit manifest records:
+
+- every native PatternPiece ID, garment-group membership, Sketcher semantic
+  edge IDs, sampled local boundary points, local-to-world translation and
+  quaternion, local/world bounds, and the corresponding solver panel identity;
+- every semantic seam's source piece IDs, source edge IDs, parameter ranges,
+  orientation, stitch group, validity state, exact solver stitch-pair count,
+  and measured maximum/mean seam gap at each checkpoint;
+- named mannequin arrangement landmarks in both avatar-local and document-world
+  millimetres, plus collision-source topology and the coordinate-axis convention;
+- independent garment-group relations, requested cloth clearance, measured
+  contact/correction/penetration metrics, and the six declared orthographic
+  camera directions.
+
+The scene-understanding report embeds this map and renders its group/checkpoint
+summary. The map is source geometry evidence; the view images remain visual
+evidence. They must agree, but neither should silently replace the other. A
+missing or malformed map is reported as unavailable, not reconstructed from
+pixels. This gives a reviewer enough structured context to ask for an exact
+piece, edge, landmark, or contact pair while still inspecting the real rendered
+outfit.
+
+The current validation fixture is a deliberately simplified construction case:
+a longline four-panel shirt shell overlaps a four-panel waistband on a flared
+four-panel A-line skirt. The waistband belongs to the skirt's garment group;
+the shirt and skirt remain separate solver groups. The shirt hem overlaps the
+waistband vertically so cloth-to-cloth contact is mandatory rather than inferred
+from a visual gap. This fixture validates multi-piece sewing, separate garment
+identity, contact, and persistence. It is **not** yet a graded production shirt:
+it does not include sleeves, a collar, a button placket, size grading, or a
+calibrated woven-fabric constitutive model.
+
+The positive `InterClothResidualPenetration` field is a **requested-clearance
+deficit**: requested layer separation minus the closest sampled edge/triangle
+distance. It is not signed volumetric intersection depth. The runtime
+re-measures residual pairs after the final mannequin collision projection, and
+the artifact validator requires zero remaining edge/triangle pairs below the
+requested clearance. Mesh intersections, body fit/coverage, seam integrity,
+and visual plausibility remain separate acceptance questions.
+
 ## Failure ordering and anti-optimization gates
 
 The intended diagnosis ladder is:
