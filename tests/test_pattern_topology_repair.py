@@ -129,9 +129,20 @@ def test_viewport_native_sketch_index_resolves_exact_semantic_edge():
 
 def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_geometry():
     """Keep EdgeN mapped to original Sketcher Geometry index when construction is skipped."""
+
+    class Point:
+        def __init__(self, x: float, y: float) -> None:
+            self.x, self.y, self.z = float(x), float(y), 0.0
+
+    class LineSegment:
+        def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+            self.StartPoint = Point(*start)
+            self.EndPoint = Point(*end)
+
     piece = _piece()
     geometry = piece.Sketch.Geometry
-    piece.Sketch.Geometry = (geometry[0], geometry[1], *geometry[2:])
+    construction = LineSegment((30.0, 30.0), (40.0, 40.0))
+    piece.Sketch.Geometry = (geometry[0], construction, *geometry[1:])
     piece.Sketch.SemanticEdgeIds = (
         "front:edge:0",
         "",
