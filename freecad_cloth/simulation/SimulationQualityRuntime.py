@@ -169,12 +169,19 @@ def quality_discretization(point_count, perimeter, particle_distance):
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
+class _PreviewDisplayPanel(Protocol):
+    """Expose the persistent panel identity and view object needed by preview."""
+
+    Name: str
+    ViewObject: object
+
+
 class _PreviewMeshPublisher(Protocol):
     """Publish transient panel coordinates without mutating document mesh objects."""
 
     def __call__(
         self,
-        panel: object,
+        panel: _PreviewDisplayPanel,
         positions: tuple[tuple[float, float, float], ...],
         triangles: Sequence[tuple[int, int, int]],
     ) -> None: ...
