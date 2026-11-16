@@ -257,10 +257,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=set(project["tool"]["ruff"]["lint"]["pep8-naming"]["extend-ignore-names"])
         == host_api_names | host_api_variables,
-        message=(
-            "Naming exceptions must remain limited to exact native API "
-            "identifiers and aliases."
-        ),
+        message="Naming exceptions must remain limited to exact native API identifiers and aliases.",
     )
     require(
         condition=lint.get("select") == ["ALL"],
