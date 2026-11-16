@@ -3,12 +3,11 @@ import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
-from unittest.mock import patch
-
 from freecad_cloth.sewing.SewingGui import (
     SewingTaskPanel,
     repair_correspondence_settings,
@@ -62,6 +61,7 @@ class SewingGuiContractTests(unittest.TestCase):
 
 
     def test_refresh_accepts_and_preserves_action_feedback(self):
+        """Keep seam validity visible when a navigation action completes."""
         panel = SewingTaskPanel.__new__(SewingTaskPanel)
         panel.obj = SimpleNamespace(
             Status="Valid",
