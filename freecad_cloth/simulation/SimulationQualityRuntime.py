@@ -169,12 +169,24 @@ def quality_discretization(point_count, perimeter, particle_distance):
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
+class _PreviewMeshPublisher(Protocol):
+    """Publish transient panel coordinates without mutating document mesh objects."""
+
+    def __call__(
+        self,
+        panel: object,
+        positions: tuple[tuple[float, float, float], ...],
+        triangles: Sequence[tuple[int, int, int]],
+    ) -> None: ...
+
+
 class QualitySimulationProxy:
     """Wrap the deterministic simulation proxy with quality/material behavior."""
 
     Type = "ClothSimulation"
 
     def __init__(self):
+        self._preview_mesh_publisher: _PreviewMeshPublisher | None = None
         self._restore_base()
 
     def __getstate__(self) -> dict[str, int]:
@@ -215,8 +227,16 @@ class QualitySimulationProxy:
 
         Args:
             obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""
+        self._preview_mesh_publisher = None
         self._restore_base()
         self.seam_stitch_pairs = {}
+
+    def set_preview_mesh_publisher(
+        self,
+        publisher: _PreviewMeshPublisher | None,
+    ) -> None:
+        """Select transient viewport publication while the realtime preview is active."""
+        self._preview_mesh_publisher = publisher
 
     @staticmethod
     def _signature(obj: _QualityScene) -> tuple[Hashable, ...]:
@@ -279,10 +299,16 @@ class QualitySimulationProxy:
         else:
             positions = base.backend.positions()
             finite_state = base.backend.finite()
-        from freecad_cloth.simulation.SimulationObjects import _write_mesh
+        publisher = self._preview_mesh_publisher
+        if publisher is None:
+            from freecad_cloth.simulation.SimulationObjects import _write_mesh
 
         for panel in getattr(obj, "DrapePanels", ()):
-            _write_mesh(panel, positions, base.panel_triangles.get(panel.Name, ()))
+            triangles = base.panel_triangles.get(panel.Name, ())
+            if publisher is None:
+                _write_mesh(panel, positions, triangles)
+            else:
+                publisher(panel, positions, triangles)
         self._apply_presentation(obj)
         obj.Steps = int(base.last_steps)
         obj.SimulatedTime = base.backend.time
