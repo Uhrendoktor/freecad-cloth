@@ -20,6 +20,8 @@ type PointArray = npt.NDArray[np.float64]
 type TriangleArray = npt.NDArray[np.int64]
 type EdgeArray = npt.NDArray[np.int64]
 
+_CONTACT_MEASUREMENT_EPSILON_MM = 0.002
+
 
 class InterClothContactMetrics(NamedTuple):
     """Measured cross-garment contact projection activity for one solver frame."""
@@ -512,7 +514,7 @@ def _measure_contacts(
     surfaces: Mapping[str, _SurfaceIndex],
     clearance_mm: float,
 ) -> tuple[int, float]:
-    """Measure residual edge/face penetrations between independent groups."""
+    """Measure residual clearance deficits greater than the 0.002 mm numeric tolerance."""
     group_ids = tuple(sorted(surfaces))
     contact_count = 0
     maximum = 0.0
@@ -541,7 +543,7 @@ def _measure_contacts(
                             )
                         )
                         penetration = clearance_mm - float(np.linalg.norm(edge_point - face_point))
-                        if penetration > 1e-5:
+                        if penetration > _CONTACT_MEASUREMENT_EPSILON_MM:
                             contact_count += 1
                             maximum = max(maximum, penetration)
     return contact_count, maximum
@@ -565,8 +567,8 @@ def measure_inter_cloth_contacts(
         clearance_mm: Minimum requested surface separation.
 
     Returns:
-        Number of residual edge/triangle pairs below the requested clearance and
-        their maximum clearance deficit in millimetres.
+        Number of residual edge/triangle pairs whose clearance deficit exceeds
+        the 0.002 mm numerical tolerance and their maximum deficit in millimetres.
 
     Raises:
         ValueError: If positions, triangle indices, garment identities or clearance

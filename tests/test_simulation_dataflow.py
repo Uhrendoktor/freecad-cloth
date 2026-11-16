@@ -257,6 +257,13 @@ class _Scene:
     SolverIterations: int
     SolverSubsteps: int
     PinMode: str
+    GarmentGroups: list[str]
+    InterClothClearance: float
+    InterClothContactCount: int
+    InterClothRemainingContactCount: int
+    InterClothCorrectedParticleCount: int
+    InterClothMaxPenetration: float
+    InterClothResidualPenetration: float
     FabricDensity: float
     FabricThickness: float
     FabricStretch: float
@@ -287,6 +294,13 @@ class _Scene:
         self.SolverIterations = DEFAULT_SOLVER_ITERATIONS
         self.SolverSubsteps = DEFAULT_SOLVER_SUBSTEPS
         self.PinMode = "Automatic"
+        self.GarmentGroups = []
+        self.InterClothClearance = 1.0
+        self.InterClothContactCount = 0
+        self.InterClothRemainingContactCount = 0
+        self.InterClothCorrectedParticleCount = 0
+        self.InterClothMaxPenetration = 0.0
+        self.InterClothResidualPenetration = 0.0
         self.FabricDensity = DEFAULT_FABRIC_DENSITY
         self.FabricThickness = DEFAULT_FABRIC_THICKNESS_MM
         self.FabricStretch = DEFAULT_FABRIC_STRETCH

@@ -79,17 +79,14 @@ def _events() -> None:
 
 def _landmark_world(avatar: App.DocumentObject, name: str) -> App.Vector:
     """Resolve one named arrangement landmark into the shared world frame."""
-    raw = next(
-        (
-            str(value)
-            for value in getattr(avatar, "ArrangementPoints", ())
-            if str(value).split("|", 1)[0] == name
-        ),
-        None,
-    )
-    if raw is None:
+    from freecad_cloth.avatar.avatar_arrangement import arrangement_point_map
+
+    coordinates = arrangement_point_map(
+        getattr(avatar, "ArrangementPoints", ())
+    ).get(name)
+    if coordinates is None:
         raise RuntimeError("production mannequin is missing arrangement landmark " + name)
-    values = tuple(float(value) for value in raw.split("|", 1)[1].split(","))
+    values = tuple(float(value) for value in coordinates.split(","))
     if len(values) != 3 or not all(math.isfinite(value) for value in values):
         raise RuntimeError("invalid mannequin landmark coordinates for " + name)
     return avatar.Placement.multVec(App.Vector(*values))

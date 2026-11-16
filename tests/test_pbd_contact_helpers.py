@@ -209,7 +209,7 @@ def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alo
         iterations=4,
     )
     np.testing.assert_allclose(pinned[:4], positions[:4])
-    assert any(pinned[index] != positions[index] for index in range(4, 8))
+    assert np.any(np.asarray(pinned[4:]) != np.asarray(positions[4:]))
 
     separated_positions, separated_groups = _parallel_cloth_groups(offset_mm=20.0)
     untouched, _directions, separated_metrics = project_inter_cloth_contacts(

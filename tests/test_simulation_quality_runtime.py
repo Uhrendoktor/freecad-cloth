@@ -218,6 +218,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         GarmentGroups=[],
         InterClothClearance=1.0,
         InterClothContactCount=0,
+        InterClothRemainingContactCount=0,
         InterClothCorrectedParticleCount=0,
         InterClothMaxPenetration=0.0,
         InterClothResidualPenetration=0.0,
