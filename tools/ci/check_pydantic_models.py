@@ -165,7 +165,9 @@ def serialization_exception_is_justified(
         return False
     reason, regression_test = exception
     test_reference = regression_test.split("#", maxsplit=1)
-    if not _serialization_reason_is_specific(reason) or not _test_reference_is_valid(test_reference):
+    if not _serialization_reason_is_specific(reason) or not _test_reference_is_valid(
+        test_reference
+    ):
         return False
     test_path = ROOT / test_reference[0]
     if not test_path.is_file():

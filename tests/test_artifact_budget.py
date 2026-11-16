@@ -189,7 +189,6 @@ def test_duplicate_artifact_name_requires_creation_metadata() -> None:
         latest_artifacts_by_name(artifacts)
 
 
-
 def test_duplicate_artifact_name_rejects_wrong_metadata_types() -> None:
     """Reject timestamps and identifiers whose supplied values have invalid types."""
     artifacts = [

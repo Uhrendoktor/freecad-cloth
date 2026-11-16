@@ -91,10 +91,7 @@ def latest_artifacts_by_name(
         previous_created = previous.get("created_at")
         current_id = artifact.get("id")
         previous_id = previous.get("id")
-        if any(
-            value is None
-            for value in (current_created, previous_created, current_id, previous_id)
-        ):
+        if any(value is None for value in (current_created, previous_created, current_id, previous_id)):
             msg = f"duplicate artifact name {name!r} lacks creation time or artifact ID"
             raise ValueError(msg)
         if not isinstance(current_created, str) or not isinstance(previous_created, str):
