@@ -211,8 +211,6 @@ def test_focus_panels_selects_sources_and_frames_view_without_reorienting(
         "_qt",
         lambda: (cast("ModuleType", object()), gui, cast("ModuleType", object())),
     )
-    from freecad_cloth.common import UiDesign
-
     status = _Widget()
     task_panel = ClothDiagnosticsGui.DiagnosticsTaskPanel.__new__(
         ClothDiagnosticsGui.DiagnosticsTaskPanel
