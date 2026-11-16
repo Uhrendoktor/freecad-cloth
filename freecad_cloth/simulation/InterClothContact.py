@@ -429,12 +429,15 @@ def _candidate_contact_statistics(
     max_penetration = 0.0
     for left_index, left_id in enumerate(group_ids):
         left = surfaces[left_id]
-        left_vertices = np.unique(left.triangles)
         for right_id in group_ids[left_index + 1 :]:
             right = surfaces[right_id]
-            for source_id, target in ((left_id, right), (right_id, left)):
-                for source_particle in left_vertices if source_id == left_id else np.unique(right.triangles):
-                    query_radius = clearance_mm + float(target.triangle_radii.max())
+            for source, target in (
+                (left, right),
+                (right, left),
+            ):
+                source_vertices = np.unique(source.triangles)
+                query_radius = clearance_mm + float(target.triangle_radii.max())
+                for source_particle in source_vertices:
                     candidate_ids = target.triangle_tree.query_ball_point(
                         positions[int(source_particle)],
                         query_radius,
@@ -558,6 +561,14 @@ def project_inter_cloth_contacts(
         surfaces[group_id] = _surface_index(positions, triangles)
 
     group_ids = tuple(sorted(surfaces))
+    particle_owners: dict[int, str] = {}
+    for group_id, surface in surfaces.items():
+        for particle_index in np.unique(surface.triangles):
+            index = int(particle_index)
+            previous = particle_owners.setdefault(index, group_id)
+            if previous != group_id:
+                msg = "independent inter-cloth groups must not share solver particles"
+                raise ValueError(msg)
     clusters = _stitch_clusters(len(positions), stitches)
     original = positions.copy()
     current = positions.copy()
