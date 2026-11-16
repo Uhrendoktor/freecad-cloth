@@ -104,9 +104,7 @@ class _TopologyRepairViewportPicker:
         selected_name = str(object_name or "")
         if selected_name != expected_name:
             self.panel._set_status(
-                "Pick an edge on the temporarily shown native Sketch linked to seam side {}.".format(
-                    self.side
-                ),
+                f"Pick an edge on the temporarily shown native Sketch linked to seam side {self.side}.",
                 state="warning",
             )
             return
@@ -142,9 +140,9 @@ class _TopologyRepairViewportPicker:
             )
             return
         self.combo.setCurrentIndex(index)
-        label = str(
-            getattr(self.expected_piece, "Label", getattr(self.expected_piece, "Name", "PatternPiece"))
-        )
+        label = str(getattr(self.expected_piece, "Label", ""))
+        if not label:
+            label = str(getattr(self.expected_piece, "Name", "PatternPiece"))
         sketch_label = str(getattr(self.expected_sketch, "Label", expected_name))
         self.dispose()
         self.panel._set_status(
@@ -198,8 +196,8 @@ class PatternTopologyRepairTaskPanel:
         outer = QtWidgets.QVBoxLayout(self.form)
         outer.addWidget(
             QtWidgets.QLabel(
-                "Sketch topology changed. Select the intended current edge for each invalid seam side. "
-                "Nothing is remapped automatically."
+                "Sketch topology changed. Select the intended current edge for each invalid "
+                "seam side. Nothing is remapped automatically."
             )
         )
         self.rows = []
