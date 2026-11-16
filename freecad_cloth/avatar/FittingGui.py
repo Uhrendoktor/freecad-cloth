@@ -1084,11 +1084,26 @@ class FittingTaskPanel:
         mark_button(self.pick_surface_button, "primary")
         apply_panel_style(self.form)
 
-    def _set_status(self, text: str, state: str = "info") -> None:
-        """Update arrange/fit feedback using the shared status vocabulary."""
+    def _set_status(self, text: str, state: str | None = None) -> None:
+        """Update arrange/fit feedback using the shared status vocabulary.
+
+        Args:
+            text: User-facing instruction or result from viewport manipulation.
+            state: Optional explicit semantic state; controller messages are classified
+                when no state is supplied.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
-        set_status(self.status, text, state=state)
+        message = str(text)
+        if state is None:
+            lowered = message.casefold()
+            if lowered.startswith(("placement blocked", "attachment-point overlay unavailable")):
+                state = "error"
+            elif lowered.startswith(("snapped ", "placed ")):
+                state = "success"
+            else:
+                state = "info"
+        set_status(self.status, message, state=state)
 
     def _next_anchor_name(self):
         """Return a predictable name not already used by a saved snap point."""
