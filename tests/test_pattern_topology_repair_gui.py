@@ -105,7 +105,7 @@ def _picker_fixture() -> tuple[
 
 def test_viewport_picker_maps_only_the_matching_semantic_sketcher_edge() -> None:
     """Set the row combo to the semantic ID resolved from the picked EdgeN."""
-    _panel, picker, combo, selection, updates = _picker_fixture()
+    panel, picker, combo, selection, updates = _picker_fixture()
 
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index",
