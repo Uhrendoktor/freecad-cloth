@@ -286,6 +286,7 @@ class SewingCreationTaskPanel:
         from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
 
         mark_button(self.preview_button, "secondary")
+        mark_button(self.viewport_pick_button, "secondary")
         mark_button(self.commit_button, "primary")
         mark_button(self.cancel_button, "secondary")
         apply_panel_style(self.form)
@@ -357,12 +358,8 @@ class SewingCreationTaskPanel:
     def toggle_viewport_picking(self):
         if self._viewport_picking:
             self._stop_viewport_picking()
-            from freecad_cloth.common.UiDesign import set_status
-
-            set_status(
-                self.feedback,
-                "Viewport picking paused. Press Preview to review the selected edges.",
-                state="info",
+            self._show_info(
+                "Viewport picking paused. Press Preview to review the selected edges."
             )
             self.commit_button.setEnabled(False)
             return
@@ -403,7 +400,7 @@ class SewingCreationTaskPanel:
                 "Click the relevant PatternPiece edges in the viewport, stop picking, then press "
                 "Preview to validate the relationship."
             )
-        self.feedback.setText(message)
+        self._show_info(message)
 
         self.commit_button.setEnabled(False)
 
@@ -438,7 +435,7 @@ class SewingCreationTaskPanel:
             hit = None
         candidate = viewport_edge_candidate(self.App.ActiveDocument, hit)
         if candidate is None:
-            self.feedback.setText(
+            self._show_info(
                 "Pick an outline edge on a PatternPiece, not a face or sewing overlay."
             )
             return
@@ -446,7 +443,7 @@ class SewingCreationTaskPanel:
         if any(previous is obj and edge == component for previous, edge in self._viewport_picks):
             return
         if self.kind == "seam" and self._viewport_picks and self._viewport_picks[0][0] is obj:
-            self.feedback.setText("Choose the counterpart edge on a different PatternPiece.")
+            self._show_info("Choose the counterpart edge on a different PatternPiece.")
 
             return
         self._viewport_picks.append((obj, component))
@@ -455,7 +452,7 @@ class SewingCreationTaskPanel:
             self.Gui.Selection.addSelection(picked_obj, picked_edge)
         self._refresh_selection()
         if self.kind == "seam" and len(self._viewport_picks) == 1:
-            self.feedback.setText(
+            self._show_info(
                 "Side A: {} / {}. Click the matching edge on another PatternPiece.".format(
                     getattr(obj, "Label", obj.Name), component
                 )
@@ -475,6 +472,16 @@ class SewingCreationTaskPanel:
                     "Seam preview shown. Review the matching color and A/B labels, then Commit or Cancel.",
                     state="success",
                 )
+
+    def _show_info(self, text: str) -> None:
+        """Display an informational picking instruction using the shared status style.
+
+        Args:
+            text: User-facing instruction for the current viewport-picking step.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.feedback, text, state="info")
 
     def _show_error(self, exc: Exception) -> None:
         """Display a preview error and keep the staged creation uncommitted.
