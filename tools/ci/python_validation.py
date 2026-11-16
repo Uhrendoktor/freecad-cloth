@@ -148,6 +148,8 @@ GROUPS = {
         "tests/test_explicit_any_annotations.py",
         "tests/test_pydantic_models_policy.py",
         "tests/test_strict_quality_runner_contract.py",
+        "tests/test_realtime_mesh_preview.py",
+        "tests/test_realtime_preview_timing.py",
     ),
 }
 
