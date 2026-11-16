@@ -135,8 +135,14 @@ def test_sketch_authoritative_mode_displays_read_only_sketch_dimensions() -> Non
         setVisible=visible_states.append,
         setToolTip=height_tooltips.append,
     )
-    panel._width_label = SimpleNamespace(setText=width_label.append, setVisible=visible_states.append)
-    panel._height_label = SimpleNamespace(setText=height_label.append, setVisible=visible_states.append)
+    panel._width_label = SimpleNamespace(
+        setText=width_label.append,
+        setVisible=visible_states.append,
+    )
+    panel._height_label = SimpleNamespace(
+        setText=height_label.append,
+        setVisible=visible_states.append,
+    )
 
     panel._mode_changed("Rectangle")
 
