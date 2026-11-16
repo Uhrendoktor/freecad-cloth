@@ -249,9 +249,11 @@ class _FrameClock:
                     self._worker_wakeup_estimate_ms - self._last_worker_wakeup_lateness_ms
                 )
             if acknowledged_start is not None:
-                next_deadline = acknowledged_start + period + (
-                    queue_phase_correction_ms + worker_phase_correction_ms
-                ) / 1000.0
+                next_deadline = (
+                    acknowledged_start
+                    + period
+                    + (queue_phase_correction_ms + worker_phase_correction_ms) / 1000.0
+                )
 
 
 def _make_frame_dispatcher(
