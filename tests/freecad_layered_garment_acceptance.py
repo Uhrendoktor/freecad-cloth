@@ -32,6 +32,7 @@ from support.freecad_bootstrap import prepare_repository_root
 
 ROOT = prepare_repository_root(__file__)
 
+# isort: split
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
@@ -186,7 +187,9 @@ def _make_ring(
             "front",
             2.0 * radius_x_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x - radius_x_mm - flare, center_y - radius_y_mm - flare, bottom_z_mm),
+                App.Vector(
+                    center_x - radius_x_mm - flare, center_y - radius_y_mm - flare, bottom_z_mm
+                ),
                 rotations[0],
             ),
         ),
@@ -194,7 +197,9 @@ def _make_ring(
             "right",
             2.0 * radius_y_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x + radius_x_mm + flare, center_y - radius_y_mm - flare, bottom_z_mm),
+                App.Vector(
+                    center_x + radius_x_mm + flare, center_y - radius_y_mm - flare, bottom_z_mm
+                ),
                 rotations[1],
             ),
         ),
@@ -202,7 +207,9 @@ def _make_ring(
             "back",
             2.0 * radius_x_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x + radius_x_mm + flare, center_y + radius_y_mm + flare, bottom_z_mm),
+                App.Vector(
+                    center_x + radius_x_mm + flare, center_y + radius_y_mm + flare, bottom_z_mm
+                ),
                 rotations[2],
             ),
         ),
@@ -210,7 +217,9 @@ def _make_ring(
             "left",
             2.0 * radius_y_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x - radius_x_mm - flare, center_y + radius_y_mm + flare, bottom_z_mm),
+                App.Vector(
+                    center_x - radius_x_mm - flare, center_y + radius_y_mm + flare, bottom_z_mm
+                ),
                 rotations[3],
             ),
         ),
@@ -352,12 +361,13 @@ def _seam_measurements(
     measurements = []
     for seam_id, pairs in sorted(provenance.items()):
         gaps = [
-            float(math.dist(positions[int(left)], positions[int(right)]))
-            for left, right in pairs
+            float(math.dist(positions[int(left)], positions[int(right)])) for left, right in pairs
         ]
         seam = seam_objects.get(str(seam_id))
         if seam is None:
-            raise RuntimeError("solver seam provenance has no matching document seam: " + str(seam_id))
+            raise RuntimeError(
+                "solver seam provenance has no matching document seam: " + str(seam_id)
+            )
         measurements.append(
             {
                 "seam_id": str(seam_id),
@@ -450,7 +460,9 @@ def _piece_scene_map(
         panel_indices = tuple(int(value) for value in base.panel_indices.get(panel_name, ()))
         panel_triangles = tuple(base.panel_triangles.get(panel_name, ()))
         if not panel_indices or not panel_triangles:
-            raise RuntimeError("solver panel identity has no particle/triangle mapping: " + piece_id)
+            raise RuntimeError(
+                "solver panel identity has no particle/triangle mapping: " + piece_id
+            )
         rotation = placement.Rotation
         quaternion = tuple(float(value) for value in rotation.Q)
         result.append(
@@ -580,27 +592,28 @@ def run_acceptance() -> None:
             min(float(vertex[1]) for vertex in body_depth_samples)
             + max(float(vertex[1]) for vertex in body_depth_samples)
         )
-        radius_x = max(
-            0.5 * shoulder_width,
-            max(abs(float(vertex[0]) - center_x) for vertex in hip_slice),
-        ) + 28.0
-        radius_y = 0.5 * (
-            max(float(vertex[1]) for vertex in body_depth_samples)
-            - min(float(vertex[1]) for vertex in body_depth_samples)
-        ) + 28.0
+        radius_x = (
+            max(
+                0.5 * shoulder_width,
+                max(abs(float(vertex[0]) - center_x) for vertex in hip_slice),
+            )
+            + 28.0
+        )
+        radius_y = (
+            0.5
+            * (
+                max(float(vertex[1]) for vertex in body_depth_samples)
+                - min(float(vertex[1]) for vertex in body_depth_samples)
+            )
+            + 28.0
+        )
         radius_x = max(150.0, radius_x)
         radius_y = max(100.0, radius_y)
 
         rotation_front = App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0)
-        rotation_right = App.Rotation(App.Vector(0.0, 0.0, 1.0), 90.0).multiply(
-            rotation_front
-        )
-        rotation_back = App.Rotation(App.Vector(0.0, 0.0, 1.0), 180.0).multiply(
-            rotation_front
-        )
-        rotation_left = App.Rotation(App.Vector(0.0, 0.0, 1.0), 270.0).multiply(
-            rotation_front
-        )
+        rotation_right = App.Rotation(App.Vector(0.0, 0.0, 1.0), 90.0).multiply(rotation_front)
+        rotation_back = App.Rotation(App.Vector(0.0, 0.0, 1.0), 180.0).multiply(rotation_front)
+        rotation_left = App.Rotation(App.Vector(0.0, 0.0, 1.0), 270.0).multiply(rotation_front)
         rotations = (
             rotation_front,
             rotation_right,
@@ -639,21 +652,20 @@ def run_acceptance() -> None:
             center_y,
         )
         waistband_seams = _sew_ring(doc, "Waistband", waistband)
-        waistband_join_seams = []
-        for side in ("front", "right", "back", "left"):
-            waistband_join_seams.append(
-                _add_seam(
-                    doc,
-                    skirt[side],
-                    SEAM_TOP_EDGE,
-                    waistband[side],
-                    SEAM_BOTTOM_EDGE,
-                    "Skirt-Waistband-" + side,
-                    reversed_b=True,
-                    stitch_group="SkirtAssembly",
-                    kind="plain",
-                )
+        waistband_join_seams = [
+            _add_seam(
+                doc,
+                skirt[side],
+                SEAM_TOP_EDGE,
+                waistband[side],
+                SEAM_BOTTOM_EDGE,
+                "Skirt-Waistband-" + side,
+                reversed_b=True,
+                stitch_group="SkirtAssembly",
+                kind="plain",
             )
+            for side in ("front", "right", "back", "left")
+        ]
 
         # The untucked shirt hem overlaps the separate waistband by 45 mm.
         shirt_bottom_z = hip_z - 85.0
@@ -699,8 +711,7 @@ def run_acceptance() -> None:
             ]
         )
         garment_group_by_piece = {
-            entry.split("|", 1)[1]: entry.split("|", 1)[0]
-            for entry in scene.GarmentGroups
+            entry.split("|", 1)[1]: entry.split("|", 1)[0] for entry in scene.GarmentGroups
         }
         scene.InterClothClearance = 8.0
         scene.QualityPreset = "Fast"
@@ -723,7 +734,10 @@ def run_acceptance() -> None:
                 obj.Sketch.ViewObject.Visibility = False
         doc.recompute()
         _events()
-        _log("pattern-pieces=%d seams=%d" % (len(pieces), len(shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)))
+        _log(
+            "pattern-pieces=%d seams=%d"
+            % (len(pieces), len(shirt_seams + skirt_seams + waistband_seams + waistband_join_seams))
+        )
         if not bool(scene.FiniteState) or int(scene.ParticleCount) <= 0:
             raise RuntimeError("initial twelve-panel solver build did not produce finite particles")
 
@@ -732,7 +746,9 @@ def run_acceptance() -> None:
         if set(getattr(base, "panel_piece_names", {}).values()) != {
             str(piece.Name) for piece in pieces
         }:
-            raise RuntimeError("the solver output lost one or more persistent PatternPiece identities")
+            raise RuntimeError(
+                "the solver output lost one or more persistent PatternPiece identities"
+            )
         if len(base.seam_stitch_pairs) != MINIMUM_SEAMS:
             raise RuntimeError(
                 "expected sixteen exact solver seam groups, got %d" % len(base.seam_stitch_pairs)
@@ -811,9 +827,7 @@ def run_acceptance() -> None:
                 )
             body_metrics = _body_clearance(scene, backend)
             if int(body_metrics["inside_particle_count"]) > 0:
-                raise RuntimeError(
-                    "draped garment penetrated the mannequin at step %d" % step
-                )
+                raise RuntimeError("draped garment penetrated the mannequin at step %d" % step)
             if float(body_metrics["minimum_unsigned_clearance_mm"]) < MINIMUM_BODY_CLEARANCE_MM:
                 raise RuntimeError(
                     "mannequin clearance %.3f mm is below %.3f mm at step %d"
@@ -968,9 +982,9 @@ def run_acceptance() -> None:
                     {
                         "id": "skirt",
                         "piece_ids": [
-                            str(skirt[side].PieceId)
-                            for side in ("front", "right", "back", "left")
-                        ] + [
+                            str(skirt[side].PieceId) for side in ("front", "right", "back", "left")
+                        ]
+                        + [
                             str(waistband[side].PieceId)
                             for side in ("front", "right", "back", "left")
                         ],

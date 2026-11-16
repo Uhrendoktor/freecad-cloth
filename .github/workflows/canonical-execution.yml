@@ -44,8 +44,7 @@ permissions:
   contents: read
   packages: read
 jobs:
-  # Main-only explicit activation; ordinary pushes/PRs skip this hosted-CPU rebase broker.
-  # Title "RUN REBASE: PR #<number>" selects the open PR; rebase its live head and dispatch exact-head validation.
+  # Main-only RUN REBASE: PR #<number> activation broker for the selected open PR branch.
   guarded-rebase-pr:
     name: Rebase a PR named in an explicit activation commit
     if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}"

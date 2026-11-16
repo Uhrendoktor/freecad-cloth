@@ -88,27 +88,26 @@ def _valid_artifact(root: Path) -> Path:
                 "mean_gap_mm": 0.1,
             }
         )
-    checkpoints = []
-    for step in (1, 15, 60):
-        checkpoints.append(
-            {
-                "step": step,
-                "elapsed_ms": 100.0,
-                "finite": True,
-                "contact_count": 24,
-                "corrected_particle_count": 32,
-                "remaining_contact_count": 0,
-                "max_penetration_before_mm": 1.0,
-                "residual_penetration_mm": 0.0,
-                "max_seam_gap_mm": 0.2,
-                "body": {
-                    "inside_particle_count": 0,
-                    "minimum_unsigned_clearance_mm": 18.0,
-                },
-                "seams": seams,
-                "images": [],
-            }
-        )
+    checkpoints = [
+        {
+            "step": step,
+            "elapsed_ms": 100.0,
+            "finite": True,
+            "contact_count": 24,
+            "corrected_particle_count": 32,
+            "remaining_contact_count": 0,
+            "max_penetration_before_mm": 1.0,
+            "residual_penetration_mm": 0.0,
+            "max_seam_gap_mm": 0.2,
+            "body": {
+                "inside_particle_count": 0,
+                "minimum_unsigned_clearance_mm": 18.0,
+            },
+            "seams": seams,
+            "images": [],
+        }
+        for step in (1, 15, 60)
+    ]
     pieces_scene = []
     for index, piece_id in enumerate(piece_ids):
         group_id = "shirt" if index < 4 else "skirt"
@@ -137,7 +136,10 @@ def _valid_artifact(root: Path) -> Path:
                 "semantic_edge_ids": semantic_ids,
                 "boundaries": boundaries,
                 "local_bounds_mm": {"min": [0.0, 0.0, 0.0], "max": [100.0, 100.0, 0.0]},
-                "world_bounds_mm": {"min": [float(index), 0.0, 0.0], "max": [float(index) + 100.0, 100.0, 0.0]},
+                "world_bounds_mm": {
+                    "min": [float(index), 0.0, 0.0],
+                    "max": [float(index) + 100.0, 100.0, 0.0],
+                },
                 "solver_mesh": {"particle_count": 50, "triangle_count": 80},
             }
         )
@@ -155,8 +157,16 @@ def _valid_artifact(root: Path) -> Path:
             "id": "ClothAvatar",
             "label": "Mannequin",
             "landmarks": [
-                {"id": "shoulder_left", "local_mm": [-100.0, 0.0, 150.0], "world_mm": [-100.0, 0.0, 150.0]},
-                {"id": "shoulder_right", "local_mm": [100.0, 0.0, 150.0], "world_mm": [100.0, 0.0, 150.0]},
+                {
+                    "id": "shoulder_left",
+                    "local_mm": [-100.0, 0.0, 150.0],
+                    "world_mm": [-100.0, 0.0, 150.0],
+                },
+                {
+                    "id": "shoulder_right",
+                    "local_mm": [100.0, 0.0, 150.0],
+                    "world_mm": [100.0, 0.0, 150.0],
+                },
                 {"id": "hip", "local_mm": [0.0, 0.0, 0.0], "world_mm": [0.0, 0.0, 0.0]},
             ],
             "collision_surface": {

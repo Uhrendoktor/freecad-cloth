@@ -14,6 +14,7 @@ from freecad_cloth.simulation.simulation_protocols import SimulationDocument, Si
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
+    from freecad_cloth.simulation.PatternSimulationAdapter import _NativePlacement
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
 
@@ -75,6 +76,11 @@ class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
 
     PatternType: str
     PieceId: str
+    GeometryAuthority: str
+    Sketch: FreeCADDocumentObjectProtocol | None
+    SeamAllowance: float
+    GrainlineAngle: float
+    Placement: _NativePlacement | None
 
 
 class _PanelSimulationData(TypedDict):
@@ -159,6 +165,13 @@ class _SimulationFeature(_MeshObjectKey, Protocol):
     PinMode: str | list[str]
     PinSelection: list[str]
     SeamSelection: list[str]
+    GarmentGroups: list[str]
+    InterClothClearance: float
+    InterClothContactCount: int
+    InterClothRemainingContactCount: int
+    InterClothCorrectedParticleCount: int
+    InterClothMaxPenetration: float
+    InterClothResidualPenetration: float
     SimulatedTime: float
     ParticleCount: int
     FiniteState: bool
@@ -491,8 +504,7 @@ def _resolve_inter_cloth_groups(
             raise ValueError(msg)
         assigned_piece_ids.add(piece_id)
         triangles_by_group.setdefault(group_id, []).extend(
-            (int(triangle[0]), int(triangle[1]), int(triangle[2]))
-            for triangle in data["triangles"]
+            (int(triangle[0]), int(triangle[1]), int(triangle[2])) for triangle in data["triangles"]
         )
 
     expected_piece_ids = set(panel_data)
@@ -505,8 +517,7 @@ def _resolve_inter_cloth_groups(
         msg = "GarmentGroups must identify at least two independent garments"
         raise ValueError(msg)
     return {
-        group_id: tuple(triangles)
-        for group_id, triangles in sorted(triangles_by_group.items())
+        group_id: tuple(triangles) for group_id, triangles in sorted(triangles_by_group.items())
     }
 
 
@@ -1084,12 +1095,24 @@ def create_simulation_scene(
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyStringList", "GarmentGroups", "Simulation").GarmentGroups = []
-    scene.addProperty("App::PropertyFloat", "InterClothClearance", "Simulation").InterClothClearance = 1.0
-    scene.addProperty("App::PropertyInteger", "InterClothContactCount", "Simulation").InterClothContactCount = 0
-    scene.addProperty("App::PropertyInteger", "InterClothRemainingContactCount", "Simulation").InterClothRemainingContactCount = 0
-    scene.addProperty("App::PropertyInteger", "InterClothCorrectedParticleCount", "Simulation").InterClothCorrectedParticleCount = 0
-    scene.addProperty("App::PropertyFloat", "InterClothMaxPenetration", "Simulation").InterClothMaxPenetration = 0.0
-    scene.addProperty("App::PropertyFloat", "InterClothResidualPenetration", "Simulation").InterClothResidualPenetration = 0.0
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothClearance", "Simulation"
+    ).InterClothClearance = 1.0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothContactCount", "Simulation"
+    ).InterClothContactCount = 0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothRemainingContactCount", "Simulation"
+    ).InterClothRemainingContactCount = 0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothCorrectedParticleCount", "Simulation"
+    ).InterClothCorrectedParticleCount = 0
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothMaxPenetration", "Simulation"
+    ).InterClothMaxPenetration = 0.0
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothResidualPenetration", "Simulation"
+    ).InterClothResidualPenetration = 0.0
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
     scene.addProperty("App::PropertyBool", "FiniteState", "State").FiniteState = True

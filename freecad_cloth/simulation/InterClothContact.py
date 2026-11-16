@@ -215,9 +215,7 @@ def _closest_segment_triangle(
     direction = end - start
     signed_start = float(np.dot(start - triangle[0], normal))
     signed_delta = float(np.dot(direction, normal))
-    candidates: list[
-        tuple[float, PointArray, PointArray, float, PointArray]
-    ] = []
+    candidates: list[tuple[float, PointArray, PointArray, float, PointArray]] = []
 
     if abs(signed_delta) > 1e-12:
         factor = -signed_start / signed_delta
@@ -233,9 +231,7 @@ def _closest_segment_triangle(
     # inside the triangle. The closest point on the segment to the plane is the
     # minimum-distance interior-face candidate.
     factor = (
-        float(np.clip(-signed_start / signed_delta, 0.0, 1.0))
-        if abs(signed_delta) > 1e-12
-        else 0.5
+        float(np.clip(-signed_start / signed_delta, 0.0, 1.0)) if abs(signed_delta) > 1e-12 else 0.5
     )
     edge_point = start + factor * direction
     plane_point = edge_point - float(np.dot(edge_point - triangle[0], normal)) * normal
@@ -388,14 +384,12 @@ def _stitch_clusters(
     for raw_left, raw_right in stitches:
         for index in (int(raw_left), int(raw_right)):
             members.setdefault(find(index), set()).add(index)
-    return tuple(
-        tuple(sorted(group))
-        for group in members.values()
-        if len(group) > 1
-    )
+    return tuple(tuple(sorted(group)) for group in members.values() if len(group) > 1)
 
 
-def _contact_direction(normal: PointArray, source_center: PointArray, target_center: PointArray) -> PointArray:
+def _contact_direction(
+    normal: PointArray, source_center: PointArray, target_center: PointArray
+) -> PointArray:
     """Orient the target face normal toward the source garment's side."""
     direction = np.asarray(normal, dtype=np.float64)
     offset = source_center - target_center
@@ -497,8 +491,6 @@ def _measure_contacts(
         for right_id in group_ids[left_index + 1 :]:
             right = surfaces[right_id]
             for source, target in ((left, right), (right, left)):
-                source_center = positions[np.unique(source.triangles)].mean(axis=0)
-                target_center = positions[np.unique(target.triangles)].mean(axis=0)
                 for edge_index, edge in enumerate(source.edges):
                     radius = (
                         clearance_mm
@@ -511,10 +503,12 @@ def _measure_contacts(
                     )
                     for triangle_index in candidates:
                         triangle = target.triangles[int(triangle_index)]
-                        edge_point, face_point, _factor, _weights, _normal = _closest_segment_triangle(
-                            positions[int(edge[0])],
-                            positions[int(edge[1])],
-                            positions[triangle],
+                        edge_point, face_point, _factor, _weights, _normal = (
+                            _closest_segment_triangle(
+                                positions[int(edge[0])],
+                                positions[int(edge[1])],
+                                positions[triangle],
+                            )
                         )
                         penetration = clearance_mm - float(np.linalg.norm(edge_point - face_point))
                         if penetration > 1e-5:

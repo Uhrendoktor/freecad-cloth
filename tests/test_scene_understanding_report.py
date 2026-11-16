@@ -529,8 +529,16 @@ def test_layered_outfit_manifest_is_embedded_as_an_exact_spatial_map(tmp_path: P
                 {"id": "skirt", "piece_ids": ["skirt-front"], "independent_of": ["shirt"]},
             ],
             "pieces": [
-                {"piece_id": "shirt-front", "garment_group": "shirt", "local_to_world": {"translation_mm": [0.0, 0.0, 100.0]}},
-                {"piece_id": "skirt-front", "garment_group": "skirt", "local_to_world": {"translation_mm": [0.0, 0.0, 80.0]}},
+                {
+                    "piece_id": "shirt-front",
+                    "garment_group": "shirt",
+                    "local_to_world": {"translation_mm": [0.0, 0.0, 100.0]},
+                },
+                {
+                    "piece_id": "skirt-front",
+                    "garment_group": "skirt",
+                    "local_to_world": {"translation_mm": [0.0, 0.0, 80.0]},
+                },
             ],
             "seams": [
                 {
@@ -558,8 +566,12 @@ def test_layered_outfit_manifest_is_embedded_as_an_exact_spatial_map(tmp_path: P
     progress.write_text("", encoding="utf-8")
 
     result = build_report(progress, output, tmp_path)
-    layered = _expect_dict(result.get("layered_garment_scene"), message="layered scene map is missing")
-    scene_map = _expect_dict(layered.get("scene_map"), message="exact CAD scene map was not retained")
+    layered = _expect_dict(
+        result.get("layered_garment_scene"), message="layered scene map is missing"
+    )
+    scene_map = _expect_dict(
+        layered.get("scene_map"), message="exact CAD scene map was not retained"
+    )
     assert layered.get("state") == "available"
     assert scene_map.get("coordinate_system") == manifest["scene_map"]["coordinate_system"]
     assert scene_map.get("pieces") == manifest["scene_map"]["pieces"]
@@ -578,6 +590,8 @@ def test_scene_report_marks_malformed_layered_manifest_unavailable(tmp_path: Pat
     progress.write_text("", encoding="utf-8")
 
     result = build_report(progress, output, tmp_path)
-    layered = _expect_dict(result.get("layered_garment_scene"), message="missing malformed manifest status")
+    layered = _expect_dict(
+        result.get("layered_garment_scene"), message="missing malformed manifest status"
+    )
     assert layered.get("state") == "unavailable"
     assert "not valid JSON" in str(layered.get("reason"))

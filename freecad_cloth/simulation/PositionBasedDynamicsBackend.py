@@ -30,9 +30,9 @@ from freecad_cloth.simulation.cloth_backend import ClothSimulationBackend
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
 
-    from freecad_cloth.shared.Collision import CollisionSurface
-    from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
     from freecad_cloth.simulation.ClothSolver import ClothSystem
+    from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
+    from freecad_cloth.shared.Collision import CollisionSurface
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
@@ -695,8 +695,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._collision_projector: object | None = None
         self._inter_cloth_groups = {
             str(group_id): tuple(
-                tuple(int(index) for index in triangle)
-                for triangle in group_triangles
+                tuple(int(index) for index in triangle) for triangle in group_triangles
             )
             for group_id, group_triangles in (inter_cloth_groups or {}).items()
         }
@@ -705,8 +704,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             raise ValueError(msg)
         self._inter_cloth_clearance_mm = float(inter_cloth_clearance_mm)
         if self._inter_cloth_groups and (
-            not np.isfinite(self._inter_cloth_clearance_mm)
-            or self._inter_cloth_clearance_mm <= 0.0
+            not np.isfinite(self._inter_cloth_clearance_mm) or self._inter_cloth_clearance_mm <= 0.0
         ):
             msg = "inter-cloth clearance must be positive and finite"
             raise ValueError(msg)
@@ -1043,9 +1041,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             clearance_mm=self._inter_cloth_clearance_mm,
             stitches=self._stitches,
         )
-        moved_indices = np.flatnonzero(
-            np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7
-        )
+        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
         pinned = set(self._pin_indices)
         for raw_index in moved_indices:
             index = int(raw_index)
@@ -1104,7 +1100,11 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
     @property
     def inter_cloth_metrics(self) -> InterClothContactMetrics | None:
-        """Return the latest measured contact projection result for the garment groups."""
+        """Return the latest measured contact projection result for the garment groups.
+
+        Returns:
+            The latest contact metrics, or None before a projection has completed.
+        """
         return self._inter_cloth_metrics
 
     def step(

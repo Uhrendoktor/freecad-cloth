@@ -882,7 +882,11 @@ def _layered_garment_scene(output_root: Path) -> JsonObject | None:
     scene_map = manifest.get("scene_map")
     outfit = manifest.get("outfit")
     checkpoints = manifest.get("checkpoints")
-    if not isinstance(scene_map, dict) or not isinstance(outfit, dict) or not isinstance(checkpoints, list):
+    if (
+        not isinstance(scene_map, dict)
+        or not isinstance(outfit, dict)
+        or not isinstance(checkpoints, list)
+    ):
         return {
             "state": "unavailable",
             "reason": "layered outfit manifest is missing its CAD scene map or checkpoint inventory",
