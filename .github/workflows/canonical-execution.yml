@@ -193,7 +193,7 @@ jobs:
           image: ${{ steps.image.outputs.image }}
   safe-ruff-autofix:
     name: Safe Ruff autofix (explicit pull-request opt-in)
-    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[apply-safe-ruff]') && needs.local_runner_readiness.result == 'success' && needs.pbd_validation_image.result == 'success' }}
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && github.event.pull_request.number == 2842 && github.event.pull_request.head.ref == 'agents/strict-python-all-files' && github.event.pull_request.user.login == 'Uhrendoktor' && contains(github.event.pull_request.title, '[apply-safe-ruff]') && needs.local_runner_readiness.result == 'success' && needs.pbd_validation_image.result == 'success' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 20
