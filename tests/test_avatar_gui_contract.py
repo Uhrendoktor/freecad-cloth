@@ -77,24 +77,32 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
 
 def test_avatar_advanced_search_explains_when_no_parameters_match():
     """Show a visible empty state in both advanced tabs for an unmatched query."""
-    from types import SimpleNamespace
 
-    def visibility_widget():
-        widget = SimpleNamespace(visible=True)
-        widget.setVisible = lambda value: setattr(widget, "visible", bool(value))
-        return widget
+    class _Visibility:
+        def __init__(self):
+            self.visible = True
 
-    row = SimpleNamespace(
-        property=lambda _name: "arm length",
-        setVisible=lambda value: setattr(row, "visible", bool(value)),
-        visible=True,
-    )
-    group = visibility_widget()
-    phenotypes_empty = visibility_widget()
-    morphs_empty = visibility_widget()
-    tabs = SimpleNamespace(index=0)
-    tabs.currentIndex = lambda: tabs.index
-    tabs.setCurrentIndex = lambda value: setattr(tabs, "index", int(value))
+        def setVisible(self, value):
+            self.visible = bool(value)
+
+    class _SearchRow(_Visibility):
+        def property(self, _name):
+            return "arm length"
+
+    class _Tabs:
+        def __init__(self):
+            self.index = 0
+
+        def currentIndex(self):
+            return self.index
+
+        def setCurrentIndex(self, value):
+            self.index = int(value)
+
+    row = _SearchRow()
+    group = _Visibility()
+    phenotypes_empty = _Visibility()
+    morphs_empty = _Visibility()
     panel = SimpleNamespace(
         _advanced_rows=[{"row": row, "group": group, "page": "morphs"}],
         _advanced_groups=[group],
@@ -102,7 +110,7 @@ def test_avatar_advanced_search_explains_when_no_parameters_match():
             "phenotypes": {"empty_label": phenotypes_empty},
             "morphs": {"empty_label": morphs_empty},
         },
-        advanced_tabs=tabs,
+        advanced_tabs=_Tabs(),
     )
 
     AvatarTaskPanel._filter_advanced_parameters(panel, "parameter-does-not-exist")
@@ -111,7 +119,6 @@ def test_avatar_advanced_search_explains_when_no_parameters_match():
     assert group.visible is False
     assert phenotypes_empty.visible is True
     assert morphs_empty.visible is True
-
 
 def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
