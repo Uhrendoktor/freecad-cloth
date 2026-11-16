@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
@@ -29,6 +29,11 @@ Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
 type NativeBoundaryFlag = bool
 type GeometryConstructionFlag = bool
+type InsideOutside = Literal["inside", "outside", "mixed", "unknown"]
+
+NATIVE_BOUNDARY_INCLUSION: NativeBoundaryFlag = True
+SKETCH_GEOMETRY_IS_CONSTRUCTION: GeometryConstructionFlag = False
+MAX_INSIDE_OUTSIDE_SAMPLES = 64
 
 
 class _NativeSketchGeometry(Protocol):
@@ -304,9 +309,17 @@ class _EventApplication(Protocol):
 
 
 def events(*, gui: ModuleType | None = None, application: _EventApplication | None = None) -> None:
-    """Process pending GUI events using the supplied host adapters when available."""
-    if gui is None:
-        import FreeCADGui as gui
+    """Process pending GUI events using the supplied host adapters when available.
+
+    Args:
+        gui: Optional FreeCADGui-compatible adapter; imported lazily when omitted.
+        application: Optional Qt application adapter; resolved from Qt when omitted.
+    """
+    resolved_gui = gui
+    if resolved_gui is None:
+        import FreeCADGui as Gui
+
+        resolved_gui = Gui
 
     if application is None:
         if TYPE_CHECKING:
@@ -317,7 +330,7 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
             except ImportError:
                 from PySide2 import QtWidgets
 
-    gui.updateGui()
+    resolved_gui.updateGui()
     if application is None:
         application = QtWidgets.QApplication.instance()
     if application is not None:
@@ -325,7 +338,11 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
 
 
 def ensure_gui_ready() -> None:
-    """Fail when the FreeCAD window is not visible and process one GUI event pass."""
+    """Fail when the FreeCAD window is not visible and process one GUI event pass.
+
+    Raises:
+        RuntimeError: If FreeCAD has no visible main window.
+    """
     import FreeCADGui as Gui
 
     window = Gui.getMainWindow()
@@ -367,7 +384,7 @@ def add_rectangle_sketch(
         end = points[(index + 1) % 4]
         sketch.addGeometry(
             Part.LineSegment(App.Vector(start[0], start[1], 0.0), App.Vector(end[0], end[1], 0.0)),
-            False,
+            SKETCH_GEOMETRY_IS_CONSTRUCTION,
         )
     doc.recompute()
     return sketch
@@ -516,73 +533,42 @@ def nearest_surface_observation(
     return nearest_target_observation(garment_points, vertices)
 
 
-def inside_outside(points, source):
-    """Classify sampled points against a native shape or its closed triangle mesh."""
-    import FreeCAD as App
+def _native_inside_states(
+    points: Sequence[Point3],
+    contains: Callable[[_NativeVector, float, NativeBoundaryFlag], bool],
+    vector_factory: Callable[..., _NativeVector],
+) -> list[bool]:
+    """Sample a native FreeCAD containment function, failing closed on host API errors.
 
-    shape = getattr(source, "Shape", None)
-    if shape is not None and not getattr(shape, "isNull", lambda: True)():
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-    mesh = getattr(source, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    if callable(mesh_is_inside):
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is None:
-        return "unknown"
-    raw_vertices, raw_faces = topology
-    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    if not vertices or not raw_faces:
-        return "unknown"
-    try:
-        import numpy as np
-        import trimesh
+    Args:
+        points: XYZ positions tested against the native shape or mesh.
+        contains: Native isInside method supplied by the host object.
+        vector_factory: FreeCAD vector constructor used to adapt each XYZ point.
 
-        face_array = np.asarray(raw_faces, dtype=np.int64)
-        if face_array.ndim != 2 or face_array.shape[1] != 3:
-            return "unknown"
-        triangles: tuple[Triangle3, ...] = tuple(
-            (int(face[0]), int(face[1]), int(face[2])) for face in face_array
-        )
-        target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=np.float64),
-            faces=face_array,
-            process=False,
-        )
-        if not target_mesh.is_watertight:
-            msg = "target mesh is not watertight"
-            raise RuntimeError(msg)
-        states = [
-            bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
-        ]
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+    Returns:
+        Boolean containment states for at most the first 64 points, or an empty
+        list when the native API rejects any sampled point.
+    """
+    states: list[bool] = []
+    for point in points[:MAX_INSIDE_OUTSIDE_SAMPLES]:
+        try:
+            states.append(
+                bool(contains(vector_factory(*point), 1e-6, NATIVE_BOUNDARY_INCLUSION))
+            )
+        except (AttributeError, TypeError, ValueError):
+            return []
+    return states
 
-        states = [point_inside_closed_mesh(point, vertices, triangles) for point in points[:64]]
+
+def _classify_inside_states(states: Sequence[bool]) -> InsideOutside:
+    """Convert sampled containment states into the stable diagnostic labels.
+
+    Args:
+        states: Boolean inside/outside results from one geometry backend.
+
+    Returns:
+        inside, outside, mixed, or unknown when no usable states were produced.
+    """
     if not states:
         return "unknown"
     if all(states):
@@ -590,6 +576,101 @@ def inside_outside(points, source):
     if not any(states):
         return "outside"
     return "mixed"
+
+
+def _trimesh_inside_states(
+    points: Sequence[Point3],
+    vertices: Sequence[Point3],
+    raw_faces: Sequence[Sequence[int]],
+) -> list[bool] | None:
+    """Run the optional Trimesh containment query without owning fallback policy.
+
+    Args:
+        points: Sampled garment positions.
+        vertices: Target mesh vertices in local coordinates.
+        raw_faces: Target triangle index triples.
+
+    Returns:
+        Containment states, an empty list for malformed face-array shape, or None
+        when Trimesh is unavailable, the mesh is not watertight, or the query fails.
+    """
+    try:
+        import numpy as np
+        import trimesh
+
+        face_array = np.asarray(raw_faces, dtype=np.int64)
+        if face_array.ndim != 2 or face_array.shape[1] != 3:
+            return []
+        target_mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=face_array,
+            process=False,
+        )
+        if not target_mesh.is_watertight:
+            return None
+        return [
+            bool(value)
+            for value in target_mesh.contains(
+                np.asarray(points[:MAX_INSIDE_OUTSIDE_SAMPLES], dtype=float)
+            )
+        ]
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def inside_outside(
+    points: Sequence[Point3],
+    source: _SourceFeature,
+) -> InsideOutside:
+    """Classify sampled points against a native shape or its closed triangle mesh.
+
+    The query order is intentional: native shape, native mesh, optional Trimesh,
+    then the shared closed-mesh fallback. Each path is limited to 64 samples.
+
+    Args:
+        points: Garment points tested in the target's local coordinate frame.
+        source: FreeCAD source feature exposing an optional Shape or Mesh.
+
+    Returns:
+        inside, outside, mixed, or unknown when no geometry path can classify them.
+    """
+    import FreeCAD as App
+
+    shape = source.Shape
+    if shape is not None and not shape.isNull():
+        classification = _classify_inside_states(
+            _native_inside_states(points, shape.isInside, App.Vector)
+        )
+        if classification != "unknown":
+            return classification
+
+    mesh = source.Mesh
+    if mesh is not None:
+        classification = _classify_inside_states(
+            _native_inside_states(points, mesh.isInside, App.Vector)
+        )
+        if classification != "unknown":
+            return classification
+        raw_vertices, raw_faces = mesh.Topology
+    else:
+        return "unknown"
+
+    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+    if not vertices or not raw_faces:
+        return "unknown"
+
+    states = _trimesh_inside_states(points, vertices, raw_faces)
+    if states is None:
+        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
+        triangles: tuple[Triangle3, ...] = tuple(
+            (int(face[0]), int(face[1]), int(face[2])) for face in raw_faces
+        )
+        states = [
+            point_inside_closed_mesh(point, vertices, triangles)
+            for point in points[:MAX_INSIDE_OUTSIDE_SAMPLES]
+        ]
+    return _classify_inside_states(states)
 
 
 def bounds(points: Sequence[Sequence[float]]) -> tuple[float, float, float, float, float, float]:
