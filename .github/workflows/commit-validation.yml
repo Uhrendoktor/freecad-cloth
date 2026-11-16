@@ -52,6 +52,7 @@ jobs:
       execution_mode: fast
       diagnostic_controls: false
       pr_number: ""
+      runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
 
   explicit-full-validation:
     name: Explicit full validation
@@ -66,6 +67,7 @@ jobs:
       execution_mode: full
       diagnostic_controls: false
       pr_number: ${{ github.event.pull_request.number }}
+      runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
 
   full-validation:
     name: Full validation
@@ -80,6 +82,7 @@ jobs:
       execution_mode: full
       diagnostic_controls: ${{ inputs.diagnostic_controls || false }}
       pr_number: ${{ inputs.pr_number || '' }}
+      runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
 
   scheduled-validation:
     name: Scheduled static validation
@@ -94,3 +97,4 @@ jobs:
       execution_mode: scheduled
       diagnostic_controls: false
       pr_number: ""
+      runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}

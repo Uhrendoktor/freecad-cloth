@@ -1,21 +1,21 @@
 # Tool State
 
 ```yaml
-schema: 23
+schema: 24
 repository: Uhrendoktor/freecad-cloth
 canonical_workflow: .github/workflows/canonical-execution.yml
 execution_policy: ADVANCED_TOOL_MODE.md in Uhrendoktor/GPT-ToolsAndStorage
 supervisor_issue: 2492
 workflow_count: 1
-runner_execution: self_hosted_only
-runner_labels: self-hosted/linux/x64/docker
-hosted_fallback: disabled
-persistent_cache: dependency_keyed_RUNNER_TOOL_CACHE_venvs_and_local_Docker_daemon
+runner_execution: github_hosted_larger_runner_group_when_configured
+runner_group_variable: FREECAD_CUDA_RUNNER_GROUP
+cpu_fallback: ubuntu-latest
+persistent_cache: dependency_keyed_RUNNER_TOOL_CACHE_venvs;_GHCR_PBD_image;_ephemeral_hosted_runner_Docker_cache
 workflow_image: ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
 validation_policy: preserve_canonical_docker_xvfb_freecad_path; fail_closed_evidence; mandatory_human_screenshot_review; artifact_link_alone_insufficient; no_second_workflow
 artifact_budget: 10MB_accumulated_per_workflow_run
 superseded_run_policy: cancel_when_ref_is_not_refs/heads/main; preserve_main_runs
-main_head_at_audit: 3257ac54a16aebc7ddc5394949a6172b250d1fe4
+main_head_at_audit: e6ab6e4a234b14bc314c24d456c2bf83c12e3e39
 production_tissu_fix_merged: false
 active_diagnostics: 2577,2576,2575,2571,2554,2545
 completed_diagnostics: 2537,2482,2535,2540,2578
