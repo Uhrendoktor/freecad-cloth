@@ -13,8 +13,8 @@ from freecad_cloth.shared.SourceSignature import _SignatureValue
 from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
-from tests.support.simulation_quality import inter_cloth_quality_defaults
 from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 
 if TYPE_CHECKING:
     from pytest import MonkeyPatch
