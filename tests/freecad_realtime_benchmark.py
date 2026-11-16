@@ -490,7 +490,7 @@ def main() -> None:
         initial_steps = int(scene.Steps)
         timed_out = False
 
-        def timed_tick(scheduled_at: float) -> None:
+        def timed_tick(scheduled_at: float, emitted_at: float) -> None:
             nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
             tick_count += 1
@@ -502,7 +502,7 @@ def main() -> None:
                 native_timing_reset = True
             in_tick = True
             try:
-                active_preview.tick(scheduled_at)
+                active_preview.tick(scheduled_at, emitted_at)
             finally:
                 in_tick = False
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
@@ -644,7 +644,11 @@ def main() -> None:
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
             "frame_scheduler": active_preview.frame_scheduler_metrics(),
+            "worker_wakeup_lateness": active_preview.frame_worker_wakeup_metrics(),
             "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
+            "gui_queue_dispatch_lateness": _timing_summary(
+                active_preview._gui_queue_dispatch_lateness_ms
+            ),
             "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,
             "process_cpu_elapsed_s": process_cpu_elapsed,

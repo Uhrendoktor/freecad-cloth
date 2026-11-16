@@ -195,11 +195,23 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
         },
+        "worker_wakeup_lateness": {
+            "samples": 120,
+            "mean_ms": 0.12,
+            "p95_ms": 0.3,
+            "max_ms": 0.5,
+        },
         "frame_dispatch_lateness": {
             "samples": 120,
             "mean_ms": 0.15,
             "p95_ms": 0.4,
             "max_ms": 0.8,
+        },
+        "gui_queue_dispatch_lateness": {
+            "samples": 120,
+            "mean_ms": 0.03,
+            "p95_ms": 0.1,
+            "max_ms": 0.2,
         },
         "timed_out": False,
         "backend_finite": True,

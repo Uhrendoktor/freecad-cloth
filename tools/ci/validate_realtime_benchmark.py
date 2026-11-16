@@ -216,6 +216,20 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         if value is None or value < 0.0:
             errors.append(f"frame_dispatch_lateness.{key} must be finite and non-negative")
 
+    for metric_name in ("worker_wakeup_lateness", "gui_queue_dispatch_lateness"):
+        component_value = metrics.get(metric_name)
+        if not isinstance(component_value, dict):
+            errors.append(f"{metric_name} must be a JSON object")
+            continue
+        component = cast("JsonObject", component_value)
+        component_samples = _integer(component.get("samples"))
+        if component_samples is None or component_samples < minimum_samples:
+            errors.append(f"{metric_name}.samples must be >= {minimum_samples}")
+        for key in ("mean_ms", "p95_ms", "max_ms"):
+            value = _number(component.get(key))
+            if value is None or value < 0.0:
+                errors.append(f"{metric_name}.{key} must be finite and non-negative")
+
 
 def _validate_stage_timings(
     metrics: JsonObject,

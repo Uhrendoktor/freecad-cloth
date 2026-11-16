@@ -13,14 +13,14 @@ def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one()
     class Pulse:
         """Record queued signal emissions without requiring a Qt application."""
 
-        def emit(self, scheduled_at: float) -> None:
+        def emit(self, scheduled_at: float, _emitted_at: float) -> None:
             emitted.append(scheduled_at)
 
     clock = _FrameClock(Pulse(), 60.0)
 
-    assert clock.request_frame(10.0) is True
-    assert clock.request_frame(10.0 + 1.0 / 60.0) is False
-    assert clock.request_frame(10.0 + 2.0 / 60.0) is False
+    assert clock.request_frame(10.0, 10.0) is True
+    assert clock.request_frame(10.0 + 1.0 / 60.0, 10.0 + 1.0 / 60.0) is False
+    assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0) is False
     assert emitted == [10.0]
     assert clock.snapshot() == {
         "mode": "threaded-queued-deadline",
@@ -31,7 +31,7 @@ def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one()
     }
 
     clock.consume_frame()
-    assert clock.request_frame(10.0 + 3.0 / 60.0) is True
+    assert clock.request_frame(10.0 + 3.0 / 60.0, 10.0 + 3.0 / 60.0) is True
     assert emitted == [10.0, 10.0 + 3.0 / 60.0]
     clock.stop()
 
@@ -42,7 +42,7 @@ def test_frame_clock_rejects_invalid_target_rates() -> None:
     class Pulse:
         """Provide a no-op signal for construction validation."""
 
-        def emit(self, _scheduled_at: float) -> None:
+        def emit(self, _scheduled_at: float, _emitted_at: float) -> None:
             pass
 
     for target_fps in (0.0, -1.0, inf, nan):
