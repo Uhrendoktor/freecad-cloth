@@ -54,6 +54,41 @@ def test_task_panel_exposes_freecad_lifecycle_methods_without_gui_import() -> No
     )
 
 
+def test_simulation_status_warns_when_the_drape_target_is_not_ready() -> None:
+    """Do not mark a finite simulation as ready while its collision target is missing."""
+    from unittest.mock import patch
+    from types import SimpleNamespace
+
+    panel = SimulationTaskPanel.__new__(SimulationTaskPanel)
+    panel.scene = SimpleNamespace(
+        FiniteState=True,
+        DrapeTarget=object(),
+        SimulatedTime=0.0,
+        ParticleCount=0,
+        Steps=0,
+    )
+    panel.status = SimpleNamespace()
+    updates = []
+
+    def capture_status(label, message, *, state):
+        updates.append((label, message, state))
+
+    with patch("freecad_cloth.common.UiDesign.set_status", side_effect=capture_status):
+        with patch(
+            "freecad_cloth.simulation.DrapeTarget.target_status",
+            return_value={
+                "state": "missing",
+                "message": "No drape target selected",
+            },
+        ):
+            panel._refresh_status()
+
+    require(
+        condition=len(updates) == 1 and updates[0][2] == "warning",
+        message="A finite scene with a missing drape target must receive warning status.",
+    )
+
+
 if __name__ == "__main__":
     for name, fn in globals().copy().items():
         if name.startswith("test_"):
