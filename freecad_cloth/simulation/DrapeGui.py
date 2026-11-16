@@ -344,7 +344,9 @@ class DrapeTargetTaskPanel:
             "Choose a mannequin, shape, or mesh by clicking it in the FreeCAD viewport."
         )
         self.cancel_pick_button = qt_widgets.QPushButton("Cancel pick")
-        self.cancel_pick_button.setToolTip("Leave viewport-picking mode without changing the target.")
+        self.cancel_pick_button.setToolTip(
+            "Leave viewport-picking mode without changing the target."
+        )
         self.cancel_pick_button.setVisible(False)
         self.show_source_button = qt_widgets.QPushButton("Highlight in 3D")
         self.show_source_button.setToolTip(
@@ -710,7 +712,8 @@ class DrapeTargetTaskPanel:
             return False
         label = str(getattr(source, "Label", getattr(source, "Name", "collision source")))
         self._set_status(
-            f"Selected {label} in the 3D view. This highlights the source without moving the camera.",
+            f"Selected {label} in the 3D view. This highlights the source "
+            "without moving the camera.",
             state="info",
         )
         return True
