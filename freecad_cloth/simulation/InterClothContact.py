@@ -605,6 +605,13 @@ def project_inter_cloth_contacts(
         surfaces[group_id] = _surface_index(positions, triangles)
 
     group_ids = tuple(sorted(surfaces))
+    for raw_left, raw_right in stitches:
+        left, right = int(raw_left), int(raw_right)
+        left_group = particle_owners.get(left)
+        right_group = particle_owners.get(right)
+        if left_group is not None and right_group is not None and left_group != right_group:
+            msg = "authored stitches cannot connect independent garment groups"
+            raise ValueError(msg)
     clusters = _stitch_clusters(len(positions), stitches)
     original = positions.copy()
     current = positions.copy()
@@ -612,6 +619,10 @@ def project_inter_cloth_contacts(
     maximum_before = 0.0
 
     for iteration in range(pass_count):
+        surfaces = {
+            group_id: _surface_index(current, surface.triangles)
+            for group_id, surface in surfaces.items()
+        }
         correction_sum = np.zeros_like(current)
         correction_count = np.zeros(len(current), dtype=np.int64)
         contacts_this_pass = 0
@@ -670,6 +681,10 @@ def project_inter_cloth_contacts(
         if not bool(np.any(moved)):
             break
 
+    surfaces = {
+        group_id: _surface_index(current, surface.triangles)
+        for group_id, surface in surfaces.items()
+    }
     remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
     movement = np.linalg.norm(current - original, axis=1)
     corrected_count = int(np.count_nonzero(movement > 1e-8))
