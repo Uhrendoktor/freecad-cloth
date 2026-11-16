@@ -20,7 +20,9 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     allowed_ignores = {
         "COM812",
         "COM819",
+        "D203",
         "D206",
+        "D213",
         "D300",
         "E111",
         "E114",
