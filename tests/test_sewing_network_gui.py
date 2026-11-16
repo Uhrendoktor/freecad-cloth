@@ -767,7 +767,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     panel.status = _TaskPanelLabel()
     panel.lengths = _TaskPanelLabel()
     panel.correspondence = _TaskPanelLabel()
-    panel.reverse_button = Button()
     panel.reset_ranges_button = Button()
     panel._transaction_active = True
 
