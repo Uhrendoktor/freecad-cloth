@@ -158,29 +158,37 @@ class PatternTopologyRepairTaskPanel:
         )
         self.rows = []
         grid_content = QtWidgets.QWidget()
-        grid = QtWidgets.QGridLayout(grid_content)
-        for col, title in enumerate(("Seam", "Side", "Reason", "Current edge", "Viewport")):
-            grid.addWidget(QtWidgets.QLabel(title), 0, col)
-        for row, (seam, side, reason) in enumerate(invalid_seam_sides(doc), 1):
-            grid.addWidget(QtWidgets.QLabel(str(getattr(seam, "Label", seam.Name))), row, 0)
-            grid.addWidget(QtWidgets.QLabel(side), row, 1)
-            grid.addWidget(QtWidgets.QLabel(reason), row, 2)
+        grid = QtWidgets.QVBoxLayout(grid_content)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setSpacing(6)
+        for seam, side, reason in invalid_seam_sides(doc):
+            seam_label = str(getattr(seam, "Label", getattr(seam, "Name", "Seam")))
+            row_group = QtWidgets.QGroupBox(f"{seam_label} — Side {side}")
+            row_layout = QtWidgets.QVBoxLayout(row_group)
+            reason_label = QtWidgets.QLabel(f"Reference status: {reason}")
+            reason_label.setWordWrap(True)
+            row_layout.addWidget(reason_label)
+            edge_controls = QtWidgets.QHBoxLayout()
             combo = QtWidgets.QComboBox()
             combo.addItem("Leave unresolved", "")
             for record in current_edge_candidates(seam, side):
                 combo.addItem(str(record["id"]), str(record["id"]))
-            grid.addWidget(combo, row, 3)
+            edge_controls.addWidget(combo, 1)
             pick_button = QtWidgets.QPushButton("Pick in 3D")
             pick_button.setToolTip(
                 "Choose a replacement edge on this seam side's PatternPiece in the viewport."
             )
             pick_button.setEnabled(combo.count() > 1)
             pick_button.clicked.connect(
-                lambda _checked=False, target=seam, target_side=side, selector=combo:
-                    self._begin_viewport_pick(target, target_side, selector)
+                lambda _checked=False, target=seam, target_side=side, selector=combo: self._begin_viewport_pick(
+                    target, target_side, selector
+                )
             )
-            grid.addWidget(pick_button, row, 4)
+            edge_controls.addWidget(pick_button)
+            row_layout.addLayout(edge_controls)
+            grid.addWidget(row_group)
             self.rows.append((seam, side, combo, pick_button))
+        grid.addStretch(1)
         from freecad_cloth.common.UiDesign import make_scroll_area
 
         outer.addWidget(make_scroll_area(grid_content, QtWidgets), 1)
