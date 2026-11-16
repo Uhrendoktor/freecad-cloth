@@ -12,7 +12,9 @@ if TYPE_CHECKING:
 
 
 class _ComboBoxProtocol(Protocol):
-    def addItem(self, text: str, userData: object = None) -> None: ...
+    """Minimal Qt combo-box interface used by the topology repair panel."""
+
+    def addItem(self, text: str, userData: object | None = None) -> None: ...
 
     def currentData(self) -> object: ...
 
