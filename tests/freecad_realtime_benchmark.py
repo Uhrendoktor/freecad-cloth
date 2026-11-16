@@ -490,9 +490,7 @@ def main() -> None:
         initial_steps = int(scene.Steps)
         timed_out = False
 
-        def timed_tick(
-            scheduled_at: float, emitted_at: float, dispatched_at: float
-        ) -> None:
+        def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
             nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
             tick_count += 1
