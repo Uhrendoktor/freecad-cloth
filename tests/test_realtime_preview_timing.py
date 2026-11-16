@@ -14,9 +14,7 @@ def test_timer_wakeup_compensation_uses_the_recent_upper_tail() -> None:
     """Use a stable upper percentile and ignore invalid or negative timing samples."""
     assert _timer_wakeup_compensation_ms([]) == 0.0
     assert _timer_wakeup_compensation_ms([1.0, 2.0, 3.0, 4.0, 5.0]) == 5.0
-    assert _timer_wakeup_compensation_ms(
-        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
-    ) == 9.0
+    assert _timer_wakeup_compensation_ms([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]) == 9.0
     assert _timer_wakeup_compensation_ms([nan, inf, -1.0, 3.5]) == 3.5
 
 
