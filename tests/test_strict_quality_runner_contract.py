@@ -241,7 +241,6 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
 
 
-
 def test_ruff_autofix_patch_uses_unique_temporary_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
