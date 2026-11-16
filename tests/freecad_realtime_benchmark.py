@@ -224,6 +224,12 @@ def main() -> None:
         except ImportError:
             from PySide2 import QtWidgets
 
+    from freecad_cloth.simulation.RealtimeMeshPreview import (
+        RealtimeMeshPreview,
+        _Position,
+        _PreviewPanel,
+        _Triangle,
+    )
     from freecad_cloth.simulation.RealtimePreview import _prepare, _Preview, _qt
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
@@ -314,10 +320,10 @@ def main() -> None:
                 record_stage("mesh_write", started_at)
 
         def timed_preview_mesh_publish(
-            owner: object,
-            panel: object,
-            positions: object,
-            triangles: object,
+            owner: RealtimeMeshPreview,
+            panel: _PreviewPanel,
+            positions: tuple[_Position, ...],
+            triangles: tuple[_Triangle, ...],
         ) -> None:
             started_at = time.perf_counter()
             try:
