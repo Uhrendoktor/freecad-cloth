@@ -146,7 +146,8 @@ class SewingNetworkTaskPanel:
         content = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(content)
         self.info = QtWidgets.QLabel(
-            "Relationship {} — edit normalized edge ranges (0..1). Ranges are local to each referenced edge.".format(
+            "Relationship {} — edit normalized edge ranges (0..1). "
+            "Ranges are local to each referenced edge.".format(
                 str(getattr(network, "RelationshipId", ""))
             )
         )
