@@ -934,6 +934,11 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
         '"process_cpu_elapsed_ms"',
         '"mean_cpu_cores_used"',
         '"simulation_complete"',
+        '"steps_completed": scene_steps_completed',
+        '"backend_steps_completed": backend_steps_completed',
+        '"scene_steps_completed": scene_steps_completed',
+        '"scene_steps_requested": 90',
+        '"simulation_complete": scene_steps_completed == 90 and bool(scene.FiniteState)',
         '"acceptance_gates"',
         '"cuda_runner_probe"',
         '"cuda_runner_mode"',
@@ -959,8 +964,9 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
     assert "backend_steps_completed += 1" in backend_step_wrapper
     assert "write_profile_checkpoint(" in backend_step_wrapper
     assert "backend_steps_completed" in backend_step_wrapper
-    assert "scene_steps_requested=int(scene.Steps)" in backend_step_wrapper
-    assert '"scene_steps_requested": scene_steps_requested' in profile
+    assert "scene_steps_completed=int(scene.Steps)" in backend_step_wrapper
+    assert '"scene_steps_requested": 90' in profile
+    assert '"scene_steps_completed": scene_steps_completed' in profile
     assert (
         "write_profile_checkpoint(\n                backend_steps_completed,\n"
         "                elapsed_ms,\n                process_cpu_elapsed_ms," in profile
