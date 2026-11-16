@@ -13,6 +13,7 @@ from typing import Protocol, Self, cast
 from freecad_cloth.simulation.SimulationObjects import (
     PIN_MODE_NAMES,
     _PatternPieceDocumentObject,
+    _write_mesh,
     resolve_pin_indices,
 )
 from freecad_cloth.simulation.SimulationQuality import (
@@ -169,11 +170,17 @@ def quality_discretization(point_count, perimeter, particle_distance):
     return max(int(point_count), int(ceil(float(perimeter) / max(0.25, float(particle_distance)))))
 
 
+class _PreviewViewObject(Protocol):
+    """Expose the persistent view-object property toggled by transient preview."""
+
+    Visibility: bool
+
+
 class _PreviewDisplayPanel(Protocol):
     """Expose the persistent panel identity and view object needed by preview."""
 
     Name: str
-    ViewObject: object
+    ViewObject: _PreviewViewObject
 
 
 class _PreviewMeshPublisher(Protocol):
@@ -242,7 +249,12 @@ class QualitySimulationProxy:
         self,
         publisher: _PreviewMeshPublisher | None,
     ) -> None:
-        """Select transient viewport publication while the realtime preview is active."""
+        """Select the transient publisher used for interactive preview frames.
+
+        Args:
+            publisher: Callback for updating transient panel coordinates, or None
+                to return to persistent document-mesh publication.
+        """
         self._preview_mesh_publisher = publisher
 
     @staticmethod
@@ -307,9 +319,6 @@ class QualitySimulationProxy:
             positions = base.backend.positions()
             finite_state = base.backend.finite()
         publisher = self._preview_mesh_publisher
-        if publisher is None:
-            from freecad_cloth.simulation.SimulationObjects import _write_mesh
-
         for panel in getattr(obj, "DrapePanels", ()):
             triangles = base.panel_triangles.get(panel.Name, ())
             if publisher is None:
