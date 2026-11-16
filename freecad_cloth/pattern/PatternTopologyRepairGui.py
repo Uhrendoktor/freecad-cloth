@@ -45,7 +45,15 @@ class _TopologyRepairViewportPicker:
         self.expected_sketch = getattr(self.expected_piece, "Sketch", None)
         if self.expected_sketch is None:
             raise ValueError("the selected seam side has no linked native Sketch")
-        if getattr(self.expected_sketch, "Document", panel.doc) is not panel.doc:
+        sketch_document = getattr(self.expected_sketch, "Document", None)
+        panel_document_name = str(getattr(panel.doc, "Name", ""))
+        sketch_document_name = str(getattr(sketch_document, "Name", ""))
+        if (
+            sketch_document is not None
+            and panel_document_name
+            and sketch_document_name
+            and sketch_document_name != panel_document_name
+        ):
             raise ValueError("the linked native Sketch belongs to another document")
         self.piece_view = getattr(self.expected_piece, "ViewObject", None)
         self.sketch_view = getattr(self.expected_sketch, "ViewObject", None)
