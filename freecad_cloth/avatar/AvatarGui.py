@@ -934,8 +934,9 @@ class AvatarTaskPanel:
                 )
                 return
         if not self._dimension_controller.activate():
-            self.status.setText(
-                "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+            self._set_status(
+                "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements.",
+                state="warning",
             )
 
     def _staged_changed(self):
