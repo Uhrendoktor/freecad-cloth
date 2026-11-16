@@ -314,7 +314,9 @@ class SimulationQualityTaskPanel:
         from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
 
         message, can_reset = fitting_stage_status(self.scene)
-        self.fitting_status.setText(message)
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.fitting_status, message, state="info")
         self.reset_arrangement_button.setEnabled(bool(can_reset))
         target_ready = False
         if self.scene is not None:
