@@ -62,6 +62,7 @@ def classify_drape(
     Returns:
         Classification state and diagnostic reasons. A plausible state means only that the available
         metrics exposed no failure evidence.
+
     """
     finite = metrics.finite
     vertices = metrics.vertices
@@ -100,7 +101,9 @@ def classify_drape(
     return DrapeClassification(state, tuple(reasons))
 
 
-def summarize_classification(classification: DrapeClassification) -> Mapping[str, object]:
+def summarize_classification(
+    classification: DrapeClassification,
+) -> Mapping[str, str | list[str]]:
     """Convert the classification into stable JSON-ready values.
 
     Args:
