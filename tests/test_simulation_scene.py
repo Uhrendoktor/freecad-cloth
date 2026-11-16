@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, TypedDict, cast
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, SeamIR
@@ -14,6 +15,8 @@ from freecad_cloth.simulation.SimulationObjects import resolve_pin_indices
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from pytest import MonkeyPatch
 
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
         PositionBasedDynamicsBackend,
@@ -293,3 +296,109 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
             proxy.collision_surface,
         )
     ], "The proxy must pass the surface without enabling legacy sphere controls."
+
+
+def test_cached_mesh_buffer_uses_bulk_update_instead_of_per_vertex_calls(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """Update retained preview meshes through one native bulk operation per frame."""
+
+    class MeshBuffer:
+        """Minimal mutable mesh buffer compatible with the FreeCAD mesh API."""
+
+        def __init__(self) -> None:
+            """Initialize empty points and faces with operation counters."""
+            self.points: list[tuple[float, float, float]] = []
+            self.faces: list[tuple[int, int, int]] = []
+            self.clear_calls = 0
+            self.add_facets_calls = 0
+            self.set_point_calls = 0
+
+        @property
+        def CountPoints(self) -> int:
+            """Return the retained point count."""
+            return len(self.points)
+
+        @property
+        def CountFacets(self) -> int:
+            """Return the retained facet count."""
+            return len(self.faces)
+
+        def clear(self) -> None:
+            """Clear points and faces before repopulating the cached buffer."""
+            self.clear_calls += 1
+            self.points.clear()
+            self.faces.clear()
+
+        def setPoint(self, index: int, point: tuple[float, float, float]) -> None:
+            """Record legacy one-vertex updates."""
+            self.set_point_calls += 1
+            self.points[index] = point
+
+        def addFacets(
+            self,
+            facets: tuple[
+                list[tuple[float, float, float]],
+                list[tuple[int, int, int]],
+            ],
+            check_manifold: bool = False,
+        ) -> None:
+            """Replace mesh geometry in one bulk operation."""
+            _ = check_manifold
+            self.add_facets_calls += 1
+            self.points = list(facets[0])
+            self.faces = list(facets[1])
+
+    freecad_module = ModuleType("FreeCAD")
+    setattr(
+        freecad_module,
+        "Vector",
+        lambda x, y, z: (float(x), float(y), float(z)),
+    )
+    mesh_module = ModuleType("Mesh")
+    setattr(mesh_module, "Mesh", MeshBuffer)
+    monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
+    monkeypatch.setitem(sys.modules, "Mesh", mesh_module)
+
+    document_name = "BulkMeshPublicationTest"
+    object_name = "BulkMeshPanel"
+    object_key = (document_name, object_name)
+    SimulationObjects._MESH_OBJECT_TOPOLOGY.pop(object_key, None)
+    SimulationObjects._MESH_OBJECT_BUFFERS.pop(object_key, None)
+    panel = SimpleNamespace(
+        Document=SimpleNamespace(Name=document_name),
+        Name=object_name,
+        Mesh=None,
+    )
+    triangles = ((0, 1, 2),)
+    original_positions = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (0.0, 10.0, 0.0),
+    )
+    updated_positions = (
+        (1.0, 0.0, 0.0),
+        (11.0, 0.0, 0.0),
+        (1.0, 10.0, 0.0),
+    )
+
+    try:
+        SimulationObjects._write_mesh(panel, original_positions, triangles)
+        buffer = SimulationObjects._MESH_OBJECT_BUFFERS[object_key]
+        SimulationObjects._write_mesh(panel, updated_positions, triangles)
+
+        assert panel.Mesh is buffer, "The preview update must retain the owned mutable buffer."
+        assert buffer.points == list(updated_positions), (
+            "Bulk publication must copy the newest particle positions into the buffer."
+        )
+        assert buffer.faces == list(triangles), "Bulk publication must retain indexed topology."
+        assert buffer.clear_calls == 1, "A cached update must clear the old mesh exactly once."
+        assert buffer.add_facets_calls == 2, (
+            "Initial creation and subsequent updates must use the bulk addFacets API."
+        )
+        assert buffer.set_point_calls == 0, (
+            "The fast path must not issue one native setPoint call per vertex."
+        )
+    finally:
+        SimulationObjects._MESH_OBJECT_TOPOLOGY.pop(object_key, None)
+        SimulationObjects._MESH_OBJECT_BUFFERS.pop(object_key, None)
