@@ -40,9 +40,33 @@ class _TopologyRepairViewportPicker:
         self.expected_piece = getattr(seam, "Pattern" + self.side, None)
         if self.expected_piece is None:
             raise ValueError(f"seam side {self.side} has no source PatternPiece")
+        if str(getattr(self.expected_piece, "GeometryAuthority", "")) != "Sketcher":
+            raise ValueError("viewport picking requires the native Sketcher authority")
+        self.expected_sketch = getattr(self.expected_piece, "Sketch", None)
+        if self.expected_sketch is None:
+            raise ValueError("the selected seam side has no linked native Sketch")
+        if getattr(self.expected_sketch, "Document", panel.doc) is not panel.doc:
+            raise ValueError("the linked native Sketch belongs to another document")
+        self.piece_view = getattr(self.expected_piece, "ViewObject", None)
+        self.sketch_view = getattr(self.expected_sketch, "ViewObject", None)
+        if self.piece_view is None or self.sketch_view is None:
+            raise ValueError("the source Sketch and PatternPiece must expose native view objects")
+        self._piece_was_visible = bool(getattr(self.piece_view, "Visibility", True))
+        self._sketch_was_visible = bool(getattr(self.sketch_view, "Visibility", True))
         self.Gui = panel.Gui
         self.armed = True
-        self.Gui.Selection.addObserver(self)
+        try:
+            self.Gui.Selection.addObserver(self)
+            # The rendered PatternPiece may include seam-allowance offsets. Show the
+            # authoritative Sketch itself so EdgeN identifies native Sketcher geometry.
+            self.piece_view.Visibility = False
+            self.sketch_view.Visibility = True
+            update_gui = getattr(self.Gui, "updateGui", None)
+            if callable(update_gui):
+                update_gui()
+        except Exception:
+            self.dispose()
+            raise
 
     def addSelection(
         self,
@@ -68,11 +92,13 @@ class _TopologyRepairViewportPicker:
                 state="warning",
             )
             return
-        expected_name = str(getattr(self.expected_piece, "Name", ""))
+        expected_name = str(getattr(self.expected_sketch, "Name", ""))
         selected_name = str(object_name or "")
         if selected_name != expected_name:
             self.panel._set_status(
-                "Pick an edge on the PatternPiece linked to seam side {}.".format(self.side),
+                "Pick an edge on the temporarily shown native Sketch linked to seam side {}.".format(
+                    self.side
+                ),
                 state="warning",
             )
             return
@@ -108,14 +134,18 @@ class _TopologyRepairViewportPicker:
             )
             return
         self.combo.setCurrentIndex(index)
-        label = str(getattr(self.expected_piece, "Label", expected_name))
+        label = str(
+            getattr(self.expected_piece, "Label", getattr(self.expected_piece, "Name", "PatternPiece"))
+        )
+        sketch_label = str(getattr(self.expected_sketch, "Label", expected_name))
         self.dispose()
         self.panel._set_status(
-            "Mapped seam {} side {} to {} / {}.".format(
+            "Mapped seam {} side {} to native Sketch {} / {} ({}).".format(
                 str(getattr(self.seam, "SeamId", "")),
                 self.side,
-                label,
+                sketch_label,
                 subelement_name,
+                label,
             ),
             state="success",
         )
@@ -127,6 +157,14 @@ class _TopologyRepairViewportPicker:
         self.armed = False
         try:
             self.Gui.Selection.removeObserver(self)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+        try:
+            self.piece_view.Visibility = self._piece_was_visible
+            self.sketch_view.Visibility = self._sketch_was_visible
+            update_gui = getattr(self.Gui, "updateGui", None)
+            if callable(update_gui):
+                update_gui()
         except (AttributeError, RuntimeError, TypeError, ValueError):
             pass
         if self.panel._active_picker is self:
@@ -176,9 +214,15 @@ class PatternTopologyRepairTaskPanel:
             edge_controls.addWidget(combo, 1)
             pick_button = QtWidgets.QPushButton("Pick in 3D")
             pick_button.setToolTip(
-                "Choose a replacement edge on this seam side's PatternPiece in the viewport."
+                "Temporarily show the linked native Sketch and pick its exact boundary edge."
             )
-            pick_button.setEnabled(combo.count() > 1)
+            linked_piece = getattr(seam, "Pattern" + str(side).upper(), None)
+            linked_sketch = getattr(linked_piece, "Sketch", None)
+            pick_button.setEnabled(
+                combo.count() > 1
+                and linked_sketch is not None
+                and str(getattr(linked_piece, "GeometryAuthority", "")) == "Sketcher"
+            )
             pick_button.clicked.connect(
                 lambda _checked=False, target=seam, target_side=side, selector=combo: (
                     self._begin_viewport_pick(target, target_side, selector)
@@ -234,9 +278,12 @@ class PatternTopologyRepairTaskPanel:
             return
         self.cancel_pick_button.setVisible(True)
         piece = getattr(seam, "Pattern" + str(side).upper(), None)
-        label = str(getattr(piece, "Label", "the linked PatternPiece"))
+        sketch = getattr(piece, "Sketch", None)
+        sketch_label = str(getattr(sketch, "Label", "the native Sketch"))
+        piece_label = str(getattr(piece, "Label", "PatternPiece"))
         self._set_status(
-            "Pick the replacement outline edge on {} for seam side {}.".format(label, side),
+            "The linked Sketch '{}' is shown temporarily; pick its current boundary edge "
+            "for seam side {} ({}).".format(sketch_label, side, piece_label),
             state="info",
         )
 
