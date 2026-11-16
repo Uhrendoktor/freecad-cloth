@@ -347,7 +347,6 @@ def _with_seams(
     """Resolve graph seam edges and build the final validated IR snapshot.
 
     Args:
-        cls: PatternIR class or compatible constructor used for the result.
         graph: Source sewing graph supplying seam IDs and parameter ranges.
         pieces: Converted solver-neutral panel records.
         edge_index_maps: Optional native geometry-index to semantic-edge maps.
