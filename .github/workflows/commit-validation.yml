@@ -58,9 +58,9 @@ jobs:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[ui-validation]') }}
     permissions:
       actions: write
-      contents: read
+      contents: write
       packages: write
-      pull-requests: read
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: ui-targeted
@@ -100,9 +100,9 @@ jobs:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.execution_mode == 'ui-targeted' }}
     permissions:
       actions: write
-      contents: read
+      contents: write
       packages: write
-      pull-requests: read
+      pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
       execution_mode: ui-targeted
