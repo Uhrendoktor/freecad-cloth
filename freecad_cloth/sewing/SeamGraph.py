@@ -54,7 +54,8 @@ class Transform3D:
         """Construct the neutral 4x4 identity transform.
 
         Returns:
-            Transform with no translation or rotation."""
+            Transform with no translation or rotation.
+        """
         return cls()
 
     @classmethod
@@ -70,7 +71,8 @@ class Transform3D:
             Transform whose translation column contains the supplied coordinates.
 
         Raises:
-            ValueError: If any translation component is non-finite."""
+            ValueError: If any translation component is non-finite.
+        """
         values = list(cls().matrix)
         values[3], values[7], values[11] = (
             validate_finite_number(x),
@@ -89,7 +91,8 @@ class Transform3D:
             Transformed XYZ coordinates in the destination frame.
 
         Raises:
-            ValueError: If the point or resulting homogeneous scale is invalid."""
+            ValueError: If the point or resulting homogeneous scale is invalid.
+        """
         x, y, z = validate_points3d((point,))[0]
         m = self.matrix
         w = m[12] * x + m[13] * y + m[14] * z + m[15]
@@ -125,7 +128,8 @@ class SeamPair:
         """Return the stable identifier.
 
         Returns:
-            Canonical seam ID shared with the underlying semantic seam."""
+            Canonical seam ID shared with the underlying semantic seam.
+        """
         return self.seam.id
 
     @property
@@ -133,7 +137,8 @@ class SeamPair:
         """Return the first referenced pattern piece.
 
         Returns:
-            Persistent ID of the pattern piece on seam side A."""
+            Persistent ID of the pattern piece on seam side A.
+        """
         return self.seam.piece_a
 
     @property
@@ -141,7 +146,8 @@ class SeamPair:
         """Return the first referenced edge.
 
         Returns:
-            Semantic edge reference on seam side A."""
+            Semantic edge reference on seam side A.
+        """
         return self.seam.edge_a
 
     @property
@@ -149,7 +155,8 @@ class SeamPair:
         """Return the second referenced pattern piece.
 
         Returns:
-            Persistent ID of the pattern piece on seam side B."""
+            Persistent ID of the pattern piece on seam side B.
+        """
         return self.seam.piece_b
 
     @property
@@ -157,7 +164,8 @@ class SeamPair:
         """Return the second referenced edge.
 
         Returns:
-            Semantic edge reference on seam side B."""
+            Semantic edge reference on seam side B.
+        """
         return self.seam.edge_b
 
     @property
@@ -165,14 +173,16 @@ class SeamPair:
         """Read reversal from the canonical seam; never copy it into the pair.
 
         Returns:
-            True when seam side B is explicitly traversed in reverse."""
+            True when seam side B is explicitly traversed in reverse.
+        """
         return self.seam.reversed_b
 
     def validate(self) -> None:
         """Validate this value against its canonical seam metadata.
 
         Raises:
-            ValueError: If stitch-group or alignment metadata disagrees with the seam."""
+            ValueError: If stitch-group or alignment metadata disagrees with the seam.
+        """
         self.seam.validate()
         if self.stitch_group != (self.seam.stitch_group or self.seam.id):
             msg = "stitch group disagrees with canonical seam metadata"
@@ -197,7 +207,8 @@ class SeamGraph:
             piece: Canonical pattern piece being added to the graph.
 
         Raises:
-            ValueError: If the piece is invalid or its ID is already present."""
+            ValueError: If the piece is invalid or its ID is already present.
+        """
         piece.validate()
         if piece.id in self.pieces:
             msg = f"duplicate pattern piece id: {piece.id}"
@@ -217,7 +228,8 @@ class SeamGraph:
 
         Raises:
             TypeError: If the supplied value is neither a Seam nor a canonical seam adapter.
-            ValueError: If the seam is invalid, duplicates an existing ID, or references missing pieces."""
+            ValueError: If the seam is invalid, duplicates an existing ID, or references missing pieces.
+        """
         if not isinstance(seam, Seam):
             to_seam = getattr(seam, "to_seam", None)
             if to_seam is None:
@@ -247,7 +259,8 @@ class SeamGraph:
 
         Raises:
             TypeError: If the supplied transform is not a Transform3D.
-            ValueError: If the piece ID is unknown."""
+            ValueError: If the piece ID is unknown.
+        """
         self._require_piece(piece_id)
         if not isinstance(transform, Transform3D):
             msg = "transform must be a Transform3D"
@@ -258,7 +271,8 @@ class SeamGraph:
         """Validate piece, seam, and assembly-transform consistency.
 
         Raises:
-            ValueError: If a piece, seam reference, or required transform is invalid."""
+            ValueError: If a piece, seam reference, or required transform is invalid.
+        """
         for piece in self.pieces.values():
             piece.validate()
         for pair in self.seams.values():
@@ -286,7 +300,8 @@ class SeamGraph:
             Ordered particle-index pairs connecting the two sides of each selected seam.
 
         Raises:
-            ValueError: If a seam ID, edge lookup, edge point record, or sampled range is invalid."""
+            ValueError: If a seam ID, edge lookup, edge point record, or sampled range is invalid.
+        """
         requested_seams = tuple(seam_ids)
         selected = requested_seams or tuple(self.seams)
         pairs = []
@@ -335,7 +350,8 @@ class SeamGraph:
             Stable piece IDs, seam semantics, presentation metadata, and assembly transforms.
 
         Raises:
-            ValueError: If the graph fails canonical piece, seam, or transform validation."""
+            ValueError: If the graph fails canonical piece, seam, or transform validation.
+        """
         self.validate()
         return {
             "pieces": tuple(sorted(self.pieces)),

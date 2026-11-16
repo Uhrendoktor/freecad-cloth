@@ -107,6 +107,7 @@ def read(path: Path) -> JsonObject:
     payload = _normalize_json_value(json.loads(path.read_text(encoding="utf-8")))
     return _require_object(payload, f"manifest {path}")
 
+
 def _validate_simulation_case(name: str, case: JsonObject, max_penetration: float) -> None:
     """Validate one simulation collision-ladder case against its release contract.
 

@@ -931,7 +931,7 @@ class _MalformedNativeArcCurve:
 
     def valueAt(self, parameter_value: float) -> _NativeArcPoint:
         point = _NativeArcPoint(parameter_value, parameter_value + 1.0)
-        setattr(point, "x", "invalid")
+        point.x = "invalid"
         return point
 
     def value(self, parameter_value: float) -> _NativeArcPoint:

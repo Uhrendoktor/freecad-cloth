@@ -2,8 +2,6 @@
 
 import pytest
 
-
-
 from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_INVALID_RANGE,
     STATUS_LENGTH_MISMATCH,

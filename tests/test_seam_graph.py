@@ -1,7 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 
 
-
 import pytest
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam

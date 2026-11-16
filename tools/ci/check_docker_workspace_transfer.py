@@ -5,10 +5,12 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
-from typing import Protocol
 from pathlib import Path
+from typing import Protocol
 
 IMAGE = "busybox:1.36.1"
+
+
 class CommandRunner(Protocol):
     """Callable process boundary with explicit keyword-only safety controls."""
 

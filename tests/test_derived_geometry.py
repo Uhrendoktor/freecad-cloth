@@ -2,8 +2,6 @@
 
 from shapely.geometry import Polygon
 
-
-
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,
     add_notches,

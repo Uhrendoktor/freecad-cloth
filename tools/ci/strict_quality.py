@@ -431,9 +431,7 @@ def _run_repository_ruff_autofix() -> int:
         options=CommandOptions(cwd=ROOT, capture_output=True, timeout=30),
     )
     changed_paths = tuple(path for path in (changed.stdout or "").splitlines() if path)
-    sys.stdout.write(
-        f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\n"
-    )
+    sys.stdout.write(f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\n")
     sys.stdout.flush()
     return 0
 

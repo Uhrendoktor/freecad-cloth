@@ -42,7 +42,8 @@ class CorrespondenceReport:
         """Return whether the correspondence is usable for sewing.
 
         Returns:
-            True for valid or explicitly reversed seam correspondence states."""
+            True for valid or explicitly reversed seam correspondence states.
+        """
         return self.status in {STATUS_VALID, STATUS_REVERSED}
 
     @property
@@ -50,7 +51,8 @@ class CorrespondenceReport:
         """Return the shared machine-checkable severity for this report.
 
         Returns:
-            Error for invalid ranges or mismatched lengths; info for usable states."""
+            Error for invalid ranges or mismatched lengths; info for usable states.
+        """
         return "error" if self.status in {STATUS_LENGTH_MISMATCH, STATUS_INVALID_RANGE} else "info"
 
     @property
@@ -58,14 +60,16 @@ class CorrespondenceReport:
         """Return the shared deterministic recovery guidance.
 
         Returns:
-            Actionable repair instruction associated with this report's status."""
+            Actionable repair instruction associated with this report's status.
+        """
         return correspondence_recovery(self.status)
 
     def evidence(self) -> dict:
         """Return the shared headless/GUI correspondence evidence contract.
 
         Returns:
-            JSON-compatible mapping with status, severity, lengths, reversal, and recovery."""
+            JSON-compatible mapping with status, severity, lengths, reversal, and recovery.
+        """
         return {
             "status": str(self.status),
             "severity": self.severity,
@@ -85,7 +89,8 @@ def correspondence_status_label(report: CorrespondenceReport) -> str:
         report: Validated correspondence result to translate for a document property.
 
     Returns:
-        Stable UI label such as Valid, Length mismatch, Invalid range, or Invalid."""
+        Stable UI label such as Valid, Length mismatch, Invalid range, or Invalid.
+    """
     if report.status in {STATUS_VALID, STATUS_REVERSED}:
         return "Valid"
     if report.status == STATUS_LENGTH_MISMATCH:
@@ -102,7 +107,8 @@ def correspondence_recovery(status: str) -> str:
         status: Machine-readable correspondence state.
 
     Returns:
-        User-facing next step associated with the state, or a general inspection instruction."""
+        User-facing next step associated with the state, or a general inspection instruction.
+    """
     return {
         STATUS_VALID: "no repair required",
         STATUS_REVERSED: "keep the explicit B reversal or use Reverse B",
@@ -147,7 +153,8 @@ def analyze_correspondence(
         length_tolerance: Maximum permitted relative length difference.
 
     Returns:
-        Correspondence report classifying validity, reversal, mismatch, or invalid ranges."""
+        Correspondence report classifying validity, reversal, mismatch, or invalid ranges.
+    """
     inputs = CorrespondenceAnalysisInput.model_validate(
         {
             "length_a": length_a,
@@ -226,7 +233,8 @@ def arc_length_vertex_indices(
         Ordered topology indices sampled by physical distance along the requested range.
 
     Raises:
-        ValueError: If the edge length is non-positive or too few distinct vertices are available."""
+        ValueError: If the edge length is non-positive or too few distinct vertices are available.
+    """
     inputs = ArcLengthSamplingInput.model_validate(
         {"values": values, "points": points, "count": count, "start": start, "end": end}
     )
@@ -333,7 +341,8 @@ def map_parameter(
         Corresponding normalized parameter on seam B.
 
     Raises:
-        ValueError: If the parameter is non-finite, outside [0, 1], or the ranges are invalid."""
+        ValueError: If the parameter is non-finite, outside [0, 1], or the ranges are invalid.
+    """
     if not math.isfinite(float(parameter_a)):
         msg = "seam parameter must be finite"
         raise ValueError(msg)
@@ -370,7 +379,8 @@ def correspondence_samples(
         reversed_b: Whether seam B is traversed in reverse.
 
     Returns:
-        Ordered pairs of normalized parameters for the two seam sides."""
+        Ordered pairs of normalized parameters for the two seam sides.
+    """
     inputs = CorrespondenceSamplesInput.model_validate(
         {
             "count": count,

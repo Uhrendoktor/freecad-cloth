@@ -63,7 +63,7 @@ def test_semantic_edge_id_is_deterministic() -> None:
     """Generate stable piece-scoped IDs from integer boundary indices."""
     assert semantic_edge_id("front", 2) == "front:edge:2"
     with pytest.raises(TypeError, match="ordinal must be an integer"):
-        semantic_edge_id("front", cast(int, "2"))
+        semantic_edge_id("front", cast("int", "2"))
 
 
 def test_signature_is_deterministic_and_order_sensitive() -> None:

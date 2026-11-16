@@ -32,7 +32,7 @@ DEFAULT_ROTATION_AXIS_Y = 0.0
 DEFAULT_ROTATION_AXIS_Z = 1.0
 
 
-type _SignatureValue = str | int | float | bool | tuple["_SignatureValue", ...] | None
+type _SignatureValue = str | int | float | bool | tuple[_SignatureValue, ...] | None
 
 
 class _NativeVector(Protocol):

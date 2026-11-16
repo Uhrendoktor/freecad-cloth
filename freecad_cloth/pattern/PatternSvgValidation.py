@@ -74,7 +74,8 @@ def render_svg_for_validation(
     Raises:
         ValueError: If the SVG XML, physical sizing, units, or requested DPI is invalid.
         RuntimeError: If FreeCAD's QtSvg modules cannot be loaded or rendering fails.
-        OSError: If the optional rendered validation image cannot be written."""
+        OSError: If the optional rendered validation image cannot be written.
+    """
     if not isinstance(svg, str) or not svg.strip():
         msg = "SVG content must not be empty"
         raise ValueError(msg)

@@ -41,7 +41,7 @@ def _require_mapping(value: JsonValue, *, label: str) -> JsonObject:
     if not isinstance(value, dict):
         msg = f"{label} must be a dictionary"
         raise TypeError(msg)
-    return cast(JsonObject, value)
+    return cast("JsonObject", value)
 
 
 def test_collection_plugin_accepts_all_expected_modules() -> None:

@@ -169,7 +169,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         Returns:
             None, because the source object's geometry is authoritative.
         """
-        return None
+        return
 
     def surface(self) -> AvatarSurface:
         """Return the imported geometry as an immutable mesh.

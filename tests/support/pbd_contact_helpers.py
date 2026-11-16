@@ -1037,12 +1037,12 @@ def build_ladder_case_record(
     ]
     seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
     case_record: JsonObject = {
-        "rung": int(cast(int, spec["rung"])),
+        "rung": int(cast("int", spec["rung"])),
         "id": case_id,
         "target": target,
-        "piece_count": int(cast(int, spec["piece_count"])),
-        "pin_mode": str(cast(str, spec["pin_mode"])),
-        "seam_mode": str(cast(str, spec["seam_mode"])),
+        "piece_count": int(cast("int", spec["piece_count"])),
+        "pin_mode": str(cast("str", spec["pin_mode"])),
+        "seam_mode": str(cast("str", spec["seam_mode"])),
     }
     signature = runtime.target_signature
     record: JsonObject = {
@@ -1059,12 +1059,12 @@ def build_ladder_case_record(
         },
         "collision": {
             "source_signature": signature,
-            "source_triangles": int(cast(int, signature["source_triangles"])),
+            "source_triangles": int(cast("int", signature["source_triangles"])),
             "solver_triangles": int(runtime.solver_triangles),
             "target_bounds": dict(target_bounds),
             "target_topology_summary": {
-                "vertices": int(cast(int, signature["source_vertices"])),
-                "triangles": int(cast(int, signature["source_triangles"])),
+                "vertices": int(cast("int", signature["source_vertices"])),
+                "triangles": int(cast("int", signature["source_triangles"])),
                 "solver_triangles": int(runtime.solver_triangles),
             },
         },
@@ -1077,8 +1077,8 @@ def build_ladder_case_record(
         },
         "checkpoints": list(checkpoints),
         "finite": all(bool(checkpoint["finite"]) for checkpoint in checkpoints),
-        "connected_components": int(cast(int, final["components"])),
-        "max_seam_gap_mm": float(cast(float, final["max_seam_gap_mm"])),
+        "connected_components": int(cast("int", final["components"])),
+        "max_seam_gap_mm": float(cast("float", final["max_seam_gap_mm"])),
         "final_clearance_mm": final["target_clearance_mm"],
         "max_penetration_mm": round(maximum_penetration, 6),
         "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
@@ -1128,24 +1128,24 @@ def structural_ladder_checks(
     checks: list[JsonObject] = []
     for case_id, rung in ordered_cases:
         record = by_id[case_id]
-        case_data = cast(JsonObject, record["case"])
+        case_data = cast("JsonObject", record["case"])
         solver = cast("JsonObject", record["solver"])
         collision = cast("JsonObject", record["collision"])
         pre_step = cast("JsonObject", record["pre_step"])
         checkpoints = cast("Sequence[JsonObject]", record["checkpoints"])
         ok = (
             bool(record["finite"])
-            and int(cast(int, case_data["rung"])) == rung
+            and int(cast("int", case_data["rung"])) == rung
             and solver["backend"] == "pbd"
-            and int(cast(int, solver["iterations"])) == 1
-            and int(cast(int, solver["substeps"])) == 1
-            and abs(float(cast(float, solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
-            and float(cast(float, solver["gravity_z_mm_s2"])) == 0.0
-            and int(cast(int, collision["solver_triangles"])) > 0
+            and int(cast("int", solver["iterations"])) == 1
+            and int(cast("int", solver["substeps"])) == 1
+            and abs(float(cast("float", solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
+            and float(cast("float", solver["gravity_z_mm_s2"])) == 0.0
+            and int(cast("int", collision["solver_triangles"])) > 0
             and len(checkpoints) == len(LADDER_CHECKPOINTS)
-            and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
+            and [int(cast("int", item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
         )
-        piece_count = int(cast(int, case_data["piece_count"]))
+        piece_count = int(cast("int", case_data["piece_count"]))
         seams = cast("Sequence[JsonValue]", pre_step["seam_pairs"])
         seam_spans = cast("Sequence[JsonValue]", pre_step["seam_world_spans_mm"])
         if rung in single_piece_rungs:
@@ -1158,7 +1158,7 @@ def structural_ladder_checks(
         if not ok:
             break
     first_failure = next(
-        (int(cast(int, item["rung"])) for item in checks if not bool(item["passed"])),
+        (int(cast("int", item["rung"])) for item in checks if not bool(item["passed"])),
         None,
     )
     return {

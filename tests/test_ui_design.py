@@ -423,7 +423,7 @@ def test_set_status_sets_text_semantic_state_and_wrap() -> None:
 def test_set_status_falls_back_to_info_for_unknown_states() -> None:
     """Use the informational state for an unrecognized status value."""
     label = _Label()
-    status_setter = cast(Callable[..., None], set_status)
+    status_setter = cast("Callable[..., None]", set_status)
 
     status_setter(label, "Ready", state="unexpected")
 
@@ -434,7 +434,6 @@ def test_set_status_falls_back_to_info_for_unknown_states() -> None:
 
 def test_mark_button_assigns_role_and_refreshes_style() -> None:
     """Assign the requested emphasis role and refresh the button style."""
-
     button = _Button()
     cast("Callable[..., None]", mark_button)(button, "primary")
 
@@ -448,7 +447,6 @@ def test_mark_button_assigns_role_and_refreshes_style() -> None:
 
 def test_apply_panel_style_scopes_stylesheet_and_normalizes_layouts() -> None:
     """Scope the panel stylesheet and normalize outer and nested layouts."""
-
     panel = _Panel()
     cast("Callable[..., None]", apply_panel_style)(panel, layout_type=_QtLayout)
 

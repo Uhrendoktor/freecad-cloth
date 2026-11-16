@@ -311,7 +311,8 @@ class PatternIR:
 
         Raises:
             ValueError: If curve sampling is too small, a piece sketch is absent, or
-                any sketch has invalid or disconnected boundary geometry."""
+                any sketch has invalid or disconnected boundary geometry.
+        """
         if curve_samples < 2:
             msg = "curve_samples must be at least 2"
             raise ValueError(msg)
