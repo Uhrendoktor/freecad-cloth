@@ -221,7 +221,8 @@ class PatternPieceTaskPanel:
     def _apply(self):
         self._validate()
         mode = self.mode.currentText()
-        if self.obj is None:
+        created = self.obj is None
+        if created:
             from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
 
             self.obj = create_pattern_piece_from_parameters(
@@ -248,6 +249,10 @@ class PatternPieceTaskPanel:
         focus_button = getattr(self, "focus_piece", None)
         if focus_button is not None:
             focus_button.setEnabled(True)
+        # A newly created piece has no existing viewport representation to locate;
+        # frame it once. Editing an existing piece leaves the user's camera untouched.
+        if created:
+            self._focus_piece()
 
     def _restore(self):
         if self.obj is None or self._original is None:
