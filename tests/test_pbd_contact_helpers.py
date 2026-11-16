@@ -4,11 +4,11 @@
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Never, NoReturn, cast
 
-import pytest
-
 import numpy as np
+import pytest
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
+from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
@@ -246,4 +246,69 @@ def test_inter_cloth_projection_rejects_shared_particles_and_invalid_clearance()
             groups,
             (1.0,) * len(positions),
             clearance_mm=0.0,
+        )
+
+
+def test_simulation_scene_resolves_several_panels_into_two_garment_groups() -> None:
+    """Combine sewn panel triangles under stable garment IDs without joining groups."""
+    panel_data = {
+        "shirt-front": {"triangles": ((0, 1, 2), (0, 2, 3))},
+        "shirt-back": {"triangles": ((4, 5, 6), (4, 6, 7))},
+        "skirt-front": {"triangles": ((8, 9, 10), (8, 10, 11))},
+        "skirt-back": {"triangles": ((12, 13, 14), (12, 14, 15))},
+    }
+    scene = SimpleNamespace(
+        GarmentGroups=(
+            "shirt|shirt-front",
+            "shirt|shirt-back",
+            "skirt|skirt-front",
+            "skirt|skirt-back",
+        ),
+        InterClothClearance=1.0,
+    )
+
+    actual = _resolve_inter_cloth_groups(scene, panel_data)
+
+    assert actual == {
+        "shirt": ((0, 1, 2), (0, 2, 3), (4, 5, 6), (4, 6, 7)),
+        "skirt": ((8, 9, 10), (8, 10, 11), (12, 13, 14), (12, 14, 15)),
+    }, "each garment group must combine panels while retaining global solver indices"
+
+
+def test_simulation_scene_rejects_incomplete_or_duplicate_garment_group_assignments() -> None:
+    """Every current simulated panel must belong to one and only one garment."""
+    panel_data = {
+        "shirt-front": {"triangles": ((0, 1, 2),)},
+        "skirt-front": {"triangles": ((3, 4, 5),)},
+    }
+    scene = SimpleNamespace(GarmentGroups=("shirt|shirt-front", "skirt|skirt-front"))
+
+    with pytest.raises(ValueError, match="classify every simulated piece"):
+        _resolve_inter_cloth_groups(
+            SimpleNamespace(GarmentGroups=("shirt|shirt-front",)),
+            panel_data,
+        )
+    with pytest.raises(ValueError, match="more than one garment group"):
+        _resolve_inter_cloth_groups(
+            SimpleNamespace(
+                GarmentGroups=(
+                    "shirt|shirt-front",
+                    "skirt|shirt-front",
+                    "skirt|skirt-front",
+                )
+            ),
+            panel_data,
+        )
+
+
+def test_inter_cloth_projection_rejects_stitches_between_independent_garments() -> None:
+    """A contact configuration must never sew two separate garment groups together."""
+    positions, groups = _parallel_cloth_groups()
+    with pytest.raises(ValueError, match="cannot connect independent garment groups"):
+        project_inter_cloth_contacts(
+            positions,
+            groups,
+            (1.0,) * len(positions),
+            clearance_mm=1.0,
+            stitches=((0, 4),),
         )
