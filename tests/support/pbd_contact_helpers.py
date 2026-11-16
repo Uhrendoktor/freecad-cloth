@@ -17,15 +17,18 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
-from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
     from types import ModuleType
 
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+    from freecad_cloth.shared.Collision import CollisionSurface
+
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
+type NativeBoundaryFlag = bool
+type GeometryConstructionFlag = bool
 
 
 class _NativeVector(Protocol):
@@ -33,17 +36,17 @@ class _NativeVector(Protocol):
 
     @property
     def x(self) -> float:
-        """Return the horizontal model coordinate."""
+        """Horizontal coordinate in model space."""
         ...
 
     @property
     def y(self) -> float:
-        """Return the vertical model coordinate."""
+        """Vertical coordinate in model space."""
         ...
 
     @property
     def z(self) -> float:
-        """Return the depth model coordinate."""
+        """Depth coordinate in model space."""
         ...
 
 
@@ -54,7 +57,7 @@ class _NativeShape(Protocol):
         """Return whether the shape has no topological content."""
         ...
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag) -> bool:
         """Test whether a point lies inside the closed native shape."""
         ...
 
@@ -103,6 +106,9 @@ class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
 
     PieceId: str
     PatternType: str
+    Placement: object
+    Sketch: _Sketch
+    ViewObject: _ViewProvider
 
 
 class _PBDBackend(Protocol):
@@ -160,6 +166,29 @@ class _FreeCADDocument(Protocol):
 
     def recompute(self) -> None:
         """Recompute the persisted document after a solver step."""
+        ...
+
+
+class _Sketch(FreeCADDocumentObjectProtocol, Protocol):
+    """Native Sketcher profile created by the diagnostic ladder fixture."""
+
+    Document: _SketchDocument
+    ViewObject: _ViewProvider
+
+    def addGeometry(self, geometry: object, construction: GeometryConstructionFlag) -> int:
+        """Add one native geometry element and return its Sketcher index."""
+        ...
+
+
+class _SketchDocument(_FreeCADDocument, Protocol):
+    """Document operations required by the diagnostic rectangle-sketch factory."""
+
+    def addObject(self, object_type: str, name: str) -> _Sketch:
+        """Create and return one native Sketcher profile."""
+        ...
+    
+    def recompute(self) -> None:
+        """Recompute document geometry after a sketch update."""
         ...
 
 
@@ -222,7 +251,14 @@ LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
-    """Create a progress logger that appends to one file and mirrors stdout."""
+    """Create a progress logger that appends to one file and mirrors stdout.
+
+    Args:
+        path: Destination log file; parent directories are created as needed.
+
+    Returns:
+        Callback that appends each message to the file and writes it to stdout.
+    """
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -272,8 +308,23 @@ def ensure_gui_ready() -> None:
     events()
 
 
-def add_rectangle_sketch(doc, name, width, height):
-    """Create a native rectangular Sketcher profile for diagnostic cloth panels."""
+def add_rectangle_sketch(
+    doc: _SketchDocument,
+    name: str,
+    width: float,
+    height: float,
+) -> _Sketch:
+    """Create a native rectangular Sketcher profile for diagnostic cloth panels.
+
+    Args:
+        doc: FreeCAD document that owns the new sketch.
+        name: Internal document name assigned to the Sketcher object.
+        width: Rectangle width in millimetres.
+        height: Rectangle height in millimetres.
+
+    Returns:
+        The recomputed native Sketcher profile.
+    """
     import FreeCAD as App
     import Part
 
@@ -294,8 +345,16 @@ def add_rectangle_sketch(doc, name, width, height):
     return sketch
 
 
-def adopt_sketch(sketch, name):
-    """Adopt a diagnostic Sketcher profile through the production pattern command."""
+def adopt_sketch(sketch: _Sketch, name: str) -> _PatternPieceFeature:
+    """Adopt a diagnostic Sketcher profile through the production pattern command.
+
+    Args:
+        sketch: Native sketch selected by the production pattern command.
+        name: Persistent internal name requested for the PatternPiece.
+
+    Returns:
+        The PatternPiece created from the selected sketch.
+    """
     import FreeCADGui as Gui
 
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
@@ -309,8 +368,20 @@ def adopt_sketch(sketch, name):
     return piece
 
 
-def mesh_geometry(obj):
-    """Return stable point/triangle tuples from mesh topology or tessellated shape geometry."""
+def mesh_geometry(
+    obj: _SourceFeature,
+) -> tuple[tuple[Point3, ...], tuple[Triangle3, ...]]:
+    """Return stable point/triangle tuples from mesh topology or tessellated shape geometry.
+
+    Args:
+        obj: FreeCAD feature exposing either Mesh.Topology or Shape.tessellate.
+
+    Returns:
+        Immutable XYZ points and indexed triangles in the feature's local frame.
+
+    Raises:
+        RuntimeError: If the feature has neither a usable mesh nor a non-null shape.
+    """
     mesh = getattr(obj, "Mesh", None)
     if mesh is not None:
         topology = getattr(mesh, "Topology", None)
@@ -323,7 +394,7 @@ def mesh_geometry(obj):
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
         raise RuntimeError(
-            "missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object"))
+            f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}"
         )
     vertices, triangles = shape.tessellate(1.0)
     return (
@@ -332,18 +403,39 @@ def mesh_geometry(obj):
     )
 
 
-def mesh_points(obj):
-    """Return the point array from mesh_geometry."""
+def mesh_points(obj: _SourceFeature) -> tuple[Point3, ...]:
+    """Return the point array from mesh_geometry.
+
+    Args:
+        obj: FreeCAD feature whose mesh or shape provides the point coordinates.
+
+    Returns:
+        Immutable XYZ coordinates in the feature's local frame.
+
+    Raises:
+        RuntimeError: If the feature has neither a usable mesh nor a non-null shape.
+    """
     return mesh_geometry(obj)[0]
 
 
-def connected_components(vertices, triangles):
-    """Count connected vertex components in a diagnostic triangle mesh."""
+def connected_components(
+    vertices: Sequence[Point3],
+    triangles: Sequence[Triangle3],
+) -> int:
+    """Count connected vertex components in a diagnostic triangle mesh.
+
+    Args:
+        vertices: XYZ mesh vertices in stable point order.
+        triangles: Triangular faces referencing indices in vertices.
+
+    Returns:
+        Number of disconnected vertex components.
+    """
     if not vertices:
         return 0
     parent = list(range(len(vertices)))
 
-    def find(index):
+    def find(index: int) -> int:
         """Resolve the representative vertex index for one union-find entry.
 
         Args:
@@ -357,7 +449,7 @@ def connected_components(vertices, triangles):
             index = parent[index]
         return index
 
-    def union(left, right):
+    def union(left: int, right: int) -> None:
         left_root = find(left)
         right_root = find(right)
         if left_root != right_root:
@@ -527,13 +619,23 @@ def centroid(points: Sequence[Sequence[float]]) -> tuple[float, float, float]:
 
 
 def nearest_surface_distance(
-    garment_points,
-    surface,
+    garment_points: Sequence[Point3],
+    surface: CollisionSurface | None,
     *,
     surface_clearance_fn: Callable[..., float] | None = None,
     target_clearance_fn: Callable[..., float] | None = None,
 ) -> float | None:
-    """Return exact surface distance when available, otherwise a bounded vertex estimate."""
+    """Return exact surface distance when available, otherwise a bounded vertex estimate.
+
+    Args:
+        garment_points: Garment coordinates in the target's model-space frame.
+        surface: Shared collision surface supplying target vertices and triangles.
+        surface_clearance_fn: Optional exact point-to-triangle query adapter.
+        target_clearance_fn: Optional accelerated nearest-target-vertex adapter.
+
+    Returns:
+        Minimum garment-to-target distance in millimetres, or None without target data.
+    """
     if not garment_points or surface is None:
         return None
     vertices = tuple(getattr(surface, "vertices", ()) or ())
@@ -573,7 +675,17 @@ def nearest_surface_distance(
 
 
 def target_signature(target: _DrapeTargetFeature) -> JsonObject:
-    """Return stable target/source identity and topology metrics for diagnostic evidence."""
+    """Return stable target/source identity and topology metrics for diagnostic evidence.
+
+    Args:
+        target: Persisted DrapeTarget feature linked to its source object.
+
+    Returns:
+        JSON-compatible target type, source identity, and source topology counts.
+
+    Raises:
+        RuntimeError: If the target has no source object.
+    """
     source = getattr(target, "SourceObject", None)
     if source is None:
         msg = "diagnostic target has no source"
@@ -841,13 +953,31 @@ def build_piece(doc, name, placement, width=120.0, height=120.0):
     return piece
 
 
-def positions_tuple(backend):
-    """Return a stable tuple copy of backend particle positions."""
+def positions_tuple(backend: _PBDBackend) -> tuple[Point3, ...]:
+    """Return a stable tuple copy of backend particle positions.
+
+    Args:
+        backend: Simulation backend exposing its current XYZ particle coordinates.
+
+    Returns:
+        Immutable coordinate tuples detached from the mutable backend buffer.
+    """
     return tuple(tuple(float(c) for c in point) for point in backend.positions())
 
 
-def seam_geometry(backend, seam_stitch_pairs):
-    """Return deterministic per-seam stitch gap measurements in millimetres."""
+def seam_geometry(
+    backend: _PBDBackend,
+    seam_stitch_pairs: Mapping[str, Sequence[tuple[int, int]]],
+) -> list[JsonObject]:
+    """Return deterministic per-seam stitch gap measurements in millimetres.
+
+    Args:
+        backend: Simulation backend providing current particle positions.
+        seam_stitch_pairs: Seam identifiers mapped to paired particle indices.
+
+    Returns:
+        JSON-compatible seam records with per-pair and aggregate distance metrics.
+    """
     positions = positions_tuple(backend)
     result = []
     for seam_id, pairs in sorted(seam_stitch_pairs.items()):
