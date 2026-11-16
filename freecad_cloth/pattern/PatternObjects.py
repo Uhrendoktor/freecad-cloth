@@ -7,6 +7,17 @@ from types import ModuleType
 from typing import Protocol, cast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.SeamReference import (
+    ChangedEdgeReference,
+    EdgeRecord,
+    EdgeReference,
+    MissingEdgeReference,
+    capture_edge_reference,
+    resolve_edge_reference,
+)
+from freecad_cloth.shared.SeamColors import apply_seam_colors
+
+
 type Point2D = tuple[float, float]
 
 
@@ -21,17 +32,6 @@ class _PatternPieceDocumentFeature(Protocol):
     SewingBoundary: str
     SewingOutline: str
     Shape: object
-
-
-from freecad_cloth.pattern.SeamReference import (
-    ChangedEdgeReference,
-    EdgeRecord,
-    EdgeReference,
-    MissingEdgeReference,
-    capture_edge_reference,
-    resolve_edge_reference,
-)
-from freecad_cloth.shared.SeamColors import apply_seam_colors
 
 
 def _parse_points(value: object) -> list[Point2D]:
