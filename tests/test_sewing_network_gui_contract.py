@@ -1,9 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
 import unittest
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing import SewingNetworkCommands
 from freecad_cloth.sewing.SewingNetworkGui import (
@@ -11,17 +7,14 @@ from freecad_cloth.sewing.SewingNetworkGui import (
     validate_network_for_edit,
 )
 
-
 class _Seam:
     def __init__(self, seam_id, status="Valid"):
         self.SeamId = seam_id
         self.Status = status
 
-
 class _Network:
     def __init__(self, seams):
         self.Seams = seams
-
 
 class SewingNetworkGuiContractTests(unittest.TestCase):
     def test_valid_network_has_no_reference_errors(self):
@@ -47,7 +40,6 @@ class SewingNetworkGuiContractTests(unittest.TestCase):
         state = SewingNetworkCommands._NetworkTaskPanelState()
         state.set(sentinel)
         self.assertIs(SewingNetworkCommands.get_active_network_task_panel(state=state), sentinel)
-
 
 if __name__ == "__main__":
     unittest.main()

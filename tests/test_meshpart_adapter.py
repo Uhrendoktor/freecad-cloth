@@ -1,12 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import rectangle
 from freecad_cloth.pattern.PatternMeshFreeCAD import _canonical_triangle_mesh
-
 
 def test_native_mesh_adapter_canonicalizes_vertex_order_and_provenance():
     pattern = rectangle(100.0, 50.0)
@@ -19,7 +14,6 @@ def test_native_mesh_adapter_canonicalizes_vertex_order_and_provenance():
     assert mesh.boundary_edge_segment_ids == ("bottom", "right", "top", "left")
     mesh.validate()
 
-
 def test_native_mesh_adapter_is_repeatable_for_same_topology():
     pattern = rectangle(100.0, 50.0)
     vertices = [(100.0, 50.0), (0.0, 0.0), (0.0, 50.0), (100.0, 0.0)]
@@ -30,7 +24,6 @@ def test_native_mesh_adapter_is_repeatable_for_same_topology():
     assert first.triangles == second.triangles
     assert first.boundary_vertex_indices == second.boundary_vertex_indices
     assert first.boundary_edge_segment_ids == second.boundary_edge_segment_ids
-
 
 if __name__ == "__main__":
     test_native_mesh_adapter_canonicalizes_vertex_order_and_provenance()
