@@ -249,7 +249,7 @@ class SewingNetworkTaskPanel:
         detail_layout.addLayout(range_form)
         layout.addWidget(detail)
 
-        self.focus_seam_button = QtWidgets.QPushButton("Focus selected seam in 3D")
+        self.focus_seam_button = QtWidgets.QPushButton("Focus seam in 3D")
         self.focus_seam_button.setToolTip(
             "Frame the selected seam and both participating pattern pieces in the viewport."
         )
