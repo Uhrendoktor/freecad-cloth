@@ -214,10 +214,6 @@ class SewingTaskPanel:
         self.correspondence.setWordWrap(True)
         layout.addRow("Seam lengths", self.lengths)
         layout.addRow("Correspondence", self.correspondence)
-        self.reverse_button = QtWidgets.QPushButton("Reverse B")
-        self.reverse_button.setToolTip("Toggle the direction of seam B correspondence")
-        self.reverse_button.clicked.connect(self.reverse_b)
-        layout.addRow("Orientation", self.reverse_button)
         self.reset_ranges_button = QtWidgets.QPushButton("Reset ranges")
         self.reset_ranges_button.setToolTip(
             "Reset both seam ranges to the complete referenced edges"
@@ -340,9 +336,6 @@ class SewingTaskPanel:
                 f"ratio {report.length_ratio:.4f}); recovery: {report.recovery}"
             ),
             state="success" if str(report.status).lower() in {"valid", "ok"} else "error",
-        )
-        self.reverse_button.setText(
-            "Unreverse B" if bool(getattr(self.seam, "ReversedB", False)) else "Reverse B"
         )
         self.reset_ranges_button.setEnabled(
             any(
