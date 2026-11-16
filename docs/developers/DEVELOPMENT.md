@@ -35,7 +35,7 @@ The CI toolchain enforces deterministic quality safeguards in addition to the no
 - Every workflow run enforces a 10 MB accumulated artifact budget from the final artifact inventory.
 - Optional, schema-versioned FreeCAD evidence indexing is documented in [Agent observation bundles](../agents/AGENT_OBSERVATION_BUNDLE.md). It indexes selected existing artifacts without copying them or enabling extra runs.
 
-These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain in strict Pyright scope; matching host stubs and typed adapters are part of the required compatibility boundary.
+These checks complement the architecture contracts rather than replacing them. Dynamic FreeCAD GUI/command surfaces remain in strict Pyright scope; matching host stubs and typed adapters are part of the required compatibility boundary. Ruff's function-local import rule is intentionally disabled because lazy native imports are required to preserve headless imports, optional dependencies, and circular-dependency boundaries. Naming exceptions are limited to exact FreeCAD/Qt/Pivy/pyPBD API identifiers and module aliases. Ruff's TRY301 rule is disabled because raising inside a cleanup, rollback, or exception-translation block can be required for the enclosing handler to run; do not extract helper functions solely to satisfy that rule.
 
 ## Python quality gates
 
