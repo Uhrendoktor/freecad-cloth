@@ -481,8 +481,8 @@ def _order_sketch_boundary(
         msg = f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
         raise ValueError(msg)
 
-    vertices = []
-    edge_vertices = []
+    vertices: list[tuple[Point3, list[int]]] = []
+    edge_vertices: list[tuple[int, int]] = []
     for edge_index, boundary in enumerate(boundaries):
         start = boundary.samples[0]
         end = boundary.samples[-1]
@@ -493,10 +493,10 @@ def _order_sketch_boundary(
         end_vertex = _find_vertex(vertices, end)
         if start_vertex is None:
             start_vertex = len(vertices)
-            vertices.append([start, []])
+            vertices.append((start, []))
         if end_vertex is None:
             end_vertex = len(vertices)
-            vertices.append([end, []])
+            vertices.append((end, []))
         vertices[start_vertex][1].append(edge_index)
         vertices[end_vertex][1].append(edge_index)
         edge_vertices.append((start_vertex, end_vertex))
@@ -516,7 +516,9 @@ def _order_sketch_boundary(
             )
             raise ValueError(msg)
 
-    adjacency = {index: set() for index in range(len(boundaries))}
+    adjacency: dict[int, set[int]] = {
+        index: set() for index in range(len(boundaries))
+    }
     for incident in (set(vertex[1]) for vertex in vertices):
         first, second = tuple(incident)
         adjacency[first].add(second)
@@ -533,7 +535,7 @@ def _order_sketch_boundary(
         else (start_b, start_a)
     )
 
-    ordered = []
+    ordered: list[BoundaryIR] = []
     visited = {start_index}
     ordered.append(
         _orient_boundary(boundaries[start_index], edge_vertices[start_index], start_vertex)
@@ -579,7 +581,9 @@ def _order_sketch_boundary(
     return tuple(ordered)
 
 
-def _find_vertex(vertices, point):
+def _find_vertex(
+    vertices: Sequence[tuple[Point3, Sequence[int]]], point: Point3
+) -> int | None:
     """Find a previously registered endpoint within the topology merge tolerance.
 
     Args:
@@ -595,7 +599,12 @@ def _find_vertex(vertices, point):
     return None
 
 
-def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
+def _next_edge_at_vertex(
+    vertex_index: int,
+    current_edge: int,
+    adjacency: Mapping[int, set[int]],
+    edge_vertices: Sequence[tuple[int, int]],
+) -> int:
     """Find the neighboring boundary edge incident to a connected endpoint.
 
     Args:
@@ -631,7 +640,11 @@ def _point_sort_key(point: Point3) -> tuple[float, float, float]:
     return (round(point[0], 12), round(point[1], 12), round(point[2], 12))
 
 
-def _orient_boundary(boundary, edge_vertices, start_vertex):
+def _orient_boundary(
+    boundary: BoundaryIR,
+    edge_vertices: tuple[int, int],
+    start_vertex: int,
+) -> BoundaryIR:
     """Orient a boundary sample sequence so it begins at a selected graph vertex.
 
     Args:
