@@ -400,3 +400,37 @@ def test_tool_inventory_has_unique_descriptions_and_existing_paths() -> None:
             condition="**Goal:**" in description and "**Why useful:**" in description,
             message=f"{inventory_path.name} has incomplete description for {relative_path}",
         )
+
+
+def test_documentation_inventory_modes_select_the_requested_surface() -> None:
+    """Limit API checks to public declarations and module-only checks to module prose."""
+    source = '''"""Documented module surface."""
+
+def visible_function() -> int:
+    return 1
+
+def _private_helper() -> int:
+    return 2
+
+class PublicSurface:
+    def visible_method(self) -> int:
+        return 3
+
+    def _private_method(self) -> int:
+        return 4
+
+class _PrivateType:
+    pass
+'''
+    public_errors = check_source(source, "sample.py", public_api_only=True)
+    public_text = "\n".join(public_errors)
+    _require(condition="visible_function: missing docstring" in public_text, message=public_text)
+    _require(condition="PublicSurface: missing class docstring" in public_text, message=public_text)
+    _require(condition="visible_method: missing docstring" in public_text, message=public_text)
+    _require(condition="_private_helper" not in public_text, message=public_text)
+    _require(condition="_private_method" not in public_text, message=public_text)
+    _require(condition="_PrivateType" not in public_text, message=public_text)
+    _require(
+        condition=check_source(source, "sample.py", module_only=True) == [],
+        message="module-only validation must skip declaration documentation checks",
+    )

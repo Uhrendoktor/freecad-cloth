@@ -355,7 +355,7 @@ def _function_type_comment_annotations(
         node: Function declaration carrying the parsed type comment.
         annotations: Mutable annotation inventory receiving each type expression.
     """
-    if node.type_comment is None or node.type_comment == "":
+    if not node.type_comment:
         return
     try:
         function_type = ast.parse(node.type_comment, mode="func_type")
@@ -762,9 +762,7 @@ def _function_returns_value(node: ast.FunctionDef | ast.AsyncFunctionDef) -> boo
     if node.returns is not None:
         if isinstance(node.returns, ast.Constant) and node.returns.value is None:
             return False
-        if isinstance(node.returns, ast.Name) and node.returns.id == "None":
-            return False
-        return True
+        return not (isinstance(node.returns, ast.Name) and node.returns.id == "None")
 
     pending: list[ast.AST] = list(node.body)
     while pending:
@@ -864,6 +862,47 @@ def _function_errors(filename: str, node: ast.FunctionDef | ast.AsyncFunctionDef
     return errors
 
 
+def _public_api_declarations(tree: ast.Module) -> list[ast.AST]:
+    """Collect public module-level declarations and public class methods.
+
+    Args:
+        tree: Parsed module whose documented public surface is inspected.
+
+    Returns:
+        Public functions, classes, and their public methods in source order.
+    """
+    declarations: list[ast.AST] = []
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not node.name.startswith("_"):
+                declarations.append(node)
+        elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
+            declarations.append(node)
+            declarations.extend(
+                member
+                for member in node.body
+                if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and not member.name.startswith("_")
+            )
+    return declarations
+
+
+def _all_documentation_declarations(tree: ast.Module) -> list[ast.AST]:
+    """Collect every function, async function, and class declaration.
+
+    Args:
+        tree: Parsed module whose complete declaration inventory is inspected.
+
+    Returns:
+        All declarations in AST traversal order.
+    """
+    return [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    ]
+
+
 def check_source(
     source: str,
     filename: str = "<memory>",
@@ -895,26 +934,9 @@ def check_source(
     if module_only:
         declarations: list[ast.AST] = []
     elif public_api_only:
-        declarations = []
-        for node in tree.body:
-            if isinstance(
-                node, (ast.FunctionDef, ast.AsyncFunctionDef)
-            ) and not node.name.startswith("_"):
-                declarations.append(node)
-            elif isinstance(node, ast.ClassDef) and not node.name.startswith("_"):
-                declarations.append(node)
-                declarations.extend(
-                    member
-                    for member in node.body
-                    if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
-                    and not member.name.startswith("_")
-                )
+        declarations = _public_api_declarations(tree)
     else:
-        declarations = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-        ]
+        declarations = _all_documentation_declarations(tree)
 
     for node in declarations:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
