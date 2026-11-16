@@ -74,7 +74,6 @@ def test_frame_clock_stop_is_safe_before_start_and_idempotent() -> None:
     assert clock.snapshot()["signals_emitted"] == 0
 
 
-
 def test_deadline_timer_interval_never_fires_early() -> None:
     """Round positive waits up to the next whole millisecond for precise Qt timers."""
     assert _deadline_timer_interval_ms(2.0, 1.9991) == 1
