@@ -136,7 +136,7 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert view.fit == 1
 
 
-def test_seam_tangent_frame_supports_world_vertical_and_oblique_segments():
+def test_seam_tangent_frame_supports_world_vertical_and_oblique_segments() -> None:
     horizontal = _seam_tangent_frame((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
     assert horizontal is not None
     tangent, side, length = horizontal
@@ -169,7 +169,7 @@ def test_seam_tangent_frame_supports_world_vertical_and_oblique_segments():
     assert length == 7.0
 
 
-def test_seam_tangent_frame_skips_degenerate_or_non_finite_segments():
+def test_seam_tangent_frame_skips_degenerate_or_non_finite_segments() -> None:
     assert _seam_tangent_frame((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)) is None
     assert _seam_tangent_frame((0.0, 0.0, 0.0), (float("nan"), 0.0, 0.0)) is None
     assert _seam_tangent_frame((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 0.0)) is None
