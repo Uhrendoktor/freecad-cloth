@@ -3,7 +3,9 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Sequence
+from math import isfinite
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -12,6 +14,25 @@ if TYPE_CHECKING:
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None
+_PREVIEW_TARGET_FPS = 60.0
+_PREVIEW_FRAME_BUDGET_MS = 1000.0 / _PREVIEW_TARGET_FPS
+
+
+def _next_timer_interval_ms(callback_elapsed_ms: float) -> int:
+    """Return the remaining 60 FPS frame budget as a safe Qt timer interval.
+
+    Args:
+        callback_elapsed_ms: Time spent advancing and presenting the most recent frame.
+
+    Returns:
+        Millisecond delay that keeps callback time plus timer delay within the target
+        frame budget when the callback itself fits the budget. A one millisecond
+        minimum avoids a zero-interval timer starving the Qt event loop.
+    """
+    if not isfinite(callback_elapsed_ms):
+        return 1
+    remaining_ms = _PREVIEW_FRAME_BUDGET_MS - max(0.0, callback_elapsed_ms)
+    return max(1, int(remaining_ms))
 
 
 class _SceneDocument(Protocol):
@@ -187,6 +208,7 @@ class _Preview:
 
     def tick(self) -> None:
         """Advance the persisted simulation step and redraw the viewport."""
+        started_at = time.perf_counter()
         try:
             doc = getattr(self.scene, "Document", None)
             if doc is None:
@@ -212,6 +234,10 @@ class _Preview:
         except Exception as exc:
             self.stop(False)
             self._message(f"Realtime preview stopped: {exc}")
+        finally:
+            if self.running:
+                callback_elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
+                self.timer.setInterval(_next_timer_interval_ms(callback_elapsed_ms))
 
     @staticmethod
     def _message(message: str) -> None:
