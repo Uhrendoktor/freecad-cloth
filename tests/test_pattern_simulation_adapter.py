@@ -264,8 +264,10 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
         points = ((float(index), 0.0), (float(index) + 1.0, 0.0))
         reordered.append(
             {
+                "piece_id": "piece",
                 "id": edge_id,
                 "points": points,
+                "ordinal": index,
                 "provenance": (
                     "PatternIR",
                     "Sketcher",
@@ -302,7 +304,13 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     piece = _Piece("piece", sketch)
     provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
     records: list[EdgeRecord] = [
-        {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
+        {
+            "piece_id": "piece",
+            "id": "piece:edge:2",
+            "points": ((0.0, 0.0), (10.0, 0.0)),
+            "ordinal": 2,
+            "provenance": provenance,
+        }
     ]
 
     def native_edge_records(_piece: object) -> list[EdgeRecord]:

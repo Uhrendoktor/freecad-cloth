@@ -1,8 +1,12 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
+from collections.abc import Iterable, Sequence
+from typing import Protocol, TypeVar, cast
+
 from freecad_cloth.pattern.PatternObjects import _edge_records
 from freecad_cloth.pattern.SeamReference import (
+    EdgeRecord,
     ChangedEdgeReference,
     EdgeReference,
     MissingEdgeReference,
@@ -19,7 +23,45 @@ class InvalidRepairTarget(TopologyRepairError):
     """The selected replacement edge cannot be resolved on the seam piece."""
 
 
-def seam_reference_status(seam, side):
+class PatternPieceFeatureProtocol(Protocol):
+    """Minimal native pattern-piece identity required by seam repair."""
+
+    PieceId: str
+
+
+class SeamFeatureProtocol(Protocol):
+    """Native seam properties updated by an explicit topology repair."""
+
+    PatternA: PatternPieceFeatureProtocol
+    PatternB: PatternPieceFeatureProtocol
+    EdgeAId: str
+    EdgeASignature: str
+    EdgeA: int
+    EdgeBId: str
+    EdgeBSignature: str
+    EdgeB: int
+
+    def touch(self) -> None: ...
+
+
+class DocumentTransactionProtocol(Protocol):
+    """FreeCAD document transaction surface used by the repair operation."""
+
+    Objects: Sequence[object]
+
+    def openTransaction(self, label: str) -> None: ...
+
+    def recompute(self) -> None: ...
+
+    def commitTransaction(self) -> None: ...
+
+    def abortTransaction(self) -> None: ...
+
+
+_RepairSeam = TypeVar("_RepairSeam")
+
+
+def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:
     """Check whether one stored seam side still resolves to its authored edge.
 
     Args:
@@ -54,7 +96,9 @@ def seam_reference_status(seam, side):
     return True, "valid"
 
 
-def invalid_seam_sides(doc):
+def invalid_seam_sides(
+    doc: DocumentTransactionProtocol,
+) -> list[tuple[SeamFeatureProtocol, str, str]]:
     """Collect every invalid semantic edge reference in one FreeCAD document.
 
     Args:
@@ -63,18 +107,19 @@ def invalid_seam_sides(doc):
     Returns:
         Tuples containing each invalid seam feature, side selector, and failure reason.
     """
-    result = []
-    for obj in getattr(doc, "Objects", ()):
+    result: list[tuple[SeamFeatureProtocol, str, str]] = []
+    for obj in doc.Objects:
         if getattr(obj, "SeamId", None) is None:
             continue
         for side in ("A", "B"):
             valid, reason = seam_reference_status(obj, side)
             if not valid:
-                result.append((obj, side, reason))
+                # SeamId marks a native seam feature with the properties in this protocol.
+                result.append((cast(SeamFeatureProtocol, obj), side, reason))
     return result
 
 
-def current_edge_candidates(seam, side):
+def current_edge_candidates(seam: object, side: str) -> list[EdgeRecord]:
     """Return current semantic edge records for one seam side's source piece.
 
     Args:
@@ -97,7 +142,7 @@ def current_edge_candidates(seam, side):
     return list(_edge_records(piece))
 
 
-def validate_repair_target(seam, side, edge_id):
+def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:
     """Resolve an explicitly selected current edge and return its record.
 
     Args:
@@ -124,7 +169,9 @@ def validate_repair_target(seam, side, edge_id):
     raise InvalidRepairTarget(msg)
 
 
-def build_repair_plan(repairs):
+def build_repair_plan(
+    repairs: Iterable[tuple[_RepairSeam, str, str]],
+) -> list[tuple[_RepairSeam, str, EdgeRecord]]:
     """Validate and normalize all requested repairs before mutating document objects.
 
     Args:
@@ -137,8 +184,8 @@ def build_repair_plan(repairs):
         TopologyRepairError: If a repair target is repeated or no repairs were supplied.
         InvalidRepairTarget: If any requested edge is absent from its seam side.
     """
-    plan = []
-    seen = set()
+    plan: list[tuple[_RepairSeam, str, EdgeRecord]] = []
+    seen: set[tuple[int, str]] = set()
     for seam, side, edge_id in repairs:
         side = str(side).upper()
         key = (id(seam), side)
@@ -154,7 +201,10 @@ def build_repair_plan(repairs):
     return plan
 
 
-def apply_repair_plan(doc, repairs):
+def apply_repair_plan(
+    doc: DocumentTransactionProtocol,
+    repairs: Iterable[tuple[SeamFeatureProtocol, str, str]],
+) -> list[tuple[SeamFeatureProtocol, str, EdgeRecord]]:
     """Apply validated semantic seam-edge repairs in one undoable transaction.
 
     Args:
@@ -175,13 +225,13 @@ def apply_repair_plan(doc, repairs):
             if side == "A":
                 seam.EdgeAId = str(record["id"])
                 seam.EdgeASignature = capture_edge_reference(
-                    seam.PatternA.PieceId, record["id"], record["points"], record.get("provenance")
+                    seam.PatternA.PieceId, record["id"], record["points"], record["provenance"]
                 ).signature
                 seam.EdgeA = int(record["ordinal"])
             else:
                 seam.EdgeBId = str(record["id"])
                 seam.EdgeBSignature = capture_edge_reference(
-                    seam.PatternB.PieceId, record["id"], record["points"], record.get("provenance")
+                    seam.PatternB.PieceId, record["id"], record["points"], record["provenance"]
                 ).signature
                 seam.EdgeB = int(record["ordinal"])
             if hasattr(seam, "touch"):
