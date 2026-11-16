@@ -382,7 +382,7 @@ class SimulationTaskPanel:
             message
             or "State: %s | Target: %s | %.3f s | %d particles | %d steps"
             % (
-                state,
+                simulation_state,
                 target_message,
                 float(getattr(self.scene, "SimulatedTime", 0.0)),
                 int(getattr(self.scene, "ParticleCount", 0)),
