@@ -143,5 +143,5 @@ def test_run_command_writes_text_to_standard_input() -> None:
 
     require(
         condition=result.stdout == "STDIN-CONTRACT\n",
-        message="Command runner must write the configured input text to standard input.",
+        message=f"Command runner stdin mismatch: stdout={result.stdout!r}, stderr={result.stderr!r}",
     )
