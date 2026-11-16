@@ -138,12 +138,7 @@ class _Preview:
         """Start the preview timer with transient viewport-only panel geometry."""
         if self.running:
             return
-        from freecad_cloth.simulation.RealtimeMeshPreview import (
-            RealtimeMeshPreview,
-            _PreviewPanel,
-            _Triangle,
-        )
-        from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
+        from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _Triangle
 
         proxy = self.scene.Proxy
         if proxy is None or not hasattr(proxy, "set_preview_mesh_publisher"):
