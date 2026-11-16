@@ -644,9 +644,7 @@ def main() -> None:
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
             "frame_scheduler": active_preview.frame_scheduler_metrics(),
-            "frame_dispatch_lateness": _timing_summary(
-                active_preview._frame_dispatch_lateness_ms
-            ),
+            "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
             "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,
             "process_cpu_elapsed_s": process_cpu_elapsed,

@@ -406,7 +406,6 @@ class _Preview:
             self.stop(False)
             self._message(f"Realtime preview stopped: {exc}")
 
-
     @staticmethod
     def _message(message: str) -> None:
         try:
