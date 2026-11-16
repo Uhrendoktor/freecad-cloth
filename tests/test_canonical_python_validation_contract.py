@@ -198,8 +198,11 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
             "outstanding_pulses": 0,
-            "dispatch_mode": "Qt.QueuedConnection",
+            "dispatch_mode": "QCoreApplication.postEvent",
+            "dispatch_priority": "HighEventPriority",
+            "posted_events": 150,
             "queued_dispatches": 150,
+            "stale_events_dropped": 0,
         },
         "worker_wakeup_lateness": {
             "samples": 120,
@@ -222,10 +225,10 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "timed_out": False,
         "backend_finite": True,
         "published_state_finite": True,
-        "mean_frame_interval_ms": 10.4,
-        "p95_frame_interval_ms": 15.2,
-        "mean_callback_ms": 4.1,
-        "p95_callback_ms": 6.3,
+        "mean_frame_interval_ms": 7.2,
+        "p95_frame_interval_ms": 8.0,
+        "mean_callback_ms": 3.1,
+        "p95_callback_ms": 4.0,
         "stage_timings": {
             "advance_preview_frame": {
                 "samples": 120,
@@ -302,8 +305,8 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
     assert "measured_intervals must equal frames_requested" in errors, "canonical CI contract"
 
 
-def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> None:
-    """Require benchmarks to use the production worker clock and GUI event loop."""
+def test_realtime_benchmark_uses_the_production_priority_event_frame_clock() -> None:
+    """Require the benchmark to use the priority-posted production frame clock."""
     source_path = ROOT / "tests" / "freecad_realtime_benchmark.py"
     parsed = ast.parse(source_path.read_text(encoding="utf-8"))
     identifiers = {node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)}
@@ -318,6 +321,9 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "QEventLoop" in attributes, "canonical CI contract"
     assert "set_tick_callback" in attributes, "canonical CI contract"
     assert "stop_frame_clock" in attributes, "canonical CI contract"
+    assert "QCoreApplication" in attributes, "canonical CI contract"
+    assert "postEvent" in attributes, "canonical CI contract"
+    assert "HighEventPriority" in string_constants, "canonical CI contract"
     assert "WARMUP_FRAMES" in identifiers, "canonical CI contract"
     assert "FRAMES" in identifiers, "canonical CI contract"
     assert "frame_scheduler" in string_constants, "canonical CI contract"

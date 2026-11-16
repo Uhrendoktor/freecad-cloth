@@ -6,7 +6,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Sequence
 from math import ceil, isfinite
-from threading import Condition, Event, Thread, current_thread
+from threading import Condition, Event, Lock, Thread, current_thread
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None
-_PREVIEW_TARGET_FPS = 60.0
+_PREVIEW_TARGET_FPS = 120.0
 _INITIAL_GUI_QUEUE_DELAY_MS = 5.0
 _QUEUE_DELAY_SAFETY_MARGIN_MS = 0.25
 _WORKER_WAKEUP_SAFETY_MARGIN_MS = 0.25
@@ -37,10 +37,8 @@ class _PulseSignal(Protocol):
     def emit(self, _scheduled_at: float, _emitted_at: float) -> None: ...
 
 
-class _FrameDispatcher(Protocol):
-    """Retain the GUI-thread QObject that receives worker clock pulses."""
-
-    pulse: _PulseSignal
+class _FrameDispatcher(_PulseSignal, Protocol):
+    """Retain the GUI-thread QObject that receives priority-posted worker frame events."""
 
     def set_callback(self, callback: Callable[[float, float, float], None]) -> None: ...
 
@@ -49,6 +47,33 @@ class _FrameDispatcher(Protocol):
     def stop(self) -> None: ...
 
     def snapshot(self) -> dict[str, int | float | str]: ...
+
+
+def _qt_high_event_priority(qt_core: object) -> int:
+    """Return Qt's high event priority across Qt 5 and Qt 6 enum layouts.
+
+    Args:
+        qt_core: Active PySide QtCore module.
+
+    Returns:
+        Integer event priority accepted by QCoreApplication.postEvent.
+
+    Raises:
+        RuntimeError: If the active Qt binding does not expose HighEventPriority.
+    """
+    qt_namespace = getattr(qt_core, "Qt", None)
+    priority = getattr(qt_namespace, "HighEventPriority", None)
+    if priority is None:
+        priority_group = getattr(qt_namespace, "EventPriority", None)
+        priority = getattr(priority_group, "HighEventPriority", None)
+    if priority is None:
+        msg = "Qt binding does not expose HighEventPriority"
+        raise RuntimeError(msg)
+    try:
+        return int(priority)
+    except (TypeError, ValueError) as exc:
+        msg = "Qt HighEventPriority is not an integer-compatible enum value"
+        raise RuntimeError(msg) from exc
 
 
 class _FrameClock:
@@ -259,63 +284,112 @@ class _FrameClock:
 def _make_frame_dispatcher(
     callback: Callable[[float, float, float], None],
 ) -> _FrameDispatcher:
-    """Create a GUI-thread receiver for feedback-paced frame requests.
+    """Create a GUI-thread receiver for high-priority feedback-paced frame events.
 
     Args:
         callback: Preview callback receiving target, worker-emission, and GUI-dispatch times.
 
     Returns:
-        A Qt signal bridge retained by the preview controller.
+        A Qt QObject that accepts thread-safe frame posts and invokes callbacks in the GUI thread.
 
     Raises:
-        RuntimeError: If the active PySide binding does not expose signal/slot factories.
+        RuntimeError: If the active Qt binding lacks event posting or event-priority support.
     """
     QtCore = _qt()
-    signal_factory = getattr(QtCore, "Signal", None) or getattr(QtCore, "pyqtSignal", None)
-    slot_factory = getattr(QtCore, "Slot", None) or getattr(QtCore, "pyqtSlot", None)
-    if not callable(signal_factory) or not callable(slot_factory):
-        msg = "Realtime preview requires Qt signal and slot factories"
+    event_class = getattr(QtCore, "QEvent", None)
+    application_class = getattr(QtCore, "QCoreApplication", None)
+    if (
+        event_class is None
+        or application_class is None
+        or not callable(getattr(application_class, "postEvent", None))
+    ):
+        msg = "Realtime preview requires QEvent and QCoreApplication.postEvent support"
         raise RuntimeError(msg)
+    priority = _qt_high_event_priority(QtCore)
+    event_type_id = int(event_class.registerEventType())
+    if event_type_id < 0:
+        msg = "Qt could not allocate a custom realtime frame event type"
+        raise RuntimeError(msg)
+    event_type = event_class.Type(event_type_id)
+
+    class _FrameEvent(QtCore.QEvent):
+        """Carry immutable frame timing data from the clock worker to the GUI thread."""
+
+        def __init__(self, scheduled_at: float, emitted_at: float, generation: int) -> None:
+            super().__init__(event_type)
+            self.scheduled_at = float(scheduled_at)
+            self.emitted_at = float(emitted_at)
+            self.generation = int(generation)
 
     class _Dispatcher(QtCore.QObject):
-        """Deliver one queued worker pulse directly to the GUI-thread callback."""
-
-        pulse = signal_factory(float, float)
+        """Deliver one high-priority custom event to the GUI-thread preview callback."""
 
         def __init__(self) -> None:
             super().__init__()
             self._callback = callback
+            self._lock = Lock()
             self._stopped = True
+            self._generation = 0
+            self._posted_events = 0
             self._dispatches = 0
-            self.pulse.connect(self.dispatch, QtCore.Qt.QueuedConnection)
+            self._stale_events_dropped = 0
 
         def start(self) -> None:
-            """Enable queued frame delivery for a new preview session."""
-            self._stopped = False
-            self._dispatches = 0
+            """Enable priority-posted frame delivery for a new preview session."""
+            with self._lock:
+                self._generation += 1
+                self._stopped = False
+                self._posted_events = 0
+                self._dispatches = 0
+                self._stale_events_dropped = 0
 
         def stop(self) -> None:
-            """Ignore any queued signal that arrives after preview shutdown."""
-            self._stopped = True
+            """Invalidate any event already posted for the previous preview session."""
+            with self._lock:
+                self._stopped = True
+                self._generation += 1
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            """Post one immutable frame event at Qt's high priority from any thread."""
+            with self._lock:
+                if self._stopped:
+                    return
+                event = _FrameEvent(scheduled_at, emitted_at, self._generation)
+                application_class.postEvent(self, event, priority)
+                self._posted_events += 1
 
         def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
-            self._callback = next_callback
+            with self._lock:
+                self._callback = next_callback
 
-        @slot_factory(float, float)
-        def dispatch(self, scheduled_at: float, emitted_at: float) -> None:
-            """Run immediately when the GUI thread accepts the high-level queued signal."""
-            if self._stopped:
-                return
-            dispatched_at = time.perf_counter()
-            self._dispatches += 1
-            self._callback(float(scheduled_at), float(emitted_at), dispatched_at)
+        def event(self, qt_event: QtCore.QEvent) -> bool:
+            """Dispatch only events belonging to the current preview generation."""
+            if qt_event.type() != event_type:
+                return super().event(qt_event)
+            frame_event = cast("_FrameEvent", qt_event)
+            with self._lock:
+                if self._stopped or frame_event.generation != self._generation:
+                    self._stale_events_dropped += 1
+                    return True
+                callback = self._callback
+                self._dispatches += 1
+            callback(
+                frame_event.scheduled_at,
+                frame_event.emitted_at,
+                time.perf_counter(),
+            )
+            return True
 
         def snapshot(self) -> dict[str, int | float | str]:
-            """Return the number of worker pulses accepted by the GUI event loop."""
-            return {
-                "dispatch_mode": "Qt.QueuedConnection",
-                "queued_dispatches": self._dispatches,
-            }
+            """Return high-priority event-posting and stale-event counters."""
+            with self._lock:
+                return {
+                    "dispatch_mode": "QCoreApplication.postEvent",
+                    "dispatch_priority": "HighEventPriority",
+                    "posted_events": self._posted_events,
+                    "queued_dispatches": self._dispatches,
+                    "stale_events_dropped": self._stale_events_dropped,
+                }
 
     return cast("_FrameDispatcher", _Dispatcher())
 
@@ -395,12 +469,12 @@ def _prepare(scene: _SimulationScene) -> None:
 
 
 class _Preview:
-    """Own the interactive timer and restore the user's simulation quality settings."""
+    """Own the interactive frame clock and restore the user's simulation quality settings."""
 
     def __init__(self, scene: _SimulationScene) -> None:
         self.scene = scene
         self._dispatcher = _make_frame_dispatcher(self.tick)
-        self._frame_clock = _FrameClock(self._dispatcher.pulse, _PREVIEW_TARGET_FPS)
+        self._frame_clock = _FrameClock(self._dispatcher, _PREVIEW_TARGET_FPS)
         self.running = False
         self._overlay_refresh_ticks = 0
         self._mesh_preview: RealtimeMeshPreview | None = None

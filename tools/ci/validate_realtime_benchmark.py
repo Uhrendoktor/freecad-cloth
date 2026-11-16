@@ -19,7 +19,7 @@ ROOT = add_repository_root(__file__)
 
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
-TARGET_FPS = 60.0
+TARGET_FPS = 120.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
@@ -153,7 +153,7 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     """
     budget = _number(metrics.get("frame_budget_ms"))
     if budget is None or abs(budget - FRAME_BUDGET_MS) > FRAME_BUDGET_TOLERANCE_MS:
-        errors.append("frame_budget_ms must match the 60 FPS budget")
+        errors.append("frame_budget_ms must match the 120 FPS budget")
 
     numeric_keys = (
         "mean_frame_interval_ms",
@@ -169,9 +169,9 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     mean_interval = _number(metrics.get("mean_frame_interval_ms"))
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is not None and mean_interval > FRAME_BUDGET_MS:
-        errors.append("mean_frame_interval_ms exceeds the 60 FPS budget")
+        errors.append("mean_frame_interval_ms exceeds the 120 FPS budget")
     if p95_interval is not None and p95_interval > FRAME_BUDGET_MS:
-        errors.append("p95_frame_interval_ms exceeds the 60 FPS budget")
+        errors.append("p95_frame_interval_ms exceeds the 120 FPS budget")
 
 
 def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
@@ -212,11 +212,19 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     if outstanding != 0:
         errors.append("frame_scheduler.outstanding_pulses must be zero at benchmark completion")
     dispatch_mode = scheduler.get("dispatch_mode")
-    if dispatch_mode != "Qt.QueuedConnection":
-        errors.append("frame_scheduler.dispatch_mode must be Qt.QueuedConnection")
+    if dispatch_mode != "QCoreApplication.postEvent":
+        errors.append("frame_scheduler.dispatch_mode must be QCoreApplication.postEvent")
+    if scheduler.get("dispatch_priority") != "HighEventPriority":
+        errors.append("frame_scheduler.dispatch_priority must be HighEventPriority")
+    posted_events = _integer(scheduler.get("posted_events"))
+    if posted_events is None or posted_events < (frames or MIN_FRAMES):
+        errors.append("frame_scheduler.posted_events must cover the measured frames")
     queued_dispatches = _integer(scheduler.get("queued_dispatches"))
     if queued_dispatches is None or queued_dispatches < (frames or MIN_FRAMES):
         errors.append("frame_scheduler.queued_dispatches must cover the measured frames")
+    stale_events = _integer(scheduler.get("stale_events_dropped"))
+    if stale_events is None or stale_events < 0:
+        errors.append("frame_scheduler.stale_events_dropped must be a non-negative integer")
 
     dispatch_value = metrics.get("frame_dispatch_lateness")
     if not isinstance(dispatch_value, dict):
