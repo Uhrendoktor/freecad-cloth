@@ -383,7 +383,7 @@ def ruff_autofix_commands(
     )
 
 
-def _write_ruff_autofix_patch(patch_text: str) -> Path:
+def write_ruff_autofix_patch(patch_text: str) -> Path:
     """Persist the generated Ruff patch in a uniquely created temporary file.
 
     Args:
@@ -453,7 +453,7 @@ def _run_repository_ruff_autofix() -> int:
         ("git", "diff", "--binary"),
         options=CommandOptions(cwd=ROOT, capture_output=True, timeout=60),
     )
-    patch_path = _write_ruff_autofix_patch(diff.stdout or "")
+    patch_path = write_ruff_autofix_patch(diff.stdout or "")
     changed = run_command(
         ("git", "diff", "--name-only"),
         options=CommandOptions(cwd=ROOT, capture_output=True, timeout=30),

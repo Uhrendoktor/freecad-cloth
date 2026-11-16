@@ -1,9 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression checks for strict-quality cache identity and command coverage."""
 
-from pathlib import Path
-
 import pytest
+from pathlib import Path
 
 from tests.support.assertions import require
 from tools.ci.strict_quality import (
@@ -16,7 +15,7 @@ from tools.ci.strict_quality import (
     quality_install_command,
     ready_marker_is_current,
     ruff_autofix_commands,
-    _write_ruff_autofix_patch,
+    write_ruff_autofix_patch,
 )
 
 
@@ -250,8 +249,8 @@ def test_ruff_autofix_patch_uses_unique_temporary_files(
     first_patch = "diff --git a/first.py b/first.py\n"
     second_patch = "diff --git a/second.py b/second.py\n"
 
-    first_path = _write_ruff_autofix_patch(first_patch)
-    second_path = _write_ruff_autofix_patch(second_patch)
+    first_path = write_ruff_autofix_patch(first_patch)
+    second_path = write_ruff_autofix_patch(second_patch)
 
     require(
         condition=first_path.parent == tmp_path and second_path.parent == tmp_path,
