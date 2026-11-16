@@ -520,8 +520,6 @@ class AvatarTaskPanel:
         row_layout = QtWidgets.QHBoxLayout(row)
         row_layout.setContentsMargins(2, 1, 2, 1)
         label = QtWidgets.QLabel(self._display_parameter_name(name))
-        label.setMinimumWidth(100)
-        label.setMaximumWidth(170)
         label.setWordWrap(True)
         box = QtWidgets.QDoubleSpinBox()
         box.setDecimals(3)
