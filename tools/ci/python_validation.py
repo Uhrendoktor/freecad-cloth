@@ -54,6 +54,7 @@ GROUPS = {
         "tests/test_sewing_show2d.py",
         "tests/test_pattern_simulation_adapter.py",
         "tests/test_pattern_gui_contract.py",
+        "tests/test_pattern_topology_repair_gui.py",
         "tests/test_pattern_mark_enablement.py",
         "tests/test_pattern_marks.py",
         "tests/test_garment_document_contract.py",
