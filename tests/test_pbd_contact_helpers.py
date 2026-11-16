@@ -364,3 +364,25 @@ def test_inter_cloth_measurement_reports_post_projection_clearance_deficit() -> 
     )
     assert residual_count > 0
     assert residual_deficit > 0.5
+
+
+def test_inter_cloth_coincident_sheets_receive_opposite_stable_corrections() -> None:
+    """Exact overlap uses group ordering to avoid cancelling zero-distance normals."""
+    triangle = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (0.0, 10.0, 0.0),
+    )
+    positions = triangle + triangle
+    corrected, _directions, metrics = project_inter_cloth_contacts(
+        positions,
+        {"alpha": ((0, 1, 2),), "beta": ((3, 4, 5),)},
+        (1.0,) * 6,
+        clearance_mm=1.0,
+        iterations=8,
+    )
+
+    assert metrics.contact_count > 0
+    assert metrics.corrected_particle_count == 6
+    assert all(corrected[index][2] > 0.0 for index in range(3))
+    assert all(corrected[index][2] < 0.0 for index in range(3, 6))

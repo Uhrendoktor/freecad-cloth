@@ -289,3 +289,25 @@ def test_validator_rejects_a_seam_that_connects_two_independent_garments(tmp_pat
 
     with pytest.raises(ValueError, match="joins two independent garment groups"):
         validate_manifest(manifest_path)
+
+
+def test_validator_rejects_remaining_edge_triangle_contact_after_projection(tmp_path: Path) -> None:
+    """The artifact cannot pass while any garment pair remains below requested clearance."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][1]["remaining_contact_count"] = 2
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="residual edge/triangle contacts"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_requires_clearance_deficit_semantics(tmp_path: Path) -> None:
+    """A metric named penetration must not be silently interpreted as signed volume."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    del manifest["scene_map"]["inter_garment_relation"]["metric_semantics"]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="clearance deficit"):
+        validate_manifest(manifest_path)
