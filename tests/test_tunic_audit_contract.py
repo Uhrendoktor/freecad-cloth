@@ -624,8 +624,12 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     audit_action = gui[audit_action_index:report_index]
     assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_action_index:metric_validator_index]
     assert (
-        benchmark_action_index < benchmark_index < metric_validator_index < metric_gate_index
-        < audit_action_index < audit_index
+        benchmark_action_index
+        < benchmark_index
+        < metric_validator_index
+        < metric_gate_index
+        < audit_action_index
+        < audit_index
     )
     assert "continue-on-error: true" in gui[benchmark_action_index:metric_validator_index]
     assert "continue-on-error: true" in gui[metric_validator_index:audit_action_index]
