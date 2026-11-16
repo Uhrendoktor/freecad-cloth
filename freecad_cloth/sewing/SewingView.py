@@ -66,6 +66,57 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
+def _seam_tangent_frame(
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    plane_normal: tuple[float, float, float] = (0.0, 0.0, 1.0),
+) -> tuple[tuple[float, float, float], tuple[float, float, float], float] | None:
+    """Return an in-plane 3D tangent frame and segment length.
+
+    The side direction is the cross product of the panel normal and seam
+    tangent, so presentation markers stay in the source panel plane after a
+    pattern piece is rotated into world space. Degenerate/non-finite inputs
+    return None rather than producing invalid direction geometry.
+    """
+    delta = (
+        float(end[0]) - float(start[0]),
+        float(end[1]) - float(start[1]),
+        float(end[2]) - float(start[2]),
+    )
+    length = sum(component * component for component in delta) ** 0.5
+    if not length > 1e-12:
+        return None
+
+    tangent = (
+        delta[0] / length,
+        delta[1] / length,
+        delta[2] / length,
+    )
+    normal = (float(plane_normal[0]), float(plane_normal[1]), float(plane_normal[2]))
+    normal_length = sum(component * component for component in normal) ** 0.5
+    if not normal_length > 1e-12:
+        return None
+    normal = (
+        normal[0] / normal_length,
+        normal[1] / normal_length,
+        normal[2] / normal_length,
+    )
+    side = (
+        normal[1] * tangent[2] - normal[2] * tangent[1],
+        normal[2] * tangent[0] - normal[0] * tangent[2],
+        normal[0] * tangent[1] - normal[1] * tangent[0],
+    )
+    side_length = sum(component * component for component in side) ** 0.5
+    if not side_length > 1e-12:
+        return None
+    side = (
+        side[0] / side_length,
+        side[1] / side_length,
+        side[2] / side_length,
+    )
+    return tangent, side, length
+
+
 def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=False):
     """Build native presentation geometry for one semantic seam.
 
@@ -106,9 +157,15 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
     )
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
+    placement_a = getattr(piece_a, "Placement", None)
+    placement_b = getattr(piece_b, "Placement", None)
+    normal_a = App.Vector(0.0, 0.0, 1.0)
+    normal_b = App.Vector(0.0, 0.0, 1.0)
+    if placement_a is not None:
+        normal_a = placement_a.Rotation.multVec(normal_a)
+    if placement_b is not None:
+        normal_b = placement_b.Rotation.multVec(normal_b)
     if world_space:
-        placement_a = getattr(piece_a, "Placement", None)
-        placement_b = getattr(piece_b, "Placement", None)
         if placement_a is not None:
             a = [placement_a.multVec(point) for point in a]
         if placement_b is not None:
@@ -140,23 +197,48 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         dz = pb.z - pa.z
         if (dx * dx + dy * dy + dz * dz) > 1e-18:
             shapes.append(Part.makeLine(pa, pb))
-    for points in (a_distinct, b_distinct):
+    for points, plane_normal in ((a_distinct, normal_a), (b_distinct, normal_b)):
         if len(points) < 2:
             continue
         mid = len(points) // 2
         prev, nxt = points[max(0, mid - 1)], points[min(len(points) - 1, mid + 1)]
-        dx, dy = nxt.x - prev.x, nxt.y - prev.y
-        length = (dx * dx + dy * dy) ** 0.5
-        ux, uy = dx / length, dy / length
+        frame = _seam_tangent_frame(
+            (prev.x, prev.y, prev.z),
+            (nxt.x, nxt.y, nxt.z),
+            (plane_normal.x, plane_normal.y, plane_normal.z),
+        )
+        if frame is None:
+            continue
+        tangent, side, length = frame
         tip = points[mid]
         arrow_len = min(6.0, max(1.0, length * 0.3))
-        base = App.Vector(tip.x - ux * arrow_len, tip.y - uy * arrow_len, tip.z)
-        left = App.Vector(base.x + uy * arrow_len * 0.6, base.y - ux * arrow_len * 0.6, tip.z)
-        right = App.Vector(base.x - uy * arrow_len * 0.6, base.y + ux * arrow_len * 0.6, tip.z)
+        base = App.Vector(
+            tip.x - tangent[0] * arrow_len,
+            tip.y - tangent[1] * arrow_len,
+            tip.z - tangent[2] * arrow_len,
+        )
+        arrow_half_width = arrow_len * 0.6
+        left = App.Vector(
+            base.x + side[0] * arrow_half_width,
+            base.y + side[1] * arrow_half_width,
+            base.z + side[2] * arrow_half_width,
+        )
+        right = App.Vector(
+            base.x - side[0] * arrow_half_width,
+            base.y - side[1] * arrow_half_width,
+            base.z - side[2] * arrow_half_width,
+        )
         shapes.extend((Part.makeLine(tip, left), Part.makeLine(tip, right)))
-        nx, ny = -uy, ux
         notch_len = min(4.0, max(1.0, length * 0.2))
-        na = App.Vector(tip.x - nx * notch_len, tip.y - ny * notch_len, tip.z)
-        nb = App.Vector(tip.x + nx * notch_len, tip.y + ny * notch_len, tip.z)
+        na = App.Vector(
+            tip.x - side[0] * notch_len,
+            tip.y - side[1] * notch_len,
+            tip.z - side[2] * notch_len,
+        )
+        nb = App.Vector(
+            tip.x + side[0] * notch_len,
+            tip.y + side[1] * notch_len,
+            tip.z + side[2] * notch_len,
+        )
         shapes.append(Part.makeLine(na, nb))
     return Part.makeCompound(shapes)

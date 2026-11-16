@@ -14,6 +14,7 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     apply_quality_preset,
     quality_discretization,
 )
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -83,6 +84,7 @@ def test_quality_preset_updates_solver_controls() -> None:
         PinMode="Automatic",
         SolverIterations=8,
         SolverSubsteps=1,
+        **inter_cloth_quality_defaults(),
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
@@ -152,6 +154,13 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
         name: ClassVar[str] = "position-based-dynamics"
         time: ClassVar[float] = 0.25
+        inter_cloth_metrics: ClassVar[SimpleNamespace] = SimpleNamespace(
+            contact_count=3,
+            remaining_contact_count=0,
+            corrected_particle_count=4,
+            max_penetration_before_mm=0.75,
+            max_penetration_after_mm=0.0,
+        )
 
         def __init__(self) -> None:
             """Initialize the call log and publication-read count."""
@@ -201,6 +210,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         ParticleDistance=40.0,
         SolverIterations=1,
         SolverSubsteps=1,
+        **inter_cloth_quality_defaults(),
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
@@ -237,6 +247,11 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     assert backend.position_reads == 1, (
         "A preview frame must publish the solved state exactly once."
     )
+    assert scene.InterClothContactCount == 3
+    assert scene.InterClothRemainingContactCount == 0
+    assert scene.InterClothCorrectedParticleCount == 4
+    assert isclose(scene.InterClothMaxPenetration, 0.75)
+    assert scene.InterClothResidualPenetration == 0.0
     assert base.last_steps == _EXPECTED_PREVIEW_STEPS, (
         "A preview frame must advance the recorded step count by one."
     )
