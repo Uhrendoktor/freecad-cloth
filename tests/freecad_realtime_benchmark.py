@@ -27,7 +27,7 @@ if str(ROOT) not in sys.path:
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
 
-TARGET_FPS = 30.0
+TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
@@ -256,6 +256,7 @@ def main() -> None:
             "solver_step",
             "state_publish",
             "mesh_write",
+            "preview_mesh_publish",
             "overlay_schedule",
             "viewport_redraw",
         )
@@ -268,12 +269,14 @@ def main() -> None:
                 stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
+        from freecad_cloth.simulation import RealtimeMeshPreview as realtime_mesh_preview
         from freecad_cloth.simulation import SimulationObjects as simulation_objects
 
         original_advance = proxy.advance_preview_frame
         original_publish = proxy._publish_state
         original_solver_step = backend.step
         original_mesh_write = simulation_objects._write_mesh
+        original_preview_mesh_publish = realtime_mesh_preview.RealtimeMeshPreview.publish
         original_overlay_schedule = seam_overlay.schedule_seam_overlay_refresh
         original_active_document = Gui.activeDocument
 
@@ -310,6 +313,18 @@ def main() -> None:
             finally:
                 record_stage("mesh_write", started_at)
 
+        def timed_preview_mesh_publish(
+            owner: object,
+            panel: object,
+            positions: object,
+            triangles: object,
+        ) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_preview_mesh_publish(owner, panel, positions, triangles)
+            finally:
+                record_stage("preview_mesh_publish", started_at)
+
         def timed_overlay_schedule(document: object | None = None) -> None:
             started_at = time.perf_counter()
             try:
@@ -328,6 +343,12 @@ def main() -> None:
             (proxy, "_publish_state", timed_publish, original_publish),
             (backend, "step", timed_solver_step, original_solver_step),
             (simulation_objects, "_write_mesh", timed_mesh_write, original_mesh_write),
+            (
+                realtime_mesh_preview.RealtimeMeshPreview,
+                "publish",
+                timed_preview_mesh_publish,
+                original_preview_mesh_publish,
+            ),
             (
                 seam_overlay,
                 "schedule_seam_overlay_refresh",
@@ -500,6 +521,7 @@ def main() -> None:
             "particles": particle_count,
             "panel_count": len(panels),
             "collision_triangles": collision_triangles,
+            "publication_mode": "transient-coin3d",
             "target_fps": TARGET_FPS,
             "frame_budget_ms": FRAME_BUDGET_MS,
             "frames_requested": FRAMES,
