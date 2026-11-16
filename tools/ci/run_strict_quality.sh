@@ -143,8 +143,8 @@ if [[ "$mode" == "--ruff-autofix" ]]; then
   git -C "$workspace" diff --cached --check
   git -C "$workspace" config user.name "github-actions[bot]"
   git -C "$workspace" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-  auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\\n')"
+  auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
   git -C "$workspace" -c "http.extraheader=AUTHORIZATION: basic $auth" push \
     "https://github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$GITHUB_HEAD_REF"
-  echo "ruff-autofix=committed files=$(printf '%s\\n' "$changed_paths" | wc -l | tr -d ' ')"
+  echo "ruff-autofix=committed files=$(printf '%s\n' "$changed_paths" | wc -l | tr -d ' ')"
 fi
