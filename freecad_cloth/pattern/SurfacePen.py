@@ -1336,6 +1336,7 @@ class SurfacePenTaskPanel:
         _App, _Gui, QtWidgets = self._modules()
         self.controller = controller
         self.form = QtWidgets.QWidget()
+        self.form.setObjectName("ClothSurfacePenTaskPanel")
         outer = QtWidgets.QVBoxLayout(self.form)
 
         instructions = QtWidgets.QLabel(
@@ -1346,9 +1347,14 @@ class SurfacePenTaskPanel:
         )
         instructions.setWordWrap(True)
         outer.addWidget(instructions)
-        self.form.setMaximumWidth(380)
+        from freecad_cloth.common.UiDesign import (
+            apply_panel_style,
+            configure_form_layout,
+            mark_button,
+        )
 
         controls = QtWidgets.QFormLayout()
+        configure_form_layout(controls, QtWidgets)
         self.input_mode_combo = QtWidgets.QComboBox()
         self.input_mode_combo.addItems(["Point placement", "Freehand trace", "Reference points"])
         self.input_mode_combo.currentTextChanged.connect(self._input_mode_changed)
@@ -1374,21 +1380,25 @@ class SurfacePenTaskPanel:
         self.status.setWordWrap(True)
         outer.addWidget(self.status)
 
-        buttons = QtWidgets.QHBoxLayout()
         self.finish_button = QtWidgets.QPushButton("Finish Stroke → Pattern")
         self.finish_button.clicked.connect(self.finish)
+        outer.addWidget(self.finish_button)
+        utility_buttons = QtWidgets.QHBoxLayout()
         self.clear_button = QtWidgets.QPushButton("Clear")
         self.clear_button.clicked.connect(self.controller.clear)
         self.cancel_button = QtWidgets.QPushButton("Cancel")
         self.cancel_button.clicked.connect(self.reject)
-        buttons.addWidget(self.finish_button)
-        buttons.addWidget(self.clear_button)
-        buttons.addWidget(self.cancel_button)
-        outer.addLayout(buttons)
+        utility_buttons.addWidget(self.clear_button)
+        utility_buttons.addWidget(self.cancel_button)
+        outer.addLayout(utility_buttons)
+        mark_button(self.finish_button, "primary")
+        mark_button(self.clear_button, "secondary")
+        mark_button(self.cancel_button, "secondary")
         self.controller.status_callback = self.update_status
         self._input_mode_changed(self.input_mode_combo.currentText())
         self._point_kind_changed(self.point_kind_combo.currentText())
         self.update_status(self.controller._stroke_status())
+        apply_panel_style(self.form)
 
     def _input_mode_changed(self, value: str) -> None:
         """Switch between boundary authoring, freehand tracing, and reference points.
@@ -1417,7 +1427,10 @@ class SurfacePenTaskPanel:
         Args:
             message: Current user-facing stroke status emitted by the controller.
         """
-        self.status.setText(str(message))
+        from freecad_cloth.common.UiDesign import set_status
+
+        state = "error" if str(message).startswith("Could not finish") else "info"
+        set_status(self.status, str(message), state=state)
         self.finish_button.setEnabled(self.controller.can_finish)
 
     @staticmethod
