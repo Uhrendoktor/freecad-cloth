@@ -438,7 +438,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "expected_resolution = tuple(" in validator, (
         'Contract failed: "expected_resolution = tuple(" in valid...'
     )
-    assert "def _validate_realtime_metrics(data: dict)" in validator, (
+    assert "def _validate_realtime_metrics(data: JsonObject)" in validator, (
         'Contract failed: "def _validate_realtime_metrics(data: d...'
     )
     assert "_validate_realtime_metrics(data)" in validator, (
