@@ -134,7 +134,7 @@ def _native_edge_record_for_sketch_index(
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if edge < 0 or edge >= len(semantic_ids):
-        msg = f"native Sketcher seam edge {edge} is outside pattern piece {str(getattr(piece, "PieceId"))}"
+        msg = f"native Sketcher seam edge {edge} is outside pattern piece {str(getattr(piece, 'PieceId'))}"
         raise MissingEdgeReference(msg)
     semantic_id = semantic_ids[edge]
     if not semantic_id:
