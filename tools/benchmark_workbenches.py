@@ -353,7 +353,7 @@ def main(freecad: ModuleType, gui: ModuleType, qt_widgets: ModuleType) -> None:
         "--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench"
     )
     workbench_override = os.environ.get("CLOTH_BENCHMARK_WORKBENCH")
-    if workbench_override is not None and workbench_override != "":
+    if workbench_override:
         args = parser.parse_args(
             [
                 "--workbench",

@@ -11,9 +11,10 @@ import re
 import sys
 from math import ceil, isclose
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)

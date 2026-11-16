@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -382,11 +383,38 @@ def ruff_autofix_commands(
     )
 
 
+def _write_ruff_autofix_patch(patch_text: str) -> Path:
+    """Persist the generated Ruff patch in a uniquely created temporary file.
+
+    Args:
+        patch_text: Complete unified diff emitted by Git after safe Ruff fixes.
+
+    Returns:
+        Path to the temporary patch file, which remains available to the caller.
+
+    Raises:
+        OSError: If the temporary patch file cannot be created or written.
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="ruff-autofix-",
+        suffix=".patch",
+        dir=os.environ.get("RUNNER_TEMP"),
+        delete=False,
+    ) as patch_file:
+        patch_file.write(patch_text)
+    return Path(patch_file.name)
+
+
 def _run_repository_ruff_autofix() -> int:
     """Apply safe Ruff fixes and export the resulting tracked-source patch.
 
     Returns:
         Zero when formatting and lint-fix commands ran and the patch was exported.
+
+    Raises:
+        RuntimeError: If Git reports no tracked Python sources or stubs.
     """
     cache_root = Path(os.environ["RUNNER_TOOL_CACHE"])
     image_id = os.environ["QUALITY_IMAGE_ID"]
@@ -394,7 +422,8 @@ def _run_repository_ruff_autofix() -> int:
     python = prepare_quality_environment(cache_root, image_id, workspace_key)
     tracked_files = collect_tracked_python_files(ROOT)
     if not tracked_files:
-        raise RuntimeError("Git reported no tracked Python sources or stubs.")
+        msg = "Git reported no tracked Python sources or stubs."
+        raise RuntimeError(msg)
     _run_setup(
         ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
         timeout_seconds=10,
@@ -424,8 +453,7 @@ def _run_repository_ruff_autofix() -> int:
         ("git", "diff", "--binary"),
         options=CommandOptions(cwd=ROOT, capture_output=True, timeout=60),
     )
-    patch_path = Path("/tmp/ruff-autofix.patch")
-    patch_path.write_text(diff.stdout or "", encoding="utf-8")
+    patch_path = _write_ruff_autofix_patch(diff.stdout or "")
     changed = run_command(
         ("git", "diff", "--name-only"),
         options=CommandOptions(cwd=ROOT, capture_output=True, timeout=30),
