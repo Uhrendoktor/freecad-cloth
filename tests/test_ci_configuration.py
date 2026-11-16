@@ -808,7 +808,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
         return iter([])
 
     lookup = maintenance_cleanup.ClosedPullRequestLookup(
-        "owner/repo", set(), "main", activity, cutoff
+        "owner/repo", set(), "main", activity, cutoff, set()
     )
     matched = maintenance_cleanup.closed_pr_head_shas_by_branch(
         branches, lookup, api_items_loader=fake_load_items
