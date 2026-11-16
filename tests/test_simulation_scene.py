@@ -292,5 +292,7 @@ def test_simulation_proxy_does_not_mix_surface_and_legacy_sphere_collision() -> 
             (scene.GravityX, scene.GravityY, scene.GravityZ),
             proxy.collision_surface,
         )
-    ], "The proxy must pass the surface without enabling legacy sphere controls."
+    ], (
+        "The proxy must pass the surface without enabling legacy sphere controls."
+    )
 
