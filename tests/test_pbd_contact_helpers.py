@@ -6,10 +6,11 @@ from typing import TYPE_CHECKING, Never, NoReturn, cast
 
 import numpy as np
 import pytest
-from freecad_cloth.shared.Collision import CollisionSurface
+
 from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
-from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
+from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
+from freecad_cloth.shared.Collision import CollisionSurface
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
@@ -281,7 +282,6 @@ def test_simulation_scene_rejects_incomplete_or_duplicate_garment_group_assignme
         "shirt-front": {"triangles": ((0, 1, 2),)},
         "skirt-front": {"triangles": ((3, 4, 5),)},
     }
-    scene = SimpleNamespace(GarmentGroups=("shirt|shirt-front", "skirt|skirt-front"))
 
     with pytest.raises(ValueError, match="classify every simulated piece"):
         _resolve_inter_cloth_groups(
