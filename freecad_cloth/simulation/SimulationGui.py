@@ -49,8 +49,27 @@ class SimulationTaskPanel:
         configure_form_layout(layout, QtWidgets)
         self.cloth, self.target = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self._populate_selection_lists()
-        layout.addRow("Cloth pieces", self.cloth)
-        layout.addRow("Drape target", self.target)
+        self.cloth_view_button = QtWidgets.QPushButton("Select")
+        self.cloth_view_button.setToolTip(
+            "Highlight the selected cloth object in the FreeCAD viewport without moving the camera."
+        )
+        self.target_view_button = QtWidgets.QPushButton("Select")
+        self.target_view_button.setToolTip(
+            "Highlight the Drape Target's linked collision source in the viewport without moving the camera."
+        )
+        for combo, button in (
+            (self.cloth, self.cloth_view_button),
+            (self.target, self.target_view_button),
+        ):
+            row = QtWidgets.QWidget()
+            row_layout = QtWidgets.QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(combo, 1)
+            row_layout.addWidget(button)
+            layout.addRow(
+                "Cloth pieces" if combo is self.cloth else "Drape target",
+                row,
+            )
         content_layout.addWidget(selection)
 
         material = QtWidgets.QGroupBox("Fabric")
@@ -132,6 +151,8 @@ class SimulationTaskPanel:
         self.reset_button = QtWidgets.QPushButton("Reset")
         from freecad_cloth.common.UiDesign import mark_button
 
+        mark_button(self.cloth_view_button, "secondary")
+        mark_button(self.target_view_button, "secondary")
         mark_button(self.step_button, "secondary")
         mark_button(self.run_button, "primary")
         mark_button(self.reset_button, "danger")
@@ -155,6 +176,8 @@ class SimulationTaskPanel:
         self.step_button.clicked.connect(lambda: self.step(1))
         self.run_button.clicked.connect(lambda: self.step(30))
         self.reset_button.clicked.connect(self.reset)
+        self.cloth_view_button.clicked.connect(self._select_cloth_in_viewport)
+        self.target_view_button.clicked.connect(self._select_target_source_in_viewport)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed)
@@ -178,6 +201,7 @@ class SimulationTaskPanel:
             state="info",
         )
         self._load_scene_values()
+        self._refresh_viewport_actions()
         apply_panel_style(self.form)
 
     @staticmethod
@@ -259,6 +283,7 @@ class SimulationTaskPanel:
                     self.target.setCurrentIndex(index)
 
     def _selection_changed(self):
+        self._refresh_viewport_actions()
         if self.scene is None:
             return
         if self.cloth.currentData():
@@ -276,7 +301,81 @@ class SimulationTaskPanel:
             p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()
         ]
         self.scene.Document.recompute()
+        self._refresh_viewport_actions()
         self._refresh_status()
+
+    def _active_document_object(self, name):
+        """Resolve a selected scene object in the current FreeCAD document."""
+        document = getattr(self.scene, "Document", None) or self.App.ActiveDocument
+        if document is None or not name:
+            return None
+        try:
+            return document.getObject(str(name))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _selected_cloth_object(self):
+        """Return the current cloth piece selected in the scene combo box."""
+        return self._active_document_object(self.cloth.currentData())
+
+    def _selected_target_source(self):
+        """Resolve the current Drape Target and its linked visible collision source."""
+        target = self._active_document_object(self.target.currentData())
+        return getattr(target, "SourceObject", None) if target is not None else None
+
+    def _refresh_viewport_actions(self):
+        """Enable viewport selection actions only when their objects are resolvable."""
+        cloth_button = getattr(self, "cloth_view_button", None)
+        if cloth_button is not None:
+            cloth_button.setEnabled(self._selected_cloth_object() is not None)
+        target_button = getattr(self, "target_view_button", None)
+        if target_button is not None:
+            target_button.setEnabled(self._selected_target_source() is not None)
+
+    def _select_in_viewport(self, obj, role):
+        """Highlight one selected scene object without changing the current camera.
+
+        Args:
+            obj: Native document object to select in FreeCAD's 3D view.
+            role: Short user-facing description such as cloth or drape target.
+
+        Returns:
+            True when the object was selected, otherwise False.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        if obj is None:
+            set_status(
+                self.status,
+                f"Select a valid {role} object before highlighting it in the viewport.",
+                state="warning",
+            )
+            return False
+        try:
+            self.Gui.Selection.clearSelection()
+            self.Gui.Selection.addSelection(obj)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            set_status(
+                self.status,
+                f"Could not select the {role} object in the viewport — {exc}.",
+                state="error",
+            )
+            return False
+        label = str(getattr(obj, "Label", getattr(obj, "Name", role)))
+        set_status(
+            self.status,
+            f"Selected {label} in the 3D view. The camera position is unchanged.",
+            state="info",
+        )
+        return True
+
+    def _select_cloth_in_viewport(self):
+        """Highlight the currently selected cloth object in the active 3D view."""
+        return self._select_in_viewport(self._selected_cloth_object(), "cloth")
+
+    def _select_target_source_in_viewport(self):
+        """Highlight the selected target's linked collision source in the active 3D view."""
+        return self._select_in_viewport(self._selected_target_source(), "drape target source")
 
     def _material_changed(self, preset):
         if self.scene is None:
