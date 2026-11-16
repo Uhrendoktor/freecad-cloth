@@ -109,10 +109,6 @@ class _MeshBuffer(Protocol):
         """Return the number of facets in the mutable native mesh."""
         ...
 
-    def clear(self) -> None:
-        """Remove all points and facets from the mutable native mesh."""
-        ...
-
     def setPoint(self, index: int, point: _NativeMeshVector) -> None:
         """Replace one indexed vertex in the cached mesh buffer."""
         ...
@@ -259,27 +255,6 @@ def _write_mesh(obj, positions, triangles):
         and getattr(buffer, "CountPoints", -1) == len(vertex_indices)
         and getattr(buffer, "CountFacets", -1) == len(faces)
     ):
-        clear_buffer = getattr(buffer, "clear", None)
-        add_facets = getattr(buffer, "addFacets", None)
-        if callable(clear_buffer) and callable(add_facets):
-            try:
-                # Clear and repopulate the retained native mesh in bulk. This
-                # avoids one Python-to-FreeCAD binding call for every vertex.
-                clear_buffer()
-                add_facets((vertices, list(faces)), False)
-                obj.Mesh = buffer
-                return
-            except (
-                AttributeError,
-                IndexError,
-                ReferenceError,
-                RuntimeError,
-                TypeError,
-                ValueError,
-            ):
-                _MESH_OBJECT_BUFFERS.pop(object_key, None)
-                _MESH_OBJECT_TOPOLOGY.pop(object_key, None)
-
         set_point = getattr(buffer, "setPoint", None)
         if callable(set_point):
             try:
