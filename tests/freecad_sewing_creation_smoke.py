@@ -338,7 +338,8 @@ def seam_color_snapshot(seams):
             isclose(float(actual_rgb[index]), float(expected_rgb[index]), rel_tol=0.0, abs_tol=1e-6)
             for index in range(3)
         ), (
-            f"native seam color for {seam_id} differs: actual={actual_rgb!r} expected={expected_rgb!r}"
+            f"native seam color for {seam_id} differs: "
+            f"actual={actual_rgb!r} expected={expected_rgb!r}"
         )
     assert len(set(actual.values())) == len(actual), (
         "native seam colors are not unique per persistent SeamId"
@@ -762,7 +763,8 @@ try:
     if camera_match is None or float(camera_match.group(1)) < camera_height * 0.95:
         msg = (
             "seam-assignment GIF camera did not apply the requested world-space framing: "
-            f"expected_height={camera_height:.3f}, camera={camera_match.group(1) if camera_match else 'missing'}"
+            f"expected_height={camera_height:.3f}, "
+            f"camera={camera_match.group(1) if camera_match else 'missing'}"
         )
         raise RuntimeError(msg)
     record(
@@ -966,7 +968,8 @@ try:
     curve_spacings = edge_sample_spacing(curved_a.Shape.Edges[2])
     assert max(curve_spacings) / min(curve_spacings) > 1.20
     record(
-        f"curved-sampling=passed max_spacing={max(curve_spacings):.6f} min_spacing={min(curve_spacings):.6f}"
+        f"curved-sampling=passed max_spacing={max(curve_spacings):.6f} "
+        f"min_spacing={min(curve_spacings):.6f}"
     )
 
     b_curve_length = _curved_edge_length(50.0, 50.0, 120.0)
@@ -1075,7 +1078,11 @@ try:
         + 0.01
     )
     record(
-        f"curved-mn=passed members=2,2 segments=3 physical-length=proportional length_a={float(curved_network.LengthA):.9f} length_b={float(curved_network.LengthB):.9f} delta={float(curved_network.LengthDifference):.9f} max_pair_gap={max(pair_gaps):.9f}"
+        f"curved-mn=passed members=2,2 segments=3 physical-length=proportional "
+        f"length_a={float(curved_network.LengthA):.9f} "
+        f"length_b={float(curved_network.LengthB):.9f} "
+        f"delta={float(curved_network.LengthDifference):.9f} "
+        f"max_pair_gap={max(pair_gaps):.9f}"
     )
 
     for seam in curved_network.Seams:
