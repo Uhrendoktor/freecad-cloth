@@ -145,3 +145,8 @@ The immutable PBD image contains the Python packages required by the FreeCAD acc
 
 Pre-commit and canonical CI enforce Ruff, Python architecture/dead-code contracts, actionlint, zizmor, yamllint, and the repository-specific CI structure contract. External Actions in the workflow and local composite Actions are pinned to full commit SHAs and maintained by Dependabot.
 
+
+
+## PBD throughput profiling
+
+The dedicated production-throughput investigation is tracked in [issue #2839](https://github.com/Uhrendoktor/freecad-cloth/issues/2839). Its measured baseline, current bottlenecks, unchanged production settings, and the separate Fast-preview results are recorded in [PBD throughput profile](PBD_THROUGHPUT_PROFILE.md). The canonical full tunic audit is a blocking 90-step gate; the realtime-preview 60 FPS target remains a separate diagnostic until its timer-cadence miss is resolved.
