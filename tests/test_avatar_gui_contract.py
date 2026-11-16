@@ -91,7 +91,7 @@ def test_avatar_advanced_search_explains_when_no_parameters_match() -> None:
             return "arm length"
 
     class _Tabs:
-        def __init__(self):
+        def __init__(self) -> None:
             self.index = 0
 
         def currentIndex(self) -> int:

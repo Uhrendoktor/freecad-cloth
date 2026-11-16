@@ -87,11 +87,11 @@ class _GuiDocument(Protocol):
 class _FreeCADSelection(Protocol):
     """Selection operations used by the viewport source picker."""
 
-    def addObserver(self, observer: object) -> None:
+    def addObserver(self, observer: _ViewportSourcePicker) -> None:
         """Register an observer for subsequent viewport selections."""
         ...
 
-    def removeObserver(self, observer: object) -> None:
+    def removeObserver(self, observer: _ViewportSourcePicker) -> None:
         """Unregister a previously registered selection observer."""
         ...
 
@@ -99,7 +99,7 @@ class _FreeCADSelection(Protocol):
         """Clear the current GUI selection."""
         ...
 
-    def addSelection(self, source: object) -> None:
+    def addSelection(self, source: FreeCADDocumentObjectProtocol) -> None:
         """Select one existing document object in the 3D view."""
         ...
 
@@ -210,7 +210,7 @@ class _ViewportSourcePicker:
         document_name: str,
         object_name: str,
         _subelement_name: str,
-        *_position: object,
+        *_position: float,
     ) -> None:
         """Accept a viewport object selection when it belongs to the active document.
 

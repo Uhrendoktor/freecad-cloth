@@ -205,7 +205,12 @@ def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None
 
 def _pattern_piece_viewport_fixture(
     piece: SimpleNamespace,
-) -> tuple[PatternGui.PatternPieceTaskPanel, list[tuple[str | SimpleNamespace | bool, ...]]]:
+) -> tuple[
+    PatternGui.PatternPieceTaskPanel,
+    list[tuple[str | SimpleNamespace | bool, ...]],
+    SimpleNamespace,
+    SimpleNamespace,
+]:
     calls: list[tuple[str | SimpleNamespace | bool, ...]] = []
     view = SimpleNamespace(
         viewTop=lambda: calls.append(("top",)),
@@ -220,13 +225,13 @@ def _pattern_piece_viewport_fixture(
         activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
         Selection=selection,
     )
-    return panel, calls
+    return panel, calls, view, selection
 
 
 def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None:
     """Keep viewport camera changes behind the explicit task-panel action."""
     piece = SimpleNamespace(Name="FrontPiece", Label="Front")
-    panel, calls = _pattern_piece_viewport_fixture(piece)
+    panel, calls, _, _ = _pattern_piece_viewport_fixture(piece)
     panel.obj = piece
 
     assert panel._focus_piece() is True
@@ -239,7 +244,7 @@ def test_new_pattern_piece_is_framed_once_after_creation() -> None:
     from unittest.mock import patch
 
     piece = SimpleNamespace(Label="PatternPiece")
-    panel, calls = _pattern_piece_viewport_fixture(piece)
+    panel, calls, view, selection = _pattern_piece_viewport_fixture(piece)
     panel.obj = None
     panel._sketch_authoritative = False
     panel.name = SimpleNamespace(text=lambda: "New front")

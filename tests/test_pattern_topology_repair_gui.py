@@ -11,12 +11,12 @@ class _Selection:
     """Capture FreeCAD selection-observer registration and removal."""
 
     def __init__(self) -> None:
-        self.observers: list[object] = []
+        self.observers: list[_TopologyRepairViewportPicker] = []
 
-    def addObserver(self, observer: object) -> None:
+    def addObserver(self, observer: _TopologyRepairViewportPicker) -> None:
         self.observers.append(observer)
 
-    def removeObserver(self, observer: object) -> None:
+    def removeObserver(self, observer: _TopologyRepairViewportPicker) -> None:
         self.observers.remove(observer)
 
 
@@ -47,7 +47,13 @@ class _VisibilityButton:
         self.visible = bool(visible)
 
 
-def _picker_fixture():
+def _picker_fixture() -> tuple[
+    SimpleNamespace,
+    _TopologyRepairViewportPicker,
+    _Combo,
+    _Selection,
+    list[tuple[str, str]],
+]:
     """Build one seam-side picker with isolated document, selection and feedback."""
     document = SimpleNamespace(Name="ClothDocument")
     front_sketch = SimpleNamespace(
@@ -99,7 +105,7 @@ def _picker_fixture():
 
 def test_viewport_picker_maps_only_the_matching_semantic_sketcher_edge() -> None:
     """Set the row combo to the semantic ID resolved from the picked EdgeN."""
-    panel, picker, combo, selection, updates = _picker_fixture()
+    _panel, picker, combo, selection, updates = _picker_fixture()
 
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index",

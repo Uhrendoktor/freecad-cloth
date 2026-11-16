@@ -236,19 +236,19 @@ class _Selection:
     """Capture the FreeCAD selection-observer and highlight lifecycle."""
 
     def __init__(self) -> None:
-        self.observers: list[object] = []
-        self.calls: list[tuple[object, ...]] = []
+        self.observers: list[DrapeGui._ViewportSourcePicker] = []
+        self.calls: list[tuple[str] | tuple[str, SimpleNamespace]] = []
 
-    def addObserver(self, observer: object) -> None:
+    def addObserver(self, observer: DrapeGui._ViewportSourcePicker) -> None:
         self.observers.append(observer)
 
-    def removeObserver(self, observer: object) -> None:
+    def removeObserver(self, observer: DrapeGui._ViewportSourcePicker) -> None:
         self.observers.remove(observer)
 
     def clearSelection(self) -> None:
         self.calls.append(("clear",))
 
-    def addSelection(self, source: object) -> None:
+    def addSelection(self, source: SimpleNamespace) -> None:
         self.calls.append(("select", source))
 
 

@@ -182,7 +182,7 @@ def test_analysis_failure_disables_map_and_export_actions(
         raise RuntimeError("run the simulation before opening diagnostics")
 
     monkeypatch.setattr(ClothDiagnosticsGui, "_simulation_data", unavailable)
-    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel(cast("object", object()))
+    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel(cast("SimulationScene", object()))
 
     assert panel.map_button.enabled is False
     assert panel.export_button.enabled is False
