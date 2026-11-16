@@ -5,12 +5,23 @@ from __future__ import annotations
 
 import sys
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from pytest import MonkeyPatch
+
+
+type _FieldPayload = Sequence[tuple[float, float, float]] | Sequence[int]
+
+
+class _CoinNode(Protocol):
+    """Common opaque scenegraph node used by the Coin test doubles."""
+
+    def __repr__(self) -> str: ...
 
 
 class _Field:
@@ -18,9 +29,9 @@ class _Field:
 
     def __init__(self) -> None:
         """Initialize an empty field-write log."""
-        self.calls: list[tuple[int, int, object]] = []
+        self.calls: list[tuple[int, int, _FieldPayload]] = []
 
-    def setValues(self, start: int, count: int, values: object) -> None:
+    def setValues(self, start: int, count: int, values: _FieldPayload) -> None:
         """Record a field update with its exact range and payload."""
         self.calls.append((start, count, values))
 
@@ -30,9 +41,9 @@ class _Separator:
 
     def __init__(self) -> None:
         """Initialize an empty child list."""
-        self.children: list[object] = []
+        self.children: list[_CoinNode] = []
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _CoinNode) -> None:
         """Append a node to the separator."""
         self.children.append(child)
 
@@ -48,7 +59,7 @@ class _SceneGraph:
         """Append a child node to the active viewport scenegraph."""
         self.children.append(child)
 
-    def removeChild(self, child: object) -> None:
+    def removeChild(self, child: _CoinNode) -> None:
         """Remove a previously added transient viewport node."""
         self.children.remove(child)
 
