@@ -269,7 +269,9 @@ class _ViewportSourcePicker:
             self.panel._source_picker = None
         self.panel.cancel_pick_button.setVisible(False)
         self.panel.pick_source_button.setEnabled(
-            self.panel.target is not None and self.panel.doc is not None
+            self.panel.target is not None
+            and self.panel.doc is not None
+            and bool(self.panel._source_objects)
         )
 
 
@@ -597,7 +599,10 @@ class DrapeTargetTaskPanel:
         self.show_source_button.setEnabled(selected)
         self.apply_button.setEnabled(target_available and selected)
         self.pick_source_button.setEnabled(
-            target_available and self.doc is not None and self._source_picker is None
+            target_available
+            and self.doc is not None
+            and bool(self._source_objects)
+            and self._source_picker is None
         )
 
     def _select_source_object(self, source: FreeCADDocumentObjectProtocol) -> bool:
