@@ -29,11 +29,17 @@ class _CoinSceneGraph(Protocol):
     def removeChild(self, child: object) -> None: ...
 
 
+class _PanelViewObject(Protocol):
+    """Expose the visibility flag changed while transient preview geometry is active."""
+
+    Visibility: bool
+
+
 class _PreviewPanel(Protocol):
     """Expose the document panel metadata whose persistent mesh is hidden in preview."""
 
     Name: str
-    ViewObject: object
+    ViewObject: _PanelViewObject
 
 
 class RealtimeMeshPreview:
