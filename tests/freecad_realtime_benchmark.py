@@ -296,7 +296,7 @@ def main() -> None:
         in_tick = False
 
         def record_stage(name: str, started_at: float) -> None:
-            if in_tick and tick_count >= WARMUP_FRAMES:
+            if in_tick and tick_count > WARMUP_FRAMES:
                 stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
@@ -495,9 +495,13 @@ def main() -> None:
         timed_out = False
 
         def timed_tick() -> None:
-            nonlocal in_tick, native_timing_reset
+            nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
-            if tick_count == WARMUP_FRAMES and not native_timing_reset:
+            tick_count += 1
+            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
+                frame_intervals_ms.append(1000.0 * (started_at - last_tick_at))
+            last_tick_at = started_at
+            if tick_count == WARMUP_FRAMES + 1 and not native_timing_reset:
                 timing_reset()
                 native_timing_reset = True
             in_tick = True
@@ -506,16 +510,8 @@ def main() -> None:
             finally:
                 in_tick = False
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
-            if tick_count >= WARMUP_FRAMES:
+            if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
-
-        def observe_tick() -> None:
-            nonlocal tick_count, last_tick_at
-            now = time.perf_counter()
-            tick_count += 1
-            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
-                frame_intervals_ms.append(1000.0 * (now - last_tick_at))
-            last_tick_at = now
             if len(frame_intervals_ms) >= FRAMES:
                 event_loop.quit()
 
@@ -524,9 +520,8 @@ def main() -> None:
             timed_out = True
             event_loop.quit()
 
-        # Signal ordering: observe only after the complete production callback has returned.
+        # Measure at callback entry so intervals include both callback work and timer delay.
         timer.timeout.connect(timed_tick)
-        timer.timeout.connect(observe_tick)
         deadline = qt_core.QTimer()
         deadline.setSingleShot(True)
         deadline.timeout.connect(on_deadline)
@@ -651,6 +646,7 @@ def main() -> None:
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
             "timer_interval_ms": int(timer.interval()),
+            "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,
             "process_cpu_elapsed_s": process_cpu_elapsed,
             "mean_cpu_cores_used": (process_cpu_elapsed / elapsed if elapsed > 0.0 else None),
