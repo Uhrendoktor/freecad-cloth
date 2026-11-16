@@ -1,10 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternModel import Seam
 from freecad_cloth.sewing.SewingNetwork import (
@@ -13,7 +9,6 @@ from freecad_cloth.sewing.SewingNetwork import (
     build_mn_seams,
     network_invalid_reason,
 )
-
 
 def lengths(mapping):
     return lambda piece, edge: mapping[piece, edge]

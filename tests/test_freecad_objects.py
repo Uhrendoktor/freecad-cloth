@@ -3,7 +3,6 @@
 
 import math
 import os
-import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,8 +13,6 @@ try:
 except ImportError:
     App = None
     Part = None
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import contextlib
 
@@ -30,7 +27,6 @@ from freecad_cloth.pattern.PatternObjects import (
 )
 from freecad_cloth.pattern.PatternSketch import create_sketch_for_piece
 from freecad_cloth.sewing.SewingNetwork import SewingMember, add_sewing_network, build_mn_seams
-
 
 class Vector:
     def __init__(self, x, y, z=0.0):

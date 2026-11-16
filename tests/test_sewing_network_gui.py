@@ -1,13 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression tests for sewing-network GUI validation and transaction behavior."""
 
-import sys
 from collections.abc import Sequence
-from pathlib import Path
 from typing import Protocol
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 
 class _TaskPanelLabel:
     """Capture the label API used by sewing task panels without a GUI."""

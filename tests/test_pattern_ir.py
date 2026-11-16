@@ -4,12 +4,9 @@
 import math
 import sys
 from collections.abc import Callable, Sequence
-from pathlib import Path
 from typing import ClassVar, TypedDict
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternGeometry import LineSegment as GeometryLineSegment
 from freecad_cloth.pattern.PatternGeometry import ParametricPattern, QuadraticBezier, rectangle
@@ -28,7 +25,6 @@ CURVE_SAMPLE_COUNT = 9
 NATIVE_CURVE_SAMPLE_COUNT = 7
 STRAIGHT_EDGE_LENGTH = 10.0
 NATIVE_CURVE_EPSILON = 1e-12
-
 
 def _graph() -> SeamGraph:
     """Build two square panels joined by a seam with mixed edge-reference forms.

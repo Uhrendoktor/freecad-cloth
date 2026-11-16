@@ -1,10 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
-from pathlib import Path
 
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCorrespondence import (
     STATUS_INVALID_RANGE,
@@ -17,7 +13,6 @@ from freecad_cloth.sewing.SewingCorrespondence import (
     correspondence_samples,
     map_parameter,
 )
-
 
 def test_equal_length_seam_is_valid():
     report = analyze_correspondence(120.0, 120.0)

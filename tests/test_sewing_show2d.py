@@ -1,10 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import ClassVar
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SeamOverlay import (
     _label_anchor,
@@ -20,7 +17,6 @@ from freecad_cloth.sewing.SewingView import (
     seam_color_map,
     seam_visual_markers,
 )
-
 
 def test_seam_overlay_label_anchor_offsets_from_edge_and_separates_lanes():
     horizontal = ((0.0, 0.0, 2.0), (10.0, 0.0, 2.0), (20.0, 0.0, 2.0))
