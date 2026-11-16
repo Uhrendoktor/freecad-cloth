@@ -33,6 +33,8 @@ class _QualityScene(Protocol):
     SolverIterations: int
     SolverSubsteps: int
     PinMode: str
+    GarmentGroups: Sequence[str]
+    InterClothClearance: float
     FabricDensity: float
     FabricThickness: float
     FabricStretch: float
@@ -77,6 +79,8 @@ def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
         ("SolverIterations", "App::PropertyInteger", "Quality", None, 8),
         ("SolverSubsteps", "App::PropertyInteger", "Quality", None, 1),
         ("PinMode", "App::PropertyEnumeration", "Quality", list(PIN_MODE_NAMES), "Automatic"),
+        ("GarmentGroups", "App::PropertyStringList", "Simulation", None, []),
+        ("InterClothClearance", "App::PropertyFloat", "Simulation", None, 1.0),
         ("FabricDensity", "App::PropertyFloat", "Fabric", None, 150.0),
         ("FabricThickness", "App::PropertyFloat", "Fabric", None, 0.5),
         ("FabricStretch", "App::PropertyFloat", "Fabric", None, 0.02),
@@ -110,6 +114,8 @@ def _validate_properties(scene: _QualityScene) -> None:
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
     scene.FabricDensity = max(1e-9, float(scene.FabricDensity))
     scene.FabricThickness = max(1e-9, float(scene.FabricThickness))
+    scene.InterClothClearance = max(0.01, float(scene.InterClothClearance))
+    scene.GarmentGroups = [str(value) for value in scene.GarmentGroups]
     for name in (
         "FabricStretch",
         "FabricShear",
@@ -241,6 +247,8 @@ class QualitySimulationProxy:
             float(obj.ParticleDistance),
             int(obj.SolverIterations),
             int(obj.SolverSubsteps),
+            tuple(str(value) for value in getattr(obj, "GarmentGroups", ())),
+            float(getattr(obj, "InterClothClearance", 1.0)),
             float(obj.FabricDensity),
             float(obj.FabricThickness),
             float(obj.FabricStretch),
