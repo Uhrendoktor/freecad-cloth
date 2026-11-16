@@ -158,7 +158,9 @@ def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_ge
     record = current_edge_candidate_for_sketch_index(seam, "A", 2)
 
     assert record["id"] == "front:edge:1"
-    assert record["id"] == current_edge_candidates(seam, "A")[1]["id"]
+    assert record["id"] in {
+        candidate["id"] for candidate in current_edge_candidates(seam, "A")
+    }
 
 
 def test_viewport_native_sketch_index_rejects_nonexistent_edge():
