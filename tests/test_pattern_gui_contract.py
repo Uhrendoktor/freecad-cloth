@@ -114,19 +114,85 @@ def test_sketch_edit_uses_the_linked_native_sketch() -> None:
     assert calls == ["AuthoritativeSketch"], "Sketch edit must target the linked native sketch."
 
 
-def test_sketch_authoritative_mode_disables_parameter_geometry_controls() -> None:
-    """Keep dimensions non-editable when the native sketch owns the boundary."""
+def test_sketch_authoritative_mode_displays_read_only_sketch_dimensions() -> None:
+    """Label dimensions as Sketch-derived and keep them visible but non-editable."""
     width_states: list[bool] = []
     height_states: list[bool] = []
+    visible_states: list[bool] = []
+    width_tooltips: list[str] = []
+    height_tooltips: list[str] = []
+    width_label: list[str] = []
+    height_label: list[str] = []
     panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
     panel._sketch_authoritative = True
-    panel.width = SimpleNamespace(setEnabled=width_states.append)
-    panel.height = SimpleNamespace(setEnabled=height_states.append)
+    panel.width = SimpleNamespace(
+        setEnabled=width_states.append,
+        setVisible=visible_states.append,
+        setToolTip=width_tooltips.append,
+    )
+    panel.height = SimpleNamespace(
+        setEnabled=height_states.append,
+        setVisible=visible_states.append,
+        setToolTip=height_tooltips.append,
+    )
+    panel._width_label = SimpleNamespace(setText=width_label.append, setVisible=visible_states.append)
+    panel._height_label = SimpleNamespace(setText=height_label.append, setVisible=visible_states.append)
 
     panel._mode_changed("Rectangle")
 
     assert width_states == [False], "Sketch authority must disable the width field."
     assert height_states == [False], "Sketch authority must disable the height field."
+    assert width_label == ["Width (from Sketch)"]
+    assert height_label == ["Height (from Sketch)"]
+    assert visible_states == [True, True, True, True]
+    assert "linked native Sketch" in width_tooltips[0]
+    assert "linked native Sketch" in height_tooltips[0]
+
+
+def test_pattern_piece_hides_rectangle_dimensions_in_custom_mode() -> None:
+    """Avoid presenting unused rectangle dimensions as editable custom geometry."""
+    width_enabled: list[bool] = []
+    height_enabled: list[bool] = []
+    width_visible: list[bool] = []
+    height_visible: list[bool] = []
+    width_label_text: list[str] = []
+    height_label_text: list[str] = []
+    width_label_visible: list[bool] = []
+    height_label_visible: list[bool] = []
+    width_tooltips: list[str] = []
+    height_tooltips: list[str] = []
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel._sketch_authoritative = False
+    panel.width = SimpleNamespace(
+        setEnabled=width_enabled.append,
+        setVisible=width_visible.append,
+        setToolTip=width_tooltips.append,
+    )
+    panel.height = SimpleNamespace(
+        setEnabled=height_enabled.append,
+        setVisible=height_visible.append,
+        setToolTip=height_tooltips.append,
+    )
+    panel._width_label = SimpleNamespace(
+        setText=width_label_text.append,
+        setVisible=width_label_visible.append,
+    )
+    panel._height_label = SimpleNamespace(
+        setText=height_label_text.append,
+        setVisible=height_label_visible.append,
+    )
+
+    panel._mode_changed("Rectangle")
+    assert width_enabled[-1] is True and height_enabled[-1] is True
+    assert width_visible[-1] is True and height_visible[-1] is True
+    assert width_label_text[-1] == "Width" and height_label_text[-1] == "Height"
+
+    panel._mode_changed("Custom")
+    assert width_enabled[-1] is False and height_enabled[-1] is False
+    assert width_visible[-1] is False and height_visible[-1] is False
+    assert width_label_visible[-1] is False and height_label_visible[-1] is False
+    assert "Not used in Custom mode" in width_tooltips[-1]
+    assert "Not used in Custom mode" in height_tooltips[-1]
 
 
 def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
