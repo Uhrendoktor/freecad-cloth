@@ -66,7 +66,11 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
-def _seam_tangent_frame(start, end, plane_normal=(0.0, 0.0, 1.0)):
+def _seam_tangent_frame(
+    start: tuple[float, float, float],
+    end: tuple[float, float, float],
+    plane_normal: tuple[float, float, float] = (0.0, 0.0, 1.0),
+) -> tuple[tuple[float, float, float], tuple[float, float, float], float] | None:
     """Return an in-plane 3D tangent frame and segment length.
 
     The side direction is the cross product of the panel normal and seam
@@ -74,17 +78,29 @@ def _seam_tangent_frame(start, end, plane_normal=(0.0, 0.0, 1.0)):
     pattern piece is rotated into world space. Degenerate/non-finite inputs
     return None rather than producing invalid direction geometry.
     """
-    delta = tuple(float(end[index]) - float(start[index]) for index in range(3))
+    delta = (
+        float(end[0]) - float(start[0]),
+        float(end[1]) - float(start[1]),
+        float(end[2]) - float(start[2]),
+    )
     length = sum(component * component for component in delta) ** 0.5
     if not length > 1e-12:
         return None
 
-    tangent = tuple(component / length for component in delta)
-    normal = tuple(float(value) for value in plane_normal)
+    tangent = (
+        delta[0] / length,
+        delta[1] / length,
+        delta[2] / length,
+    )
+    normal = (float(plane_normal[0]), float(plane_normal[1]), float(plane_normal[2]))
     normal_length = sum(component * component for component in normal) ** 0.5
     if not normal_length > 1e-12:
         return None
-    normal = tuple(component / normal_length for component in normal)
+    normal = (
+        normal[0] / normal_length,
+        normal[1] / normal_length,
+        normal[2] / normal_length,
+    )
     side = (
         normal[1] * tangent[2] - normal[2] * tangent[1],
         normal[2] * tangent[0] - normal[0] * tangent[2],
@@ -93,7 +109,11 @@ def _seam_tangent_frame(start, end, plane_normal=(0.0, 0.0, 1.0)):
     side_length = sum(component * component for component in side) ** 0.5
     if not side_length > 1e-12:
         return None
-    side = tuple(component / side_length for component in side)
+    side = (
+        side[0] / side_length,
+        side[1] / side_length,
+        side[2] / side_length,
+    )
     return tangent, side, length
 
 
