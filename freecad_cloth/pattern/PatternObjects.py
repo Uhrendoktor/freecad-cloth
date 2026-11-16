@@ -4,8 +4,25 @@
 import ast
 from collections.abc import Callable, Sequence
 from types import ModuleType
+from typing import Protocol, cast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+type Point2D = tuple[float, float]
+
+
+class _PatternPieceDocumentFeature(Protocol):
+    """Native pattern-piece properties written by the recompute proxy."""
+
+    Width: object
+    Height: object
+    SeamAllowance: object
+    GeometryMode: str
+    DraftingBoundary: str
+    SewingBoundary: str
+    SewingOutline: str
+    Shape: object
+
+
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeRecord,
@@ -17,31 +34,32 @@ from freecad_cloth.pattern.SeamReference import (
 from freecad_cloth.shared.SeamColors import apply_seam_colors
 
 
-def _parse_points(value):
+def _parse_points(value: object) -> list[Point2D]:
     if not value:
         return []
     try:
-        return [(float(p[0]), float(p[1])) for p in ast.literal_eval(str(value))]
+        points = cast(Sequence[Sequence[object]], ast.literal_eval(str(value)))
+        return [(float(point[0]), float(point[1])) for point in points]
     except (ValueError, SyntaxError, TypeError, IndexError) as exc:
         msg = "invalid pattern boundary"
         raise ValueError(msg) from exc
 
 
-def _rectangle_points(width, height):
+def _rectangle_points(width: float, height: float) -> list[Point2D]:
     return [(0.0, 0.0), (float(width), 0.0), (float(width), float(height)), (0.0, float(height))]
 
 
-def _is_rectangle(points, width, height):
+def _is_rectangle(points: Sequence[Point2D], width: float, height: float) -> bool:
     return len(points) == 4 and points == _rectangle_points(width, height)
 
 
 def _boundary_shape(
-    points,
-    allowance=0.0,
+    points: Sequence[Point2D],
+    allowance: float = 0.0,
     *,
     app_module: ModuleType | None = None,
     part_module: ModuleType | None = None,
-):
+) -> object:
     if app_module is None:
         import FreeCAD as app_module
     if part_module is None:
@@ -290,11 +308,11 @@ class PatternPieceProxy:
 
     def execute(
         self,
-        obj,
+        obj: _PatternPieceDocumentFeature,
         *,
         app_module: ModuleType | None = None,
         part_module: ModuleType | None = None,
-    ):
+    ) -> None:
         """Recompute the FreeCAD object from its current source properties.
 
         Args:

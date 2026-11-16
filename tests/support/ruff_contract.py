@@ -248,6 +248,14 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "EdgeBSignature",
         "EdgeB",
         "currentData",
+        "Width",
+        "Height",
+        "SeamAllowance",
+        "GeometryMode",
+        "DraftingBoundary",
+        "SewingBoundary",
+        "SewingOutline",
+        "Shape",
         "viewTop",
     }
     host_api_variables = {
