@@ -115,9 +115,8 @@ class _FrameClock:
             self._frame_ack_serial += 1
             self._last_frame_started_at = float(started_at)
             self._queue_delay_estimate_ms = (
-                (1.0 - _QUEUE_DELAY_SMOOTHING) * self._queue_delay_estimate_ms
-                + _QUEUE_DELAY_SMOOTHING * queue_delay_ms
-            )
+                1.0 - _QUEUE_DELAY_SMOOTHING
+            ) * self._queue_delay_estimate_ms + _QUEUE_DELAY_SMOOTHING * queue_delay_ms
             self._condition.notify_all()
 
     def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
