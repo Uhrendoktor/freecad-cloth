@@ -286,11 +286,12 @@ class DrapeTargetTaskPanel:
 
         controls = qt_widgets.QHBoxLayout()
         self.apply_button = qt_widgets.QPushButton("Apply & Refresh")
-        self.cancel_button = qt_widgets.QPushButton("Cancel")
+        self.apply_button.setToolTip(
+            "Rebuild the collision representation with the currently staged settings."
+        )
         _mark_button(self.apply_button, "primary")
-        _mark_button(self.cancel_button, "secondary")
         controls.addWidget(self.apply_button)
-        controls.addWidget(self.cancel_button)
+        controls.addStretch(1)
         root.addLayout(controls)
 
     def _connect_callbacks(self) -> None:
@@ -301,7 +302,6 @@ class DrapeTargetTaskPanel:
         self.thickness.valueChanged.connect(self._preview_status)
         self.enabled.toggled.connect(self._preview_status)
         self.apply_button.clicked.connect(self._apply)
-        self.cancel_button.clicked.connect(self.reject)
 
     def _set_status(self, text: str, state: str = "info") -> None:
         """Update task feedback using the shared semantic status treatment.
