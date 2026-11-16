@@ -180,8 +180,8 @@ class PatternTopologyRepairTaskPanel:
             )
             pick_button.setEnabled(combo.count() > 1)
             pick_button.clicked.connect(
-                lambda _checked=False, target=seam, target_side=side, selector=combo: self._begin_viewport_pick(
-                    target, target_side, selector
+                lambda _checked=False, target=seam, target_side=side, selector=combo: (
+                    self._begin_viewport_pick(target, target_side, selector)
                 )
             )
             edge_controls.addWidget(pick_button)
