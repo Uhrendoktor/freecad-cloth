@@ -32,7 +32,7 @@ Final physical checks:
 |---|---:|---:|
 | Target clearance | 5.008 mm | 5.005 mm |
 | Penetrating vertices | 0 | 0 |
-| Seam correspondence gap | multicolumn{2}{c}{0.00 mm maximum} |
+| Maximum seam correspondence gap | 0.00 mm | 0.00 mm |
 
 Ten motion captures were emitted. The final front and side captures were visually inspected; they showed no gross drape or penetration defect. The numeric acceptance gates remain authoritative.
 
