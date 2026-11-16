@@ -922,6 +922,9 @@ class _NativeArcCurve:
     def valueAt(self, parameter_value: float) -> _NativeArcPoint:
         return _NativeArcPoint(parameter_value, parameter_value + 1.0)
 
+    def value(self, parameter_value: float) -> _NativeArcPoint:
+        return self.valueAt(parameter_value)
+
 
 class _MalformedNativeArcCurve:
     """Expose malformed native coordinates without changing the declared method type."""
@@ -931,18 +934,18 @@ class _MalformedNativeArcCurve:
         setattr(point, "x", "invalid")
         return point
 
+    def value(self, parameter_value: float) -> _NativeArcPoint:
+        return self.valueAt(parameter_value)
+
 
 def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:
     """Accept numeric FreeCAD point coordinates and reject malformed binding values."""
     point = _native_curve_value(_NativeArcCurve(), 2.5)
     assert (point.x, point.y) == (2.5, 3.5)
 
-    for curve in (
-        _MalformedNativeArcCurve(),
-    ):
-        try:
-            _native_curve_value(curve, 2.5)
-        except TypeError as error:
-            assert "numeric x/y" in str(error)
-        else:
-            raise AssertionError("malformed native point coordinates must be rejected")
+    try:
+        _native_curve_value(_MalformedNativeArcCurve(), 2.5)
+    except TypeError as error:
+        assert "numeric x/y" in str(error)
+    else:
+        raise AssertionError("malformed native point coordinates must be rejected")
