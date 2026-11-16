@@ -1,6 +1,11 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternMarks import add_mark
+
 
 class Obj:
     def __init__(self, name):
@@ -11,6 +16,7 @@ class Obj:
         setattr(self, name, None)
         return self
 
+
 class Doc:
     def __init__(self):
         self.Objects = []
@@ -19,6 +25,7 @@ class Doc:
         obj = Obj(name)
         self.Objects.append(obj)
         return obj
+
 
 def test_add_mark_persists_semantic_reference():
     doc = Doc()
@@ -29,6 +36,7 @@ def test_add_mark_persists_semantic_reference():
     assert mark.Position == 0.25
     assert mark.Depth == 3.0
 
+
 def test_add_mark_rejects_invalid_position():
     try:
         add_mark(Doc(), "Notch", "piece", "bottom", 1.1)
@@ -37,6 +45,7 @@ def test_add_mark_rejects_invalid_position():
     else:
         msg = "invalid mark position should fail"
         raise AssertionError(msg)
+
 
 if __name__ == "__main__":
     test_add_mark_persists_semantic_reference()

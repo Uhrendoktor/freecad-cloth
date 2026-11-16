@@ -1,4 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 
 def test_repair_reversed_correspondence_only_changes_orientation():
     from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
@@ -12,6 +17,7 @@ def test_repair_reversed_correspondence_only_changes_orientation():
     seam = Seam()
     assert repair_correspondence_settings(seam, Report()) == "reversed correspondence repaired"
     assert seam.ReversedB is False
+
 
 def test_repair_invalid_range_restores_full_ranges():
     from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
@@ -27,6 +33,7 @@ def test_repair_invalid_range_restores_full_ranges():
         repair_correspondence_settings(seam, Report()) == "invalid ranges reset to full seam edges"
     )
     assert (seam.StartA, seam.EndA, seam.StartB, seam.EndB) == (0.0, 1.0, 0.0, 1.0)
+
 
 def test_repair_does_not_hide_physical_length_mismatch():
     from freecad_cloth.sewing.SewingGui import repair_correspondence_settings
@@ -46,6 +53,7 @@ def test_repair_does_not_hide_physical_length_mismatch():
         msg = "length mismatch was silently hidden"
         raise AssertionError(msg)
 
+
 def test_repair_command_is_registered_with_context_activation():
     from freecad_cloth.sewing import SewingCommands
 
@@ -53,6 +61,7 @@ def test_repair_command_is_registered_with_context_activation():
     assert "ClothSewing_RepairSeam" in SewingCommands._COMMAND_HANDLERS
     assert "ClothSewing_RepairSeam" in SewingCommands._ACTIVATION
     assert SewingCommands._MENU_TEXT["ClothSewing_RepairSeam"] == "Repair Seam"
+
 
 if __name__ == "__main__":
     test_repair_reversed_correspondence_only_changes_orientation()
