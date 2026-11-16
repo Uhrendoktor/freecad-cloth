@@ -86,8 +86,11 @@ class SimulationQualityTaskPanel:
             workflow_layout.addWidget(label)
         content_layout.addWidget(workflow)
 
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
         context = QtWidgets.QGroupBox("Context")
         cform = QtWidgets.QFormLayout(context)
+        configure_form_layout(cform, QtWidgets)
         self.target_context = QtWidgets.QLabel()
         self.target_context.setWordWrap(True)
         self.refresh_target_button = QtWidgets.QPushButton("Refresh target")
@@ -141,6 +144,7 @@ class SimulationQualityTaskPanel:
 
         quality = QtWidgets.QGroupBox("Simulation quality")
         qform = QtWidgets.QFormLayout(quality)
+        configure_form_layout(qform, QtWidgets)
         self.quality = QtWidgets.QComboBox()
         self.quality.addItems(self.QUALITY_NAMES)
         self.pin_mode = QtWidgets.QComboBox()
@@ -168,6 +172,7 @@ class SimulationQualityTaskPanel:
 
         fabric = QtWidgets.QGroupBox("Fabric")
         fform = QtWidgets.QFormLayout(fabric)
+        configure_form_layout(fform, QtWidgets)
         self.density = self._double(1.0, 2000.0, 150.0, 1)
         self.thickness = self._double(0.01, 10.0, 0.5, 2)
         self.stretch = self._double(0.0, 1.0, 0.02, 4)
@@ -210,6 +215,7 @@ class SimulationQualityTaskPanel:
 
         collision = QtWidgets.QGroupBox("Collision")
         cform = QtWidgets.QFormLayout(collision)
+        configure_form_layout(cform, QtWidgets)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2)
         self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset)
@@ -217,6 +223,7 @@ class SimulationQualityTaskPanel:
         content_layout.addWidget(collision)
         solver = QtWidgets.QGroupBox("Run")
         sform = QtWidgets.QFormLayout(solver)
+        configure_form_layout(sform, QtWidgets)
         self.steps = self._spin(0, 1000000, 0)
         sform.addRow("Simulation steps", self.steps)
         content_layout.addWidget(solver)
