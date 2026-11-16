@@ -2,6 +2,7 @@
 """Regression contracts for the canonical Python and visual-evidence CI path."""
 
 import ast
+import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
