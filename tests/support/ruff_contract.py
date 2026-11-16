@@ -285,7 +285,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=normalized_actual == normalized_expected,
         message=(
-            "Per-file exceptions must remain limited to test oracles and implicit unit-test returns, "
-            "CLI output, exact bootstraps, native callbacks, and preserved public signatures."
+            "Per-file exceptions must remain limited to test oracles and implicit unit-test "
+            "returns, CLI output, exact bootstraps, native callbacks, and preserved public signatures."
         ),
     )
