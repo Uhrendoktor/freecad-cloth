@@ -1188,6 +1188,7 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
     }
     assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
     assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
+    assert commands["CI structure"] == ("python", "-m", "tools.ci.validate_ci_structure")
     assert commands["Pyright all Python files"] == ("pyright", "-p", "pyrightconfig.json")
     assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
     assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")
