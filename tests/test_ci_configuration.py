@@ -808,6 +808,16 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
             "commit": {"sha": "2" * 40},
         },
         {
+            "name": "simulation-evidence/pr-2847",
+            "protected": False,
+            "commit": {"sha": "9" * 40},
+        },
+        {
+            "name": "docs/screenshots",
+            "protected": False,
+            "commit": {"sha": "a" * 40},
+        },
+        {
             "name": "fix/old-closed-work",
             "protected": False,
             "commit": {"sha": "3" * 40},
@@ -840,6 +850,8 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
     ]
     activity = {
         "2" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "9" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "a" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
         "3" * 40: maintenance_cleanup.epoch("2026-08-01T00:00:00Z"),
         "4" * 40: maintenance_cleanup.epoch("2026-08-15T00:00:00Z"),
         "5" * 40: maintenance_cleanup.epoch("2026-10-10T00:00:00Z"),
@@ -848,11 +860,12 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
     }
 
     stale = maintenance_cleanup.stale_unprotected_branches(
-        branches, {"agent/open-pr"}, "main", activity, cutoff
+        branches, {"agent/open-pr"}, "main", activity, cutoff, open_pr_numbers={2847}
     )
 
     assert [branch["name"] for branch in stale] == [
         "maintenance/old-closed-work",
+        "simulation-evidence/pr-2500",
         "fix/old-closed-work",
     ]
 
