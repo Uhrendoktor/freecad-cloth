@@ -6,14 +6,27 @@ from math import inf, nan
 from freecad_cloth.simulation.RealtimePreview import (
     _next_timer_interval_ms,
     _schedule_next_frame,
+    _timer_wakeup_compensation_ms,
 )
 
 
-def test_next_timer_interval_complements_callback_cost_to_a_60fps_budget() -> None:
-    """Schedule only the remaining frame time after the previous callback completes."""
+def test_timer_wakeup_compensation_uses_the_recent_upper_tail() -> None:
+    """Use a stable upper percentile and ignore invalid or negative timing samples."""
+    assert _timer_wakeup_compensation_ms([]) == 0.0
+    assert _timer_wakeup_compensation_ms([1.0, 2.0, 3.0, 4.0, 5.0]) == 5.0
+    assert _timer_wakeup_compensation_ms(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+    ) == 9.0
+    assert _timer_wakeup_compensation_ms([nan, inf, -1.0, 3.5]) == 3.5
+
+
+def test_next_timer_interval_complements_callback_and_measured_wakeup_cost() -> None:
+    """Subtract measured callback and Qt wakeup latency from the 60 FPS frame budget."""
     assert _next_timer_interval_ms(0.0) == 16
+    assert _next_timer_interval_ms(0.0, 4.0) == 12
     assert _next_timer_interval_ms(10.0) == 6
-    assert _next_timer_interval_ms(13.9) == 2
+    assert _next_timer_interval_ms(10.0, 4.0) == 2
+    assert _next_timer_interval_ms(13.9, 4.0) == 1
     assert _next_timer_interval_ms(15.5) == 1
 
 
@@ -22,7 +35,8 @@ def test_next_timer_interval_uses_a_safe_minimum_for_over_budget_or_invalid_cost
     assert _next_timer_interval_ms(20.0) == 1
     assert _next_timer_interval_ms(inf) == 1
     assert _next_timer_interval_ms(nan) == 1
-    assert _next_timer_interval_ms(-1.0) == 16
+    assert _next_timer_interval_ms(0.0, inf) == 1
+    assert _next_timer_interval_ms(-1.0, -1.0) == 16
 
 
 def test_next_frame_schedule_restarts_the_inactive_single_shot_timer() -> None:
@@ -46,9 +60,10 @@ def test_next_frame_schedule_restarts_the_inactive_single_shot_timer() -> None:
 
     timer = Timer()
 
-    _schedule_next_frame(timer, 10.0)
+    interval_ms = _schedule_next_frame(timer, 10.0, 4.0)
 
-    assert timer.interval_ms == 6, "The next delay must complement the callback's frame cost."
+    assert interval_ms == 2, "The requested delay must include measured timer lateness."
+    assert timer.interval_ms == 2, "The timer must receive the compensated interval."
     assert timer.start_count == 1, (
         "A single-shot timer must be explicitly restarted after each tick."
     )
