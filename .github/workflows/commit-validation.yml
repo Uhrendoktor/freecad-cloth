@@ -56,7 +56,7 @@ jobs:
       runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
 
   explicit-full-validation:
-    name: Explicit full validation
+    name: Full validation (explicit request)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[full-validation]') && !startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') }}
     permissions:
       actions: write
