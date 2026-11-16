@@ -40,7 +40,7 @@ cleanup() {
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
   git -C "$workspace" update-ref -d "$bundle_ref" >/dev/null 2>&1 || true
-  rm -f "$bundle_file" "${temp_root:-/tmp}/freecad-cloth-ruff-autofix-${GITHUB_RUN_ID:-$}.patch"
+  rm -f "$bundle_file" "${temp_root:-/tmp}/freecad-cloth-ruff-autofix-${GITHUB_RUN_ID:-0}.patch"
 }
 trap cleanup EXIT
 
