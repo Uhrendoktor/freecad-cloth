@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Focused UI contract suite; intentionally excludes simulation and garment audits.
+# Focused UI contract suite; excludes solver, garment, benchmark and broad GUI audits.
 UI_TESTS=(
   tests/test_ui_design.py
+  tests/test_gui_structure.py
+  tests/test_viewport_gizmo_style.py
   tests/test_avatar_gui_contract.py
+  tests/test_avatar_pose_gui_contract.py
   tests/test_fitting_gui_status.py
   tests/test_diagnostics_gui_contract.py
   tests/test_drape_gui.py
   tests/test_pattern_gui_contract.py
+  tests/test_pattern_export_semantics.py
   tests/test_pattern_topology_repair.py
+  tests/test_surface_pen.py
   tests/test_pattern_topology_repair_gui.py
   tests/test_sewing_commands.py
   tests/test_sewing_creation_session.py
