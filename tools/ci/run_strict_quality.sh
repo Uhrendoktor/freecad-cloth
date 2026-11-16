@@ -91,7 +91,7 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
     test -f tools/ci/strict_quality.py
     test "$(git rev-parse HEAD)" = "$QUALITY_HEAD_SHA"
     git rev-parse --verify "origin/$QUALITY_BASE_REF"
-    exec /opt/conda/envs/freecad/bin/python tools/ci/strict_quality.py
+    exec /opt/conda/envs/freecad/bin/python -m tools.ci.strict_quality
   ')"
 
 docker cp "$bundle_file" "$container_id:/tmp/freecad-cloth-quality.bundle"
