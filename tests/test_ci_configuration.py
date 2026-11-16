@@ -905,7 +905,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "fix/old-closed-work",
     ], (
         'Expected ( [branch["name"] for branch in stale] == [ '
-        '"maintenance/old-closed-work", "fix/old-closed-work", ] ).'
+        '"maintenance/old-closed-work", "simulation-evidence/pr-2500", "fix/old-closed-work", ] ).'
     )
 
 
