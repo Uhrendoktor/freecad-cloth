@@ -687,8 +687,7 @@ def main() -> None:
                             .read_text(encoding="utf-8")
                             .splitlines()
                             if any(
-                                token in line.lower()
-                                for token in ("libgomp", "libomp", "libiomp")
+                                token in line.lower() for token in ("libgomp", "libomp", "libiomp")
                             )
                         }
                     )
