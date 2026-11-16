@@ -386,6 +386,16 @@ def test_refresh_status_reports_state_and_invalidation_reason() -> None:
     )
 
 
+def test_refresh_status_marks_ready_target_as_success() -> None:
+    """Show a ready collision target as successful rather than neutral information."""
+    panel = _panel()
+    panel.target = SimpleNamespace(TargetStatus="ready", InvalidationReason="")
+    panel._refresh_status()
+
+    assert panel.status.text == "Target status: ready"
+    assert panel.status.properties["clothState"] == "success"
+
+
 def test_reject_closes_active_dialog() -> None:
     """Close an active FreeCAD dialog when the task panel is rejected."""
     panel = _panel()
