@@ -843,6 +843,11 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
             "commit": {"sha": "2" * 40},
         },
         {
+            "name": "simulation-evidence/pr-2847",
+            "protected": False,
+            "commit": {"sha": "9" * 40},
+        },
+        {
             "name": "fix/old-closed-work",
             "protected": False,
             "commit": {"sha": "3" * 40},
@@ -875,7 +880,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         {
             "name": "docs/screenshots",
             "protected": False,
-            "commit": {"sha": "9" * 40},
+            "commit": {"sha": "a" * 40},
         },
     ]
     activity = {
@@ -886,20 +891,63 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "6" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
         "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
         "9" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "a" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
     }
 
-    retention = maintenance_cleanup.BranchRetentionPolicy(activity, cutoff, {})
+    retention = maintenance_cleanup.BranchRetentionPolicy(activity, cutoff, {}, {2847})
     stale = maintenance_cleanup.stale_unprotected_branches(
         branches, {"agent/open-pr"}, "main", retention
     )
 
     assert [branch["name"] for branch in stale] == [
         "maintenance/old-closed-work",
+        "simulation-evidence/pr-2500",
         "fix/old-closed-work",
     ], (
         'Expected ( [branch["name"] for branch in stale] == [ '
         '"maintenance/old-closed-work", "fix/old-closed-work", ] ).'
     )
+
+
+
+def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten() -> None:
+    """Prune only the oldest completed runs until ten remain."""
+    runs = [
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
+        for run_id in range(1, 13)
+    ]
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        keep=10,
+        now=maintenance_cleanup.datetime(2026, 11, 16, tzinfo=maintenance_cleanup.UTC),
+        total_count_loader=lambda *_args: {"total_count": 12},
+        completed_runs_loader=lambda _repo, _cutoff: runs,
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    deleted_ids = sorted(int(path.rsplit("/", maxsplit=1)[1]) for path in deleted_paths)
+    assert deleted_ids == [1, 2]
+    assert result == {
+        "total_before": 12,
+        "keep": 10,
+        "deleted": 2,
+        "remaining_estimate": 10,
+        "pending": 0,
+    }
+
+
+def test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten() -> None:
+    """A completed-run inventory already within the cap is left untouched."""
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        total_count_loader=lambda *_args: {"total_count": 10},
+        completed_runs_loader=lambda _repo, _cutoff: [],
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    assert result["deleted"] == 0
+    assert result["remaining_estimate"] == 10
+    assert deleted_paths == []
 
 
 def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:
