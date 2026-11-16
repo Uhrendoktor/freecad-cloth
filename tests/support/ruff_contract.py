@@ -77,7 +77,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "tests/freecad_sewing_smoke.py",
     }
     expected_per_file = {
-        "tests/**/*.py": ["S101", "PLR2004", "T201"],
+        "tests/**/*.py": ["S101", "PLR2004", "T201", "ANN201"],
         "tools/ci/check_changed_python_types.py": ["T201", "TRY003"],
         "tools/ci/check_explicit_any_annotations.py": ["T201"],
         "tools/ci/check_docker_workspace_transfer.py": ["T201", "TRY003"],
@@ -285,7 +285,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=normalized_actual == normalized_expected,
         message=(
-            "Per-file exceptions must remain limited to test oracles, CLI output, "
-            "exact bootstraps, native callbacks, and preserved public signatures."
+            "Per-file exceptions must remain limited to test oracles and implicit unit-test returns, "
+            "CLI output, exact bootstraps, native callbacks, and preserved public signatures."
         ),
     )
