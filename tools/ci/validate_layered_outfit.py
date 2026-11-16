@@ -56,7 +56,6 @@ def _image_file(root: Path, record: Mapping[str, JsonValue]) -> Path:
     return path
 
 
-
 def _finite_vector(value: JsonValue, name: str, size: int) -> list[float]:
     """Validate one finite coordinate vector in the outfit scene map."""
     _require(

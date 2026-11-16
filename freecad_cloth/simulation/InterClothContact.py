@@ -647,7 +647,9 @@ def project_inter_cloth_contacts(
     if not np.isfinite(alpha) or not 0.0 < alpha <= 1.0:
         msg = "inter-cloth relaxation must be in (0, 1]"
         raise ValueError(msg)
-    surfaces, particle_owners = _index_garment_surfaces(positions, triangles_by_group, operation="projection")
+    surfaces, particle_owners = _index_garment_surfaces(
+        positions, triangles_by_group, operation="projection"
+    )
     group_ids = tuple(sorted(surfaces))
     for raw_left, raw_right in stitches:
         left, right = int(raw_left), int(raw_right)

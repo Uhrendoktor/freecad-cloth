@@ -32,8 +32,8 @@ from support.freecad_bootstrap import prepare_repository_root
 
 ROOT = prepare_repository_root(__file__)
 
-# isort: split
-import FreeCAD as App
+# FreeCAD must be initialized by the bootstrap before these runtime imports.
+import FreeCAD as App  # noqa: I001
 import FreeCADGui as Gui
 import Part
 import Sketcher

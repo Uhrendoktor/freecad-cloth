@@ -30,9 +30,9 @@ from freecad_cloth.simulation.cloth_backend import ClothSimulationBackend
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
 
+    from freecad_cloth.shared.Collision import CollisionSurface
     from freecad_cloth.simulation.ClothSolver import ClothSystem
     from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
-    from freecad_cloth.shared.Collision import CollisionSurface
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
@@ -985,7 +985,6 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         )
         self._apply_position_corrections(particles, positions_mm, corrected_mm, outward_normals)
 
-
     def _apply_position_corrections(
         self,
         particles: _NativePBDParticles,
@@ -1004,9 +1003,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             correction_directions: Per-particle outward or separation directions.
             skip_zero_directions: Preserve velocity when a contact direction is zero.
         """
-        moved_indices = np.flatnonzero(
-            np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7
-        )
+        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
         pinned = set(self._pin_indices)
         for raw_index in moved_indices:
             index = int(raw_index)
