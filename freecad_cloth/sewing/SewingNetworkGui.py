@@ -139,7 +139,12 @@ class SewingNetworkTaskPanel:
         self.App, self.Gui = App, Gui
         self.network = network
         self.form = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(self.form)
+        root = QtWidgets.QVBoxLayout(self.form)
+        title = QtWidgets.QLabel("Sewing network")
+        title.setProperty("clothRole", "title")
+        root.addWidget(title)
+        content = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(content)
         self.info = QtWidgets.QLabel(
             "Relationship {} — edit normalized edge ranges (0..1). Ranges are local to each referenced edge.".format(
                 str(getattr(network, "RelationshipId", ""))
@@ -260,7 +265,11 @@ class SewingNetworkTaskPanel:
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
+        root.addWidget(self.status)
 
         self._original = {
             "ranges": tuple(
