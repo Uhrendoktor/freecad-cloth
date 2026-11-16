@@ -3,7 +3,10 @@
 
 from math import inf, nan
 
-from freecad_cloth.simulation.RealtimePreview import _next_timer_interval_ms, _schedule_next_frame
+from freecad_cloth.simulation.RealtimePreview import (
+    _next_timer_interval_ms,
+    _schedule_next_frame,
+)
 
 
 def test_next_timer_interval_complements_callback_cost_to_a_60fps_budget() -> None:
@@ -20,7 +23,6 @@ def test_next_timer_interval_uses_a_safe_minimum_for_over_budget_or_invalid_cost
     assert _next_timer_interval_ms(inf) == 1
     assert _next_timer_interval_ms(nan) == 1
     assert _next_timer_interval_ms(-1.0) == 16
-
 
 
 def test_next_frame_schedule_restarts_the_inactive_single_shot_timer() -> None:
@@ -47,4 +49,6 @@ def test_next_frame_schedule_restarts_the_inactive_single_shot_timer() -> None:
     _schedule_next_frame(timer, 10.0)
 
     assert timer.interval_ms == 6, "The next delay must complement the callback's frame cost."
-    assert timer.start_count == 1, "A single-shot timer must be explicitly restarted after each tick."
+    assert timer.start_count == 1, (
+        "A single-shot timer must be explicitly restarted after each tick."
+    )
