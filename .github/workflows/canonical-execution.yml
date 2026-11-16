@@ -144,6 +144,7 @@ jobs:
               "test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_10",
               "test_workflow_run_cap_does_not_delete_when_total_is_already_within_cap",
               "test_stale_workflow_run_inventory_recurses_past_github_result_cap",
+              "test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs",
           ):
               tests[name]()
           print("maintenance-cleanup-contracts=passed")
@@ -155,7 +156,7 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
-            timeout --signal=TERM --kill-after=5s 540s python3 tools/ci/maintenance_cleanup.py --runs-only
+            timeout --signal=TERM --kill-after=5s 540s python3 tools/ci/maintenance_cleanup.py --branches-and-runs-only
           else
             timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
           fi
