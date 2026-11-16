@@ -2256,9 +2256,24 @@ def _run_production_tunic_drape(
             "OMP_PROC_BIND",
             "OMP_PLACES",
             "OMP_MAX_ACTIVE_LEVELS",
+            "OMP_THREAD_LIMIT",
+            "OMP_WAIT_POLICY",
+            "GOMP_SPINCOUNT",
             "OPENBLAS_NUM_THREADS",
             "MKL_NUM_THREADS",
             "NUMEXPR_NUM_THREADS",
+        )
+        mapped_libraries = read_runtime_file("/proc/self/maps")
+        openmp_runtime_libraries = (
+            sorted(
+                {
+                    line.rsplit("/", 1)[-1].split(" ", 1)[0]
+                    for line in mapped_libraries.splitlines()
+                    if any(token in line.lower() for token in ("libgomp", "libomp", "libiomp"))
+                }
+            )
+            if mapped_libraries is not None
+            else []
         )
         return {
             "cpu_model": cpu_model,
@@ -2274,6 +2289,8 @@ def _run_production_tunic_drape(
             "cgroup_cpu_pressure": read_runtime_file("/sys/fs/cgroup/cpu.pressure"),
             "cgroup_memory_max": read_runtime_file("/sys/fs/cgroup/memory.max"),
             "thread_environment": {key: os.environ.get(key, "unset") for key in thread_keys},
+            "pypbd_module": str(getattr(getattr(active_backend, "_pbd", None), "__file__", "unknown")),
+            "openmp_runtime_libraries": openmp_runtime_libraries,
             "cuda_runner_probe": cuda_available,
             "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
             "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),

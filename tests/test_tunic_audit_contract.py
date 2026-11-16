@@ -602,8 +602,8 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
 
 
-def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
-    """The full production audit runs but cannot block while throughput is deferred."""
+def test_production_tunic_audit_is_a_blocking_gate() -> None:
+    """Require the complete production tunic audit to block when acceptance fails."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -614,29 +614,31 @@ def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
     )
     audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
     audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
-    advisory_index = gui.index(
-        "      - name: Report production tunic audit as advisory", audit_action_index
+    report_index = gui.index(
+        "      - name: Report production tunic audit outcome", audit_action_index
     )
-    audit_action = gui[audit_action_index:advisory_index]
+    audit_action = gui[audit_action_index:report_index]
     assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_index:metric_gate_index]
     assert benchmark_index < metric_gate_index < audit_action_index < audit_index
+    assert "continue-on-error: true" in gui[benchmark_index:metric_gate_index]
+    assert "continue-on-error: true" in gui[metric_gate_index:audit_action_index]
     assert "if: always()" in audit_action, (
-        "The production tunic audit must still execute after a failed realtime gate."
+        "The production tunic audit must still execute after preview diagnostics."
     )
     assert "id: production-tunic-audit" in audit_action
-    assert "continue-on-error: true" in audit_action
+    assert "continue-on-error:" not in audit_action
     assert 'timeout-seconds: "360"' in audit_action
-    advisory = gui.split("      - name: Report production tunic audit as advisory", 1)[1]
-    assert "steps.production-tunic-audit.outcome" in advisory
-    assert "this is not a pass" in advisory
-    assert "#2839" in advisory
+    report = gui[report_index:]
+    assert "steps.production-tunic-audit.outcome" in report
+    assert "The complete 90-step production tunic audit passed" in report
+    assert "::error title=Production tunic audit failed" in report
+    assert "is blocking" in report
     assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
     assert "p95_frame_interval_ms exceeds the 60 FPS budget" in validator
-
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     """Verify production tunic wrapper dispatches in freecad macro host contract."""
@@ -931,6 +933,14 @@ def test_production_tunic_profile_records_native_python_and_gui_stages() -> None
         '"cgroup_cpu_stat"',
         '"cgroup_cpu_pressure"',
         '"thread_environment"',
+        '"pypbd_module"',
+        '"openmp_runtime_libraries"',
+        '"OMP_THREAD_LIMIT"',
+        '"OMP_WAIT_POLICY"',
+        '"GOMP_SPINCOUNT"',
+        '"libgomp"',
+        '"libomp"',
+        '"libiomp"',
         '"process_cpu_elapsed_ms"',
         '"mean_cpu_cores_used"',
         '"simulation_complete"',

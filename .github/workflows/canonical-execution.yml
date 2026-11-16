@@ -364,7 +364,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
-      - uses: ./.github/actions/freecad-test
+      - name: Realtime preview benchmark (diagnostic)
+        uses: ./.github/actions/freecad-test
         continue-on-error: true
         with:
           checkout: "false"
@@ -380,14 +381,13 @@ jobs:
             OMP_NUM_THREADS=1
           artifact-name: realtime-preview-performance
           artifact-path: artifacts/freecad-realtime/**
-      - name: Independently validate realtime performance metrics
+      - name: Validate realtime preview metrics (diagnostic)
         if: always()
         continue-on-error: true
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
       - uses: ./.github/actions/freecad-test
         id: production-tunic-audit
         if: always()
-        continue-on-error: true
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
@@ -416,16 +416,17 @@ jobs:
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-      - name: Report production tunic audit as advisory
+      - name: Report production tunic audit outcome
         if: always()
         env:
           AUDIT_OUTCOME: ${{ steps.production-tunic-audit.outcome }}
         shell: bash
         run: |
           if [ "$AUDIT_OUTCOME" = "success" ]; then
-            echo "::notice title=Production tunic audit::The production audit completed. Broader solver and preview throughput work remains tracked in issue #2839."
+            echo "::notice title=Production tunic audit::The complete 90-step production tunic audit passed on this exact source head."
           else
-            echo "::warning title=Production tunic audit deferred::The full production tunic audit did not complete; this is not a pass. Its failure is non-blocking while the performance follow-up in issue #2839 is open."
+            echo "::error title=Production tunic audit failed::The full 90-step production tunic audit did not complete and is blocking."
+            exit 1
           fi
   gui-turntables:
     name: README turntable evidence
