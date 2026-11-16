@@ -428,6 +428,11 @@ class AvatarTaskPanel:
             page_layout = QtWidgets.QVBoxLayout(contents)
             page_layout.setContentsMargins(4, 4, 4, 4)
             page_layout.setSpacing(6)
+            empty_label = QtWidgets.QLabel("No parameters match this filter.")
+            empty_label.setWordWrap(True)
+            empty_label.setProperty("clothRole", "hint")
+            empty_label.setVisible(False)
+            page_layout.addWidget(empty_label)
             scroll.setWidget(contents)
             self.advanced_tabs.addTab(scroll, page_title)
             self._advanced_pages[page_key] = {
@@ -435,6 +440,7 @@ class AvatarTaskPanel:
                 "contents": contents,
                 "layout": page_layout,
                 "groups": {},
+                "empty_label": empty_label,
             }
         advanced_layout.addWidget(self.advanced_tabs)
         parent.addWidget(self.advanced_content)
@@ -641,6 +647,8 @@ class AvatarTaskPanel:
             item["row"].setVisible(matches)
             visible_by_group[item["group"]] = visible_by_group.get(item["group"], False) or matches
             visible_by_page[item["page"]] = visible_by_page[item["page"]] or matches
+        for page_key, page in self._advanced_pages.items():
+            page["empty_label"].setVisible(bool(query) and not visible_by_page[page_key])
         for group in self._advanced_groups:
             group.setVisible(visible_by_group.get(group, False))
         if query and not visible_by_page.get(
