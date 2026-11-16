@@ -646,9 +646,8 @@ class DrapeTargetTaskPanel:
                 (
                     position
                     for position, candidate in enumerate(self._source_objects)
-                    if candidate is source or (
-                        source_name and str(getattr(candidate, "Name", "")) == source_name
-                    )
+                    if candidate is source
+                    or (source_name and str(getattr(candidate, "Name", "")) == source_name)
                 ),
                 -1,
             )

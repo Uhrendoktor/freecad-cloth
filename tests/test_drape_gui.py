@@ -217,7 +217,6 @@ def _panel() -> DrapeGui.DrapeTargetTaskPanel:
     return panel
 
 
-
 class _Button:
     """Capture viewport action availability and transient pick visibility."""
 

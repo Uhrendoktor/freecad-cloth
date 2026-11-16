@@ -1,8 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
-from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,

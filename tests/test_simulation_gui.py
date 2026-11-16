@@ -72,12 +72,15 @@ def test_simulation_status_warns_when_the_drape_target_is_not_ready() -> None:
     def capture_status(label: SimpleNamespace, message: str, *, state: str) -> None:
         updates.append((label, message, state))
 
-    with patch("freecad_cloth.common.UiDesign.set_status", side_effect=capture_status), patch(
-        "freecad_cloth.simulation.DrapeTarget.target_status",
-        return_value={
-            "state": "missing",
-            "message": "No drape target selected",
-        },
+    with (
+        patch("freecad_cloth.common.UiDesign.set_status", side_effect=capture_status),
+        patch(
+            "freecad_cloth.simulation.DrapeTarget.target_status",
+            return_value={
+                "state": "missing",
+                "message": "No drape target selected",
+            },
+        ),
     ):
         panel._refresh_status()
 

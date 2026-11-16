@@ -146,11 +146,7 @@ jobs:
           baseline-from-ref: "origin/${{ github.base_ref }}"
           fail-on-new-clones: "true"
           fail-on-empty: "true"
-      - name: Targeted UI regression modules
-        if: ${{ inputs.execution_mode == 'fast' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[ui-validation]') }}
-        uses: ./.github/actions/freecad-container
-        with: {image: "${{ needs.pbd_validation_image.outputs.image }}", timeout-seconds: "240", command: "bash tools/ci/run_ui_targeted_tests.sh"}
-
+      - {name: Targeted UI regression modules, if: "${{ inputs.execution_mode == 'fast' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[ui-validation]') }}", uses: ./.github/actions/freecad-container, with: {image: "${{ needs.pbd_validation_image.outputs.image }}", timeout-seconds: "240", command: "bash tools/ci/run_ui_targeted_tests.sh"}}
   local_runner_readiness:
     name: Selected GitHub-hosted runner readiness
     if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}

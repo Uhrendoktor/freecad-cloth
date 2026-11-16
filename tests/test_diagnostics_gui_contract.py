@@ -2,14 +2,13 @@
 """Focused behavior checks for the diagnostics task-panel frontend."""
 
 from collections.abc import Callable
-from types import ModuleType, SimpleNamespace
+from types import ModuleType
 from typing import NoReturn, cast
-
-from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 import pytest
 
 from freecad_cloth.simulation import ClothDiagnostics, ClothDiagnosticsGui
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 
 class _Signal:
