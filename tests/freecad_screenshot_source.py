@@ -2289,7 +2289,9 @@ def _run_production_tunic_drape(
             "cgroup_cpu_pressure": read_runtime_file("/sys/fs/cgroup/cpu.pressure"),
             "cgroup_memory_max": read_runtime_file("/sys/fs/cgroup/memory.max"),
             "thread_environment": {key: os.environ.get(key, "unset") for key in thread_keys},
-            "pypbd_module": str(getattr(getattr(active_backend, "_pbd", None), "__file__", "unknown")),
+            "pypbd_module": str(
+                getattr(getattr(active_backend, "_pbd", None), "__file__", "unknown")
+            ),
             "openmp_runtime_libraries": openmp_runtime_libraries,
             "cuda_runner_probe": cuda_available,
             "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
