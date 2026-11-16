@@ -330,7 +330,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         checkpoint_map[step] = raw_checkpoint
     _require(
         tuple(sorted(checkpoint_map)) == EXPECTED_CHECKPOINTS,
-        "required garment checkpoints are steps 1, 5 and 15",
+        "required garment checkpoints are steps 1, 15 and 60",
     )
 
     scene_map = manifest["scene_map"]

@@ -1054,6 +1054,11 @@ def create_simulation_scene(
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
     scene.addProperty("App::PropertyStringList", "GarmentGroups", "Simulation").GarmentGroups = []
     scene.addProperty("App::PropertyFloat", "InterClothClearance", "Simulation").InterClothClearance = 1.0
+    scene.addProperty("App::PropertyInteger", "InterClothContactCount", "Simulation").InterClothContactCount = 0
+    scene.addProperty("App::PropertyInteger", "InterClothRemainingContactCount", "Simulation").InterClothRemainingContactCount = 0
+    scene.addProperty("App::PropertyInteger", "InterClothCorrectedParticleCount", "Simulation").InterClothCorrectedParticleCount = 0
+    scene.addProperty("App::PropertyFloat", "InterClothMaxPenetration", "Simulation").InterClothMaxPenetration = 0.0
+    scene.addProperty("App::PropertyFloat", "InterClothResidualPenetration", "Simulation").InterClothResidualPenetration = 0.0
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
     scene.addProperty("App::PropertyBool", "FiniteState", "State").FiniteState = True
