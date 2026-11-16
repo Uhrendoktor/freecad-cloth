@@ -104,7 +104,8 @@ class _TopologyRepairViewportPicker:
         selected_name = str(object_name or "")
         if selected_name != expected_name:
             self.panel._set_status(
-                f"Pick an edge on the temporarily shown native Sketch linked to seam side {self.side}.",
+                f"Pick an edge on the temporarily shown native Sketch linked "
+                f"to seam side {self.side}.",
                 state="warning",
             )
             return
