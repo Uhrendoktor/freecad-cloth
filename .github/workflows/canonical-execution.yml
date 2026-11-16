@@ -5,7 +5,7 @@ on:
   workflow_call:
     inputs:
       execution_mode:
-        description: fast for PR iteration, full for pre-merge validation, publication for main-only documentation assets, or scheduled.
+        description: fast for PR iteration, ui-targeted for focused UI regression tests, full for pre-merge validation, publication for main-only documentation assets, or scheduled.
         required: true
         type: string
       diagnostic_controls:
@@ -311,6 +311,45 @@ jobs:
           log-file: artifacts/python-validation.log
           artifact-name: python-validation-${{ matrix.group }}
           artifact-path: artifacts/python-validation.log
+  ui-targeted:
+    name: Targeted UI regression tests
+    if: ${{ inputs.execution_mode == 'ui-targeted' }}
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 8
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Run only the affected headless UI regression modules
+        uses: ./.github/actions/freecad-container
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          timeout-seconds: "240"
+          environment: |
+            CLOTH_CI_ENABLE_PBD=0
+            CLOTH_EXPECTED_TEST_MODULES=tests/test_ui_design.py:tests/test_avatar_gui_contract.py:tests/test_fitting_gui_status.py:tests/test_diagnostics_gui_contract.py:tests/test_drape_gui.py:tests/test_pattern_gui_contract.py:tests/test_pattern_topology_repair.py:tests/test_pattern_topology_repair_gui.py:tests/test_sewing_commands.py:tests/test_sewing_creation_session.py:tests/test_sewing_gui_contract.py:tests/test_sewing_network_gui.py:tests/test_simulation_gui.py:tests/test_simulation_quality_gui_contract.py
+          command: >-
+            python3 -m pytest
+            -p tools.ci.pytest_collection_contract
+            -q
+            tests/test_ui_design.py
+            tests/test_avatar_gui_contract.py
+            tests/test_fitting_gui_status.py
+            tests/test_diagnostics_gui_contract.py
+            tests/test_drape_gui.py
+            tests/test_pattern_gui_contract.py
+            tests/test_pattern_topology_repair.py
+            tests/test_pattern_topology_repair_gui.py
+            tests/test_sewing_commands.py
+            tests/test_sewing_creation_session.py
+            tests/test_sewing_gui_contract.py
+            tests/test_sewing_network_gui.py
+            tests/test_simulation_gui.py
+            tests/test_simulation_quality_gui_contract.py
   gui-simple:
     name: GUI acceptance (${{ matrix.case }})
     if: ${{ inputs.execution_mode == 'full' }}
@@ -650,7 +689,7 @@ jobs:
         run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
   artifact-budget:
     name: Accumulated artifact budget
-    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
+    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'ui-targeted' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
     needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 2
@@ -699,7 +738,7 @@ jobs:
   required-validation-gate:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
-    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, ui-targeted, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
     runs-on: [self-hosted, linux, x64, docker]
     timeout-minutes: 2
     permissions:
@@ -709,6 +748,7 @@ jobs:
         env:
           EXECUTION_MODE: ${{ inputs.execution_mode }}
           AGENT_QUALITY_RESULT: ${{ needs.agent-quality.result }}
+          UI_TARGETED_RESULT: ${{ needs.ui-targeted.result }}
           RUNNER_READINESS_RESULT: ${{ needs.local_runner_readiness.result }}
           PBD_IMAGE_RESULT: ${{ needs.pbd_validation_image.result }}
           SIMULATION_LADDER_RESULT: ${{ needs.simulation-ladder.result }}
@@ -730,6 +770,11 @@ jobs:
             fi
           }
           require_success "Static/code validation" "$AGENT_QUALITY_RESULT"
+          if [ "$EXECUTION_MODE" = "ui-targeted" ]; then
+            require_success "Runner readiness" "$RUNNER_READINESS_RESULT"
+            require_success "PBD validation image" "$PBD_IMAGE_RESULT"
+            require_success "Targeted UI regression tests" "$UI_TARGETED_RESULT"
+          fi
           if [ "$EXECUTION_MODE" = "full" ]; then
             require_success "Runner readiness" "$RUNNER_READINESS_RESULT"
             require_success "PBD validation image" "$PBD_IMAGE_RESULT"
