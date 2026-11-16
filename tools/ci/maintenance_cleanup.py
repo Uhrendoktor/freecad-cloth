@@ -2,6 +2,7 @@
 """Remove stale unprotected branches, completed runs, and unreferenced PBD images safely."""
 
 from __future__ import annotations
+
 import argparse
 import hashlib
 import http.client
