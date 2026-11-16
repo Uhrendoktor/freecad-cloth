@@ -161,8 +161,7 @@ class _FrameClock:
             if len(self._worker_wakeup_lateness_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._worker_wakeup_lateness_ms[0]
             self._worker_wakeup_estimate_ms = (
-                _sample_p95_ms(self._worker_wakeup_lateness_ms)
-                + _WORKER_WAKEUP_SAFETY_MARGIN_MS
+                _sample_p95_ms(self._worker_wakeup_lateness_ms) + _WORKER_WAKEUP_SAFETY_MARGIN_MS
             )
             if self._pending:
                 self._coalesced_pulses += 1
