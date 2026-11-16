@@ -13,6 +13,7 @@ from freecad_cloth.shared.SourceSignature import _SignatureValue
 from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation_pattern
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
 
 if TYPE_CHECKING:
@@ -294,13 +295,8 @@ class _Scene:
         self.SolverIterations = DEFAULT_SOLVER_ITERATIONS
         self.SolverSubsteps = DEFAULT_SOLVER_SUBSTEPS
         self.PinMode = "Automatic"
-        self.GarmentGroups = []
-        self.InterClothClearance = 1.0
-        self.InterClothContactCount = 0
-        self.InterClothRemainingContactCount = 0
-        self.InterClothCorrectedParticleCount = 0
-        self.InterClothMaxPenetration = 0.0
-        self.InterClothResidualPenetration = 0.0
+        for property_name, default_value in inter_cloth_quality_defaults().items():
+            setattr(self, property_name, default_value)
         self.FabricDensity = DEFAULT_FABRIC_DENSITY
         self.FabricThickness = DEFAULT_FABRIC_THICKNESS_MM
         self.FabricStretch = DEFAULT_FABRIC_STRETCH

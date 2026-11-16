@@ -14,6 +14,7 @@ from freecad_cloth.simulation.SimulationQualityRuntime import (
     apply_quality_preset,
     quality_discretization,
 )
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
@@ -83,13 +84,7 @@ def test_quality_preset_updates_solver_controls() -> None:
         PinMode="Automatic",
         SolverIterations=8,
         SolverSubsteps=1,
-        GarmentGroups=[],
-        InterClothClearance=1.0,
-        InterClothContactCount=0,
-        InterClothRemainingContactCount=0,
-        InterClothCorrectedParticleCount=0,
-        InterClothMaxPenetration=0.0,
-        InterClothResidualPenetration=0.0,
+        **inter_cloth_quality_defaults(),
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
@@ -215,13 +210,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         ParticleDistance=40.0,
         SolverIterations=1,
         SolverSubsteps=1,
-        GarmentGroups=[],
-        InterClothClearance=1.0,
-        InterClothContactCount=0,
-        InterClothRemainingContactCount=0,
-        InterClothCorrectedParticleCount=0,
-        InterClothMaxPenetration=0.0,
-        InterClothResidualPenetration=0.0,
+        **inter_cloth_quality_defaults(),
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,

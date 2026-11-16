@@ -81,9 +81,7 @@ def _landmark_world(avatar: App.DocumentObject, name: str) -> App.Vector:
     """Resolve one named arrangement landmark into the shared world frame."""
     from freecad_cloth.avatar.avatar_arrangement import arrangement_point_map
 
-    coordinates = arrangement_point_map(
-        getattr(avatar, "ArrangementPoints", ())
-    ).get(name)
+    coordinates = arrangement_point_map(getattr(avatar, "ArrangementPoints", ())).get(name)
     if coordinates is None:
         raise RuntimeError("production mannequin is missing arrangement landmark " + name)
     values = tuple(float(value) for value in coordinates.split(","))
