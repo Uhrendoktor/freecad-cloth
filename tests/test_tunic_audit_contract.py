@@ -609,9 +609,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     benchmark_index = gui.index("test-script: tests/freecad_realtime_benchmark.py")
-    benchmark_action_index = gui.rfind(
-        "- uses: ./.github/actions/freecad-test", 0, benchmark_index
-    )
+    benchmark_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, benchmark_index)
     metric_validator_index = gui.index(
         "      - name: Validate realtime preview metrics (diagnostic)"
     )
