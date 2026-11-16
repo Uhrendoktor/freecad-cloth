@@ -175,6 +175,26 @@ def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> Non
     assert all(corrected[index][2] > 0.25 for index in range(4, 8))
 
 
+def test_inter_cloth_projection_separates_exactly_coincident_parallel_groups() -> None:
+    """Coincident sheets need deterministic opposite corrections when centroids overlap."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.0)
+    corrected, directions, metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=8,
+    )
+
+    assert metrics.contact_count > 0
+    assert metrics.corrected_particle_count == len(positions)
+    assert metrics.remaining_contact_count == 0
+    assert metrics.max_penetration_after_mm <= 1e-7
+    assert all(corrected[index][2] < 0.0 for index in range(4))
+    assert all(corrected[index][2] > 0.0 for index in range(4, 8))
+    assert all(abs(float(value[2])) > 0.0 for value in directions)
+
+
 def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alone() -> None:
     """Pinned garment particles stay fixed and non-contacting layers are unchanged."""
     positions, groups = _parallel_cloth_groups(offset_mm=0.25)
