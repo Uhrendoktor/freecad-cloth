@@ -83,6 +83,12 @@ def test_quality_preset_updates_solver_controls() -> None:
         PinMode="Automatic",
         SolverIterations=8,
         SolverSubsteps=1,
+        GarmentGroups=[],
+        InterClothClearance=1.0,
+        InterClothContactCount=0,
+        InterClothCorrectedParticleCount=0,
+        InterClothMaxPenetration=0.0,
+        InterClothResidualPenetration=0.0,
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
@@ -237,6 +243,10 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     assert backend.position_reads == 1, (
         "A preview frame must publish the solved state exactly once."
     )
+    assert scene.InterClothContactCount == 3
+    assert scene.InterClothCorrectedParticleCount == 4
+    assert isclose(scene.InterClothMaxPenetration, 0.75)
+    assert scene.InterClothResidualPenetration == 0.0
     assert base.last_steps == _EXPECTED_PREVIEW_STEPS, (
         "A preview frame must advance the recorded step count by one."
     )
