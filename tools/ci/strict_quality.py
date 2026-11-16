@@ -401,7 +401,7 @@ def _run_repository_ruff_autofix() -> int:
     )
 
     for command in ruff_autofix_commands(python, tracked_files):
-        sys.stdout.write(f"::group::Safe Ruff autofix: {command.label}\\n")
+        sys.stdout.write(f"::group::Safe Ruff autofix: {command.label}\n")
         sys.stdout.flush()
         result = run_command(
             command.arguments,
@@ -416,8 +416,8 @@ def _run_repository_ruff_autofix() -> int:
             sys.stdout.write(result.stdout)
         if result.stderr:
             sys.stderr.write(result.stderr)
-        sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\\n")
-        sys.stdout.write("::endgroup::\\n")
+        sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\n")
+        sys.stdout.write("::endgroup::\n")
         sys.stdout.flush()
 
     diff = run_command(
@@ -432,7 +432,7 @@ def _run_repository_ruff_autofix() -> int:
     )
     changed_paths = tuple(path for path in (changed.stdout or "").splitlines() if path)
     sys.stdout.write(
-        f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\\n"
+        f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\n"
     )
     sys.stdout.flush()
     return 0
@@ -519,7 +519,7 @@ def main() -> int:
         if sys.argv[1:] == ["--ruff-autofix"]:
             return _run_repository_ruff_autofix()
         if sys.argv[1:]:
-            sys.stderr.write("Usage: python -m tools.ci.strict_quality [--ruff-autofix]\\n")
+            sys.stderr.write("Usage: python -m tools.ci.strict_quality [--ruff-autofix]\n")
             return 2
         return _run_repository_quality()
     except (KeyError, OSError, RuntimeError) as error:
