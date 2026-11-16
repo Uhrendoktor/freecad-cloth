@@ -721,14 +721,20 @@ _MENU_TEXT = {
     "ClothSewing_SeamOverlayOptions": "Seam Overlay Options",
 }
 _TOOLTIPS = {
-    "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
-    "ClothSewing_CreateMNSewing": "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship",
+    "ClothSewing_CreateSeam": (
+        "Preview, validate, and commit a seam from two selected pattern edges"
+    ),
+    "ClothSewing_CreateMNSewing": (
+        "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship"
+    ),
     "ClothSewing_CreateOperation": "Create a sewing operation from the selected seam",
     "ClothSewing_EditOperation": "Edit seam alignment, orientation, tolerance, and stitch samples",
     "ClothSewing_ReverseSeam": "Reverse the B-side stitch correspondence",
     "ClothSewing_ToggleAlignment": "Toggle endpoint and uniform seam correspondence",
     "ClothSewing_Validate": "Validate sewing operations and report seam length mismatches",
-    "ClothSewing_RepairSeam": "Repair reversible or invalid-range seam correspondence without hiding length mismatch",
+    "ClothSewing_RepairSeam": (
+        "Repair reversible or invalid-range seam correspondence without hiding length mismatch"
+    ),
     "ClothSewing_FocusSeam3D": "Show the selected semantic seam in 3D and fit the view to it",
     "ClothSewing_EditSeamSideA": "Open the seam A edge in its authoritative native Sketcher source",
     "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",
