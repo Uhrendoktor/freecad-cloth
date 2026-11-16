@@ -38,9 +38,7 @@ def _dataclass_import_aliases(
             )
         elif isinstance(node, ast.Import):
             dataclasses_modules.update(
-                alias.asname or alias.name
-                for alias in node.names
-                if alias.name == "dataclasses"
+                alias.asname or alias.name for alias in node.names if alias.name == "dataclasses"
             )
     return dataclass_names, dataclasses_modules
 
