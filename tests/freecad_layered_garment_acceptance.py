@@ -498,22 +498,34 @@ def run_acceptance() -> None:
         body_surface = collision_surface(avatar, 1.0, 5.0)
         hip_z = float(hip.z)
         shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
-        torso_vertices = [
+        skirt_bottom_z = hip_z - 520.0
+        body_depth_samples = [
             vertex
             for vertex in body_surface.vertices
-            if hip_z - 50.0 <= float(vertex[2]) <= shoulder_z + 30.0
-            and abs(float(vertex[0]) - center_x) <= 0.65 * shoulder_width
+            if skirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
+            and abs(float(vertex[0]) - center_x) <= 0.70 * shoulder_width
         ]
-        if len(torso_vertices) < 50:
-            raise RuntimeError("authoritative mannequin surface has too few torso-region samples")
+        hip_slice = [
+            vertex
+            for vertex in body_surface.vertices
+            if hip_z - 60.0 <= float(vertex[2]) <= hip_z + 60.0
+            and abs(float(vertex[0]) - center_x) <= 1.2 * shoulder_width
+        ]
+        if len(body_depth_samples) < 100 or len(hip_slice) < 20:
+            raise RuntimeError(
+                "authoritative mannequin surface has insufficient garment-height or hip samples"
+            )
         center_y = 0.5 * (
-            min(float(vertex[1]) for vertex in torso_vertices)
-            + max(float(vertex[1]) for vertex in torso_vertices)
+            min(float(vertex[1]) for vertex in body_depth_samples)
+            + max(float(vertex[1]) for vertex in body_depth_samples)
         )
-        radius_x = 0.5 * shoulder_width + 28.0
+        radius_x = max(
+            0.5 * shoulder_width,
+            max(abs(float(vertex[0]) - center_x) for vertex in hip_slice),
+        ) + 28.0
         radius_y = 0.5 * (
-            max(float(vertex[1]) for vertex in torso_vertices)
-            - min(float(vertex[1]) for vertex in torso_vertices)
+            max(float(vertex[1]) for vertex in body_depth_samples)
+            - min(float(vertex[1]) for vertex in body_depth_samples)
         ) + 28.0
         radius_x = max(150.0, radius_x)
         radius_y = max(100.0, radius_y)
