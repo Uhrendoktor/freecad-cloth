@@ -107,6 +107,7 @@ def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
     assert _sample_p95_ms([4.25]) == 4.25
     assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0
 
+
 def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
