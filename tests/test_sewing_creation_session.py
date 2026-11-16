@@ -312,7 +312,9 @@ class _ErrorFeedbackPanel(SewingCreationTaskPanel):
         """Skip selection rendering because the headless fixture has no Qt widgets."""
 
 
-def test_picking_guidance_uses_shared_information_status_style(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_picking_guidance_uses_shared_information_status_style(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Render viewport-picking instructions with the shared informational status role."""
     panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
     panel.feedback = Mock()
