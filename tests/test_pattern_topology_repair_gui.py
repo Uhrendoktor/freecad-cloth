@@ -157,14 +157,12 @@ def test_viewport_picker_rejects_foreign_document_and_non_edge_hits() -> None:
 
 
 def test_viewport_picker_cancels_and_unregisters_cleanly() -> None:
-    """Remove the selection observer and release the row picker on cancellation."""
+    """Remove the observer and restore original visibility on cancellation."""
     panel, picker, combo, selection, _updates = _picker_fixture()
 
     picker.dispose()
 
     assert picker.armed is False
-    assert panel._active_picker is None
-    assert panel.cancel_pick_button.visible is False
     assert selection.observers == []
     assert panel._active_picker is None
     assert panel.cancel_pick_button.visible is False
@@ -181,7 +179,7 @@ def test_viewport_picker_rejects_a_semantic_edge_not_in_the_row_candidates() -> 
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index",
         return_value={"id": "front:edge:not-listed"},
     ):
-        picker.addSelection("ClothDocument", "FrontPiece", "Edge3")
+        picker.addSelection("ClothDocument", "FrontSketch", "Edge3")
 
     assert picker.armed is True
     assert combo.current_index == 0
