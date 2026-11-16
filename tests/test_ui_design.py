@@ -491,7 +491,10 @@ def test_make_disclosure_toggles_content_and_arrow() -> None:
     )
     content = _DisclosureWidget()
     disclosure_factory = cast(
-        "Callable[[str, _DisclosureWidget, ModuleType, ModuleType, bool], tuple[_DisclosureWidget, _ToolButton]]",
+        (
+            "Callable[[str, _DisclosureWidget, ModuleType, ModuleType, bool], "
+            "tuple[_DisclosureWidget, _ToolButton]]"
+        ),
         make_disclosure,
     )
     wrapper, toggle = disclosure_factory(
