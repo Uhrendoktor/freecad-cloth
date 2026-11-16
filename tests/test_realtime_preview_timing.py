@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the feedback-paced realtime preview frame clock."""
 
-from math import inf, nan
+from math import inf, isclose, nan
 
 from freecad_cloth.simulation.RealtimePreview import _FrameClock
 
@@ -29,7 +29,7 @@ def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
     clock.frame_started(10.001, 9.995)
     snapshot = clock.snapshot()
     assert snapshot["outstanding_pulses"] == 0
-    assert snapshot["queue_delay_estimate_ms"] == 5.35
+    assert isclose(snapshot["queue_delay_estimate_ms"], 5.35, abs_tol=1e-9)
     assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.00535) is True
     assert len(emitted) == 2
     clock.stop()
@@ -84,7 +84,7 @@ def test_frame_clock_smooths_observed_gui_queue_delay() -> None:
     initial = clock.snapshot()["queue_delay_estimate_ms"]
     assert initial == 5.0
     clock.frame_started(2.010, 2.000)
-    assert clock.snapshot()["queue_delay_estimate_ms"] == 6.75
+    assert isclose(clock.snapshot()["queue_delay_estimate_ms"], 6.75, abs_tol=1e-9)
     clock.request_frame(2.0 + 1.0 / 60.0, 2.0 + 1.0 / 60.0 - 0.00675)
     assert len(emitted) == 1
     clock.stop()
