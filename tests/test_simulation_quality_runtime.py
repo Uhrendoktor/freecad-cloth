@@ -158,6 +158,12 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
 
         name: ClassVar[str] = "position-based-dynamics"
         time: ClassVar[float] = 0.25
+        inter_cloth_metrics: ClassVar[SimpleNamespace] = SimpleNamespace(
+            contact_count=3,
+            corrected_particle_count=4,
+            max_penetration_before_mm=0.75,
+            max_penetration_after_mm=0.0,
+        )
 
         def __init__(self) -> None:
             """Initialize the call log and publication-read count."""
@@ -207,6 +213,12 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         ParticleDistance=40.0,
         SolverIterations=1,
         SolverSubsteps=1,
+        GarmentGroups=[],
+        InterClothClearance=1.0,
+        InterClothContactCount=0,
+        InterClothCorrectedParticleCount=0,
+        InterClothMaxPenetration=0.0,
+        InterClothResidualPenetration=0.0,
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
