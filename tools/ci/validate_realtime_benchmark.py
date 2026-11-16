@@ -222,7 +222,9 @@ def _validate_stage_timings(
             minimum_samples = frames
         if samples is None or samples < minimum_samples:
             errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
-        if name == "mesh_write" and samples == 0:
+        if name == "mesh_write":
+            if samples != 0:
+                errors.append("stage_timings.mesh_write.samples must equal 0 during preview")
             continue
         for metric_name in ("mean_ms", "p95_ms", "max_ms"):
             value = _number(stage.get(metric_name))
