@@ -820,9 +820,10 @@ class ViewportAnchorPicker:
         self.armed = True
         self.panel.pick_surface_button.setEnabled(False)
         self.panel.cancel_pick_button.setVisible(True)
-        self.panel.status.setText(
+        self.panel._set_status(
             "Pick a face on the configured avatar/target in the 3D view. "
-            "The clicked location becomes a persistent snap anchor."
+            "The clicked location becomes a persistent snap anchor.",
+            state="info",
         )
 
     def cancel(self):
@@ -830,7 +831,10 @@ class ViewportAnchorPicker:
         self.armed = False
         self.panel.pick_surface_button.setEnabled(True)
         self.panel.cancel_pick_button.setVisible(False)
-        self.panel.status.setText("Surface pick cancelled; the document was not changed.")
+        self.panel._set_status(
+            "Surface pick cancelled; the document was not changed.",
+            state="info",
+        )
 
     def _finish(self):
         """Leave selection-pick mode and restore the task-panel controls."""
@@ -893,8 +897,9 @@ class ViewportAnchorPicker:
         sources = self._target_sources()
         target = sources.get(str(object_name))
         if target is None:
-            self.panel.status.setText(
-                "That object is not the configured fitting target. Pick the avatar/target surface."
+            self.panel._set_status(
+                "That object is not the configured fitting target. Pick the avatar/target surface.",
+                state="warning",
             )
             return
         picked_sub_element = str(subelement_name or "")
@@ -915,8 +920,9 @@ class ViewportAnchorPicker:
         if not picked_sub_element and mesh is not None:
             picked_sub_element = "MeshSurface"
         if world_point is None or not picked_sub_element:
-            self.panel.status.setText(
-                "Pick an actual face/triangle on the configured target, not empty viewport space."
+            self.panel._set_status(
+                "Pick an actual face/triangle on the configured target, not empty viewport space.",
+                state="warning",
             )
             return
         name = str(self.panel.anchor_name.text()).strip()
@@ -933,16 +939,20 @@ class ViewportAnchorPicker:
                 wrap_direction=str(self.panel.wrap_direction.currentText()),
             )
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.panel.status.setText(f"Could not create surface anchor — {exc}.")
+            self.panel._set_status(
+                f"Could not create surface anchor — {exc}.",
+                state="error",
+            )
             return
         self._finish()
         self.Gui.Selection.clearSelection()
         self.panel.controller._queue_anchor_overlay_refresh()
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
-        self.panel.status.setText(
+        self.panel._set_status(
             f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; target changes "
-            "invalidate the anchor, and the anchor does not attach cloth to the surface."
+            "invalidate the anchor, and the anchor does not attach cloth to the surface.",
+            state="success",
         )
 
     def dispose(self):
