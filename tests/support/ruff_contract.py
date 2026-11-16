@@ -272,7 +272,10 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         condition=set(lint.get("ignore", [])) == allowed_ignores,
         message="Global ignores must match the reviewed formatter, host API, import, exception-flow, documentation, and callback boundaries.",
     )
+    actual_per_file = lint.get("per-file-ignores", {})
+    normalized_actual = {path: sorted(rules) for path, rules in actual_per_file.items()}
+    normalized_expected = {path: sorted(rules) for path, rules in expected_per_file.items()}
     require(
-        condition=lint.get("per-file-ignores") == expected_per_file,
+        condition=normalized_actual == normalized_expected,
         message="Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, native callbacks, and preserved public signatures.",
     )
