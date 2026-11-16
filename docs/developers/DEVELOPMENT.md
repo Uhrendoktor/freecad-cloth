@@ -149,4 +149,4 @@ Pre-commit and canonical CI enforce Ruff, Python architecture/dead-code contract
 
 ## PBD throughput profiling
 
-The dedicated production-throughput investigation is tracked in [issue #2839](https://github.com/Uhrendoktor/freecad-cloth/issues/2839). Its measured baseline, current bottlenecks, unchanged production settings, and the separate Fast-preview results are recorded in [PBD throughput profile](PBD_THROUGHPUT_PROFILE.md). The canonical full tunic audit is a blocking 90-step gate; the realtime-preview 60 FPS target remains a separate diagnostic until its timer-cadence miss is resolved.
+The dedicated production-throughput investigation is tracked in [dedicated production-throughput issue](https://github.com/Uhrendoktor/freecad-cloth/issues/2839). Its measured baseline, current bottlenecks, unchanged production settings, and the separate Fast-preview results are recorded in [PBD throughput profile](PBD_THROUGHPUT_PROFILE.md). The canonical full tunic audit is a blocking 90-step gate; the realtime-preview 60 FPS target remains a separate diagnostic until its timer-cadence miss is resolved.

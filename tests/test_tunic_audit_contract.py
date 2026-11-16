@@ -609,6 +609,12 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     benchmark_index = gui.index("test-script: tests/freecad_realtime_benchmark.py")
+    benchmark_action_index = gui.rfind(
+        "- uses: ./.github/actions/freecad-test", 0, benchmark_index
+    )
+    metric_validator_index = gui.index(
+        "      - name: Validate realtime preview metrics (diagnostic)"
+    )
     metric_gate_index = gui.index(
         "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json"
     )
@@ -618,10 +624,13 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
         "      - name: Report production tunic audit outcome", audit_action_index
     )
     audit_action = gui[audit_action_index:report_index]
-    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_index:metric_gate_index]
-    assert benchmark_index < metric_gate_index < audit_action_index < audit_index
-    assert "continue-on-error: true" in gui[benchmark_index:metric_gate_index]
-    assert "continue-on-error: true" in gui[metric_gate_index:audit_action_index]
+    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_action_index:metric_validator_index]
+    assert (
+        benchmark_action_index < benchmark_index < metric_validator_index < metric_gate_index
+        < audit_action_index < audit_index
+    )
+    assert "continue-on-error: true" in gui[benchmark_action_index:metric_validator_index]
+    assert "continue-on-error: true" in gui[metric_validator_index:audit_action_index]
     assert "if: always()" in audit_action, (
         "The production tunic audit must still execute after preview diagnostics."
     )

@@ -125,10 +125,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "  publish-pr-simulation-evidence:", 1
     )[0]
     realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[0]
     realtime_validator = tunic_audit.split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
     assert workflow.count("timeout-seconds:") == 6, (
