@@ -230,7 +230,7 @@ def collect_tracked_python_files(root: Path) -> tuple[str, ...]:
     )
     if result.stdout is None:
         return ()
-    return tuple(path for path in result.stdout.split("\\0") if path)
+    return tuple(path for path in result.stdout.split("\0") if path)
 
 
 def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[QualityCommand, ...]:
