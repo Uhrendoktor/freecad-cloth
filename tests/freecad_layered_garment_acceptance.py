@@ -352,8 +352,6 @@ def _capture_six_views(view, directory: Path, checkpoint: int):
 def run_acceptance() -> None:
     """Build, sew, simulate, save/reload and capture a twelve-piece layered outfit."""
     from freecad_cloth.avatar.AvatarCommands import create_avatar
-    from freecad_cloth.simulation.DrapeCommands import set_drape_target_source
-    from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
     from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
         ensure_quality_properties,
@@ -363,16 +361,9 @@ def run_acceptance() -> None:
     doc = App.newDocument("LayeredOutfitAcceptance")
     _log("document-created")
     try:
-        scene = create_simulation_scene(doc, build=False)
         avatar = create_avatar(attach_collision=False, doc=doc)
         avatar.Label = "Layered Outfit Mannequin"
         avatar.ViewObject.Visibility = True
-        set_drape_target_source(scene, avatar, thickness=5.0, deflection=1.0)
-        target = doc.getObject("DrapeTarget")
-        if target is None or scene.DrapeTarget is not target:
-            raise RuntimeError("the production DrapeTarget was not attached to the simulation")
-        ensure_quality_properties(scene)
-        scene.Proxy = QualitySimulationProxy()
 
         shoulder_left = _landmark_world(avatar, "shoulder_left")
         shoulder_right = _landmark_world(avatar, "shoulder_right")
@@ -384,11 +375,7 @@ def run_acceptance() -> None:
 
         from freecad_cloth.simulation.DrapeTarget import collision_surface
 
-        body_surface = collision_surface(
-            avatar,
-            float(target.CollisionDeflection),
-            float(target.CollisionThickness),
-        )
+        body_surface = collision_surface(avatar, 1.0, 5.0)
         hip_z = float(hip.z)
         shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
         torso_vertices = [
@@ -489,6 +476,15 @@ def run_acceptance() -> None:
         )
         shirt_seams = _sew_ring(doc, "Shirt", shirt)
         doc.recompute()
+
+        from freecad_cloth.simulation.DrapeTarget import create_drape_target
+        from freecad_cloth.simulation.SimulationObjects import create_simulation_scene
+
+        target = create_drape_target(doc, avatar, "Mannequin", 1.0, 5.0)
+        scene = create_simulation_scene(doc, build=False)
+        scene.DrapeTarget = target
+        ensure_quality_properties(scene)
+        scene.Proxy = QualitySimulationProxy()
 
         pieces = (
             [shirt[side] for side in ("front", "right", "back", "left")]
