@@ -12,10 +12,7 @@ import tomllib
 from collections.abc import Sequence
 from pathlib import Path
 
-if __package__:
-    from tools.ci.command_runner import CommandOptions, run_command
-else:
-    from command_runner import CommandOptions, run_command
+from tools.ci.command_runner import CommandOptions, run_command
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_DIR = ROOT / ".github/workflows"
@@ -253,7 +250,7 @@ def ty_all_diagnostics_are_errors(config_text: str) -> bool:
         return False
     terminal = config.get("terminal", {})
     rules = config.get("rules", {})
-    return terminal.get("error-on-warning") is True and rules.get("all") == "error"
+    return bool(terminal.get("error-on-warning") is True and rules.get("all") == "error")
 
 
 def _validate_workflow_dispatch_contract(text: str) -> None:
