@@ -84,10 +84,31 @@ class _GuiDocument(Protocol):
         ...
 
 
+class _FreeCADSelection(Protocol):
+    """Selection operations used by the viewport source picker."""
+
+    def addObserver(self, observer: object) -> None:
+        """Register an observer for subsequent viewport selections."""
+        ...
+
+    def removeObserver(self, observer: object) -> None:
+        """Unregister a previously registered selection observer."""
+        ...
+
+    def clearSelection(self) -> None:
+        """Clear the current GUI selection."""
+        ...
+
+    def addSelection(self, source: object) -> None:
+        """Select one existing document object in the 3D view."""
+        ...
+
+
 class _FreeCADGui(Protocol):
     """FreeCAD GUI operations used by the target task panel."""
 
     Control: _FreeCADControl
+    Selection: _FreeCADSelection
     activeDocument: Callable[[], _GuiDocument | None]
 
 
@@ -112,6 +133,10 @@ class _PanelWidget(Protocol):
 
     def setEnabled(self, enabled: bool) -> None:
         """Enable or disable user interaction with the widget."""
+        ...
+
+    def setVisible(self, visible: bool) -> None:
+        """Show or hide an optional viewport-picking action."""
         ...
 
 
@@ -166,6 +191,85 @@ def _modules() -> tuple[_FreeCADApplication, _FreeCADGui, ModuleType]:
     )
 
 
+class _ViewportSourcePicker:
+    """Select one existing collision source directly from the FreeCAD viewport."""
+
+    def __init__(self, panel: DrapeTargetTaskPanel) -> None:
+        """Register a one-shot selection observer owned by the current task panel.
+
+        Args:
+            panel: Drape Target panel receiving the selected source.
+        """
+        self.panel = panel
+        self.armed = True
+        self.Gui = panel.Gui
+        self.Gui.Selection.addObserver(self)
+
+    def addSelection(
+        self,
+        document_name: str,
+        object_name: str,
+        _subelement_name: str,
+        *_position: object,
+    ) -> None:
+        """Accept a viewport object selection when it belongs to the active document.
+
+        Args:
+            document_name: Internal name of the document that owns the selected object.
+            object_name: Internal name of the selected document object.
+            _subelement_name: Selected face/edge name, ignored because the whole source is used.
+            *_position: Optional world-space hit coordinates provided by FreeCAD.
+        """
+        if not self.armed:
+            return
+        expected_document = str(getattr(self.panel.doc, "Name", ""))
+        if document_name and expected_document and str(document_name) != expected_document:
+            self.panel._set_status(
+                "Pick a collision source from the active document.",
+                state="warning",
+            )
+            return
+        document = self.panel.doc
+        source = document.getObject(str(object_name)) if document is not None else None
+        if source is None:
+            source = next(
+                (
+                    candidate
+                    for candidate in self.panel._source_objects
+                    if str(getattr(candidate, "Name", "")) == str(object_name)
+                ),
+                None,
+            )
+        if source is None or not self.panel._select_source_object(source):
+            self.panel._set_status(
+                "That object is not an available mannequin, shape, or mesh collision source.",
+                state="warning",
+            )
+            return
+        label = str(getattr(source, "Label", getattr(source, "Name", "collision source")))
+        self.dispose()
+        self.panel._set_status(
+            f"Picked {label} from the 3D view. Apply & Refresh commits the collision target.",
+            state="info",
+        )
+
+    def dispose(self) -> None:
+        """Unregister the observer and restore the task-panel pick controls."""
+        if not self.armed:
+            return
+        self.armed = False
+        try:
+            self.Gui.Selection.removeObserver(self)
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
+        if self.panel._source_picker is self:
+            self.panel._source_picker = None
+        self.panel.cancel_pick_button.setVisible(False)
+        self.panel.pick_source_button.setEnabled(
+            self.panel.target is not None and self.panel.doc is not None
+        )
+
+
 class DrapeTargetTaskPanel:
     """CLO-like grouped editor for a persistent DrapeTarget."""
 
@@ -190,6 +294,8 @@ class DrapeTargetTaskPanel:
         self.App, self.Gui = app_module, gui_module
         self.doc = app_module.ActiveDocument
         self.target = target or self._find_target()
+        self._source_picker: _ViewportSourcePicker | None = None
+        self._form_closed = False
         self.form = qt_widgets.QWidget()
         self.form.setObjectName("ClothDrapeTargetTaskPanel")
         root = cast("_WidgetLayout", qt_widgets.QVBoxLayout(self.form))
@@ -204,6 +310,7 @@ class DrapeTargetTaskPanel:
         self._loading = False
         self._load()
         self._connect_callbacks()
+        self._update_source_actions()
         _apply_panel_style(self.form)
 
     def _build_source_group(self, qt_widgets: ModuleType) -> _PanelWidget:
@@ -225,6 +332,27 @@ class DrapeTargetTaskPanel:
         self._populate_sources()
         layout.addRow("Provider", self.target_type)
         layout.addRow("Source", self.source)
+
+        viewport_actions = qt_widgets.QWidget()
+        viewport_layout = qt_widgets.QHBoxLayout(viewport_actions)
+        self.pick_source_button = qt_widgets.QPushButton("Pick in 3D view")
+        self.pick_source_button.setToolTip(
+            "Choose a mannequin, shape, or mesh by clicking it in the FreeCAD viewport."
+        )
+        self.cancel_pick_button = qt_widgets.QPushButton("Cancel pick")
+        self.cancel_pick_button.setToolTip("Leave viewport-picking mode without changing the target.")
+        self.cancel_pick_button.setVisible(False)
+        self.show_source_button = qt_widgets.QPushButton("Select in 3D view")
+        self.show_source_button.setToolTip(
+            "Highlight the selected collision source in the FreeCAD viewport."
+        )
+        _mark_button(self.pick_source_button, "secondary")
+        _mark_button(self.cancel_pick_button, "secondary")
+        _mark_button(self.show_source_button, "secondary")
+        viewport_layout.addWidget(self.pick_source_button)
+        viewport_layout.addWidget(self.cancel_pick_button)
+        viewport_layout.addWidget(self.show_source_button)
+        layout.addRow("Viewport", viewport_actions)
         return group
 
     def _build_quality_group(self, qt_widgets: ModuleType) -> _PanelWidget:
@@ -305,6 +433,10 @@ class DrapeTargetTaskPanel:
         self.deflection.valueChanged.connect(self._preview_status)
         self.thickness.valueChanged.connect(self._preview_status)
         self.enabled.toggled.connect(self._preview_status)
+        self.source.currentIndexChanged.connect(self._update_source_actions)
+        self.pick_source_button.clicked.connect(self._begin_source_pick)
+        self.cancel_pick_button.clicked.connect(self._cancel_source_pick)
+        self.show_source_button.clicked.connect(self._select_source_in_view)
         self.apply_button.clicked.connect(self._apply)
 
     def _set_status(self, text: str, state: str = "info") -> None:
@@ -452,6 +584,122 @@ class DrapeTargetTaskPanel:
             return None
         return self._source_objects[index]
 
+    def _update_source_actions(self, _index: int | None = None) -> None:
+        """Enable viewport and apply actions only when their prerequisites exist.
+
+        Args:
+            _index: Optional combo-box index emitted by Qt after source selection.
+        """
+        selected = self._selected_source() is not None
+        target_available = self.target is not None
+        self.show_source_button.setEnabled(selected)
+        self.apply_button.setEnabled(target_available and selected)
+        self.pick_source_button.setEnabled(
+            target_available and self.doc is not None and self._source_picker is None
+        )
+
+    def _select_source_object(self, source: FreeCADDocumentObjectProtocol) -> bool:
+        """Synchronize a viewport-picked object with the source/provider controls.
+
+        Args:
+            source: Existing document object selected in the viewport.
+
+        Returns:
+            True when the source is present in the current document inventory.
+        """
+        source_name = str(getattr(source, "Name", ""))
+        index = next(
+            (
+                position
+                for position, candidate in enumerate(self._source_objects)
+                if candidate is source or (
+                    source_name and str(getattr(candidate, "Name", "")) == source_name
+                )
+            ),
+            -1,
+        )
+        if index < 0:
+            return False
+        provider = (
+            "Mannequin"
+            if str(getattr(source, "AvatarType", "")) == "ClothAvatar"
+            else "FreeCAD Geometry"
+        )
+        if str(self.target_type.currentText()) != provider:
+            self.target_type.setCurrentText(provider)
+            # Changing provider refreshes the inventory; resolve the stable object name again.
+            source_name = str(getattr(source, "Name", ""))
+            index = next(
+                (
+                    position
+                    for position, candidate in enumerate(self._source_objects)
+                    if candidate is source or (
+                        source_name and str(getattr(candidate, "Name", "")) == source_name
+                    )
+                ),
+                -1,
+            )
+        if index < 0:
+            return False
+        self.source.setCurrentIndex(index)
+        self._update_source_actions()
+        return True
+
+    def _begin_source_pick(self) -> None:
+        """Arm a one-shot FreeCAD selection observer for viewport source picking."""
+        if self.target is None or self.doc is None:
+            self._set_status(
+                "Create a Drape Target before picking a collision source.",
+                state="warning",
+            )
+            return
+        if self._source_picker is not None:
+            return
+        self._source_picker = _ViewportSourcePicker(self)
+        self.pick_source_button.setEnabled(False)
+        self.cancel_pick_button.setVisible(True)
+        self._set_status(
+            "Pick a mannequin, shape, or mesh in the 3D view. "
+            "The source is staged; use Apply & Refresh to rebuild collision geometry.",
+            state="info",
+        )
+
+    def _cancel_source_pick(self, *, update_status: bool = True) -> None:
+        """Disarm the viewport picker without changing the persistent target.
+
+        Args:
+            update_status: Whether to show the cancellation feedback in the panel.
+        """
+        picker = self._source_picker
+        if picker is None:
+            return
+        picker.dispose()
+        if update_status:
+            self._set_status("Viewport source pick cancelled; target unchanged.", state="info")
+
+    def _select_source_in_view(self) -> bool:
+        """Highlight the current collision source using FreeCAD's native selection.
+
+        Returns:
+            True when a valid source was selected in the active 3D view.
+        """
+        source = self._selected_source()
+        if source is None:
+            self._set_status("Select a collision source first.", state="warning")
+            return False
+        try:
+            self.Gui.Selection.clearSelection()
+            self.Gui.Selection.addSelection(source)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._set_status(f"Could not select the source in the 3D view — {exc}.", state="error")
+            return False
+        label = str(getattr(source, "Label", getattr(source, "Name", "collision source")))
+        self._set_status(
+            f"Selected {label} in the 3D view. This highlights the source without moving the camera.",
+            state="info",
+        )
+        return True
+
     def _apply(self, *, assign_target: _AssignDrapeTarget | None = None) -> bool:
         """Commit staged target settings and rebuild the collision representation.
 
@@ -489,7 +737,11 @@ class DrapeTargetTaskPanel:
         Returns:
             True when the selected target was accepted; otherwise False.
         """
-        return self._apply()
+        if self._source_picker is not None:
+            self._cancel_source_pick(update_status=False)
+        accepted = self._apply()
+        self._form_closed = bool(accepted)
+        return accepted
 
     def reject(self) -> bool:
         """Close the task panel without applying staged control values.
@@ -497,6 +749,9 @@ class DrapeTargetTaskPanel:
         Returns:
             True to allow FreeCAD to close the task panel.
         """
+        if self._source_picker is not None:
+            self._cancel_source_pick(update_status=False)
+        self._form_closed = True
         gui = cast("_FreeCADGui", self.Gui)
         if gui.activeDocument() and gui.Control.activeDialog():
             gui.Control.closeDialog()
