@@ -7,7 +7,10 @@ from types import SimpleNamespace
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
+from unittest.mock import patch
+
 from freecad_cloth.sewing.SewingGui import (
+    SewingTaskPanel,
     repair_correspondence_settings,
     seam_reference_status,
     validate_seam_for_accept,
@@ -57,6 +60,34 @@ class SewingGuiContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "length mismatch requires editing"):
             repair_correspondence_settings(seam, report)
 
+
+    def test_refresh_accepts_and_preserves_action_feedback(self):
+        panel = SewingTaskPanel.__new__(SewingTaskPanel)
+        panel.obj = SimpleNamespace(
+            Status="Valid",
+            LengthA=100.0,
+            LengthB=100.0,
+            LengthDifference=0.0,
+            RelativeTolerance=0.05,
+        )
+        panel.seam = None
+        panel.status = SimpleNamespace(status=None)
+        panel.lengths = SimpleNamespace(text="")
+        panel.lengths.setText = lambda text: setattr(panel.lengths, "text", text)
+        panel.correspondence = SimpleNamespace(status=None)
+        updates = []
+
+        def set_status(label, message, state="info"):
+            label.status = (message, state)
+            updates.append((label, message, state))
+
+        with patch("freecad_cloth.common.UiDesign.set_status", side_effect=set_status):
+            panel._refresh("Focus seam in the 3D view.")
+
+        self.assertEqual(panel.lengths.text, "100.00 / 100.00 mm (Δ 0.00)")
+        self.assertEqual(panel.correspondence.status, ("No seam correspondence", "warning"))
+        self.assertEqual(panel.status.status, ("Focus seam in the 3D view.", "info"))
+        self.assertEqual(updates[-1], (panel.status, "Focus seam in the 3D view.", "info"))
 
 if __name__ == "__main__":
     unittest.main()
