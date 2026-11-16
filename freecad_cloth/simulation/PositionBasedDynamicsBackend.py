@@ -866,6 +866,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             RuntimeError: Raised when native PBD changes the cloth particle ordering.
             ValueError: Raised when pin indices or cloth stiffness values are invalid.
         """
+        self._inter_cloth_metrics = None
         self._sim, self._model = self._new_simulation()
         points = [_to_pbd_position(p.position()) for p in self._initial.particles]
         indices = [index for triangle in self._triangles for index in triangle]

@@ -57,15 +57,37 @@ def _valid_artifact(root: Path) -> Path:
         ("shirt" if index < 4 else "skirt") + "|" + piece_id
         for index, piece_id in enumerate(piece_ids)
     ]
-    seams = [
-        {
-            "seam_id": "seam-%02d" % index,
-            "stitch_pair_count": 8,
-            "maximum_gap_mm": 0.2,
-            "mean_gap_mm": 0.1,
-        }
-        for index in range(16)
-    ]
+    seams = []
+    seam_links = (
+        *((index, (index + 1) % 4) for index in range(4)),
+        *((4 + index, 4 + (index + 1) % 4) for index in range(4)),
+        *((8 + index, 8 + (index + 1) % 4) for index in range(4)),
+        *((4 + index, 8 + index) for index in range(4)),
+    )
+    for index, (piece_a_index, piece_b_index) in enumerate(seam_links):
+        piece_a_id = piece_ids[piece_a_index]
+        piece_b_id = piece_ids[piece_b_index]
+        seams.append(
+            {
+                "seam_id": "seam-%02d" % index,
+                "piece_a_id": piece_a_id,
+                "piece_b_id": piece_b_id,
+                "edge_a_id": piece_a_id + ":e1",
+                "edge_b_id": piece_b_id + ":e3",
+                "start_a": 0.0,
+                "end_a": 1.0,
+                "start_b": 0.0,
+                "end_b": 1.0,
+                "reversed_b": True,
+                "alignment": "uniform",
+                "stitch_group": "garment-assembly",
+                "kind": "plain",
+                "status": "Valid",
+                "stitch_pair_count": 8,
+                "maximum_gap_mm": 0.2,
+                "mean_gap_mm": 0.1,
+            }
+        )
     checkpoints = []
     for step in (1, 5, 15):
         checkpoints.append(
@@ -86,6 +108,82 @@ def _valid_artifact(root: Path) -> Path:
                 "images": [],
             }
         )
+    pieces_scene = []
+    for index, piece_id in enumerate(piece_ids):
+        group_id = "shirt" if index < 4 else "skirt"
+        semantic_ids = [piece_id + ":e%d" % edge for edge in range(4)]
+        boundaries = [
+            {
+                "id": semantic_ids[edge],
+                "kind": "line",
+                "length_mm": 100.0,
+                "samples_local_mm": [[0.0, 0.0, 0.0], [100.0, 0.0, 0.0]],
+            }
+            for edge in range(4)
+        ]
+        pieces_scene.append(
+            {
+                "piece_id": piece_id,
+                "name": "Panel " + piece_id,
+                "garment_group": group_id,
+                "solver_panel_id": "DrapePanel%d" % index,
+                "local_to_world": {
+                    "translation_mm": [float(index), 0.0, 0.0],
+                    "rotation_quaternion_xyzw": [0.0, 0.0, 0.0, 1.0],
+                },
+                "grainline_angle_deg": 0.0,
+                "seam_allowance_mm": 10.0,
+                "semantic_edge_ids": semantic_ids,
+                "boundaries": boundaries,
+                "local_bounds_mm": {"min": [0.0, 0.0, 0.0], "max": [100.0, 100.0, 0.0]},
+                "world_bounds_mm": {"min": [float(index), 0.0, 0.0], "max": [float(index) + 100.0, 100.0, 0.0]},
+                "solver_mesh": {"particle_count": 50, "triangle_count": 80},
+            }
+        )
+    scene_map = {
+        "coordinate_system": {
+            "units": "mm",
+            "origin": "FreeCAD document world origin",
+            "x_axis": "mannequin left-right",
+            "y_axis": "mannequin front-back",
+            "z_axis": "world up",
+            "front_direction": "negative Y",
+            "placement_quaternion_order": "x,y,z,w",
+        },
+        "avatar": {
+            "id": "ClothAvatar",
+            "label": "Mannequin",
+            "landmarks": [
+                {"id": "shoulder_left", "local_mm": [-100.0, 0.0, 150.0], "world_mm": [-100.0, 0.0, 150.0]},
+                {"id": "shoulder_right", "local_mm": [100.0, 0.0, 150.0], "world_mm": [100.0, 0.0, 150.0]},
+                {"id": "hip", "local_mm": [0.0, 0.0, 0.0], "world_mm": [0.0, 0.0, 0.0]},
+            ],
+            "collision_surface": {
+                "source_object": "ClothAvatar",
+                "source_revision": 1,
+                "vertex_count": 1000,
+                "triangle_count": 2000,
+                "collision_thickness_mm": 5.0,
+                "collision_deflection_mm": 1.0,
+            },
+        },
+        "garment_groups": [
+            {"id": "shirt", "piece_ids": piece_ids[:4], "independent_of": ["skirt"]},
+            {"id": "skirt", "piece_ids": piece_ids[4:], "independent_of": ["shirt"]},
+        ],
+        "pieces": pieces_scene,
+        "seams": seams,
+        "camera_views": [
+            {"id": side, "projection": "orthographic", "world_axis_view": side}
+            for side in ("front", "rear", "right", "left", "top", "bottom")
+        ],
+        "inter_garment_relation": {
+            "garment_group_a": "shirt",
+            "garment_group_b": "skirt",
+            "minimum_requested_clearance_mm": 8.0,
+            "measurement_method": "two-sided edge-to-triangle position projection",
+        },
+    }
     manifest = {
         "schema": "freecad-cloth.layered-outfit",
         "schema_version": 1,
@@ -109,6 +207,7 @@ def _valid_artifact(root: Path) -> Path:
             "inter_cloth_clearance_mm": 8.0,
             "particle_distance_mm": 24.0,
         },
+        "scene_map": scene_map,
         "checkpoints": checkpoints,
         "images": image_records,
         "persistence": {
@@ -134,6 +233,7 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
         "pieces": 12,
         "seams": 16,
         "garment_groups": 2,
+        "scene_map": {"landmarks": 3, "pieces": 12, "seams": 16, "camera_views": 6},
         "checkpoints": 3,
         "images": 9,
         "document": "layered-outfit.FCStd",
@@ -173,4 +273,17 @@ def test_validator_rejects_blank_rendered_view(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="blank"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_a_seam_that_connects_two_independent_garments(tmp_path: Path) -> None:
+    """Cross-garment sewing is not a valid substitute for inter-cloth contact."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    seam = manifest["scene_map"]["seams"][0]
+    seam["piece_b_id"] = "piece-04"
+    seam["edge_b_id"] = "piece-04:e3"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="joins two independent garment groups"):
         validate_manifest(manifest_path)
