@@ -170,11 +170,14 @@ class SimulationTaskPanel:
             widget.valueChanged.connect(self._parameters_changed)
         self.thickness.valueChanged.connect(self._collision_changed)
         self.deflection.valueChanged.connect(self._collision_changed)
-        self.status.setText("Select a simulation scene or create one with Create Simulation.")
-        self._load_scene_values()
         from freecad_cloth.common.UiDesign import apply_panel_style, set_status
 
-        set_status(self.status, self.status.text(), state="info")
+        set_status(
+            self.status,
+            "Select a simulation scene or create one with Create Simulation.",
+            state="info",
+        )
+        self._load_scene_values()
         apply_panel_style(self.form)
 
     @staticmethod
@@ -354,9 +357,13 @@ class SimulationTaskPanel:
         self._refresh_status("Simulation reset; selections retained.")
 
     def _refresh_status(self, message=None):
+        from freecad_cloth.common.UiDesign import set_status
+
         if self.scene is None:
-            self.status.setText(
-                message or "Select a simulation scene or create one with Create Simulation."
+            set_status(
+                self.status,
+                message or "Select a simulation scene or create one with Create Simulation.",
+                state="warning",
             )
             return
         target_message = "No DrapeTarget selected"
@@ -368,7 +375,7 @@ class SimulationTaskPanel:
         except (ImportError, AttributeError, TypeError, ValueError):
             pass
         state = "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite"
-        self.status.setText(
+        status_message = (
             message
             or "State: %s | Target: %s | %.3f s | %d particles | %d steps"
             % (
@@ -378,6 +385,11 @@ class SimulationTaskPanel:
                 int(getattr(self.scene, "ParticleCount", 0)),
                 int(getattr(self.scene, "Steps", 0)),
             )
+        )
+        set_status(
+            self.status,
+            status_message,
+            state="info" if message else ("success" if state == "ready" else "error"),
         )
 
     def accept(self) -> bool:
