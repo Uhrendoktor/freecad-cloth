@@ -9,20 +9,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-if __package__:
-    from tools.ci.command_runner import (
-        CommandExecutionError,
-        CommandOptions,
-        CommandTimeoutError,
-        run_command,
-    )
-else:
-    from command_runner import (
-        CommandExecutionError,
-        CommandOptions,
-        CommandTimeoutError,
-        run_command,
-    )
+from tools.ci.command_runner import (
+    CommandExecutionError,
+    CommandOptions,
+    CommandTimeoutError,
+    run_command,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_VERSION = "freecad-quality-v1"
@@ -236,7 +228,9 @@ def collect_tracked_python_files(root: Path) -> tuple[str, ...]:
         ("git", "ls-files", "-z", "--", "*.py", "*.pyi"),
         options=CommandOptions(cwd=root, capture_output=True, timeout=30),
     )
-    return tuple(path for path in (result.stdout or "").split("\0") if path)
+    if result.stdout is None:
+        return ()
+    return tuple(path for path in result.stdout.split("\\0") if path)
 
 
 def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[QualityCommand, ...]:
@@ -296,7 +290,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
             timeout_seconds=120,
         ),
         QualityCommand("Markdown contract", (executable, "tools/check_markdown_contract.py")),
-        QualityCommand("CI structure", (executable, "tools/ci/validate_ci_structure.py")),
+        QualityCommand("CI structure", (executable, "-m", "tools.ci.validate_ci_structure")),
         QualityCommand("Import architecture", ("lint-imports",)),
         QualityCommand(
             "Source-rewriting policy", (executable, "tools/ci/check_no_source_rewriting.py")
