@@ -38,6 +38,9 @@ class _SurfaceIndex(NamedTuple):
     triangle_centers: PointArray
     triangle_radii: PointArray
     triangle_tree: KDTree
+    sample_indices: tuple[tuple[int, ...], ...]
+    sample_weights: tuple[tuple[float, ...], ...]
+    sample_points: PointArray
     edges: EdgeArray
     edge_centers: PointArray
     edge_half_lengths: PointArray
@@ -253,11 +256,37 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     edge_centers = edge_points.mean(axis=1)
     edge_half_lengths = np.linalg.norm(edge_points[:, 1] - edge_points[:, 0], axis=1) * 0.5
     edge_tree = KDTree(edge_centers)
+
+    # Vertices alone miss an edge piercing the interior of an opposing face.
+    # Mid-edge and face-centroid samples add those contact witnesses while their
+    # barycentric weights still distribute corrections only to real particles.
+    sample_indices: list[tuple[int, ...]] = []
+    sample_weights: list[tuple[float, ...]] = []
+    for vertex_index in np.unique(triangles):
+        sample_indices.append((int(vertex_index),))
+        sample_weights.append((1.0,))
+    for left, right in edges:
+        sample_indices.append((int(left), int(right)))
+        sample_weights.append((0.5, 0.5))
+    for a, b, c in triangles:
+        sample_indices.append((int(a), int(b), int(c)))
+        sample_weights.append((1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0))
+    sample_points = np.asarray(
+        [
+            np.sum(positions[np.asarray(indices, dtype=np.int64)] * np.asarray(weights)[:, None], axis=0)
+            for indices, weights in zip(sample_indices, sample_weights, strict=True)
+        ],
+        dtype=np.float64,
+    )
+
     return _SurfaceIndex(
         triangles,
         triangle_centers,
         triangle_radii,
         triangle_tree,
+        tuple(sample_indices),
+        tuple(sample_weights),
+        sample_points,
         edges,
         edge_centers,
         edge_half_lengths,
@@ -309,9 +338,10 @@ def _stitch_clusters(
     )
 
 
-def _accumulate_point_triangle(
+def _accumulate_sample_triangle(
     positions: PointArray,
-    source_index: int,
+    source_indices: tuple[int, ...],
+    source_weights: tuple[float, ...],
     target_triangle: tuple[int, int, int],
     inverse_masses: PointArray,
     clearance_mm: float,
@@ -319,30 +349,43 @@ def _accumulate_point_triangle(
     correction_sum: PointArray,
     correction_count: npt.NDArray[np.int64],
 ) -> tuple[bool, float]:
-    """Accumulate one two-sided particle/triangle separation constraint."""
+    """Accumulate one barycentric sample/triangle separation constraint."""
+    source_ids = np.asarray(source_indices, dtype=np.int64)
+    source_barycentric = np.asarray(source_weights, dtype=np.float64)
     target_ids = np.asarray(target_triangle, dtype=np.int64)
-    closest, barycentric, normal = _closest_point_on_triangle(
-        positions[source_index],
+    source_point = np.sum(
+        positions[source_ids] * source_barycentric[:, None],
+        axis=0,
+    )
+    closest, target_barycentric, normal = _closest_point_on_triangle(
+        source_point,
         positions[target_ids],
     )
-    difference = positions[source_index] - closest
+    difference = source_point - closest
     distance = float(np.linalg.norm(difference))
     penetration = clearance_mm - distance
     if penetration <= 1e-8:
         return False, 0.0
 
     direction = difference / distance if distance > 1e-10 else fallback_direction * normal
-    source_weight = float(inverse_masses[source_index])
-    target_weights = inverse_masses[target_ids]
-    denominator = source_weight + float(np.sum(target_weights * barycentric * barycentric))
+    source_masses = inverse_masses[source_ids]
+    target_masses = inverse_masses[target_ids]
+    denominator = float(
+        np.sum(source_masses * source_barycentric * source_barycentric)
+        + np.sum(target_masses * target_barycentric * target_barycentric)
+    )
     if denominator <= 1e-15:
         return False, penetration
 
     multiplier = penetration / denominator
-    correction_sum[source_index] += direction * source_weight * multiplier
-    correction_count[source_index] += int(source_weight > 0.0)
+    for local_index, particle_index in enumerate(source_ids):
+        weight = float(source_masses[local_index] * source_barycentric[local_index])
+        if weight <= 0.0:
+            continue
+        correction_sum[particle_index] += direction * weight * multiplier
+        correction_count[particle_index] += 1
     for local_index, particle_index in enumerate(target_ids):
-        weight = float(target_weights[local_index] * barycentric[local_index])
+        weight = float(target_masses[local_index] * target_barycentric[local_index])
         if weight <= 0.0:
             continue
         correction_sum[particle_index] -= direction * weight * multiplier
@@ -423,7 +466,7 @@ def _candidate_contact_statistics(
     surfaces: Mapping[str, _SurfaceIndex],
     clearance_mm: float,
 ) -> tuple[int, float]:
-    """Measure remaining point/triangle and edge/edge penetrations."""
+    """Measure remaining sampled point/triangle and edge/edge penetrations."""
     group_ids = tuple(sorted(surfaces))
     contact_count = 0
     max_penetration = 0.0
@@ -431,25 +474,25 @@ def _candidate_contact_statistics(
         left = surfaces[left_id]
         for right_id in group_ids[left_index + 1 :]:
             right = surfaces[right_id]
-            for source, target in (
-                (left, right),
-                (right, left),
-            ):
-                source_vertices = np.unique(source.triangles)
-                query_radius = clearance_mm + float(target.triangle_radii.max())
-                for source_particle in source_vertices:
+            for source, target in ((left, right), (right, left)):
+                for sample_index, sample_ids in enumerate(source.sample_indices):
+                    sample_point = np.sum(
+                        positions[np.asarray(sample_ids, dtype=np.int64)]
+                        * np.asarray(source.sample_weights[sample_index])[:, None],
+                        axis=0,
+                    )
+                    query_radius = clearance_mm + float(target.triangle_radii.max())
                     candidate_ids = target.triangle_tree.query_ball_point(
-                        positions[int(source_particle)],
+                        sample_point,
                         query_radius,
                     )
                     for triangle_id in candidate_ids:
-                        ids = target.triangles[int(triangle_id)]
+                        target_ids = target.triangles[int(triangle_id)]
                         closest, _barycentric, _normal = _closest_point_on_triangle(
-                            positions[int(source_particle)],
-                            positions[ids],
+                            sample_point,
+                            positions[target_ids],
                         )
-                        distance = float(np.linalg.norm(positions[int(source_particle)] - closest))
-                        penetration = clearance_mm - distance
+                        penetration = clearance_mm - float(np.linalg.norm(sample_point - closest))
                         if penetration > 1e-8:
                             contact_count += 1
                             max_penetration = max(max_penetration, penetration)
@@ -593,14 +636,22 @@ def project_inter_cloth_contacts(
                     (left_index + 1, right, left),
                 ):
                     fallback_sign = 1.0 if source_group_index == left_index else -1.0
-                    for source_particle in np.unique(source.triangles):
+                    for sample_index, sample_ids in enumerate(source.sample_indices):
+                        sample_weights = source.sample_weights[sample_index]
+                        sample_point = np.sum(
+                            current[np.asarray(sample_ids, dtype=np.int64)]
+                            * np.asarray(sample_weights)[:, None],
+                            axis=0,
+                        )
                         query_radius = clearance + float(target.triangle_radii.max())
                         candidate_ids = target.triangle_tree.query_ball_point(
-                            current[int(source_particle)],
+                            sample_point,
                             query_radius,
                         )
                         for triangle_id in candidate_ids:
-                            triangle_ids = tuple(int(value) for value in target.triangles[int(triangle_id)])
+                            triangle_ids = tuple(
+                                int(value) for value in target.triangles[int(triangle_id)]
+                            )
                             triangle_points = current[np.asarray(triangle_ids, dtype=np.int64)]
                             fallback = fallback_sign * _canonical_direction(
                                 np.cross(
@@ -608,9 +659,10 @@ def project_inter_cloth_contacts(
                                     triangle_points[2] - triangle_points[0],
                                 )
                             )
-                            contact, penetration = _accumulate_point_triangle(
+                            contact, penetration = _accumulate_sample_triangle(
                                 current,
-                                int(source_particle),
+                                sample_ids,
+                                sample_weights,
                                 triangle_ids,
                                 masses,
                                 clearance,
