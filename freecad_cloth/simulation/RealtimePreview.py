@@ -260,9 +260,7 @@ def _make_frame_dispatcher(
             self._active_deadline = None
             self._pending_deadlines.clear()
 
-        def set_callback(
-            self, next_callback: Callable[[float, float, float], None]
-        ) -> None:
+        def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
             self._callback = next_callback
 
         def set_on_dispatch(self, next_callback: Callable[[], None]) -> None:
@@ -286,9 +284,7 @@ def _make_frame_dispatcher(
             if not _append_pending_deadline(self._pending_deadlines, deadline):
                 self._coalesced_deadlines += 1
                 return
-            self._max_pending_depth = max(
-                self._max_pending_depth, len(self._pending_deadlines)
-            )
+            self._max_pending_depth = max(self._max_pending_depth, len(self._pending_deadlines))
 
         def _arm(
             self,
