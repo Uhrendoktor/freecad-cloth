@@ -399,7 +399,8 @@ def _validate_python_quality_contracts(text: str) -> None:
             "Pyright repository-wide coverage policy is invalid: " + ", ".join(coverage_violations)
         )
     if not ty_all_diagnostics_are_errors(TY_CONFIG.read_text(encoding="utf-8")):
-        raise SystemExit("ty.toml must make all diagnostics errors")
+        msg = "ty.toml must make all diagnostics errors"
+        raise SystemExit(msg)
     missing_ruff = missing_ruff_commands(text)
     if missing_ruff:
         raise SystemExit(
