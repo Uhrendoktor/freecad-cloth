@@ -287,6 +287,10 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         message="Ruff preview rules must remain enabled repository-wide.",
     )
     require(
+        condition=project["tool"]["ruff"]["lint"]["flake8-annotations"]["suppress-none-returning"] is True,
+        message="Functions returning only None may omit a return annotation; value returns must remain annotated.",
+    )
+    require(
         condition=project["tool"]["ruff"]["lint"]["pydocstyle"]["convention"] == "google",
         message="Ruff docstring rules must use the repository's documented Google convention.",
     )
@@ -303,7 +307,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=normalized_actual == normalized_expected,
         message=(
-            "Per-file exceptions must remain limited to test oracles and implicit unit-test "
-            "returns, CLI output, exact bootstraps, native callbacks, and preserved public signatures."
+            "Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, "
+            "native callbacks, and preserved public signatures."
         ),
     )
