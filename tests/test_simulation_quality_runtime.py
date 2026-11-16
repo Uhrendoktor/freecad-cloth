@@ -178,13 +178,13 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
             self.calls.append((dt, iterations, gravity, surface))
 
         def positions(self) -> tuple[tuple[float, float, float], ...]:
-            """Return no vertices while recording the publication read.
+            """Return one triangular panel while recording the publication read.
 
             Returns:
-                An empty position sequence because the scene has no display panels.
+                Three finite XYZ coordinates for the preview publisher.
             """
             self.position_reads += 1
-            return ()
+            return ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
 
         @staticmethod
         def finite() -> bool:
@@ -216,15 +216,35 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         GravityX=0.0,
         GravityY=0.0,
         GravityZ=-9810.0,
-        DrapePanels=(),
+        DrapePanels=(SimpleNamespace(Name="DrapePanelA"),),
     )
     proxy = QualitySimulationProxy()
     base = cast("SimulationProxy", _private_callable(proxy, "_base_or_restore")())
     backend = Backend()
     base.backend = cast("PositionBasedDynamicsBackend", backend)
     base.collision_surface = _COLLISION_SENTINEL
+    base.panel_triangles = {"DrapePanelA": ((0, 1, 2),)}
     base.last_steps = 0
+    type _PreviewPublication = tuple[
+        str,
+        tuple[tuple[float, float, float], ...],
+        tuple[tuple[int, int, int], ...],
+    ]
+    preview_publications: list[_PreviewPublication] = []
+    presentation_calls = 0
+
+    def record_presentation(_target: SimpleNamespace) -> None:
+        nonlocal presentation_calls
+        presentation_calls += 1
+
+    proxy._apply_presentation = record_presentation
+    proxy.set_preview_mesh_publisher(
+        lambda panel, positions, triangles: preview_publications.append(
+            (panel.Name, positions, triangles)
+        )
+    )
     proxy.advance_preview_frame(scene)
+    proxy.set_preview_mesh_publisher(None)
 
     assert backend.calls == [
         (
@@ -237,8 +257,18 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     assert backend.position_reads == 1, (
         "A preview frame must publish the solved state exactly once."
     )
+    assert preview_publications == [
+        (
+            "DrapePanelA",
+            ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+            ((0, 1, 2),),
+        )
+    ], "Transient preview must update the panel publisher instead of its document mesh."
     assert base.last_steps == _EXPECTED_PREVIEW_STEPS, (
         "A preview frame must advance the recorded step count by one."
+    )
+    assert presentation_calls == 0, (
+        "Transient Coin3D material styling must not rewrite hidden document-panel properties."
     )
 
 

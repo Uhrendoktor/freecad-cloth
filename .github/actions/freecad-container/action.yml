@@ -98,7 +98,7 @@ runs:
           fi
         fi
 
-        # A self-hosted runner may itself run in a container while Docker uses a
+        # A hosted runner may itself run in a container while Docker uses a
         # different mount namespace. Export the exact checked-out tree instead of
         # bind-mounting the runner's private GITHUB_WORKSPACE path into the daemon.
         git -C "$workspace" archive --format=tar --output="$workspace_archive" HEAD
@@ -110,8 +110,46 @@ runs:
         done
         tar -tf "$workspace_archive" >/dev/null
 
+        # Probe the runner host and the same pinned FreeCAD image before enabling Docker GPU
+        # passthrough. If either side lacks CUDA device visibility, retain the CPU execution path.
+        cuda_available="${CLOTH_CI_CUDA_AVAILABLE:-false}"
+        cuda_mode="${CLOTH_CI_CUDA_MODE:-cpu-fallback}"
+        cuda_reason="${CLOTH_CI_CUDA_REASON:-probe-not-run}"
+        if [[ "${CLOTH_CI_CUDA_PROBE_DONE:-false}" != "true" ]]; then
+          cuda_available="false"
+          cuda_mode="cpu-fallback"
+          cuda_reason="host-nvidia-smi-not-found"
+          if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
+            cuda_reason="docker-gpu-device-probe-failed"
+            if timeout --signal=TERM --kill-after=5s 30s docker run --rm --gpus all \
+              --entrypoint bash "$IMAGE" -lc \
+              'test -c /dev/nvidiactl && compgen -G "/dev/nvidia[0-9]*" >/dev/null'; then
+              cuda_available="true"
+              cuda_mode="cuda-device-visible"
+              cuda_reason="host-and-container-probes-passed"
+            fi
+          fi
+          {
+            printf 'CLOTH_CI_CUDA_PROBE_DONE=true\n'
+            printf 'CLOTH_CI_CUDA_AVAILABLE=%s\n' "$cuda_available"
+            printf 'CLOTH_CI_CUDA_MODE=%s\n' "$cuda_mode"
+            printf 'CLOTH_CI_CUDA_REASON=%s\n' "$cuda_reason"
+          } >> "$GITHUB_ENV"
+        fi
+        gpu_docker_args=()
+        if [[ "$cuda_available" == "true" ]]; then
+          gpu_docker_args=(--gpus all)
+        fi
+        echo "freecad-container-compute=$cuda_mode reason=$cuda_reason"
+
         {
           printf '%s\n' "PYTHONPATH=/workspace"
+          printf '%s\n' "CLOTH_CI_CUDA_AVAILABLE=$cuda_available"
+          printf '%s\n' "CLOTH_CI_CUDA_MODE=$cuda_mode"
+          printf '%s\n' "CLOTH_CI_CUDA_REASON=$cuda_reason"
+          if [[ "$cuda_available" == "true" ]]; then
+            printf '%s\n' "NVIDIA_DRIVER_CAPABILITIES=compute,utility"
+          fi
           printf '%s\n' "QT_X11_NO_MITSHM=1"
           printf '%s\n' "QT_QPA_PLATFORM=xcb"
           printf '%s\n' "LIBGL_ALWAYS_SOFTWARE=1"
@@ -139,7 +177,7 @@ runs:
         } >"$command_file"
 
         container_name="$execution_key"
-        container_id="$(docker create --name "$container_name" --init --security-opt seccomp=unconfined --shm-size=1g --env-file "$env_file" --workdir /tmp "$IMAGE" bash /tmp/freecad-container-command.sh)"
+        container_id="$(docker create "${gpu_docker_args[@]}" --name "$container_name" --init --security-opt seccomp=unconfined --shm-size=1g --env-file "$env_file" --workdir /tmp "$IMAGE" bash /tmp/freecad-container-command.sh)"
         docker cp "$workspace_archive" "$container_id:/tmp/freecad-workspace.tar"
         docker cp "$command_file" "$container_id:/tmp/freecad-container-command.sh"
 

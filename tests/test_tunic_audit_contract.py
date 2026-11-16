@@ -602,40 +602,54 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     )
 
 
-def test_production_tunic_audit_runs_but_is_explicitly_advisory() -> None:
-    """The full production audit runs but cannot block while throughput is deferred."""
+def test_production_tunic_audit_is_a_blocking_gate() -> None:
+    """Require the complete production tunic audit to block when acceptance fails."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     benchmark_index = gui.index("test-script: tests/freecad_realtime_benchmark.py")
+    benchmark_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, benchmark_index)
+    metric_validator_index = gui.index(
+        "      - name: Validate realtime preview metrics (diagnostic)"
+    )
     metric_gate_index = gui.index(
         "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json"
     )
     audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
     audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
-    advisory_index = gui.index(
-        "      - name: Report production tunic audit as advisory", audit_action_index
+    report_index = gui.index(
+        "      - name: Report production tunic audit outcome", audit_action_index
     )
-    audit_action = gui[audit_action_index:advisory_index]
-    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_index:metric_gate_index]
-    assert benchmark_index < metric_gate_index < audit_action_index < audit_index
+    audit_action = gui[audit_action_index:report_index]
+    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_action_index:metric_validator_index]
+    assert (
+        benchmark_action_index
+        < benchmark_index
+        < metric_validator_index
+        < metric_gate_index
+        < audit_action_index
+        < audit_index
+    )
+    assert "continue-on-error: true" in gui[benchmark_action_index:metric_validator_index]
+    assert "continue-on-error: true" in gui[metric_validator_index:audit_action_index]
     assert "if: always()" in audit_action, (
-        "The production tunic audit must still execute after a failed realtime gate."
+        "The production tunic audit must still execute after preview diagnostics."
     )
     assert "id: production-tunic-audit" in audit_action
-    assert "continue-on-error: true" in audit_action
+    assert "continue-on-error:" not in audit_action
     assert 'timeout-seconds: "360"' in audit_action
-    advisory = gui.split("      - name: Report production tunic audit as advisory", 1)[1]
-    assert "steps.production-tunic-audit.outcome" in advisory
-    assert "this is not a pass" in advisory
-    assert "#2839" in advisory
+    report = gui[report_index:]
+    assert "steps.production-tunic-audit.outcome" in report
+    assert "The complete 90-step production tunic audit passed" in report
+    assert "::error title=Production tunic audit failed" in report
+    assert "is blocking" in report
     assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
-    assert "p95_frame_interval_ms exceeds the 30 FPS budget" in validator
+    assert "p95_frame_interval_ms exceeds the 60 FPS budget" in validator
 
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
@@ -904,3 +918,113 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
     assert 'status["result"]' not in simulation, (
         "Contract failed: 'status[\"result\"]' not in simulation"
     )
+
+
+def test_production_tunic_profile_records_native_python_and_gui_stages() -> None:
+    """Keep production throughput profiling separate from preview and physics settings."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    profile = source.split("def _run_production_tunic_drape(", 1)[1].split("\ndef simulation()", 1)[
+        0
+    ]
+    required = (
+        'getattr(getattr(active_backend, "_pbd", None), "Timing", None)',
+        "timing_reset()",
+        '"simulation step"',
+        '"position constraints projection"',
+        '"collision detection"',
+        '"backend_step_total"',
+        '"collision_projection_total"',
+        '"mesh_collision_projector"',
+        '"stitched_pair_reconciliation"',
+        '"audit_document_recompute"',
+        '"seam_diagnostics"',
+        '"viewport_framing"',
+        '"screenshot_capture"',
+        '"runtime_limits"',
+        '"cgroup_cpu_max"',
+        '"cgroup_cpu_stat"',
+        '"cgroup_cpu_pressure"',
+        '"thread_environment"',
+        '"pypbd_module"',
+        '"openmp_runtime_libraries"',
+        '"OMP_THREAD_LIMIT"',
+        '"OMP_WAIT_POLICY"',
+        '"GOMP_SPINCOUNT"',
+        '"libgomp"',
+        '"libomp"',
+        '"libiomp"',
+        '"process_cpu_elapsed_ms"',
+        '"mean_cpu_cores_used"',
+        '"simulation_complete"',
+        '"steps_completed": scene_steps_completed',
+        '"backend_steps_completed": backend_steps_completed',
+        '"scene_steps_completed": scene_steps_completed',
+        '"scene_steps_requested": 90',
+        '"simulation_complete": scene_steps_completed == 90 and bool(scene.FiniteState)',
+        '"acceptance_gates"',
+        '"cuda_runner_probe"',
+        '"cuda_runner_mode"',
+        '"cuda_runner_reason"',
+        '"cuda_device_nodes"',
+        '"simulation_backend_device": "cpu"',
+        '"artifacts/tunic-audit/production-pbd-profile.json"',
+        '"artifacts/freecad-realtime/metrics.json"',
+        "scene.SolverSubsteps",
+        'getattr(active_backend, "_substeps", -1)',
+        "len(collision.triangles)",
+    )
+    missing = tuple(fragment for fragment in required if fragment not in profile)
+    assert not missing, f"Production profiling lost required measurements: {missing!r}"
+    assert "scene.SolverIterations =" not in profile
+    assert "scene.SolverSubsteps =" not in profile
+    assert "CLOTH_PBD_SUBSTEPS =" not in profile
+    assert "clearance_mm =" not in profile
+    assert "simulation_panel.step(batch)" in profile
+    backend_step_wrapper = profile.split("def timed_backend_step(", 1)[1].split(
+        "def timed_collision_projection(", 1
+    )[0]
+    assert "backend_steps_completed += 1" in backend_step_wrapper
+    assert "write_profile_checkpoint(" in backend_step_wrapper
+    assert "backend_steps_completed" in backend_step_wrapper
+    assert "scene_steps_completed=int(scene.Steps)" in backend_step_wrapper
+    assert '"scene_steps_requested": 90' in profile
+    assert '"scene_steps_completed": scene_steps_completed' in profile
+    assert (
+        "write_profile_checkpoint(\n                backend_steps_completed,\n"
+        "                elapsed_ms,\n                process_cpu_elapsed_ms," in profile
+    )
+    assert "backend_class.step = original_backend_step" in profile
+    assert "projector_class.project = original_project" in profile
+    assert profile.index('log("realtime-preview=passed') < profile.index("timing_reset()")
+
+
+def test_production_profile_is_finalized_only_after_authoritative_acceptance() -> None:
+    """The throughput report must not claim a pass before the full tunic gate succeeds."""
+    source = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    simulation = source.split("def simulation() -> None:", 1)[1]
+    diagnostics_gate = simulation.index("assert_drape_diagnostics(")
+    profile_finalize = simulation.index('profile["audit_complete"] = True')
+    acceptance_finalize = simulation.index('profile["acceptance_gates"] = "passed"')
+    document_close = simulation.index("App.closeDocument(doc.Name)")
+    assert diagnostics_gate < profile_finalize < acceptance_finalize < document_close
+    assert 'profile.get("steps_completed", 0)' in simulation
+    assert 'profile.get("simulation_complete", False)' in simulation
+    assert '"target_clearance_and_penetration": True' in simulation
+    assert '"drape_visual_diagnostics": True' in simulation
+
+
+def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
+    """Keep Fast-preview timing separate while retaining resource evidence without CUDA."""
+    benchmark = (ROOT / "tests" / "freecad_realtime_benchmark.py").read_text(encoding="utf-8")
+    required = (
+        '"cuda_runner_mode"',
+        '"cuda_device_nodes"',
+        '"simulation_backend_device": "cpu"',
+        '"process_cpu_elapsed_s"',
+        '"mean_cpu_cores_used"',
+        '"cgroup_cpu_max"',
+        '"cgroup_cpu_stat"',
+        '"thread_environment"',
+    )
+    missing = tuple(fragment for fragment in required if fragment not in benchmark)
+    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"

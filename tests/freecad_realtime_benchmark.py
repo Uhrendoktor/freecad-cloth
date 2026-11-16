@@ -12,13 +12,18 @@ import runpy
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
+
+    import numpy as np
+    import numpy.typing as npt
+
+    from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -27,11 +32,28 @@ if str(ROOT) not in sys.path:
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
 
-TARGET_FPS = 30.0
+TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
+
+
+type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
+type _MeshProjectCallable = Callable[
+    [MeshCollisionProjector, npt.NDArray[np.float64]],
+    _ProjectionResult,
+]
+type _StitchedPairsCallable = Callable[
+    [
+        MeshCollisionProjector,
+        npt.NDArray[np.float64],
+        npt.NDArray[np.float64],
+        Sequence[tuple[int, int]],
+        Sequence[int],
+    ],
+    _ProjectionResult,
+]
 
 
 def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
@@ -224,7 +246,17 @@ def main() -> None:
         except ImportError:
             from PySide2 import QtWidgets
 
-    from freecad_cloth.simulation.RealtimePreview import _prepare, _Preview, _qt
+    from freecad_cloth.simulation.RealtimeMeshPreview import (
+        RealtimeMeshPreview,
+        _Position,
+        _PreviewPanel,
+        _Triangle,
+    )
+    from freecad_cloth.simulation.RealtimePreview import (
+        _prepare,
+        _Preview,
+        _qt,
+    )
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
     qt_core = _qt()
@@ -254,8 +286,12 @@ def main() -> None:
         stage_names = (
             "advance_preview_frame",
             "solver_step",
+            "collision_projection_total",
+            "mesh_collision_projector",
+            "stitched_pair_reconciliation",
             "state_publish",
             "mesh_write",
+            "preview_mesh_publish",
             "overlay_schedule",
             "viewport_redraw",
         )
@@ -264,16 +300,50 @@ def main() -> None:
         in_tick = False
 
         def record_stage(name: str, started_at: float) -> None:
-            if in_tick and tick_count >= WARMUP_FRAMES:
+            if in_tick and tick_count > WARMUP_FRAMES:
                 stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
+        from freecad_cloth.simulation import MeshCollisionProjector as mesh_collision_projector
+        from freecad_cloth.simulation import RealtimeMeshPreview as realtime_mesh_preview
         from freecad_cloth.simulation import SimulationObjects as simulation_objects
+
+        projector_class = mesh_collision_projector.MeshCollisionProjector
+        if not isinstance(getattr(backend, "_collision_projector", None), projector_class):
+            msg = "Realtime benchmark requires the authoritative mesh collision projector"
+            raise RuntimeError(msg)
+        timing_api = getattr(getattr(backend, "_pbd", None), "Timing", None)
+        timing_reset = getattr(timing_api, "reset", None)
+        if not callable(timing_reset) or not hasattr(timing_api, "m_averageTimes"):
+            msg = "Pinned pyPBD runtime does not expose native Timing accumulators"
+            raise RuntimeError(msg)
+
+        native_timing_reset = False
+        inside_stitched_reconciliation = [False]
+
+        def native_timing_snapshot() -> dict[str, dict[str, int | float | None]]:
+            average_times = timing_api.m_averageTimes
+            records: dict[str, dict[str, int | float | None]] = {}
+            for entry in average_times.values():
+                name = str(getattr(entry, "name", "")).strip()
+                samples = int(getattr(entry, "counter", 0))
+                total_ms = float(getattr(entry, "totalTime", 0.0))
+                if name:
+                    records[name] = {
+                        "samples": samples,
+                        "total_ms": total_ms,
+                        "mean_ms": total_ms / samples if samples else None,
+                    }
+            return dict(sorted(records.items()))
 
         original_advance = proxy.advance_preview_frame
         original_publish = proxy._publish_state
         original_solver_step = backend.step
+        original_collision_projection = backend._project_collision_positions
+        original_mesh_project = projector_class.project
+        original_stitched_pairs = mesh_collision_projector.project_stitched_pairs
         original_mesh_write = simulation_objects._write_mesh
+        original_preview_mesh_publish = realtime_mesh_preview.RealtimeMeshPreview.publish
         original_overlay_schedule = seam_overlay.schedule_seam_overlay_refresh
         original_active_document = Gui.activeDocument
 
@@ -303,12 +373,65 @@ def main() -> None:
             finally:
                 record_stage("solver_step", started_at)
 
+        def timed_collision_projection() -> None:
+            started_at = time.perf_counter()
+            try:
+                original_collision_projection()
+            finally:
+                record_stage("collision_projection_total", started_at)
+
+        def timed_mesh_project(
+            projector: MeshCollisionProjector,
+            points_mm: npt.NDArray[np.float64],
+        ) -> _ProjectionResult:
+            started_at = time.perf_counter()
+            try:
+                original = cast("_MeshProjectCallable", original_mesh_project)
+                return original(projector, points_mm)
+            finally:
+                if not inside_stitched_reconciliation[0]:
+                    record_stage("mesh_collision_projector", started_at)
+
+        def timed_stitched_pairs(
+            projector: MeshCollisionProjector,
+            positions_mm: npt.NDArray[np.float64],
+            contact_normals: npt.NDArray[np.float64],
+            stitches: Sequence[tuple[int, int]],
+            pinned_indices: Sequence[int] = (),
+        ) -> _ProjectionResult:
+            started_at = time.perf_counter()
+            inside_stitched_reconciliation[0] = True
+            try:
+                original = cast("_StitchedPairsCallable", original_stitched_pairs)
+                return original(
+                    projector,
+                    positions_mm,
+                    contact_normals,
+                    stitches,
+                    pinned_indices,
+                )
+            finally:
+                inside_stitched_reconciliation[0] = False
+                record_stage("stitched_pair_reconciliation", started_at)
+
         def timed_mesh_write(obj: object, positions: object, triangles: object) -> None:
             started_at = time.perf_counter()
             try:
                 original_mesh_write(obj, positions, triangles)
             finally:
                 record_stage("mesh_write", started_at)
+
+        def timed_preview_mesh_publish(
+            owner: RealtimeMeshPreview,
+            panel: _PreviewPanel,
+            positions: tuple[_Position, ...],
+            triangles: tuple[_Triangle, ...],
+        ) -> None:
+            started_at = time.perf_counter()
+            try:
+                original_preview_mesh_publish(owner, panel, positions, triangles)
+            finally:
+                record_stage("preview_mesh_publish", started_at)
 
         def timed_overlay_schedule(document: object | None = None) -> None:
             started_at = time.perf_counter()
@@ -327,7 +450,26 @@ def main() -> None:
             (proxy, "advance_preview_frame", timed_advance, original_advance),
             (proxy, "_publish_state", timed_publish, original_publish),
             (backend, "step", timed_solver_step, original_solver_step),
+            (
+                backend,
+                "_project_collision_positions",
+                timed_collision_projection,
+                original_collision_projection,
+            ),
+            (projector_class, "project", timed_mesh_project, original_mesh_project),
+            (
+                mesh_collision_projector,
+                "project_stitched_pairs",
+                timed_stitched_pairs,
+                original_stitched_pairs,
+            ),
             (simulation_objects, "_write_mesh", timed_mesh_write, original_mesh_write),
+            (
+                realtime_mesh_preview.RealtimeMeshPreview,
+                "publish",
+                timed_preview_mesh_publish,
+                original_preview_mesh_publish,
+            ),
             (
                 seam_overlay,
                 "schedule_seam_overlay_refresh",
@@ -341,14 +483,6 @@ def main() -> None:
 
         active_preview = _Preview(scene)
         preview = active_preview
-        timer = active_preview.timer
-        # This fresh timer has only the instrumented production callback connected.
-        try:
-            timer.timeout.disconnect()
-        except (RuntimeError, TypeError) as exc:
-            msg = "Could not instrument the production preview timer"
-            raise RuntimeError(msg) from exc
-
         event_loop = qt_core.QEventLoop()
         last_tick_at: float | None = None
         frame_intervals_ms: list[float] = []
@@ -356,26 +490,26 @@ def main() -> None:
         initial_steps = int(scene.Steps)
         timed_out = False
 
-        def timed_tick() -> None:
-            nonlocal in_tick
+        def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
+            nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
+            tick_count += 1
+            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
+                frame_intervals_ms.append(1000.0 * (started_at - last_tick_at))
+            last_tick_at = started_at
+            if tick_count == WARMUP_FRAMES + 1 and not native_timing_reset:
+                timing_reset()
+                native_timing_reset = True
             in_tick = True
             try:
-                active_preview.tick()
+                active_preview.tick(scheduled_at, emitted_at, dispatched_at)
             finally:
                 in_tick = False
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
-            if tick_count >= WARMUP_FRAMES:
+            if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
-
-        def observe_tick() -> None:
-            nonlocal tick_count, last_tick_at
-            now = time.perf_counter()
-            tick_count += 1
-            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
-                frame_intervals_ms.append(1000.0 * (now - last_tick_at))
-            last_tick_at = now
             if len(frame_intervals_ms) >= FRAMES:
+                active_preview.stop_frame_clock()
                 event_loop.quit()
 
         def on_deadline() -> None:
@@ -383,19 +517,21 @@ def main() -> None:
             timed_out = True
             event_loop.quit()
 
-        # Signal ordering: observe only after the complete production callback has returned.
-        timer.timeout.connect(timed_tick)
-        timer.timeout.connect(observe_tick)
+        # Measure at callback entry so intervals include callback work and GUI dispatch.
+        active_preview.set_tick_callback(timed_tick)
         deadline = qt_core.QTimer()
         deadline.setSingleShot(True)
         deadline.timeout.connect(on_deadline)
 
         started = time.perf_counter()
+        started_process = time.process_time()
         deadline.start(TIMEOUT_MS)
         active_preview.start()
         execute_loop = getattr(event_loop, "exec", None) or event_loop.exec_
         execute_loop()
+        active_preview.stop_frame_clock()
         elapsed = time.perf_counter() - started
+        process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
 
         mean_interval_ms = (
@@ -454,6 +590,43 @@ def main() -> None:
         except (AttributeError, TypeError):
             freecad_version = "unknown"
 
+        runtime_cpu_info = Path("/proc/cpuinfo")
+        runtime_cpu_model = None
+        if runtime_cpu_info.is_file():
+            runtime_cpu_model = next(
+                (
+                    line.split(":", 1)[1].strip()
+                    for line in runtime_cpu_info.read_text(encoding="utf-8").splitlines()
+                    if line.startswith("model name")
+                ),
+                None,
+            )
+        runtime_cpu_affinity = (
+            sorted(int(cpu) for cpu in os.sched_getaffinity(0))
+            if hasattr(os, "sched_getaffinity")
+            else []
+        )
+        runtime_thread_keys = (
+            "OMP_NUM_THREADS",
+            "OMP_DYNAMIC",
+            "OMP_PROC_BIND",
+            "OMP_PLACES",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        )
+        try:
+            runtime_cgroup_cpu_max = (
+                Path("/sys/fs/cgroup/cpu.max").read_text(encoding="utf-8").strip()
+            )
+        except OSError:
+            runtime_cgroup_cpu_max = None
+        try:
+            runtime_cgroup_cpu_stat = (
+                Path("/sys/fs/cgroup/cpu.stat").read_text(encoding="utf-8").strip()
+            )
+        except OSError:
+            runtime_cgroup_cpu_stat = None
         result = {
             "schema_version": 1,
             "backend": getattr(backend, "name", "unknown"),
@@ -461,6 +634,7 @@ def main() -> None:
             "particles": particle_count,
             "panel_count": len(panels),
             "collision_triangles": collision_triangles,
+            "publication_mode": "transient-coin3d",
             "target_fps": TARGET_FPS,
             "frame_budget_ms": FRAME_BUDGET_MS,
             "frames_requested": FRAMES,
@@ -469,8 +643,16 @@ def main() -> None:
             "observed_ticks": tick_count,
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
-            "timer_interval_ms": int(timer.interval()),
+            "frame_scheduler": active_preview.frame_scheduler_metrics(),
+            "worker_wakeup_lateness": active_preview.frame_worker_wakeup_metrics(),
+            "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
+            "gui_queue_dispatch_lateness": _timing_summary(
+                active_preview._gui_queue_dispatch_lateness_ms
+            ),
+            "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,
+            "process_cpu_elapsed_s": process_cpu_elapsed,
+            "mean_cpu_cores_used": (process_cpu_elapsed / elapsed if elapsed > 0.0 else None),
             "mean_frame_interval_ms": mean_interval_ms,
             "p95_frame_interval_ms": p95_interval_ms,
             "max_frame_interval_ms": max_interval_ms,
@@ -481,6 +663,7 @@ def main() -> None:
             "stage_timings": {
                 name: _timing_summary(samples) for name, samples in stage_timings.items()
             },
+            "native_pypbd_stage_timings": native_timing_snapshot(),
             "seam_overlay_enabled": bool(getattr(seam_overlay, "_OVERLAY_ENABLED", False)),
             "backend_finite": backend_finite,
             "published_state_finite": published_state_finite,
@@ -491,6 +674,36 @@ def main() -> None:
                 "python_version": sys.version.split()[0],
                 "freecad_version": freecad_version,
                 "cpu_count": os.cpu_count(),
+                "cpu_model": runtime_cpu_model,
+                "cpu_affinity": runtime_cpu_affinity,
+                "cgroup_cpu_max": runtime_cgroup_cpu_max,
+                "cgroup_cpu_stat": runtime_cgroup_cpu_stat,
+                "thread_environment": {
+                    key: os.environ.get(key, "unset") for key in runtime_thread_keys
+                },
+                "pypbd_module": str(getattr(getattr(backend, "_pbd", None), "__file__", "unknown")),
+                "openmp_runtime_libraries": (
+                    sorted(
+                        {
+                            line.rsplit("/", 1)[-1].split(" ", 1)[0]
+                            for line in Path("/proc/self/maps")
+                            .read_text(encoding="utf-8")
+                            .splitlines()
+                            if any(
+                                token in line.lower() for token in ("libgomp", "libomp", "libiomp")
+                            )
+                        }
+                    )
+                    if Path("/proc/self/maps").is_file()
+                    else []
+                ),
+                "cuda_runner_probe": os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false"),
+                "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
+                "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
+                "cuda_device_nodes": sorted(
+                    path.name for path in Path("/dev").glob("nvidia*") if path.exists()
+                ),
+                "simulation_backend_device": "cpu",
                 "libgl_always_software": os.environ.get("LIBGL_ALWAYS_SOFTWARE", "unset"),
             },
             "pass": passed,

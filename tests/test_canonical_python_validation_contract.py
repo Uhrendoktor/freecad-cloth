@@ -82,6 +82,14 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     assert "test-args: gui" in block, "canonical CI contract"
 
 
+def test_realtime_preview_contract_modules_are_routed_to_pytest_group() -> None:
+    """Keep the isolated Coin3D preview tests in the canonical pytest job."""
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+
+    assert '"tests/test_realtime_mesh_preview.py"' in runner, "preview test routing"
+    assert '"tests/test_realtime_preview_timing.py"' in runner, "preview test routing"
+
+
 def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
     assert set(validate_acceptance.CASES) == {
@@ -160,7 +168,7 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
 
 
 def _valid_realtime_benchmark_metrics() -> JsonObject:
-    """Build a sample that satisfies the sustained 30 FPS metrics contract.
+    """Build a sample that satisfies the sustained 60 FPS metrics contract.
 
     Returns:
         Complete metrics mapping for a valid tunic realtime benchmark artifact.
@@ -173,18 +181,50 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "panel_count": 2,
         "collision_triangles": 240,
         "frame_budget_ms": validate_realtime_benchmark.FRAME_BUDGET_MS,
+        "publication_mode": "transient-coin3d",
         "frames_requested": 120,
         "warmup_frames_requested": 30,
         "measured_intervals": 120,
         "observed_ticks": 150,
         "expected_ticks": 150,
         "frames_advanced": 150,
+        "frame_scheduler": {
+            "mode": "threaded-feedback-phase-locked",
+            "target_fps": validate_realtime_benchmark.TARGET_FPS,
+            "initial_queue_delay_ms": 5.0,
+            "queue_delay_estimate_ms": 5.0,
+            "worker_wakeup_estimate_ms": 0.0,
+            "signals_emitted": 150,
+            "coalesced_pulses": 0,
+            "missed_deadlines": 0,
+            "outstanding_pulses": 0,
+            "dispatch_mode": "Qt.QueuedConnection",
+            "queued_dispatches": 150,
+        },
+        "worker_wakeup_lateness": {
+            "samples": 120,
+            "mean_ms": 0.12,
+            "p95_ms": 0.3,
+            "max_ms": 0.5,
+        },
+        "frame_dispatch_lateness": {
+            "samples": 120,
+            "mean_ms": 0.15,
+            "p95_ms": 0.4,
+            "max_ms": 0.8,
+        },
+        "gui_queue_dispatch_lateness": {
+            "samples": 120,
+            "mean_ms": 0.03,
+            "p95_ms": 0.1,
+            "max_ms": 0.2,
+        },
         "timed_out": False,
         "backend_finite": True,
         "published_state_finite": True,
-        "mean_frame_interval_ms": 16.4,
-        "p95_frame_interval_ms": 18.2,
-        "mean_callback_ms": 5.1,
+        "mean_frame_interval_ms": 10.4,
+        "p95_frame_interval_ms": 15.2,
+        "mean_callback_ms": 4.1,
         "p95_callback_ms": 6.3,
         "stage_timings": {
             "advance_preview_frame": {
@@ -195,7 +235,8 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             },
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
-            "mesh_write": {"samples": 240, "mean_ms": 4.0, "p95_ms": 5.0, "max_ms": 6.0},
+            "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
+            "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
             "overlay_schedule": {"samples": 60, "mean_ms": 0.1, "p95_ms": 0.2, "max_ms": 0.3},
             "viewport_redraw": {"samples": 120, "mean_ms": 3.0, "p95_ms": 4.0, "max_ms": 5.0},
         },
@@ -216,7 +257,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     }
 
 
-def test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample() -> None:
+def test_realtime_metric_validator_accepts_a_valid_sustained_60_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
     assert (
         validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
@@ -261,8 +302,8 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
     assert "measured_intervals must equal frames_requested" in errors, "canonical CI contract"
 
 
-def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
-    """Require benchmarks to use the production event loop and timer."""
+def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> None:
+    """Require benchmarks to use the production worker clock and GUI event loop."""
     source_path = ROOT / "tests" / "freecad_realtime_benchmark.py"
     parsed = ast.parse(source_path.read_text(encoding="utf-8"))
     identifiers = {node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)}
@@ -275,10 +316,12 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     assert "_Preview" in identifiers, "canonical CI contract"
     assert "_prepare" in identifiers, "canonical CI contract"
     assert "QEventLoop" in attributes, "canonical CI contract"
-    assert "disconnect" in attributes, "canonical CI contract"
-    assert "connect" in attributes, "canonical CI contract"
+    assert "set_tick_callback" in attributes, "canonical CI contract"
+    assert "stop_frame_clock" in attributes, "canonical CI contract"
     assert "WARMUP_FRAMES" in identifiers, "canonical CI contract"
     assert "FRAMES" in identifiers, "canonical CI contract"
+    assert "frame_scheduler" in string_constants, "canonical CI contract"
+    assert "frame_dispatch_lateness" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
@@ -292,8 +335,8 @@ def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
     vars(validate_manifests)["_validate_realtime_metrics"](_valid_realtime_benchmark_metrics())
 
 
-def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> None:
-    """Reject current-schema tunic metrics exceeding the unchanged 30 FPS budget."""
+def test_tunic_manifest_gate_rejects_new_schema_above_the_60_fps_budget() -> None:
+    """Reject current-schema tunic metrics exceeding the 60 FPS budget."""
     metrics = _valid_realtime_benchmark_metrics()
     metrics["p95_frame_interval_ms"] = validate_realtime_benchmark.FRAME_BUDGET_MS + 0.1
 

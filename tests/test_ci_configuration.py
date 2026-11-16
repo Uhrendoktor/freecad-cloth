@@ -125,10 +125,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "  publish-pr-simulation-evidence:", 1
     )[0]
     realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[0]
     realtime_validator = tunic_audit.split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
     assert workflow.count("timeout-seconds:") == 6, (
@@ -159,8 +159,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "timeout-minutes: 10" in blanket_visual, (
         "The blanket visual job must allow its bounded FreeCAD command and evidence upload to finish."
     )
-    assert tunic_audit.count("continue-on-error: true") == 3, (
-        "Only the realtime diagnostics and explicitly deferred production audit may be non-blocking."
+    assert tunic_audit.count("continue-on-error: true") == 2, (
+        "Only the realtime benchmark and its independent validator remain diagnostic-only."
     )
     assert "continue-on-error: true" in realtime_step, (
         "The realtime metric capture is diagnostic-only for this PR."
@@ -171,8 +171,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "id: production-tunic-audit" in production_tunic_step, (
         "The production tunic audit outcome must be reported explicitly."
     )
-    assert "continue-on-error: true" in production_tunic_step, (
-        "The production audit is advisory while its throughput follow-up is unresolved."
+    assert "continue-on-error: true" not in production_tunic_step, (
+        "The production audit must block when it fails or does not complete."
     )
     assert 'timeout-seconds: "360"' in production_tunic_step, (
         "The production audit must retain its existing bounded execution budget."
@@ -180,11 +180,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "steps.production-tunic-audit.outcome" in production_tunic_step, (
         "The advisory warning must preserve the actual audit step outcome."
     )
-    assert "this is not a pass" in production_tunic_step, (
-        "A deferred or timed-out production audit must never be reported as passed."
+    assert "::error title=Production tunic audit failed" in production_tunic_step, (
+        "A timed-out or failed production audit must produce a blocking CI error."
     )
-    assert "#2839" in production_tunic_step, (
-        "The deferred production audit must identify its dedicated performance follow-up."
+    assert "is blocking" in production_tunic_step, (
+        "The production audit must explicitly identify the blocking failure outcome."
     )
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
@@ -261,8 +261,8 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup, 'Expected "packages: write" in cleanup.'
 
 
-def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
-    """Run scheduled retention without hosted fallback or cancellation logic."""
+def test_one_shot_retention_run_uses_the_configured_hosted_runner() -> None:
+    """Run scheduled retention on the configured hosted runner without a watchdog."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -279,8 +279,9 @@ def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
 
     assert f"!({activation})" in readiness
     assert f"!({activation})" in image
-    assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
-    assert "ubuntu-latest" not in workflow
+    assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in cleanup
+    assert "default: '\"ubuntu-latest\"'" in workflow
+    assert "self-hosted" not in workflow
     assert "runner_watchdog" not in workflow
     assert (
         "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"
@@ -808,7 +809,7 @@ def test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads() -> None:
         return iter([])
 
     lookup = maintenance_cleanup.ClosedPullRequestLookup(
-        "owner/repo", set(), "main", activity, cutoff
+        "owner/repo", set(), "main", activity, cutoff, set()
     )
     matched = maintenance_cleanup.closed_pr_head_shas_by_branch(
         branches, lookup, api_items_loader=fake_load_items
@@ -843,6 +844,11 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
             "commit": {"sha": "2" * 40},
         },
         {
+            "name": "simulation-evidence/pr-2847",
+            "protected": False,
+            "commit": {"sha": "9" * 40},
+        },
+        {
             "name": "fix/old-closed-work",
             "protected": False,
             "commit": {"sha": "3" * 40},
@@ -875,7 +881,7 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         {
             "name": "docs/screenshots",
             "protected": False,
-            "commit": {"sha": "9" * 40},
+            "commit": {"sha": "a" * 40},
         },
     ]
     activity = {
@@ -886,20 +892,84 @@ def test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs(
         "6" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
         "8" * 40: maintenance_cleanup.epoch("2026-06-15T00:00:00Z"),
         "9" * 40: maintenance_cleanup.epoch("2026-07-01T00:00:00Z"),
+        "a" * 40: maintenance_cleanup.epoch("2026-06-01T00:00:00Z"),
     }
 
-    retention = maintenance_cleanup.BranchRetentionPolicy(activity, cutoff, {})
+    retention = maintenance_cleanup.BranchRetentionPolicy(activity, cutoff, {}, {2847})
     stale = maintenance_cleanup.stale_unprotected_branches(
         branches, {"agent/open-pr"}, "main", retention
     )
 
     assert [branch["name"] for branch in stale] == [
         "maintenance/old-closed-work",
+        "simulation-evidence/pr-2500",
         "fix/old-closed-work",
     ], (
         'Expected ( [branch["name"] for branch in stale] == [ '
-        '"maintenance/old-closed-work", "fix/old-closed-work", ] ).'
+        '"maintenance/old-closed-work", "simulation-evidence/pr-2500", "fix/old-closed-work", ] ).'
     )
+
+
+
+def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten() -> None:
+    """Prune only the oldest completed runs until ten remain."""
+    runs = [
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
+        for run_id in range(1, 13)
+    ]
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        keep=10,
+        now=maintenance_cleanup.datetime(2026, 11, 16, tzinfo=maintenance_cleanup.UTC),
+        total_count_loader=lambda *_args: {"total_count": 12},
+        completed_runs_loader=lambda _repo, _cutoff: runs,
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    deleted_ids = sorted(int(path.rsplit("/", maxsplit=1)[1]) for path in deleted_paths)
+    assert deleted_ids == [1, 2]
+    assert result == {
+        "total_before": 12,
+        "keep": 10,
+        "deleted": 2,
+        "remaining_estimate": 10,
+        "pending": 0,
+    }
+
+
+
+def test_workflow_run_cap_reserves_slot_for_current_cleanup_run() -> None:
+    """Leave nine completed runs so the current cleanup workflow becomes number ten."""
+    runs = [
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
+        for run_id in range(1, 13)
+    ]
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        keep=9,
+        now=maintenance_cleanup.datetime(2026, 11, 16, tzinfo=maintenance_cleanup.UTC),
+        total_count_loader=lambda *_args: {"total_count": 12},
+        completed_runs_loader=lambda _repo, _cutoff: runs,
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    deleted_ids = sorted(int(path.rsplit("/", maxsplit=1)[1]) for path in deleted_paths)
+    assert deleted_ids == [1, 2, 3]
+    assert result["remaining_estimate"] == 9
+
+
+def test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten() -> None:
+    """A completed-run inventory already within the cap is left untouched."""
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        total_count_loader=lambda *_args: {"total_count": 10},
+        completed_runs_loader=lambda _repo, _cutoff: [],
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    assert result["deleted"] == 0
+    assert result["remaining_estimate"] == 10
+    assert deleted_paths == []
 
 
 def test_maintenance_cleanup_filters_and_orders_runs_before_cutoff() -> None:

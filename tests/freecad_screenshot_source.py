@@ -18,7 +18,10 @@ import FreeCADGui as Gui
 if TYPE_CHECKING:
     from PySide2 import QtWidgets
 
+    from freecad_cloth.shared.Collision import CollisionSurface
     from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
+    from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+    from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 else:
     try:
         from PySide import QtWidgets
@@ -1985,7 +1988,7 @@ def _run_production_tunic_drape(
     """
     """Exercise realtime preview, validate collision settings, and capture the 90-step drape."""
     from math import ceil
-    from time import monotonic, perf_counter, sleep
+    from time import monotonic, perf_counter, process_time, sleep
 
     from freecad_cloth.simulation import RealtimePreview
 
@@ -2157,36 +2160,455 @@ def _run_production_tunic_drape(
         "production tunic before gravity",
     )
     log_seam_progress("step-%d" % int(scene.Steps))
-    started = perf_counter()
-    for frame_index, batch in enumerate((10,) * 9, start=1):
-        frame_started = perf_counter()
-        simulation_panel.step(batch)
-        doc.recompute()
-        events()
-        log_seam_progress("step-%d" % int(scene.Steps))
-        _call_host_method(view, "viewAxonometric")
-        _call_host_method(view, "fitAll")
-        events()
-        save_view(
-            "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
-            "mannequin drape step %d" % int(scene.Steps),
-            "production tunic gravity progression",
+    # pyPBD's public Timing accumulator exposes the native TimeStepController
+    # timers ("simulation step", "position constraints projection", and
+    # "collision detection"). Reset it after the short preview smoke test so
+    # production measurements do not include preview work.
+    timing_api = getattr(getattr(active_backend, "_pbd", None), "Timing", None)
+    timing_reset = getattr(timing_api, "reset", None)
+    if not callable(timing_reset) or not hasattr(timing_api, "m_averageTimes"):
+        raise RuntimeError("pinned pyPBD runtime does not expose native Timing accumulators")
+    timing_reset()
+
+    profile_output = pathlib.Path("artifacts/tunic-audit/production-pbd-profile.json")
+    profile_output.parent.mkdir(exist_ok=True, parents=True)
+    profile_samples_ms: dict[str, list[float]] = {}
+    batch_history: list[dict[str, int | float]] = []
+    inside_stitched_reconciliation = [False]
+
+    def record_profile_sample(stage: str, started_at: float) -> None:
+        profile_samples_ms.setdefault(stage, []).append(1000.0 * (perf_counter() - started_at))
+
+    def profile_summary(samples: Sequence[float]) -> dict[str, int | float | None]:
+        if not samples:
+            return {
+                "samples": 0,
+                "total_ms": 0.0,
+                "mean_ms": None,
+                "p95_ms": None,
+                "max_ms": None,
+            }
+        ordered = sorted(float(value) for value in samples)
+        p95_index = max(0, min(len(ordered) - 1, int(ceil(0.95 * len(ordered))) - 1))
+        return {
+            "samples": len(ordered),
+            "total_ms": sum(ordered),
+            "mean_ms": sum(ordered) / len(ordered),
+            "p95_ms": ordered[p95_index],
+            "max_ms": ordered[-1],
+        }
+
+    def native_timing_snapshot() -> dict[str, dict[str, int | float | None]]:
+        average_times = timing_api.m_averageTimes
+        records: dict[str, dict[str, int | float | None]] = {}
+        for entry in average_times.values():
+            name = str(getattr(entry, "name", "")).strip()
+            count = int(getattr(entry, "counter", 0))
+            total_ms = float(getattr(entry, "totalTime", 0.0))
+            if name:
+                records[name] = {
+                    "samples": count,
+                    "total_ms": total_ms,
+                    "mean_ms": total_ms / count if count else None,
+                }
+        return dict(sorted(records.items()))
+
+    def runtime_limits() -> dict[
+        str, str | int | float | bool | list[int] | list[str] | dict[str, str] | None
+    ]:
+        def read_runtime_file(path: str) -> str | None:
+            try:
+                return pathlib.Path(path).read_text(encoding="utf-8").strip()
+            except OSError:
+                return None
+
+        affinity_getter = getattr(os, "sched_getaffinity", None)
+        affinity = (
+            sorted(int(value) for value in affinity_getter(0)) if callable(affinity_getter) else []
         )
-        log(
-            "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
-            "particles=%d iterations=%d scene_substeps=%d backend_substeps=%d"
-            % (
-                frame_index,
-                int(scene.Steps),
-                batch,
-                1000.0 * (perf_counter() - frame_started),
-                1000.0 * (perf_counter() - started),
-                int(scene.ParticleCount),
-                int(scene.SolverIterations),
-                int(scene.SolverSubsteps),
-                int(getattr(active_backend, "_substeps", -1)),
+        cpu_max = read_runtime_file("/sys/fs/cgroup/cpu.max")
+        quota_cores: float | None = None
+        if cpu_max:
+            values = cpu_max.split()
+            if len(values) == 2 and values[0] != "max":
+                try:
+                    quota_cores = int(values[0]) / int(values[1])
+                except (ValueError, ZeroDivisionError):
+                    quota_cores = None
+        cpu_model = None
+        cpu_info = read_runtime_file("/proc/cpuinfo")
+        if cpu_info:
+            cpu_model = next(
+                (
+                    line.split(":", 1)[1].strip()
+                    for line in cpu_info.splitlines()
+                    if line.startswith("model name")
+                ),
+                None,
             )
+        cuda_device_nodes = sorted(
+            path.name for path in pathlib.Path("/dev").glob("nvidia*") if path.exists()
         )
+        cuda_available = os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false").lower() == "true"
+        thread_keys = (
+            "OMP_NUM_THREADS",
+            "OMP_DYNAMIC",
+            "OMP_PROC_BIND",
+            "OMP_PLACES",
+            "OMP_MAX_ACTIVE_LEVELS",
+            "OMP_THREAD_LIMIT",
+            "OMP_WAIT_POLICY",
+            "GOMP_SPINCOUNT",
+            "OPENBLAS_NUM_THREADS",
+            "MKL_NUM_THREADS",
+            "NUMEXPR_NUM_THREADS",
+        )
+        mapped_libraries = read_runtime_file("/proc/self/maps")
+        openmp_runtime_libraries = (
+            sorted(
+                {
+                    line.rsplit("/", 1)[-1].split(" ", 1)[0]
+                    for line in mapped_libraries.splitlines()
+                    if any(token in line.lower() for token in ("libgomp", "libomp", "libiomp"))
+                }
+            )
+            if mapped_libraries is not None
+            else []
+        )
+        return {
+            "cpu_model": cpu_model,
+            "platform": sys.platform,
+            "machine": os.uname().machine if hasattr(os, "uname") else None,
+            "logical_cpu_count": os.cpu_count(),
+            "affinity_cpu_count": len(affinity) if affinity else None,
+            "affinity_cpus": affinity,
+            "cgroup_cpu_max": cpu_max,
+            "cgroup_cpu_quota_cores": quota_cores,
+            "cgroup_cpuset": read_runtime_file("/sys/fs/cgroup/cpuset.cpus.effective"),
+            "cgroup_cpu_stat": read_runtime_file("/sys/fs/cgroup/cpu.stat"),
+            "cgroup_cpu_pressure": read_runtime_file("/sys/fs/cgroup/cpu.pressure"),
+            "cgroup_memory_max": read_runtime_file("/sys/fs/cgroup/memory.max"),
+            "thread_environment": {key: os.environ.get(key, "unset") for key in thread_keys},
+            "pypbd_module": str(
+                getattr(getattr(active_backend, "_pbd", None), "__file__", "unknown")
+            ),
+            "openmp_runtime_libraries": openmp_runtime_libraries,
+            "cuda_runner_probe": cuda_available,
+            "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
+            "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
+            "cuda_device_nodes": cuda_device_nodes,
+            "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES", "unset"),
+            "nvidia_driver_version": read_runtime_file("/proc/driver/nvidia/version"),
+            "simulation_backend_device": "cpu",
+        }
+
+    def write_profile_checkpoint(
+        backend_steps_completed: int,
+        elapsed_ms: float,
+        process_cpu_elapsed_ms: float,
+        *,
+        scene_steps_completed: int,
+    ) -> None:
+        native = native_timing_snapshot()
+        python_stages = {
+            name: profile_summary(samples) for name, samples in sorted(profile_samples_ms.items())
+        }
+        backend_step_ms = float(python_stages.get("backend_step_total", {}).get("total_ms") or 0.0)
+        collision_projection_ms = float(
+            python_stages.get("collision_projection_total", {}).get("total_ms") or 0.0
+        )
+        mesh_projector_ms = float(
+            python_stages.get("mesh_collision_projector", {}).get("total_ms") or 0.0
+        )
+        stitched_ms = float(
+            python_stages.get("stitched_pair_reconciliation", {}).get("total_ms") or 0.0
+        )
+        native_step_ms = float(native.get("simulation step", {}).get("total_ms") or 0.0)
+        native_constraints_ms = float(
+            native.get("position constraints projection", {}).get("total_ms") or 0.0
+        )
+        native_collision_ms = float(native.get("collision detection", {}).get("total_ms") or 0.0)
+        panel_step_ms = float(python_stages.get("panel_step_total", {}).get("total_ms") or 0.0)
+        profile = {
+            "schema_version": 1,
+            "fixture": "canonical-two-panel-tunic-production",
+            "steps_completed": scene_steps_completed,
+            "backend_steps_completed": backend_steps_completed,
+            "steps_requested": 90,
+            "scene_steps_requested": 90,
+            "scene_steps_completed": scene_steps_completed,
+            "simulation_complete": scene_steps_completed == 90 and bool(scene.FiniteState),
+            "audit_complete": False,
+            "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
+            "elapsed_production_ms": elapsed_ms,
+            "process_cpu_elapsed_ms": process_cpu_elapsed_ms,
+            "mean_cpu_cores_used": (
+                process_cpu_elapsed_ms / elapsed_ms if elapsed_ms > 0.0 else None
+            ),
+            "production_settings": {
+                "particles": int(scene.ParticleCount),
+                "scene_substeps": int(scene.SolverSubsteps),
+                "native_pbd_substeps": int(getattr(active_backend, "_substeps", -1)),
+                "position_iterations": int(scene.SolverIterations),
+                "velocity_iterations": int(scene.SolverIterations),
+                "particle_distance_mm": float(scene.ParticleDistance),
+                "time_step_seconds": float(scene.TimeStep),
+                "collision_mode": "mesh",
+                "collision_triangles": len(collision.triangles),
+                "collision_thickness_mm": thickness_mm,
+                "collision_voxel_mm": voxel_mm,
+                "collision_configured_tolerance_mm": configured_mm,
+                "collision_effective_clearance_mm": effective_mm,
+            },
+            "native_pypbd_stage_timings": native,
+            "python_backend_stage_timings": python_stages,
+            "derived_exclusive_timings_ms": {
+                "native_step_other": max(
+                    0.0, native_step_ms - native_constraints_ms - native_collision_ms
+                ),
+                "backend_python_and_binding_bridge": max(
+                    0.0, backend_step_ms - native_step_ms - collision_projection_ms
+                ),
+                "collision_projection_binding_array_bridge": max(
+                    0.0, collision_projection_ms - mesh_projector_ms - stitched_ms
+                ),
+                "panel_step_publication_and_gui_overhead": max(
+                    0.0, panel_step_ms - backend_step_ms
+                ),
+            },
+            "batch_history": list(batch_history),
+            "runtime_limits": runtime_limits(),
+            "pypbd_provenance": (
+                pathlib.Path("/opt/pypbd-provenance.txt").read_text(encoding="utf-8")
+                if pathlib.Path("/opt/pypbd-provenance.txt").is_file()
+                else None
+            ),
+            "preview_metrics": {
+                "separate_fixture": "tests/freecad_realtime_benchmark.py",
+                "metrics_path": "artifacts/freecad-realtime/metrics.json",
+                "included_in_production_timings": False,
+            },
+            "timing_notes": [
+                (
+                    "Native pyPBD timers are inclusive: position constraints and collision "
+                    "detection are components of native simulation step."
+                ),
+                (
+                    "Python projector and stitched-pair timings are exclusive; projector calls "
+                    "made during stitch reconciliation are assigned to stitched-pair "
+                    "reconciliation."
+                ),
+                (
+                    "Backend and projection bridge timings are residuals after subtracting "
+                    "their separately measured children; they include Python/native binding "
+                    "overhead and array conversion."
+                ),
+                (
+                    "panel_step_total includes its internal document recompute, seam overlay "
+                    "refresh, panel refresh, and panel-triggered fitAll; the explicit audit "
+                    "recompute and capture stages are timed separately."
+                ),
+            ],
+        }
+        profile_output.write_text(
+            json.dumps(profile, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    # Temporarily patch the backend and projector classes so scene recomputes
+    # cannot move production steps onto an uninstrumented replacement instance.
+    # The original methods are restored before the audit continues.
+    backend_module = importlib.import_module(
+        "freecad_cloth.simulation.PositionBasedDynamicsBackend"
+    )
+    backend_class = backend_module.PositionBasedDynamicsBackend
+    mesh_projector_module = importlib.import_module(
+        "freecad_cloth.simulation.MeshCollisionProjector"
+    )
+    projector_class = mesh_projector_module.MeshCollisionProjector
+    original_backend_step = backend_class.step
+    original_collision_projection = backend_class._project_collision_positions
+    original_project = projector_class.project
+    original_stitched_pairs = mesh_projector_module.project_stitched_pairs
+    if getattr(active_backend, "_collision_projector", None) is None:
+        raise RuntimeError("production tunic mesh collision projector is unavailable")
+
+    backend_steps_completed = 0
+
+    def timed_backend_step(
+        backend: "PositionBasedDynamicsBackend",
+        dt: float = 1.0 / 60.0,
+        iterations: int = 8,
+        gravity: Sequence[float] = (0.0, 0.0, -9810.0),
+        surface: "CollisionSurface | None" = None,
+    ) -> None:
+        nonlocal backend_steps_completed
+        stage_started = perf_counter()
+        completed = False
+        try:
+            original_backend_step(backend, dt, iterations, gravity, surface)
+            completed = True
+        finally:
+            record_profile_sample("backend_step_total", stage_started)
+            if completed:
+                backend_steps_completed += 1
+                backend_elapsed_ms = 1000.0 * (perf_counter() - started)
+                backend_process_cpu_elapsed_ms = 1000.0 * (process_time() - started_process)
+                write_profile_checkpoint(
+                    backend_steps_completed,
+                    backend_elapsed_ms,
+                    backend_process_cpu_elapsed_ms,
+                    scene_steps_completed=int(scene.Steps),
+                )
+
+    def timed_collision_projection(backend: "PositionBasedDynamicsBackend") -> None:
+        stage_started = perf_counter()
+        try:
+            original_collision_projection(backend)
+        finally:
+            record_profile_sample("collision_projection_total", stage_started)
+
+    def timed_mesh_projector(
+        projector: "MeshCollisionProjector",
+        points_mm: Sequence[Sequence[float]],
+    ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
+        stage_started = perf_counter()
+        try:
+            return original_project(projector, points_mm)
+        finally:
+            if not inside_stitched_reconciliation[0]:
+                record_profile_sample("mesh_collision_projector", stage_started)
+
+    def timed_stitched_pair_reconciliation(
+        projector: "MeshCollisionProjector",
+        positions_mm: Sequence[Sequence[float]],
+        contact_normals: Sequence[Sequence[float]],
+        stitches: Sequence[tuple[int, int]],
+        pinned_indices: Sequence[int] = (),
+    ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
+        stage_started = perf_counter()
+        inside_stitched_reconciliation[0] = True
+        try:
+            return original_stitched_pairs(
+                projector, positions_mm, contact_normals, stitches, pinned_indices
+            )
+        finally:
+            inside_stitched_reconciliation[0] = False
+            record_profile_sample("stitched_pair_reconciliation", stage_started)
+
+    started = perf_counter()
+    started_process = process_time()
+    try:
+        backend_class.step = timed_backend_step
+        backend_class._project_collision_positions = timed_collision_projection
+        projector_class.project = timed_mesh_projector
+        mesh_projector_module.project_stitched_pairs = timed_stitched_pair_reconciliation
+        profile_output.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "fixture": "canonical-two-panel-tunic-production",
+                    "steps_completed": int(scene.Steps),
+                    "backend_steps_completed": backend_steps_completed,
+                    "steps_requested": 90,
+                    "scene_steps_requested": 90,
+                    "scene_steps_completed": int(scene.Steps),
+                    "simulation_complete": False,
+                    "audit_complete": False,
+                    "acceptance_gates": "pending downstream geometry, seam, clearance, and penetration checks",
+                    "status": "profiling started; first completed solver-step checkpoint not yet written",
+                    "production_settings": {
+                        "particles": int(scene.ParticleCount),
+                        "scene_substeps": int(scene.SolverSubsteps),
+                        "native_pbd_substeps": int(getattr(active_backend, "_substeps", -1)),
+                        "position_iterations": int(scene.SolverIterations),
+                        "velocity_iterations": int(scene.SolverIterations),
+                        "collision_mode": "mesh",
+                        "collision_triangles": len(collision.triangles),
+                    },
+                    "runtime_limits": runtime_limits(),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        for frame_index, batch in enumerate((10,) * 9, start=1):
+            batch_started = perf_counter()
+            batch_cpu_started = process_time()
+
+            stage_started = perf_counter()
+            simulation_panel.step(batch)
+            record_profile_sample("panel_step_total", stage_started)
+
+            stage_started = perf_counter()
+            doc.recompute()
+            record_profile_sample("audit_document_recompute", stage_started)
+
+            stage_started = perf_counter()
+            events()
+            record_profile_sample("gui_event_processing", stage_started)
+
+            stage_started = perf_counter()
+            log_seam_progress("step-%d" % int(scene.Steps))
+            record_profile_sample("seam_diagnostics", stage_started)
+
+            stage_started = perf_counter()
+            _call_host_method(view, "viewAxonometric")
+            _call_host_method(view, "fitAll")
+            record_profile_sample("viewport_framing", stage_started)
+
+            stage_started = perf_counter()
+            events()
+            record_profile_sample("gui_event_processing", stage_started)
+
+            stage_started = perf_counter()
+            save_view(
+                "cloth-tunic-mannequin-motion-frames/motion-%03d.png" % frame_index,
+                "mannequin drape step %d" % int(scene.Steps),
+                "production tunic gravity progression",
+            )
+            record_profile_sample("screenshot_capture", stage_started)
+            record_profile_sample("production_batch_total", batch_started)
+
+            elapsed_ms = 1000.0 * (perf_counter() - started)
+            process_cpu_elapsed_ms = 1000.0 * (process_time() - started_process)
+            batch_history.append(
+                {
+                    "frame": frame_index,
+                    "steps_completed": int(scene.Steps),
+                    "batch_size": batch,
+                    "elapsed_ms": 1000.0 * (perf_counter() - batch_started),
+                    "process_cpu_elapsed_ms": 1000.0 * (process_time() - batch_cpu_started),
+                }
+            )
+            write_profile_checkpoint(
+                backend_steps_completed,
+                elapsed_ms,
+                process_cpu_elapsed_ms,
+                scene_steps_completed=int(scene.Steps),
+            )
+            log(
+                "tunic-simulation-frame=%d steps=%d batch=%d elapsed_ms=%.1f total_ms=%.1f "
+                "particles=%d iterations=%d scene_substeps=%d backend_substeps=%d"
+                % (
+                    frame_index,
+                    int(scene.Steps),
+                    batch,
+                    1000.0 * (perf_counter() - batch_started),
+                    elapsed_ms,
+                    int(scene.ParticleCount),
+                    int(scene.SolverIterations),
+                    int(scene.SolverSubsteps),
+                    int(getattr(active_backend, "_substeps", -1)),
+                )
+            )
+    finally:
+        backend_class.step = original_backend_step
+        backend_class._project_collision_positions = original_collision_projection
+        projector_class.project = original_project
+        mesh_projector_module.project_stitched_pairs = original_stitched_pairs
+
     task_dock.show()
     task_dock.raise_()
     events()
@@ -3261,6 +3683,35 @@ def simulation() -> None:
             json.load(handle).get("panels", ()),
             allowed_diagnostics={"below-hem-candidate"},
         )
+    if TUNIC_PRODUCTION_AUDIT:
+        profile_path = pathlib.Path("artifacts/tunic-audit/production-pbd-profile.json")
+        if not profile_path.is_file():
+            raise RuntimeError(
+                "production PBD profile checkpoint is missing after the 90-step audit"
+            )
+        profile = json.loads(profile_path.read_text(encoding="utf-8"))
+        if int(profile.get("steps_completed", 0)) != 90 or not bool(
+            profile.get("simulation_complete", False)
+        ):
+            raise RuntimeError(
+                "production PBD profile does not describe a complete finite 90-step state"
+            )
+        profile["audit_complete"] = True
+        profile["acceptance_gates"] = "passed"
+        profile["acceptance_gate_results"] = {
+            "finite_90_step_state": True,
+            "seam_overlay": True,
+            "panel_mesh_nonempty": True,
+            "authoritative_seam_correspondence": True,
+            "target_clearance_and_penetration": True,
+            "six_view_visual_capture": True,
+            "drape_visual_diagnostics": True,
+        }
+        profile_path.write_text(
+            json.dumps(profile, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        log("production-pbd-profile=audit-complete acceptance-gates=passed")
     task_dock.show()
     task_dock.raise_()
     events()
