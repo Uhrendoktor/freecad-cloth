@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
-from math import isfinite
+from math import ceil, isfinite
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -16,22 +16,48 @@ if TYPE_CHECKING:
 _PREVIEW = None
 _PREVIEW_TARGET_FPS = 60.0
 _PREVIEW_FRAME_BUDGET_MS = 1000.0 / _PREVIEW_TARGET_FPS
+_TIMER_LATENESS_SAMPLE_LIMIT = 60
+_TIMER_LATENESS_PERCENTILE = 0.90
 
 
-def _next_timer_interval_ms(callback_elapsed_ms: float) -> int:
-    """Return the remaining 60 FPS frame budget as a safe Qt timer interval.
+def _timer_wakeup_compensation_ms(samples: Sequence[float]) -> float:
+    """Estimate Qt timer wakeup delay from the upper tail of recent frame samples.
+
+    Args:
+        samples: Recent non-negative timer wakeup lateness samples in milliseconds.
+
+    Returns:
+        Nearest-rank 90th-percentile lateness, or zero when no valid samples exist.
+    """
+    ordered = sorted(value for value in samples if isfinite(value) and value >= 0.0)
+    if not ordered:
+        return 0.0
+    rank = max(1, ceil(_TIMER_LATENESS_PERCENTILE * len(ordered)))
+    return ordered[min(len(ordered), rank) - 1]
+
+
+def _next_timer_interval_ms(
+    callback_elapsed_ms: float,
+    timer_wakeup_lateness_ms: float = 0.0,
+) -> int:
+    """Return the remaining 60 FPS frame budget after callback and measured timer delay.
 
     Args:
         callback_elapsed_ms: Time spent advancing and presenting the most recent frame.
+        timer_wakeup_lateness_ms: Recent upper-tail Qt timer delay measured after a frame.
 
     Returns:
-        Millisecond delay that keeps callback time plus timer delay within the target
-        frame budget when the callback itself fits the budget. A one millisecond
-        minimum avoids a zero-interval timer starving the Qt event loop.
+        Millisecond delay that compensates for both callback cost and observed timer
+        lateness. A one millisecond minimum avoids a zero-interval timer starving the
+        Qt event loop.
     """
-    if not isfinite(callback_elapsed_ms):
+    if not isfinite(callback_elapsed_ms) or not isfinite(timer_wakeup_lateness_ms):
         return 1
-    remaining_ms = _PREVIEW_FRAME_BUDGET_MS - max(0.0, callback_elapsed_ms)
+    remaining_ms = (
+        _PREVIEW_FRAME_BUDGET_MS
+        - max(0.0, callback_elapsed_ms)
+        - max(0.0, timer_wakeup_lateness_ms)
+    )
     return max(1, int(remaining_ms))
 
 
@@ -43,15 +69,25 @@ class _PreviewTimer(Protocol):
     def start(self) -> None: ...
 
 
-def _schedule_next_frame(timer: _PreviewTimer, callback_elapsed_ms: float) -> None:
-    """Schedule the next one-shot timer after the current frame has completed.
+def _schedule_next_frame(
+    timer: _PreviewTimer,
+    callback_elapsed_ms: float,
+    timer_wakeup_lateness_ms: float = 0.0,
+) -> int:
+    """Schedule the next one-shot timer and return its requested interval.
 
     Args:
         timer: Inactive single-shot Qt timer that owns the next preview callback.
         callback_elapsed_ms: Time spent advancing and presenting the current frame.
+        timer_wakeup_lateness_ms: Recent upper-tail Qt timer delay measured after a frame.
+
+    Returns:
+        Requested timer interval in milliseconds.
     """
-    timer.setInterval(_next_timer_interval_ms(callback_elapsed_ms))
+    interval_ms = _next_timer_interval_ms(callback_elapsed_ms, timer_wakeup_lateness_ms)
+    timer.setInterval(interval_ms)
     timer.start()
+    return interval_ms
 
 
 class _SceneDocument(Protocol):
@@ -142,6 +178,9 @@ class _Preview:
         self.running = False
         self._overlay_refresh_ticks = 0
         self._mesh_preview: RealtimeMeshPreview | None = None
+        self._timer_wakeup_lateness_ms: list[float] = []
+        self._last_callback_finished_at: float | None = None
+        self._last_scheduled_interval_ms: int | None = None
         self._saved = {
             name: getattr(scene, name)
             for name in (
@@ -189,6 +228,9 @@ class _Preview:
             mesh_preview.close()
             raise
         self._mesh_preview = mesh_preview
+        self._timer_wakeup_lateness_ms.clear()
+        self._last_callback_finished_at = None
+        self._last_scheduled_interval_ms = None
         self.running = True
         self.timer.start()
         self._message("Realtime preview running")
@@ -224,6 +266,15 @@ class _Preview:
     def tick(self) -> None:
         """Advance the persisted simulation step and redraw the viewport."""
         started_at = time.perf_counter()
+        if (
+            self._last_callback_finished_at is not None
+            and self._last_scheduled_interval_ms is not None
+        ):
+            actual_wait_ms = 1000.0 * (started_at - self._last_callback_finished_at)
+            wakeup_lateness_ms = max(0.0, actual_wait_ms - self._last_scheduled_interval_ms)
+            self._timer_wakeup_lateness_ms.append(wakeup_lateness_ms)
+            if len(self._timer_wakeup_lateness_ms) > _TIMER_LATENESS_SAMPLE_LIMIT:
+                del self._timer_wakeup_lateness_ms[0]
         try:
             doc = getattr(self.scene, "Document", None)
             if doc is None:
@@ -251,8 +302,17 @@ class _Preview:
             self._message(f"Realtime preview stopped: {exc}")
         finally:
             if self.running:
-                callback_elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
-                _schedule_next_frame(self.timer, callback_elapsed_ms)
+                finished_at = time.perf_counter()
+                callback_elapsed_ms = 1000.0 * (finished_at - started_at)
+                timer_wakeup_lateness_ms = _timer_wakeup_compensation_ms(
+                    self._timer_wakeup_lateness_ms
+                )
+                self._last_scheduled_interval_ms = _schedule_next_frame(
+                    self.timer,
+                    callback_elapsed_ms,
+                    timer_wakeup_lateness_ms,
+                )
+                self._last_callback_finished_at = time.perf_counter()
 
     @staticmethod
     def _message(message: str) -> None:
