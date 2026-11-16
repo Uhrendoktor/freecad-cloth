@@ -87,8 +87,8 @@ class _TopologyRepairViewportPicker:
 
         Args:
             document_name: Internal document name reported by FreeCAD.
-            object_name: Internal name of the selected PatternPiece.
-            subelement_name: Native edge selector such as Edge3.
+            object_name: Internal name of the temporarily shown native Sketcher object.
+            subelement_name: Native Sketch edge selector such as Edge3.
             *_position: Optional picked world coordinates supplied by FreeCAD.
         """
         if not self.armed:
@@ -270,7 +270,7 @@ class PatternTopologyRepairTaskPanel:
 
         Args:
             seam: Seam feature containing the invalid side.
-            side: A or B side whose PatternPiece must be clicked.
+            side: A or B side whose linked Sketcher edge must be picked.
             combo: Row combo box receiving the selected semantic edge ID.
         """
         if self._active_picker is not None:
