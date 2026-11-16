@@ -341,7 +341,7 @@ def _cut_contour_with_notches(
     return tuple(result)
 
 
-def _sampled_sewing(pattern, curve_samples):
+def _sampled_sewing(pattern: ParametricPattern, curve_samples: int) -> list[Point]:
     """Sample the authoritative sewing outline and reject an empty boundary.
 
     Args:
@@ -486,7 +486,7 @@ def to_svg(
         msg = "pattern must have non-zero extent"
         raise ValueError(msg)
 
-    def xy(point):
+    def xy(point: Point) -> Point:
         """Translate a pattern coordinate into the SVG viewBox coordinate frame.
 
         Args:
@@ -497,7 +497,7 @@ def to_svg(
         """
         return (point[0] - min_x, height - (point[1] - min_y))
 
-    def path(points, *, closed=True):
+    def path(points: Iterable[Point], *, closed: bool = True) -> str:
         """Serialize an ordered point sequence as one SVG path command string.
 
         Args:
@@ -583,9 +583,11 @@ def to_dxf(
     if derived is not None and derived.sewing_boundary is not pattern:
         msg = "derived pattern belongs to a different sewing boundary"
         raise ValueError(msg)
-    entities = []
+    entities: list[list[str]] = []
 
-    def polyline(points, layer, *, closed=True):
+    def polyline(
+        points: Iterable[Point], layer: str, *, closed: bool = True
+    ) -> None:
         """Append one lightweight-polyline entity to the requested DXF layer.
 
         Args:
