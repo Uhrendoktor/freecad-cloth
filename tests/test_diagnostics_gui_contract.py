@@ -121,6 +121,10 @@ def _install_panel_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     ):
         setattr(widgets, name, value)
 
+    from freecad_cloth.common import UiDesign
+
+    monkeypatch.setattr(UiDesign, "mark_button", lambda *_args: None)
+    monkeypatch.setattr(UiDesign, "apply_panel_style", lambda _panel: None)
     monkeypatch.setattr(
         ClothDiagnosticsGui,
         "_qt",
