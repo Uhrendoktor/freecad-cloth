@@ -4,7 +4,10 @@
 from __future__ import annotations
 
 import tomllib
-from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 from tests.support.assertions import require
 
@@ -254,7 +257,10 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     require(
         condition=set(project["tool"]["ruff"]["lint"]["pep8-naming"]["extend-ignore-names"])
         == host_api_names | host_api_variables,
-        message="Naming exceptions must remain limited to exact native API identifiers and aliases.",
+        message=(
+            "Naming exceptions must remain limited to exact native API "
+            "identifiers and aliases."
+        ),
     )
     require(
         condition=lint.get("select") == ["ALL"],
@@ -270,12 +276,18 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="Global ignores must match the reviewed formatter, host API, import, exception-flow, documentation, and callback boundaries.",
+        message=(
+            "Global ignores must match the reviewed formatter, host API, import, "
+            "exception-flow, documentation, and callback boundaries."
+        ),
     )
     actual_per_file = lint.get("per-file-ignores", {})
     normalized_actual = {path: sorted(rules) for path, rules in actual_per_file.items()}
     normalized_expected = {path: sorted(rules) for path, rules in expected_per_file.items()}
     require(
         condition=normalized_actual == normalized_expected,
-        message="Per-file exceptions must remain limited to test oracles, CLI output, exact bootstraps, native callbacks, and preserved public signatures.",
+        message=(
+            "Per-file exceptions must remain limited to test oracles, CLI output, "
+            "exact bootstraps, native callbacks, and preserved public signatures."
+        ),
     )

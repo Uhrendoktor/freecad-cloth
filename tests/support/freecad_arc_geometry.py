@@ -137,6 +137,7 @@ def _native_curve_value(curve: _NativeCurve, parameter_value: float) -> _Point2D
 
     Raises:
         TypeError: If the native curve provides no supported parameter evaluator.
+        ValueError: If the native point has non-finite x/y coordinates.
     """
     getter = getattr(curve, "valueAt", None)
     if not callable(getter):
