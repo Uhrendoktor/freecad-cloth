@@ -90,6 +90,7 @@ jobs:
 
           tests = runpy.run_path("tests/test_ci_configuration.py")
           for name in (
+              "test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads",
               "test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs",
               "test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten",
               "test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten",
