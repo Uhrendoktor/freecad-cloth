@@ -409,7 +409,7 @@ class DrapeTargetTaskPanel:
         self._preview_status()
 
     def _preview_status(self, *_args: _QtSignalValue) -> None:
-        """Explain that target changes remain staged until explicit acceptance.
+        """Explain that changed controls remain unapplied until Apply or OK.
 
         Args:
             _args: Optional values provided by Qt signal callbacks.
