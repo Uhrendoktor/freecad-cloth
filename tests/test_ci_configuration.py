@@ -159,8 +159,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "timeout-minutes: 10" in blanket_visual, (
         "The blanket visual job must allow its bounded FreeCAD command and evidence upload to finish."
     )
-    assert tunic_audit.count("continue-on-error: true") == 3, (
-        "Only the realtime diagnostics and explicitly deferred production audit may be non-blocking."
+    assert tunic_audit.count("continue-on-error: true") == 2, (
+        "Only the realtime benchmark and its independent validator remain diagnostic-only."
     )
     assert "continue-on-error: true" in realtime_step, (
         "The realtime metric capture is diagnostic-only for this PR."
@@ -171,8 +171,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "id: production-tunic-audit" in production_tunic_step, (
         "The production tunic audit outcome must be reported explicitly."
     )
-    assert "continue-on-error: true" in production_tunic_step, (
-        "The production audit is advisory while its throughput follow-up is unresolved."
+    assert "continue-on-error: true" not in production_tunic_step, (
+        "The production audit must block when it fails or does not complete."
     )
     assert 'timeout-seconds: "360"' in production_tunic_step, (
         "The production audit must retain its existing bounded execution budget."
@@ -180,11 +180,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "steps.production-tunic-audit.outcome" in production_tunic_step, (
         "The advisory warning must preserve the actual audit step outcome."
     )
-    assert "this is not a pass" in production_tunic_step, (
-        "A deferred or timed-out production audit must never be reported as passed."
+    assert "::error title=Production tunic audit failed" in production_tunic_step, (
+        "A timed-out or failed production audit must produce a blocking CI error."
     )
-    assert "#2839" in production_tunic_step, (
-        "The deferred production audit must identify its dedicated performance follow-up."
+    assert "is blocking" in production_tunic_step, (
+        "The production audit must explicitly identify the blocking failure outcome."
     )
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
