@@ -55,7 +55,8 @@ class SimulationTaskPanel:
         )
         self.target_view_button = QtWidgets.QPushButton("Select")
         self.target_view_button.setToolTip(
-            "Highlight the Drape Target's linked collision source in the viewport without moving the camera."
+            "Highlight the Drape Target's linked collision source in the viewport "
+            "without moving the camera."
         )
         for combo, button in (
             (self.cloth, self.cloth_view_button),
