@@ -160,7 +160,7 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
 
 
 def _valid_realtime_benchmark_metrics() -> JsonObject:
-    """Build a sample that satisfies the sustained 30 FPS metrics contract.
+    """Build a sample that satisfies the sustained 60 FPS metrics contract.
 
     Returns:
         Complete metrics mapping for a valid tunic realtime benchmark artifact.
@@ -173,6 +173,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "panel_count": 2,
         "collision_triangles": 240,
         "frame_budget_ms": validate_realtime_benchmark.FRAME_BUDGET_MS,
+        "publication_mode": "transient-coin3d",
         "frames_requested": 120,
         "warmup_frames_requested": 30,
         "measured_intervals": 120,
@@ -182,9 +183,9 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "timed_out": False,
         "backend_finite": True,
         "published_state_finite": True,
-        "mean_frame_interval_ms": 16.4,
-        "p95_frame_interval_ms": 18.2,
-        "mean_callback_ms": 5.1,
+        "mean_frame_interval_ms": 10.4,
+        "p95_frame_interval_ms": 15.2,
+        "mean_callback_ms": 4.1,
         "p95_callback_ms": 6.3,
         "stage_timings": {
             "advance_preview_frame": {
@@ -195,7 +196,8 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             },
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
-            "mesh_write": {"samples": 240, "mean_ms": 4.0, "p95_ms": 5.0, "max_ms": 6.0},
+            "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
+            "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
             "overlay_schedule": {"samples": 60, "mean_ms": 0.1, "p95_ms": 0.2, "max_ms": 0.3},
             "viewport_redraw": {"samples": 120, "mean_ms": 3.0, "p95_ms": 4.0, "max_ms": 5.0},
         },
@@ -216,7 +218,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     }
 
 
-def test_realtime_metric_validator_accepts_a_valid_sustained_30_fps_sample() -> None:
+def test_realtime_metric_validator_accepts_a_valid_sustained_60_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
     assert (
         validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
@@ -292,8 +294,8 @@ def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
     vars(validate_manifests)["_validate_realtime_metrics"](_valid_realtime_benchmark_metrics())
 
 
-def test_tunic_manifest_gate_rejects_new_schema_above_the_30_fps_budget() -> None:
-    """Reject current-schema tunic metrics exceeding the unchanged 30 FPS budget."""
+def test_tunic_manifest_gate_rejects_new_schema_above_the_60_fps_budget() -> None:
+    """Reject current-schema tunic metrics exceeding the 60 FPS budget."""
     metrics = _valid_realtime_benchmark_metrics()
     metrics["p95_frame_interval_ms"] = validate_realtime_benchmark.FRAME_BUDGET_MS + 0.1
 
