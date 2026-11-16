@@ -1,6 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.sewing.SewingCorrespondence import analyze_correspondence
 from freecad_cloth.sewing.SewingGui import (
@@ -8,6 +12,7 @@ from freecad_cloth.sewing.SewingGui import (
     seam_reference_status,
     validate_seam_for_accept,
 )
+
 
 class SewingGuiContractTests(unittest.TestCase):
     def test_valid_seam_can_be_accepted(self):
