@@ -110,8 +110,13 @@ class PatternPieceTaskPanel:
             self._original = None
         self._mode_changed(self.mode.currentText())
 
-        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
+        from freecad_cloth.common.UiDesign import (
+            apply_panel_style,
+            configure_form_layout,
+            mark_button,
+        )
 
+        configure_form_layout(layout, QtWidgets)
         mark_button(self.edit_sketch, "secondary")
         apply_panel_style(self.form)
 
