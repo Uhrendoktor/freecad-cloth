@@ -49,17 +49,39 @@ class _VisibilityButton:
 
 def _picker_fixture():
     """Build one seam-side picker with isolated document, selection and feedback."""
-    piece = SimpleNamespace(Name="FrontPiece", Label="Front panel")
-    seam = SimpleNamespace(
-        SeamId="seam-front",
-        PatternA=piece,
-        PatternB=SimpleNamespace(Name="BackPiece", Label="Back panel"),
+    document = SimpleNamespace(Name="ClothDocument")
+    front_sketch = SimpleNamespace(
+        Name="FrontSketch",
+        Label="Front native Sketch",
+        Document=document,
+        ViewObject=SimpleNamespace(Visibility=False),
     )
+    back_sketch = SimpleNamespace(
+        Name="BackSketch",
+        Label="Back native Sketch",
+        Document=document,
+        ViewObject=SimpleNamespace(Visibility=True),
+    )
+    piece = SimpleNamespace(
+        Name="FrontPiece",
+        Label="Front panel",
+        GeometryAuthority="Sketcher",
+        Sketch=front_sketch,
+        ViewObject=SimpleNamespace(Visibility=True),
+    )
+    back_piece = SimpleNamespace(
+        Name="BackPiece",
+        Label="Back panel",
+        GeometryAuthority="Sketcher",
+        Sketch=back_sketch,
+        ViewObject=SimpleNamespace(Visibility=True),
+    )
+    seam = SimpleNamespace(SeamId="seam-front", PatternA=piece, PatternB=back_piece)
     selection = _Selection()
     updates: list[tuple[str, str]] = []
     panel = SimpleNamespace(
         Gui=SimpleNamespace(Selection=selection),
-        doc=SimpleNamespace(Name="ClothDocument"),
+        doc=document,
         cancel_pick_button=_VisibilityButton(),
         _active_picker=None,
     )
@@ -83,7 +105,7 @@ def test_viewport_picker_maps_only_the_matching_semantic_sketcher_edge() -> None
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index",
         return_value={"id": "front:edge:2"},
     ) as resolve:
-        picker.addSelection("ClothDocument", "FrontPiece", "Edge3")
+        picker.addSelection("ClothDocument", "FrontSketch", "Edge3")
 
     resolve.assert_called_once_with(picker.seam, "A", 2)
     assert combo.current_index == 1
@@ -91,6 +113,8 @@ def test_viewport_picker_maps_only_the_matching_semantic_sketcher_edge() -> None
     assert panel._active_picker is None
     assert selection.observers == []
     assert panel.cancel_pick_button.visible is False
+    assert picker.expected_piece.ViewObject.Visibility is True
+    assert picker.expected_sketch.ViewObject.Visibility is False
     assert updates[-1][1] == "success"
     assert "Mapped seam seam-front side A" in updates[-1][0]
 
@@ -102,7 +126,7 @@ def test_viewport_picker_rejects_a_different_pattern_piece() -> None:
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index"
     ) as resolve:
-        picker.addSelection("ClothDocument", "BackPiece", "Edge3")
+        picker.addSelection("ClothDocument", "BackSketch", "Edge3")
 
     resolve.assert_not_called()
     assert picker.armed is True
@@ -120,9 +144,9 @@ def test_viewport_picker_rejects_foreign_document_and_non_edge_hits() -> None:
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index"
     ) as resolve:
-        picker.addSelection("OtherDocument", "FrontPiece", "Edge3")
+        picker.addSelection("OtherDocument", "FrontSketch", "Edge3")
         assert "active document" in updates[-1][0]
-        picker.addSelection("ClothDocument", "FrontPiece", "Face1")
+        picker.addSelection("ClothDocument", "FrontSketch", "Face1")
 
     resolve.assert_not_called()
     assert picker.armed is True
@@ -142,6 +166,10 @@ def test_viewport_picker_cancels_and_unregisters_cleanly() -> None:
     assert panel._active_picker is None
     assert panel.cancel_pick_button.visible is False
     assert selection.observers == []
+    assert panel._active_picker is None
+    assert panel.cancel_pick_button.visible is False
+    assert picker.expected_piece.ViewObject.Visibility is True
+    assert picker.expected_sketch.ViewObject.Visibility is False
     assert combo.current_index == 0
 
 
