@@ -45,7 +45,7 @@ jobs:
   guarded-rebase-pr:
     name: Rebase a PR named in an explicit activation commit
     if: "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN REBASE: PR #') }}"
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
       actions: write
@@ -108,7 +108,7 @@ jobs:
     name: Static, architecture, workflow, and security gates
     if: ${{ inputs.execution_mode != 'publication' }}
     needs: [local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       actions: read
@@ -150,7 +150,7 @@ jobs:
   local_runner_readiness:
     name: Selected runner readiness
     if: ${{ !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
       contents: read
@@ -173,7 +173,7 @@ jobs:
     name: Build/publish pinned PBD image
     if: ${{ inputs.execution_mode != 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}
     needs: [local_runner_readiness]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
@@ -199,7 +199,7 @@ jobs:
     name: Diagnostic PBD contact controls
     if: ${{ inputs.execution_mode == 'full' && ((github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482')))) }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -238,7 +238,7 @@ jobs:
     name: Simulation collision ladder
     if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -283,7 +283,7 @@ jobs:
     name: Python validation (${{ matrix.group }})
     if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     strategy:
       fail-fast: false
@@ -319,7 +319,7 @@ jobs:
     name: GUI acceptance (${{ matrix.case }})
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 8
     strategy:
       fail-fast: false
@@ -357,7 +357,7 @@ jobs:
     name: Full tunic visual and simulation audit
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -430,7 +430,7 @@ jobs:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -464,7 +464,7 @@ jobs:
     name: Blanket visual example
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -488,7 +488,7 @@ jobs:
     name: Publish PR simulation evidence
     needs: [agent-quality, gui-tunic-visual]
     if: ${{ needs.gui-tunic-visual.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       contents: write
@@ -508,7 +508,7 @@ jobs:
     name: Locate validated artifacts for this exact source tree
     if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: [local_runner_readiness]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 3
     permissions:
       actions: read
@@ -562,7 +562,7 @@ jobs:
     name: Main-only documentation stills and animation frames
     if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 12
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
@@ -615,7 +615,7 @@ jobs:
       cancel-in-progress: false
     needs: [find-validation-artifacts, gui-documentation-assets]
     if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions: {contents: write, actions: read}
     env:
@@ -638,7 +638,7 @@ jobs:
     name: Repository retention cleanup
     # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
     if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}"
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 4
     permissions:
       actions: write
@@ -656,7 +656,7 @@ jobs:
     name: Accumulated artifact budget
     if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
     needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {actions: read, contents: read}
     steps:
@@ -675,7 +675,7 @@ jobs:
     name: Workbench benchmark (${{ matrix.workbench }})
     if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     strategy:
       fail-fast: false
@@ -704,7 +704,7 @@ jobs:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
-    runs-on: [self-hosted, linux, x64, docker]
+    runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions:
       contents: read
