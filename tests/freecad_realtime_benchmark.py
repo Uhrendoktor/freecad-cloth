@@ -12,7 +12,7 @@ import runpy
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -260,6 +260,9 @@ def main() -> None:
         stage_names = (
             "advance_preview_frame",
             "solver_step",
+            "collision_projection_total",
+            "mesh_collision_projector",
+            "stitched_pair_reconciliation",
             "state_publish",
             "mesh_write",
             "preview_mesh_publish",
@@ -275,12 +278,44 @@ def main() -> None:
                 stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
+        from freecad_cloth.simulation import MeshCollisionProjector as mesh_collision_projector
         from freecad_cloth.simulation import RealtimeMeshPreview as realtime_mesh_preview
         from freecad_cloth.simulation import SimulationObjects as simulation_objects
+
+        projector_class = mesh_collision_projector.MeshCollisionProjector
+        if not isinstance(getattr(backend, "_collision_projector", None), projector_class):
+            msg = "Realtime benchmark requires the authoritative mesh collision projector"
+            raise RuntimeError(msg)
+        timing_api = getattr(getattr(backend, "_pbd", None), "Timing", None)
+        timing_reset = getattr(timing_api, "reset", None)
+        if not callable(timing_reset) or not hasattr(timing_api, "m_averageTimes"):
+            msg = "Pinned pyPBD runtime does not expose native Timing accumulators"
+            raise RuntimeError(msg)
+
+        native_timing_reset = False
+        inside_stitched_reconciliation = [False]
+
+        def native_timing_snapshot() -> dict[str, dict[str, int | float | None]]:
+            average_times = timing_api.m_averageTimes
+            records: dict[str, dict[str, int | float | None]] = {}
+            for entry in average_times.values():
+                name = str(getattr(entry, "name", "")).strip()
+                samples = int(getattr(entry, "counter", 0))
+                total_ms = float(getattr(entry, "totalTime", 0.0))
+                if name:
+                    records[name] = {
+                        "samples": samples,
+                        "total_ms": total_ms,
+                        "mean_ms": total_ms / samples if samples else None,
+                    }
+            return dict(sorted(records.items()))
 
         original_advance = proxy.advance_preview_frame
         original_publish = proxy._publish_state
         original_solver_step = backend.step
+        original_collision_projection = backend._project_collision_positions
+        original_mesh_project = projector_class.project
+        original_stitched_pairs = mesh_collision_projector.project_stitched_pairs
         original_mesh_write = simulation_objects._write_mesh
         original_preview_mesh_publish = realtime_mesh_preview.RealtimeMeshPreview.publish
         original_overlay_schedule = seam_overlay.schedule_seam_overlay_refresh
@@ -311,6 +346,47 @@ def main() -> None:
                 original_solver_step(dt, iterations, gravity, surface)
             finally:
                 record_stage("solver_step", started_at)
+
+        def timed_collision_projection() -> None:
+            started_at = time.perf_counter()
+            try:
+                original_collision_projection()
+            finally:
+                record_stage("collision_projection_total", started_at)
+
+        def timed_mesh_project(
+            projector: object,
+            points_mm: object,
+        ) -> tuple[object, object]:
+            started_at = time.perf_counter()
+            try:
+                original = cast("Callable[..., tuple[object, object]]", original_mesh_project)
+                return original(projector, points_mm)
+            finally:
+                if not inside_stitched_reconciliation[0]:
+                    record_stage("mesh_collision_projector", started_at)
+
+        def timed_stitched_pairs(
+            projector: object,
+            positions_mm: object,
+            contact_normals: object,
+            stitches: object,
+            pinned_indices: object = (),
+        ) -> tuple[object, object]:
+            started_at = time.perf_counter()
+            inside_stitched_reconciliation[0] = True
+            try:
+                original = cast("Callable[..., tuple[object, object]]", original_stitched_pairs)
+                return original(
+                    projector,
+                    positions_mm,
+                    contact_normals,
+                    stitches,
+                    pinned_indices,
+                )
+            finally:
+                inside_stitched_reconciliation[0] = False
+                record_stage("stitched_pair_reconciliation", started_at)
 
         def timed_mesh_write(obj: object, positions: object, triangles: object) -> None:
             started_at = time.perf_counter()
@@ -348,6 +424,19 @@ def main() -> None:
             (proxy, "advance_preview_frame", timed_advance, original_advance),
             (proxy, "_publish_state", timed_publish, original_publish),
             (backend, "step", timed_solver_step, original_solver_step),
+            (
+                backend,
+                "_project_collision_positions",
+                timed_collision_projection,
+                original_collision_projection,
+            ),
+            (projector_class, "project", timed_mesh_project, original_mesh_project),
+            (
+                mesh_collision_projector,
+                "project_stitched_pairs",
+                timed_stitched_pairs,
+                original_stitched_pairs,
+            ),
             (simulation_objects, "_write_mesh", timed_mesh_write, original_mesh_write),
             (
                 realtime_mesh_preview.RealtimeMeshPreview,
@@ -384,8 +473,11 @@ def main() -> None:
         timed_out = False
 
         def timed_tick() -> None:
-            nonlocal in_tick
+            nonlocal in_tick, native_timing_reset
             started_at = time.perf_counter()
+            if tick_count == WARMUP_FRAMES and not native_timing_reset:
+                timing_reset()
+                native_timing_reset = True
             in_tick = True
             try:
                 active_preview.tick()
@@ -550,6 +642,7 @@ def main() -> None:
             "stage_timings": {
                 name: _timing_summary(samples) for name, samples in stage_timings.items()
             },
+            "native_pypbd_stage_timings": native_timing_snapshot(),
             "seam_overlay_enabled": bool(getattr(seam_overlay, "_OVERLAY_ENABLED", False)),
             "backend_finite": backend_finite,
             "published_state_finite": published_state_finite,
@@ -567,6 +660,17 @@ def main() -> None:
                 "thread_environment": {
                     key: os.environ.get(key, "unset") for key in runtime_thread_keys
                 },
+                "pypbd_module": str(getattr(getattr(backend, "_pbd", None), "__file__", "unknown")),
+                "openmp_runtime_libraries": sorted(
+                    {
+                        line.rsplit("/", 1)[-1].split(" ", 1)[0]
+                        for line in Path("/proc/self/maps").read_text(encoding="utf-8").splitlines()
+                        if any(
+                            token in line.lower()
+                            for token in ("libgomp", "libomp", "libiomp")
+                        )
+                    }
+                ) if Path("/proc/self/maps").is_file() else [],
                 "cuda_runner_probe": os.environ.get("CLOTH_CI_CUDA_AVAILABLE", "false"),
                 "cuda_runner_reason": os.environ.get("CLOTH_CI_CUDA_REASON", "unspecified"),
                 "cuda_runner_mode": os.environ.get("CLOTH_CI_CUDA_MODE", "cpu-fallback"),
