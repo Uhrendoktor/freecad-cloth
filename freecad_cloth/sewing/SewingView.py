@@ -141,12 +141,14 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
     placement_b = getattr(piece_b, "Placement", None)
     normal_a = App.Vector(0.0, 0.0, 1.0)
     normal_b = App.Vector(0.0, 0.0, 1.0)
+    if placement_a is not None:
+        normal_a = placement_a.Rotation.multVec(normal_a)
+    if placement_b is not None:
+        normal_b = placement_b.Rotation.multVec(normal_b)
     if world_space:
         if placement_a is not None:
-            normal_a = placement_a.Rotation.multVec(normal_a)
             a = [placement_a.multVec(point) for point in a]
         if placement_b is not None:
-            normal_b = placement_b.Rotation.multVec(normal_b)
             b = [placement_b.multVec(point) for point in b]
 
     def distinct(points, tolerance=1e-9):
