@@ -1,10 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Two-sided position-level contact between independently simulated cloth groups.
+"""Two-sided geometric contact between independently simulated cloth groups.
 
-PositionBasedDynamics 2.2.2 does not currently register deformable triangle models
-as mutual distance-field collision targets. This adapter supplies a bounded
-point/triangle plus edge/edge contact projection after each native cloth step.
-It is deliberately solver-neutral and accepts exact global particle indices.
+PositionBasedDynamics 2.2.2 does not register deformable triangle models as
+mutual distance-field collision targets. This adapter therefore adds a bounded
+edge/triangle contact projection after the native cloth step. It operates on
+exact global particle indices and preserves authored seams and pins.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ type EdgeArray = npt.NDArray[np.int64]
 
 
 class InterClothContactMetrics(NamedTuple):
-    """Measured inter-cloth projection activity for one solver frame."""
+    """Measured cross-garment contact projection activity for one solver frame."""
 
     contact_count: int
     corrected_particle_count: int
@@ -32,86 +32,33 @@ class InterClothContactMetrics(NamedTuple):
 
 
 class _SurfaceIndex(NamedTuple):
-    """Indexed triangles and edges belonging to one independent garment group."""
+    """Spatial acceleration data for one independent garment group."""
 
     triangles: TriangleArray
     triangle_centers: PointArray
     triangle_radii: PointArray
     triangle_tree: KDTree
-    sample_indices: tuple[tuple[int, ...], ...]
-    sample_weights: tuple[tuple[float, ...], ...]
-    sample_points: PointArray
     edges: EdgeArray
     edge_centers: PointArray
     edge_half_lengths: PointArray
     edge_tree: KDTree
 
 
-def _canonical_direction(vector: PointArray) -> PointArray:
-    """Return a normalized direction with deterministic sign.
-
-    Args:
-        vector: Candidate normal or direction vector.
-
-    Returns:
-        A unit vector whose first significant component is positive.
-
-    Raises:
-        ValueError: If the vector has no finite, non-zero length.
-    """
-    length = float(np.linalg.norm(vector))
-    if not np.isfinite(length) or length <= 1e-12:
-        msg = "contact fallback direction must be finite and non-zero"
-        raise ValueError(msg)
-    direction = np.asarray(vector / length, dtype=np.float64)
-    nonzero = np.flatnonzero(np.abs(direction) > 1e-12)
-    if nonzero.size and direction[int(nonzero[0])] < 0.0:
-        direction = -direction
-    return direction
-
-
-def _closest_point_on_segment(
-    point: PointArray,
-    start: PointArray,
-    end: PointArray,
-) -> tuple[PointArray, float]:
-    """Return the closest point and interpolation factor on a finite segment.
-
-    Args:
-        point: Query point in world millimetres.
-        start: First segment endpoint.
-        end: Second segment endpoint.
-
-    Returns:
-        Closest point and clamped interpolation factor from start to end.
-    """
-    direction = end - start
-    length_squared = float(np.dot(direction, direction))
-    if length_squared <= 1e-18:
-        return start.copy(), 0.0
-    factor = float(np.clip(np.dot(point - start, direction) / length_squared, 0.0, 1.0))
-    return start + factor * direction, factor
-
-
 def _closest_point_on_triangle(
     point: PointArray,
     triangle: PointArray,
 ) -> tuple[PointArray, PointArray, PointArray]:
-    """Return a closest point, barycentric weights and triangle normal.
-
-    The plane projection is used when it lies inside the triangle. Otherwise,
-    the closest of the three finite edges is used. All returned weights are
-    non-negative and sum to one, including edge and vertex contacts.
+    """Return the closest point, barycentric weights and unit triangle normal.
 
     Args:
         point: Query point in world millimetres.
         triangle: Three world-space triangle vertices.
 
     Returns:
-        Closest point, three barycentric weights, and unit face normal.
+        Closest point, non-negative barycentric weights, and unit face normal.
 
     Raises:
-        ValueError: If the triangle is degenerate.
+        ValueError: If the target triangle is degenerate.
     """
     a, b, c = triangle
     ab = b - a
@@ -138,16 +85,19 @@ def _closest_point_on_triangle(
     u = 1.0 - v - w
     if min(u, v, w) >= 0.0:
         barycentric = np.asarray((u, v, w), dtype=np.float64)
-        closest = u * a + v * b + w * c
-        return closest, barycentric, unit_normal
+        return u * a + v * b + w * c, barycentric, unit_normal
 
     candidates: list[tuple[float, PointArray, PointArray]] = []
     for start_index, end_index in ((0, 1), (1, 2), (2, 0)):
-        closest, factor = _closest_point_on_segment(
-            point,
-            triangle[start_index],
-            triangle[end_index],
+        start = triangle[start_index]
+        direction = triangle[end_index] - start
+        length_squared = float(np.dot(direction, direction))
+        factor = (
+            float(np.clip(np.dot(point - start, direction) / length_squared, 0.0, 1.0))
+            if length_squared > 1e-18
+            else 0.0
         )
+        closest = start + factor * direction
         weights = np.zeros(3, dtype=np.float64)
         weights[start_index] = 1.0 - factor
         weights[end_index] = factor
@@ -163,7 +113,7 @@ def _closest_points_on_segments(
     b0: PointArray,
     b1: PointArray,
 ) -> tuple[PointArray, PointArray, float, float]:
-    """Return closest points and segment factors for two finite 3D edges.
+    """Return closest points and interpolation factors for two finite segments.
 
     Args:
         a0: First endpoint of segment A.
@@ -172,7 +122,7 @@ def _closest_points_on_segments(
         b1: Second endpoint of segment B.
 
     Returns:
-        Closest point on A, closest point on B, and their segment factors.
+        Closest point on each segment and their start-to-end interpolation factors.
     """
     direction_a = a1 - a0
     direction_b = b1 - b0
@@ -189,7 +139,6 @@ def _closest_points_on_segments(
     if aa <= epsilon:
         factor_b = float(np.clip(br / bb, 0.0, 1.0))
         return a0.copy(), b0 + factor_b * direction_b, 0.0, factor_b
-
     if bb <= epsilon:
         factor_a = float(np.clip(-ar / aa, 0.0, 1.0))
         return a0 + factor_a * direction_a, b0.copy(), factor_a, 0.0
@@ -215,18 +164,153 @@ def _closest_points_on_segments(
     )
 
 
-def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceIndex:
-    """Build local spatial indexes for one garment surface.
+def _barycentric_coordinates(point: PointArray, triangle: PointArray) -> PointArray:
+    """Return barycentric coordinates for a point projected into a triangle plane."""
+    a, b, c = triangle
+    ab = b - a
+    ac = c - a
+    ap = point - a
+    d00 = float(np.dot(ab, ab))
+    d01 = float(np.dot(ab, ac))
+    d11 = float(np.dot(ac, ac))
+    d20 = float(np.dot(ap, ab))
+    d21 = float(np.dot(ap, ac))
+    denominator = d00 * d11 - d01 * d01
+    if denominator <= 1e-18:
+        msg = "inter-cloth collision mesh contains a degenerate triangle"
+        raise ValueError(msg)
+    v = (d11 * d20 - d01 * d21) / denominator
+    w = (d00 * d21 - d01 * d20) / denominator
+    return np.asarray((1.0 - v - w, v, w), dtype=np.float64)
+
+
+def _closest_segment_triangle(
+    start: PointArray,
+    end: PointArray,
+    triangle: PointArray,
+) -> tuple[PointArray, PointArray, float, PointArray, PointArray]:
+    """Return the closest edge/face points and their barycentric coordinates.
+
+    The query first checks exact segment/plane intersection, then an interior
+    plane projection, endpoint/face pairs, and all segment/triangle-edge pairs.
+    Unlike vertex or midpoint sampling, this detects an edge piercing the
+    interior of a triangle even when no mesh vertex is near the contact.
 
     Args:
-        positions: All global particle positions.
+        start: First endpoint of the source cloth edge.
+        end: Second endpoint of the source cloth edge.
+        triangle: Three target cloth triangle vertices.
+
+    Returns:
+        Closest point on the source edge, closest point on the triangle, the
+        source edge factor, target triangle barycentric weights, and unit face normal.
+
+    Raises:
+        ValueError: If the target triangle is degenerate.
+    """
+    _unused, _unused_weights, normal = _closest_point_on_triangle(
+        triangle[0],
+        triangle,
+    )
+    direction = end - start
+    signed_start = float(np.dot(start - triangle[0], normal))
+    signed_delta = float(np.dot(direction, normal))
+    candidates: list[
+        tuple[float, PointArray, PointArray, float, PointArray]
+    ] = []
+
+    if abs(signed_delta) > 1e-12:
+        factor = -signed_start / signed_delta
+        if 0.0 <= factor <= 1.0:
+            point = start + factor * direction
+            barycentric = _barycentric_coordinates(point, triangle)
+            if float(np.min(barycentric)) >= -1e-10:
+                barycentric = np.maximum(barycentric, 0.0)
+                barycentric /= float(np.sum(barycentric))
+                return point, point.copy(), factor, barycentric, normal
+
+    # The segment may run nearly parallel to the face while its projection lies
+    # inside the triangle. The closest point on the segment to the plane is the
+    # minimum-distance interior-face candidate.
+    factor = (
+        float(np.clip(-signed_start / signed_delta, 0.0, 1.0))
+        if abs(signed_delta) > 1e-12
+        else 0.5
+    )
+    edge_point = start + factor * direction
+    plane_point = edge_point - float(np.dot(edge_point - triangle[0], normal)) * normal
+    barycentric = _barycentric_coordinates(plane_point, triangle)
+    if float(np.min(barycentric)) >= -1e-10:
+        barycentric = np.maximum(barycentric, 0.0)
+        barycentric /= float(np.sum(barycentric))
+        candidates.append(
+            (
+                float(np.dot(edge_point - plane_point, edge_point - plane_point)),
+                edge_point,
+                plane_point,
+                factor,
+                barycentric,
+            )
+        )
+
+    for factor, edge_point in ((0.0, start), (1.0, end)):
+        face_point, face_barycentric, _normal = _closest_point_on_triangle(
+            edge_point,
+            triangle,
+        )
+        difference = edge_point - face_point
+        candidates.append(
+            (
+                float(np.dot(difference, difference)),
+                edge_point.copy(),
+                face_point,
+                factor,
+                face_barycentric,
+            )
+        )
+
+    for triangle_edge in ((0, 1), (1, 2), (2, 0)):
+        face_start = triangle[triangle_edge[0]]
+        face_end = triangle[triangle_edge[1]]
+        edge_point, face_point, edge_factor, face_factor = _closest_points_on_segments(
+            start,
+            end,
+            face_start,
+            face_end,
+        )
+        face_barycentric = np.zeros(3, dtype=np.float64)
+        face_barycentric[triangle_edge[0]] = 1.0 - face_factor
+        face_barycentric[triangle_edge[1]] = face_factor
+        difference = edge_point - face_point
+        candidates.append(
+            (
+                float(np.dot(difference, difference)),
+                edge_point,
+                face_point,
+                edge_factor,
+                face_barycentric,
+            )
+        )
+
+    _distance, edge_point, face_point, factor, face_barycentric = min(
+        candidates,
+        key=lambda item: item[0],
+    )
+    return edge_point, face_point, factor, face_barycentric, normal
+
+
+def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceIndex:
+    """Build a triangle-centre index and unique edges for one garment group.
+
+    Args:
+        positions: Current global particle positions in millimetres.
         triangles: Global triangle indices belonging to one garment group.
 
     Returns:
-        Triangle and edge centroid indexes with conservative query radii.
+        Triangle and edge indexes used for conservative contact candidate search.
 
     Raises:
-        ValueError: If the group has no valid, non-degenerate triangles.
+        ValueError: If the group has no valid triangles or contains degenerate faces.
     """
     if triangles.ndim != 2 or triangles.shape[1] != 3 or triangles.size == 0:
         msg = "each inter-cloth group must contain at least one triangle"
@@ -239,7 +323,6 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     if bool(np.any(np.linalg.norm(cross_products, axis=1) <= 1e-12)):
         msg = "inter-cloth collision mesh contains a degenerate triangle"
         raise ValueError(msg)
-
     triangle_centers = triangle_points.mean(axis=1)
     triangle_radii = np.linalg.norm(
         triangle_points - triangle_centers[:, None, :],
@@ -256,37 +339,11 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     edge_centers = edge_points.mean(axis=1)
     edge_half_lengths = np.linalg.norm(edge_points[:, 1] - edge_points[:, 0], axis=1) * 0.5
     edge_tree = KDTree(edge_centers)
-
-    # Vertices alone miss an edge piercing the interior of an opposing face.
-    # Mid-edge and face-centroid samples add those contact witnesses while their
-    # barycentric weights still distribute corrections only to real particles.
-    sample_indices: list[tuple[int, ...]] = []
-    sample_weights: list[tuple[float, ...]] = []
-    for vertex_index in np.unique(triangles):
-        sample_indices.append((int(vertex_index),))
-        sample_weights.append((1.0,))
-    for left, right in edges:
-        sample_indices.append((int(left), int(right)))
-        sample_weights.append((0.5, 0.5))
-    for a, b, c in triangles:
-        sample_indices.append((int(a), int(b), int(c)))
-        sample_weights.append((1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0))
-    sample_points = np.asarray(
-        [
-            np.sum(positions[np.asarray(indices, dtype=np.int64)] * np.asarray(weights)[:, None], axis=0)
-            for indices, weights in zip(sample_indices, sample_weights, strict=True)
-        ],
-        dtype=np.float64,
-    )
-
     return _SurfaceIndex(
         triangles,
         triangle_centers,
         triangle_radii,
         triangle_tree,
-        tuple(sample_indices),
-        tuple(sample_weights),
-        sample_points,
         edges,
         edge_centers,
         edge_half_lengths,
@@ -298,14 +355,14 @@ def _stitch_clusters(
     particle_count: int,
     stitches: Sequence[tuple[int, int]],
 ) -> tuple[tuple[int, ...], ...]:
-    """Resolve connected groups of sewn particles for shared contact corrections.
+    """Resolve sewn-particle components so a contact correction cannot open a seam.
 
     Args:
         particle_count: Number of particles in the combined cloth system.
-        stitches: Exact global solver particle pairs belonging to authored seams.
+        stitches: Exact global particle-index pairs for authored seams.
 
     Returns:
-        Disjoint sewn-particle groups, omitting isolated particles.
+        Disjoint groups of particles connected by one or more stitch constraints.
 
     Raises:
         ValueError: If a stitch index is outside the combined particle array.
@@ -327,121 +384,82 @@ def _stitch_clusters(
         if root_left != root_right:
             parent[root_right] = root_left
 
-    members: dict[int, list[int]] = {}
+    members: dict[int, set[int]] = {}
     for raw_left, raw_right in stitches:
         for index in (int(raw_left), int(raw_right)):
-            members.setdefault(find(index), []).append(index)
+            members.setdefault(find(index), set()).add(index)
     return tuple(
-        tuple(sorted(set(group)))
+        tuple(sorted(group))
         for group in members.values()
-        if len(set(group)) > 1
+        if len(group) > 1
     )
 
 
-def _accumulate_sample_triangle(
+def _contact_direction(normal: PointArray, source_center: PointArray, target_center: PointArray) -> PointArray:
+    """Orient the target face normal toward the source garment's side."""
+    direction = np.asarray(normal, dtype=np.float64)
+    offset = source_center - target_center
+    side = float(np.dot(direction, offset))
+    if abs(side) > 1e-10:
+        return direction if side > 0.0 else -direction
+    nonzero = np.flatnonzero(np.abs(direction) > 1e-12)
+    if nonzero.size and direction[int(nonzero[0])] < 0.0:
+        direction = -direction
+    return direction
+
+
+def _accumulate_edge_triangle(
     positions: PointArray,
-    source_indices: tuple[int, ...],
-    source_weights: tuple[float, ...],
+    source_edge: tuple[int, int],
     target_triangle: tuple[int, int, int],
     inverse_masses: PointArray,
     clearance_mm: float,
-    fallback_direction: PointArray,
+    source_center: PointArray,
+    target_center: PointArray,
     correction_sum: PointArray,
     correction_count: npt.NDArray[np.int64],
 ) -> tuple[bool, float]:
-    """Accumulate one barycentric sample/triangle separation constraint."""
-    source_ids = np.asarray(source_indices, dtype=np.int64)
-    source_barycentric = np.asarray(source_weights, dtype=np.float64)
+    """Accumulate one two-sided edge/triangle separation constraint."""
+    source_ids = np.asarray(source_edge, dtype=np.int64)
     target_ids = np.asarray(target_triangle, dtype=np.int64)
-    source_point = np.sum(
-        positions[source_ids] * source_barycentric[:, None],
-        axis=0,
-    )
-    closest, target_barycentric, normal = _closest_point_on_triangle(
-        source_point,
+    edge_point, face_point, factor, face_weights, normal = _closest_segment_triangle(
+        positions[source_ids[0]],
+        positions[source_ids[1]],
         positions[target_ids],
     )
-    difference = source_point - closest
+    difference = edge_point - face_point
     distance = float(np.linalg.norm(difference))
     penetration = clearance_mm - distance
     if penetration <= 1e-8:
         return False, 0.0
 
-    direction = difference / distance if distance > 1e-10 else fallback_direction * normal
+    direction = (
+        difference / distance
+        if distance > 1e-10
+        else _contact_direction(normal, source_center, target_center)
+    )
+    source_weights = np.asarray((1.0 - factor, factor), dtype=np.float64)
     source_masses = inverse_masses[source_ids]
     target_masses = inverse_masses[target_ids]
     denominator = float(
-        np.sum(source_masses * source_barycentric * source_barycentric)
-        + np.sum(target_masses * target_barycentric * target_barycentric)
+        np.sum(source_masses * source_weights * source_weights)
+        + np.sum(target_masses * face_weights * face_weights)
     )
     if denominator <= 1e-15:
         return False, penetration
 
     multiplier = penetration / denominator
     for local_index, particle_index in enumerate(source_ids):
-        weight = float(source_masses[local_index] * source_barycentric[local_index])
+        weight = float(source_masses[local_index] * source_weights[local_index])
         if weight <= 0.0:
             continue
         correction_sum[particle_index] += direction * weight * multiplier
         correction_count[particle_index] += 1
     for local_index, particle_index in enumerate(target_ids):
-        weight = float(target_masses[local_index] * target_barycentric[local_index])
+        weight = float(target_masses[local_index] * face_weights[local_index])
         if weight <= 0.0:
             continue
         correction_sum[particle_index] -= direction * weight * multiplier
-        correction_count[particle_index] += 1
-    return True, penetration
-
-
-def _accumulate_edge_edge(
-    positions: PointArray,
-    edge_a: tuple[int, int],
-    edge_b: tuple[int, int],
-    inverse_masses: PointArray,
-    clearance_mm: float,
-    fallback_direction: PointArray,
-    correction_sum: PointArray,
-    correction_count: npt.NDArray[np.int64],
-) -> tuple[bool, float]:
-    """Accumulate one two-sided closest-segment separation constraint."""
-    ids_a = np.asarray(edge_a, dtype=np.int64)
-    ids_b = np.asarray(edge_b, dtype=np.int64)
-    point_a, point_b, factor_a, factor_b = _closest_points_on_segments(
-        positions[ids_a[0]],
-        positions[ids_a[1]],
-        positions[ids_b[0]],
-        positions[ids_b[1]],
-    )
-    difference = point_b - point_a
-    distance = float(np.linalg.norm(difference))
-    penetration = clearance_mm - distance
-    if penetration <= 1e-8:
-        return False, 0.0
-    direction = difference / distance if distance > 1e-10 else fallback_direction
-
-    weights_a = np.asarray((1.0 - factor_a, factor_a), dtype=np.float64)
-    weights_b = np.asarray((1.0 - factor_b, factor_b), dtype=np.float64)
-    masses_a = inverse_masses[ids_a]
-    masses_b = inverse_masses[ids_b]
-    denominator = float(
-        np.sum(masses_a * weights_a * weights_a)
-        + np.sum(masses_b * weights_b * weights_b)
-    )
-    if denominator <= 1e-15:
-        return False, penetration
-
-    multiplier = penetration / denominator
-    for index, particle_index in enumerate(ids_a):
-        weight = float(masses_a[index] * weights_a[index])
-        if weight <= 0.0:
-            continue
-        correction_sum[particle_index] -= direction * weight * multiplier
-        correction_count[particle_index] += 1
-    for index, particle_index in enumerate(ids_b):
-        weight = float(masses_b[index] * weights_b[index])
-        if weight <= 0.0:
-            continue
-        correction_sum[particle_index] += direction * weight * multiplier
         correction_count[particle_index] += 1
     return True, penetration
 
@@ -451,77 +469,53 @@ def _share_sewn_corrections(
     inverse_masses: PointArray,
     clusters: Sequence[Sequence[int]],
 ) -> None:
-    """Give all movable endpoints in each seam component the same correction."""
+    """Give every movable particle in one stitch component the same correction."""
     for cluster in clusters:
         indices = np.asarray(cluster, dtype=np.int64)
         if bool(np.any(inverse_masses[indices] <= 0.0)):
             corrections[indices] = 0.0
             continue
-        shared = corrections[indices].mean(axis=0)
-        corrections[indices] = shared
+        corrections[indices] = corrections[indices].mean(axis=0)
 
 
-def _candidate_contact_statistics(
+def _measure_contacts(
     positions: PointArray,
     surfaces: Mapping[str, _SurfaceIndex],
     clearance_mm: float,
 ) -> tuple[int, float]:
-    """Measure remaining sampled point/triangle and edge/edge penetrations."""
+    """Measure residual edge/face penetrations between independent groups."""
     group_ids = tuple(sorted(surfaces))
     contact_count = 0
-    max_penetration = 0.0
+    maximum = 0.0
     for left_index, left_id in enumerate(group_ids):
         left = surfaces[left_id]
         for right_id in group_ids[left_index + 1 :]:
             right = surfaces[right_id]
             for source, target in ((left, right), (right, left)):
-                for sample_index, sample_ids in enumerate(source.sample_indices):
-                    sample_point = np.sum(
-                        positions[np.asarray(sample_ids, dtype=np.int64)]
-                        * np.asarray(source.sample_weights[sample_index])[:, None],
-                        axis=0,
+                source_center = positions[np.unique(source.triangles)].mean(axis=0)
+                target_center = positions[np.unique(target.triangles)].mean(axis=0)
+                for edge_index, edge in enumerate(source.edges):
+                    radius = (
+                        clearance_mm
+                        + float(source.edge_half_lengths[edge_index])
+                        + float(target.triangle_radii.max())
                     )
-                    query_radius = clearance_mm + float(target.triangle_radii.max())
-                    candidate_ids = target.triangle_tree.query_ball_point(
-                        sample_point,
-                        query_radius,
+                    candidates = target.triangle_tree.query_ball_point(
+                        source.edge_centers[edge_index],
+                        radius,
                     )
-                    for triangle_id in candidate_ids:
-                        target_ids = target.triangles[int(triangle_id)]
-                        closest, _barycentric, _normal = _closest_point_on_triangle(
-                            sample_point,
-                            positions[target_ids],
+                    for triangle_index in candidates:
+                        triangle = target.triangles[int(triangle_index)]
+                        edge_point, face_point, _factor, _weights, _normal = _closest_segment_triangle(
+                            positions[int(edge[0])],
+                            positions[int(edge[1])],
+                            positions[triangle],
                         )
-                        penetration = clearance_mm - float(np.linalg.norm(sample_point - closest))
-                        if penetration > 1e-8:
+                        penetration = clearance_mm - float(np.linalg.norm(edge_point - face_point))
+                        if penetration > 1e-5:
                             contact_count += 1
-                            max_penetration = max(max_penetration, penetration)
-
-            query_radius = (
-                clearance_mm
-                + float(left.edge_half_lengths.max())
-                + float(right.edge_half_lengths.max())
-            )
-            for edge_index, center in enumerate(left.edge_centers):
-                candidate_ids = right.edge_tree.query_ball_point(center, query_radius)
-                radius_a = float(left.edge_half_lengths[edge_index])
-                for edge_id in candidate_ids:
-                    radius = clearance_mm + radius_a + float(right.edge_half_lengths[int(edge_id)])
-                    if float(np.linalg.norm(center - right.edge_centers[int(edge_id)])) > radius:
-                        continue
-                    edge_a = left.edges[edge_index]
-                    edge_b = right.edges[int(edge_id)]
-                    point_a, point_b, _factor_a, _factor_b = _closest_points_on_segments(
-                        positions[edge_a[0]],
-                        positions[edge_a[1]],
-                        positions[edge_b[0]],
-                        positions[edge_b[1]],
-                    )
-                    penetration = clearance_mm - float(np.linalg.norm(point_b - point_a))
-                    if penetration > 1e-8:
-                        contact_count += 1
-                        max_penetration = max(max_penetration, penetration)
-    return contact_count, max_penetration
+                            maximum = max(maximum, penetration)
+    return contact_count, maximum
 
 
 def project_inter_cloth_contacts(
@@ -531,32 +525,32 @@ def project_inter_cloth_contacts(
     *,
     clearance_mm: float,
     stitches: Sequence[tuple[int, int]] = (),
-    iterations: int = 3,
+    iterations: int = 8,
     relaxation: float = 0.8,
 ) -> tuple[PointArray, PointArray, InterClothContactMetrics]:
-    """Project independent cloth groups apart using point/triangle and edge contacts.
+    """Project distinct garment groups apart using two-sided edge/face contacts.
 
-    Each group may contain several sewn pattern panels, but contacts are generated
-    only between distinct group IDs. The projection is symmetric: particles from
-    each group are tested against the other group's triangles, and unique edges
-    from both groups are tested against one another. Stitch-connected particles
-    receive a shared correction, and a cluster containing a pinned particle is
-    not moved. This protects seam correspondence and fixed anchors during contact.
+    Every unique source edge is tested against nearby target triangles in both
+    group directions. The closest edge and face points define a weighted
+    separation constraint distributed over their real solver particles. This
+    catches edge/face crossings without relying on rendered overlap or vertex
+    proximity alone. Only explicitly distinct group IDs interact.
 
     Args:
         positions_mm: Current global particle positions in FreeCAD millimetres.
-        triangles_by_group: Non-empty global triangle lists keyed by garment-group ID.
+        triangles_by_group: Global triangle indices keyed by independent garment ID.
         inverse_masses: Per-particle inverse mass; zero denotes a fixed particle.
-        clearance_mm: Minimum requested distance between independent cloth surfaces.
-        stitches: Exact global particle pairs used by the sewing solver.
-        iterations: Number of bounded contact-projection passes.
-        relaxation: Fraction of each computed correction applied per pass.
+        clearance_mm: Minimum requested separation between garment surfaces.
+        stitches: Exact global particle pairs used by authored sewing constraints.
+        iterations: Bounded number of position-projection passes (1 through 16).
+        relaxation: Fraction of each accumulated correction applied per pass.
 
     Returns:
-        Corrected positions, per-particle outward correction directions, and contact metrics.
+        Corrected particle positions, normalized actual correction directions,
+        and contact metrics for this projection frame.
 
     Raises:
-        ValueError: If coordinates, groups, indices, masses, clearance, or iteration settings are invalid.
+        ValueError: If geometry, group identity, masses, clearance or solver settings are invalid.
     """
     positions = np.asarray(positions_mm, dtype=np.float64)
     masses = np.asarray(inverse_masses, dtype=np.float64)
@@ -589,6 +583,7 @@ def project_inter_cloth_contacts(
         raise ValueError(msg)
 
     surfaces: dict[str, _SurfaceIndex] = {}
+    particle_owners: dict[int, str] = {}
     for raw_group_id, raw_triangles in triangles_by_group.items():
         group_id = str(raw_group_id).strip()
         if not group_id or group_id in surfaces:
@@ -601,133 +596,64 @@ def project_inter_cloth_contacts(
         if bool(np.any(triangles < 0)) or bool(np.any(triangles >= len(positions))):
             msg = f"inter-cloth group {group_id!r} references a missing particle"
             raise ValueError(msg)
-        surfaces[group_id] = _surface_index(positions, triangles)
-
-    group_ids = tuple(sorted(surfaces))
-    particle_owners: dict[int, str] = {}
-    for group_id, surface in surfaces.items():
-        for particle_index in np.unique(surface.triangles):
+        for particle_index in np.unique(triangles):
             index = int(particle_index)
             previous = particle_owners.setdefault(index, group_id)
             if previous != group_id:
                 msg = "independent inter-cloth groups must not share solver particles"
                 raise ValueError(msg)
+        surfaces[group_id] = _surface_index(positions, triangles)
+
+    group_ids = tuple(sorted(surfaces))
     clusters = _stitch_clusters(len(positions), stitches)
     original = positions.copy()
     current = positions.copy()
-    correction_directions = np.zeros_like(current)
     contacts_before = 0
-    max_penetration_before = 0.0
+    maximum_before = 0.0
 
-    for _iteration in range(pass_count):
+    for iteration in range(pass_count):
         correction_sum = np.zeros_like(current)
         correction_count = np.zeros(len(current), dtype=np.int64)
         contacts_this_pass = 0
-        max_penetration_this_pass = 0.0
+        maximum_this_pass = 0.0
 
         for left_index, left_id in enumerate(group_ids):
             left = surfaces[left_id]
-            left_vertices = np.unique(left.triangles)
             for right_id in group_ids[left_index + 1 :]:
                 right = surfaces[right_id]
-
-                for source_group_index, source, target in (
-                    (left_index, left, right),
-                    (left_index + 1, right, left),
-                ):
-                    fallback_sign = 1.0 if source_group_index == left_index else -1.0
-                    for sample_index, sample_ids in enumerate(source.sample_indices):
-                        sample_weights = source.sample_weights[sample_index]
-                        sample_point = np.sum(
-                            current[np.asarray(sample_ids, dtype=np.int64)]
-                            * np.asarray(sample_weights)[:, None],
-                            axis=0,
+                for source, target in ((left, right), (right, left)):
+                    source_center = current[np.unique(source.triangles)].mean(axis=0)
+                    target_center = current[np.unique(target.triangles)].mean(axis=0)
+                    for edge_index, edge in enumerate(source.edges):
+                        query_radius = (
+                            clearance
+                            + float(source.edge_half_lengths[edge_index])
+                            + float(target.triangle_radii.max())
                         )
-                        query_radius = clearance + float(target.triangle_radii.max())
-                        candidate_ids = target.triangle_tree.query_ball_point(
-                            sample_point,
+                        candidates = target.triangle_tree.query_ball_point(
+                            source.edge_centers[edge_index],
                             query_radius,
                         )
-                        for triangle_id in candidate_ids:
-                            triangle_ids = tuple(
-                                int(value) for value in target.triangles[int(triangle_id)]
+                        for triangle_index in candidates:
+                            triangle = tuple(
+                                int(value) for value in target.triangles[int(triangle_index)]
                             )
-                            triangle_points = current[np.asarray(triangle_ids, dtype=np.int64)]
-                            fallback = fallback_sign * _canonical_direction(
-                                np.cross(
-                                    triangle_points[1] - triangle_points[0],
-                                    triangle_points[2] - triangle_points[0],
-                                )
-                            )
-                            contact, penetration = _accumulate_sample_triangle(
+                            contact, penetration = _accumulate_edge_triangle(
                                 current,
-                                sample_ids,
-                                sample_weights,
-                                triangle_ids,
+                                (int(edge[0]), int(edge[1])),
+                                triangle,
                                 masses,
                                 clearance,
-                                fallback,
+                                source_center,
+                                target_center,
                                 correction_sum,
                                 correction_count,
                             )
                             contacts_this_pass += int(contact)
-                            max_penetration_this_pass = max(
-                                max_penetration_this_pass,
+                            maximum_this_pass = max(
+                                maximum_this_pass,
                                 penetration if contact else 0.0,
                             )
-
-                query_radius = (
-                    clearance
-                    + float(left.edge_half_lengths.max())
-                    + float(right.edge_half_lengths.max())
-                )
-                for edge_index, center in enumerate(left.edge_centers):
-                    candidates = right.edge_tree.query_ball_point(center, query_radius)
-                    edge_a = tuple(int(value) for value in left.edges[edge_index])
-                    radius_a = float(left.edge_half_lengths[edge_index])
-                    for edge_id in candidates:
-                        other_edge = right.edges[int(edge_id)]
-                        radius = clearance + radius_a + float(right.edge_half_lengths[int(edge_id)])
-                        if float(np.linalg.norm(center - right.edge_centers[int(edge_id)])) > radius:
-                            continue
-                        edge_b = (int(other_edge[0]), int(other_edge[1]))
-                        point_a, point_b, _factor_a, _factor_b = _closest_points_on_segments(
-                            current[edge_a[0]],
-                            current[edge_a[1]],
-                            current[edge_b[0]],
-                            current[edge_b[1]],
-                        )
-                        fallback = _canonical_direction(
-                            np.cross(
-                                current[edge_a[1]] - current[edge_a[0]],
-                                current[edge_b[1]] - current[edge_b[0]],
-                            )
-                            if float(np.linalg.norm(np.cross(
-                                current[edge_a[1]] - current[edge_a[0]],
-                                current[edge_b[1]] - current[edge_b[0]],
-                            ))) > 1e-12
-                            else np.cross(
-                                current[edge_a[1]] - current[edge_a[0]],
-                                np.asarray((1.0, 0.0, 0.0), dtype=np.float64)
-                                if abs(float(current[edge_a[1], 0] - current[edge_a[0], 0])) < 0.9
-                                else np.asarray((0.0, 1.0, 0.0), dtype=np.float64),
-                            )
-                        )
-                        contact, penetration = _accumulate_edge_edge(
-                            current,
-                            edge_a,
-                            edge_b,
-                            masses,
-                            clearance,
-                            fallback,
-                            correction_sum,
-                            correction_count,
-                        )
-                        contacts_this_pass += int(contact)
-                        max_penetration_this_pass = max(
-                            max_penetration_this_pass,
-                            penetration if contact else 0.0,
-                        )
 
         corrections = np.divide(
             correction_sum,
@@ -738,29 +664,23 @@ def project_inter_cloth_contacts(
         _share_sewn_corrections(corrections, masses, clusters)
         moved = np.linalg.norm(corrections, axis=1) > 1e-10
         current += alpha * corrections
-        correction_directions[moved] = corrections[moved]
-        if _iteration == 0:
+        if iteration == 0:
             contacts_before = contacts_this_pass
-            max_penetration_before = max_penetration_this_pass
+            maximum_before = maximum_this_pass
         if not bool(np.any(moved)):
             break
 
-    remaining_contacts, max_penetration_after = _candidate_contact_statistics(
-        current,
-        surfaces,
-        clearance,
-    )
+    remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
     movement = np.linalg.norm(current - original, axis=1)
     corrected_count = int(np.count_nonzero(movement > 1e-8))
-    correction_lengths = np.linalg.norm(correction_directions, axis=1)
-    nonzero = correction_lengths > 1e-10
-    correction_directions[nonzero] /= correction_lengths[nonzero, None]
-    correction_directions[~nonzero] = 0.0
+    directions = np.zeros_like(current)
+    moved = movement > 1e-8
+    directions[moved] = (current[moved] - original[moved]) / movement[moved, None]
     metrics = InterClothContactMetrics(
         contacts_before,
         corrected_count,
         remaining_contacts,
-        max_penetration_before,
-        max_penetration_after,
+        maximum_before,
+        maximum_after,
     )
-    return current, correction_directions, metrics
+    return current, directions, metrics
