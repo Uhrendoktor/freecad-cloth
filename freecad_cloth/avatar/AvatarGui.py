@@ -623,9 +623,10 @@ class AvatarTaskPanel:
                 self._advanced_controls_built = True
                 self._filter_advanced_parameters(self.advanced_search.text())
             except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                self.status.setText(
+                self._set_status(
                     "Advanced Anny parameters could not be loaded. "
-                    f"The standard measurement controls remain available: {exc}"
+                    f"The standard measurement controls remain available: {exc}",
+                    state="warning",
                 )
                 self.advanced_content.setVisible(False)
                 self.advanced_toggle.setChecked(False)
@@ -764,7 +765,7 @@ class AvatarTaskPanel:
     def _load(self):
         """Populate the task-panel controls from the persisted avatar parameters."""
         if self.avatar is None:
-            self.status.setText("Create a Cloth Human Mannequin first.")
+            self._set_status("Create a Cloth Human Mannequin first.", state="warning")
             self.apply_button.setEnabled(False)
             self.fit_button.setEnabled(False)
             for button in self.provider_buttons.values():
@@ -927,8 +928,9 @@ class AvatarTaskPanel:
 
                 self._dimension_controller = AvatarDimensionController(self)
             except (ImportError, RuntimeError, TypeError, ValueError):
-                self.status.setText(
-                    "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+                self._set_status(
+                    "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements.",
+                    state="warning",
                 )
                 return
         if not self._dimension_controller.activate():
@@ -1045,6 +1047,17 @@ class AvatarTaskPanel:
     def _landmarks_visibility_changed(self, _checked):
         """Refresh the measurement overlay after its visibility checkbox changes."""
         self._update_landmarks()
+
+    def _set_status(self, message: str, *, state: str = "info") -> None:
+        """Update the avatar editor's status using shared palette-aware semantics.
+
+        Args:
+            message: User-facing state or recovery instruction.
+            state: Semantic information, warning, error, or success status.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, message, state=state)
 
     def _refresh_status(self, message=None):
         """Display the latest avatar operation status in the task panel."""
