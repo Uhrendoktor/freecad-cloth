@@ -10,7 +10,7 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
-    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
+    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _PreviewPanel
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None
@@ -48,7 +48,7 @@ class _SimulationScene(Protocol):
     Steps: int
     Document: _SceneDocument
     Proxy: object | None
-    DrapePanels: Sequence[object]
+    DrapePanels: Sequence[_PreviewPanel]
     FabricColor: Sequence[float]
     FabricTransparency: int
     FabricSpecular: float
@@ -121,7 +121,7 @@ class _Preview:
         self.timer.timeout.connect(self.tick)
         self.running = False
         self._overlay_refresh_ticks = 0
-        self._mesh_preview = None
+        self._mesh_preview: RealtimeMeshPreview | None = None
         self._saved = {
             name: getattr(scene, name)
             for name in (
