@@ -231,6 +231,13 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         tuple[tuple[int, int, int], ...],
     ]
     preview_publications: list[_PreviewPublication] = []
+    presentation_calls = 0
+
+    def record_presentation(_target: SimpleNamespace) -> None:
+        nonlocal presentation_calls
+        presentation_calls += 1
+
+    proxy._apply_presentation = record_presentation
     proxy.set_preview_mesh_publisher(
         lambda panel, positions, triangles: preview_publications.append(
             (panel.Name, positions, triangles)
@@ -259,6 +266,9 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
     ], "Transient preview must update the panel publisher instead of its document mesh."
     assert base.last_steps == _EXPECTED_PREVIEW_STEPS, (
         "A preview frame must advance the recorded step count by one."
+    )
+    assert presentation_calls == 0, (
+        "Transient Coin3D material styling must not rewrite hidden document-panel properties."
     )
 
 
