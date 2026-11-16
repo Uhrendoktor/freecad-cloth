@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Realtime viewport preview for the production PositionBasedDynamics simulation."""
 
+from collections.abc import Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -20,6 +21,11 @@ class _SimulationScene(Protocol):
     Steps: int
     Document: _SceneDocument
     Proxy: object | None
+    DrapePanels: Sequence[object]
+    FabricColor: Sequence[float]
+    FabricTransparency: int
+    FabricSpecular: float
+    FabricRoughness: float
 
 
 def _qt() -> ModuleType:
@@ -88,6 +94,7 @@ class _Preview:
         self.timer.timeout.connect(self.tick)
         self.running = False
         self._overlay_refresh_ticks = 0
+        self._mesh_preview = None
         self._saved = {
             name: getattr(scene, name)
             for name in (
@@ -101,25 +108,71 @@ class _Preview:
         }
 
     def start(self) -> None:
-        """Start the preview timer."""
-        if not self.running:
-            self.running = True
-            self.timer.start()
-            self._message("Realtime preview running")
+        """Start the preview timer with transient viewport-only panel geometry."""
+        if self.running:
+            return
+        from freecad_cloth.simulation.RealtimeMeshPreview import (
+            RealtimeMeshPreview,
+            _PreviewPanel,
+            _Triangle,
+        )
+
+        proxy = self.scene.Proxy
+        if proxy is None or not hasattr(proxy, "set_preview_mesh_publisher"):
+            msg = "Realtime preview requires the quality-aware mesh publication path"
+            raise RuntimeError(msg)
+        base = proxy._base_or_restore()
+        backend = getattr(base, "backend", None)
+        if backend is None:
+            msg = "Realtime preview requires an initialized solver backend"
+            raise RuntimeError(msg)
+
+        panels = cast("Sequence[_PreviewPanel]", self.scene.DrapePanels)
+        panel_triangles = cast("dict[str, Sequence[_Triangle]]", base.panel_triangles)
+        mesh_preview = RealtimeMeshPreview(
+            panels,
+            panel_triangles,
+            self.scene.FabricColor,
+            self.scene.FabricTransparency,
+            self.scene.FabricSpecular,
+            self.scene.FabricRoughness,
+        )
+        try:
+            proxy.set_preview_mesh_publisher(mesh_preview.publish)
+            mesh_preview.publish_all(panels, backend.positions(), panel_triangles)
+        except Exception:
+            proxy.set_preview_mesh_publisher(None)
+            mesh_preview.close()
+            raise
+        self._mesh_preview = mesh_preview
+        self.running = True
+        self.timer.start()
+        self._message("Realtime preview running")
 
     def stop(self, restore: bool = True) -> None:
-        """Stop the preview and optionally restore persistent quality settings."""
+        """Stop the preview, remove transient nodes and synchronize document meshes once."""
         self.timer.stop()
         was_running = self.running
         self.running = False
-        if restore and was_running:
+        proxy = self.scene.Proxy
+        if proxy is not None and hasattr(proxy, "set_preview_mesh_publisher"):
+            proxy.set_preview_mesh_publisher(None)
+        mesh_preview = self._mesh_preview
+        self._mesh_preview = None
+        if mesh_preview is not None:
+            mesh_preview.close()
+        if was_running:
             try:
-                self.scene.Steps = 0
-                for name, value in self._saved.items():
-                    if hasattr(self.scene, name):
-                        setattr(self.scene, name, value)
-                self.scene.Document.recompute()
-            except ReferenceError:
+                if restore:
+                    self.scene.Steps = 0
+                    for name, value in self._saved.items():
+                        if hasattr(self.scene, name):
+                            setattr(self.scene, name, value)
+                    self.scene.Document.recompute()
+                elif proxy is not None and hasattr(proxy, "_publish_state"):
+                    base = proxy._base_or_restore()
+                    proxy._publish_state(self.scene, base)
+            except (ReferenceError, RuntimeError):
                 pass
         self._message("Realtime preview stopped")
 
