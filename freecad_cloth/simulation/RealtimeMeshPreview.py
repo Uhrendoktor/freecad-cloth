@@ -1,9 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Transient Coin3D mesh presentation for interactive cloth preview frames."""
 
-from typing import Protocol, cast
-
 from collections.abc import Sequence
+from typing import Protocol, cast
 
 
 type _Position = tuple[float, float, float]
@@ -109,7 +108,6 @@ class RealtimeMeshPreview:
             ValueError: If the fabric color does not contain three channels.
         """
         import FreeCADGui as Gui
-
         from pivy import coin
 
         active_document = Gui.activeDocument()
