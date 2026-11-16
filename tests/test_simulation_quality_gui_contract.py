@@ -281,7 +281,10 @@ def test_expert_disclosure_reveals_and_hides_all_quality_precision_rows() -> Non
         condition=all(
             widget.visible for widget in (*panel._expert_widgets, *panel._expert_quality_widgets)
         ),
-        message="Expanding expert settings must reveal every solver, fabric, collision, and quality control.",
+        message=(
+            "Expanding expert settings must reveal every solver, fabric, collision, "
+            "and quality control."
+        ),
     )
     require(
         condition=panel.advanced_toggle.arrow == "down",
