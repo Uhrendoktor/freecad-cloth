@@ -432,12 +432,14 @@ class DrapeTargetTaskPanel:
         message = f"Target status: {state}"
         if reason:
             message += " — " + reason
-        self._set_status(
-            message,
-            state="error"
-            if state.lower() in {"invalid", "unassigned", "stale", "blocked", "error"}
-            else "info",
-        )
+        normalized_state = state.casefold()
+        if normalized_state in {"invalid", "unassigned", "stale", "blocked", "error"}:
+            semantic_state = "error"
+        elif normalized_state == "ready":
+            semantic_state = "success"
+        else:
+            semantic_state = "info"
+        self._set_status(message, state=semantic_state)
 
     def _selected_source(self) -> FreeCADDocumentObjectProtocol | None:
         """Return the currently selected collision source.
