@@ -1,4 +1,4 @@
-"""Reject explicit ``Any`` references in repository Python sources.
+"""Reject explicit ``Any`` references in repository Python sources and stubs.
 
 Ruff ANN401 handles function annotations. This syntax-aware gate catches explicit
 ``Any`` references in aliases and attributes, including quoted forward references
@@ -125,7 +125,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         if isinstance(node, ast.Name) and node.id in any_names:
             violations.append(
                 f"{filename}:{node.lineno}: explicit Any reference is prohibited; "
-                "use a concrete type, object with narrowing, or a Protocol"
+                "use a concrete type, Protocol, TypedDict, or recursive JSON value type"
             )
         elif (
             isinstance(node, ast.Attribute)
@@ -135,7 +135,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
         ):
             violations.append(
                 f"{filename}:{node.lineno}: explicit {node.value.id}.Any reference is prohibited; "
-                "use a concrete type, object with narrowing, or a Protocol"
+                "use a concrete type, Protocol, TypedDict, or recursive JSON value type"
             )
 
         annotation_fields: list[ast.AST] = []
@@ -165,7 +165,7 @@ def explicit_any_violations(source: str, filename: str = "<memory>") -> tuple[st
             if any(_contains_explicit_any(root, any_names, typing_modules) for root in roots):
                 violations.append(
                     f"{filename}:{getattr(node, 'lineno', 1)}: type comment references explicit Any; "
-                    "use a concrete type, object with narrowing, or a Protocol"
+                    "use a concrete type, Protocol, TypedDict, or recursive JSON value type"
                 )
 
     return tuple(sorted(set(violations)))
@@ -176,7 +176,7 @@ def python_files(root: Path = ROOT) -> Iterator[Path]:
     for directory, names, files in os.walk(root):
         names[:] = sorted(name for name in names if name not in _IGNORED_DIRECTORIES)
         for name in sorted(files):
-            if name.endswith(".py"):
+            if name.endswith((".py", ".pyi")):
                 yield Path(directory) / name
 
 
