@@ -312,6 +312,29 @@ class _ErrorFeedbackPanel(SewingCreationTaskPanel):
         """Skip selection rendering because the headless fixture has no Qt widgets."""
 
 
+def test_picking_guidance_uses_shared_information_status_style(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Render viewport-picking instructions with the shared informational status role."""
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.feedback = Mock()
+    updates: list[tuple[object, str, str]] = []
+
+    def set_status(label: object, message: str, *, state: str = "info") -> None:
+        updates.append((label, message, state))
+
+    from freecad_cloth.common import UiDesign
+
+    monkeypatch.setattr(UiDesign, "set_status", set_status)
+    panel._show_info("Click the counterpart edge on another PatternPiece.")
+
+    assert updates == [
+        (
+            panel.feedback,
+            "Click the counterpart edge on another PatternPiece.",
+            "info",
+        )
+    ]
+
+
 def test_preview_error_feedback_is_actionable_and_disables_commit() -> None:
     """Show a useful validation message and keep Commit disabled after preview rejection."""
     panel = _ErrorFeedbackPanel.__new__(_ErrorFeedbackPanel)
