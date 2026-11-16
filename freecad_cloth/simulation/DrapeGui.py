@@ -230,7 +230,10 @@ class _ViewportSourcePicker:
             )
             return
         document = self.panel.doc
-        source = document.getObject(str(object_name)) if document is not None else None
+        try:
+            source = document.getObject(str(object_name)) if document is not None else None
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            source = None
         if source is None:
             source = next(
                 (
@@ -295,7 +298,6 @@ class DrapeTargetTaskPanel:
         self.doc = app_module.ActiveDocument
         self.target = target or self._find_target()
         self._source_picker: _ViewportSourcePicker | None = None
-        self._form_closed = False
         self.form = qt_widgets.QWidget()
         self.form.setObjectName("ClothDrapeTargetTaskPanel")
         root = cast("_WidgetLayout", qt_widgets.QVBoxLayout(self.form))
@@ -655,7 +657,15 @@ class DrapeTargetTaskPanel:
             return
         if self._source_picker is not None:
             return
-        self._source_picker = _ViewportSourcePicker(self)
+        try:
+            self._source_picker = _ViewportSourcePicker(self)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            self._source_picker = None
+            self._set_status(
+                f"Viewport picking is unavailable — {exc}. Use the source selector instead.",
+                state="warning",
+            )
+            return
         self.pick_source_button.setEnabled(False)
         self.cancel_pick_button.setVisible(True)
         self._set_status(
@@ -740,7 +750,6 @@ class DrapeTargetTaskPanel:
         if self._source_picker is not None:
             self._cancel_source_pick(update_status=False)
         accepted = self._apply()
-        self._form_closed = bool(accepted)
         return accepted
 
     def reject(self) -> bool:
@@ -751,7 +760,6 @@ class DrapeTargetTaskPanel:
         """
         if self._source_picker is not None:
             self._cancel_source_pick(update_status=False)
-        self._form_closed = True
         gui = cast("_FreeCADGui", self.Gui)
         if gui.activeDocument() and gui.Control.activeDialog():
             gui.Control.closeDialog()
