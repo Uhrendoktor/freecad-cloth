@@ -4,7 +4,6 @@
 from collections.abc import Sequence
 from typing import Protocol, cast
 
-
 type _Position = tuple[float, float, float]
 type _Triangle = tuple[int, int, int]
 
