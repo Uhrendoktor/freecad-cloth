@@ -191,6 +191,27 @@ jobs:
       - uses: ./.github/actions/pbd-image
         with:
           image: ${{ steps.image.outputs.image }}
+  safe-ruff-autofix:
+    name: Safe Ruff autofix (explicit pull-request opt-in)
+    if: ${{ always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[apply-safe-ruff]') && needs.local_runner_readiness.result == 'success' && needs.pbd_validation_image.result == 'success' }}
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
+    runs-on: [self-hosted, linux, x64, docker]
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Apply Ruff formatting and safe lint fixes, then push the patch
+        shell: bash
+        env:
+          QUALITY_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+          RUNNER_TOOL_CACHE: ${{ runner.tool_cache }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE" --ruff-autofix
   diagnostic-pbd-contact:
     name: Diagnostic PBD contact controls
     if: ${{ inputs.execution_mode == 'full' && ((github.event_name == 'workflow_dispatch' && inputs.diagnostic_controls) || (github.event_name == 'pull_request' && (contains(github.event.pull_request.head.ref, 'cube-ladder-2481') || contains(github.event.pull_request.head.ref, 'avatar-ladder-2482')))) }}
