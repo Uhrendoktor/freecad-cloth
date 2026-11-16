@@ -137,8 +137,7 @@ class _FrameClock:
             if len(self._queue_delay_samples_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._queue_delay_samples_ms[0]
             self._queue_delay_estimate_ms = (
-                _sample_p95_ms(self._queue_delay_samples_ms)
-                + _QUEUE_DELAY_SAFETY_MARGIN_MS
+                _sample_p95_ms(self._queue_delay_samples_ms) + _QUEUE_DELAY_SAFETY_MARGIN_MS
             )
             self._condition.notify_all()
 

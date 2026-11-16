@@ -91,7 +91,6 @@ def test_frame_clock_smooths_observed_gui_queue_delay() -> None:
     clock.stop()
 
 
-
 def test_queue_delay_estimator_uses_a_high_percentile_not_the_mean() -> None:
     """Use a tail-aware queue-delay lead that covers rare but material GUI stalls."""
     samples = [float(value) for value in range(1, 101)]
