@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from tests.support.assertions import require
 from tools.ci.strict_quality import (
     CPU_TORCH_REQUIREMENT,
@@ -14,6 +16,7 @@ from tools.ci.strict_quality import (
     quality_install_command,
     ready_marker_is_current,
     ruff_autofix_commands,
+    _write_ruff_autofix_patch,
 )
 
 
@@ -235,4 +238,32 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     require(
         condition=any("tests/module.pyi" in command for command in arguments),
         message="Python stubs must remain included in both Ruff commands.",
+    )
+
+
+
+def test_ruff_autofix_patch_uses_unique_temporary_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Keep generated patch files unique, retained, and scoped to the runner temp directory."""
+    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
+    first_patch = "diff --git a/first.py b/first.py\n"
+    second_patch = "diff --git a/second.py b/second.py\n"
+
+    first_path = _write_ruff_autofix_patch(first_patch)
+    second_path = _write_ruff_autofix_patch(second_patch)
+
+    require(
+        condition=first_path.parent == tmp_path and second_path.parent == tmp_path,
+        message="Ruff patch files must be created inside RUNNER_TEMP.",
+    )
+    require(
+        condition=first_path != second_path,
+        message="Concurrent Ruff autofix runs must not share a fixed patch filename.",
+    )
+    require(
+        condition=first_path.read_text(encoding="utf-8") == first_patch
+        and second_path.read_text(encoding="utf-8") == second_patch,
+        message="Each temporary patch must retain its own generated diff text.",
     )
