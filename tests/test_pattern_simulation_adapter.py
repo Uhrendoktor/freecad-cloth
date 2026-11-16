@@ -249,7 +249,7 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
         [f"piece:edge:{index}" for index in range(8)],
     )
     piece = _Piece("piece", sketch)
-    reordered = []
+    reordered: list[EdgeRecord] = []
     for edge_id in (
         "piece:edge:0",
         "piece:edge:7",
@@ -276,7 +276,6 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
             }
         )
 
-    reordered: list[EdgeRecord] = reordered
 
     def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return reordered
