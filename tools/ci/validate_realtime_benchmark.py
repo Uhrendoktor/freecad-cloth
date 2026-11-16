@@ -196,9 +196,10 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     initial_delay = _number(scheduler.get("initial_queue_delay_ms"))
     if initial_delay is None or abs(initial_delay - 5.0) > 1e-9:
         errors.append("frame_scheduler.initial_queue_delay_ms must equal 5")
-    queue_delay = _number(scheduler.get("queue_delay_estimate_ms"))
-    if queue_delay is None or queue_delay < 0.0:
-        errors.append("frame_scheduler.queue_delay_estimate_ms must be finite and non-negative")
+    for key in ("queue_delay_estimate_ms", "worker_wakeup_estimate_ms"):
+        value = _number(scheduler.get(key))
+        if value is None or value < 0.0:
+            errors.append(f"frame_scheduler.{key} must be finite and non-negative")
 
     emitted = _integer(scheduler.get("signals_emitted"))
     if emitted is None or emitted < (frames or MIN_FRAMES):

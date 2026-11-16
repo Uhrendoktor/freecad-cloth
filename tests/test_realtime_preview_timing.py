@@ -3,7 +3,7 @@
 
 from math import inf, isclose, nan
 
-from freecad_cloth.simulation.RealtimePreview import _FrameClock
+from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
@@ -29,7 +29,8 @@ def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
     clock.frame_started(10.001, 9.995)
     snapshot = clock.snapshot()
     assert snapshot["outstanding_pulses"] == 0
-    assert isclose(snapshot["queue_delay_estimate_ms"], 5.35, abs_tol=1e-9)
+    assert isclose(snapshot["queue_delay_estimate_ms"], 6.25, abs_tol=1e-9)
+    assert isclose(snapshot["worker_wakeup_estimate_ms"], 0.25, abs_tol=1e-9)
     assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.00535) is True
     assert len(emitted) == 2
     clock.stop()
@@ -84,7 +85,21 @@ def test_frame_clock_smooths_observed_gui_queue_delay() -> None:
     initial = clock.snapshot()["queue_delay_estimate_ms"]
     assert initial == 5.0
     clock.frame_started(2.010, 2.000)
-    assert isclose(clock.snapshot()["queue_delay_estimate_ms"], 6.75, abs_tol=1e-9)
-    clock.request_frame(2.0 + 1.0 / 60.0, 2.0 + 1.0 / 60.0 - 0.00675)
+    assert isclose(clock.snapshot()["queue_delay_estimate_ms"], 10.25, abs_tol=1e-9)
+    clock.request_frame(2.0 + 1.0 / 60.0, 2.0 + 1.0 / 60.0 - 0.01025)
     assert len(emitted) == 1
     clock.stop()
+
+
+
+def test_queue_delay_estimator_uses_a_high_percentile_not_the_mean() -> None:
+    """Use a tail-aware queue-delay lead that covers rare but material GUI stalls."""
+    samples = [float(value) for value in range(1, 101)]
+    assert _sample_p95_ms(samples) == 95.0
+
+
+def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
+    """Use the newest sample while the scheduler warms its rolling percentile window."""
+    assert _sample_p95_ms([]) == 0.0
+    assert _sample_p95_ms([4.25]) == 4.25
+    assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0

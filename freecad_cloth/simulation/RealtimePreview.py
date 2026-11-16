@@ -17,8 +17,18 @@ if TYPE_CHECKING:
 _PREVIEW = None
 _PREVIEW_TARGET_FPS = 60.0
 _INITIAL_GUI_QUEUE_DELAY_MS = 5.0
-_QUEUE_DELAY_SMOOTHING = 0.35
+_QUEUE_DELAY_SAFETY_MARGIN_MS = 0.25
+_WORKER_WAKEUP_SAFETY_MARGIN_MS = 0.25
 _FRAME_DISPATCH_SAMPLE_LIMIT = 120
+
+
+def _sample_p95_ms(samples: Sequence[float]) -> float:
+    """Return the nearest-rank 95th percentile of a bounded millisecond sample window."""
+    if not samples:
+        return 0.0
+    ordered = sorted(samples)
+    percentile_index = min(len(ordered) - 1, max(0, ceil(len(ordered) * 0.95) - 1))
+    return float(ordered[percentile_index])
 
 
 class _PulseSignal(Protocol):
@@ -65,7 +75,11 @@ class _FrameClock:
         self._frame_ack_serial = 0
         self._last_frame_started_at: float | None = None
         self._queue_delay_estimate_ms = _INITIAL_GUI_QUEUE_DELAY_MS
+        self._queue_delay_samples_ms: list[float] = []
+        self._worker_wakeup_estimate_ms = 0.0
         self._worker_wakeup_lateness_ms: list[float] = []
+        self._last_queue_delay_ms = 0.0
+        self._last_worker_wakeup_lateness_ms = 0.0
         self.target_fps = float(target_fps)
         self._thread: Thread | None = None
 
@@ -81,7 +95,11 @@ class _FrameClock:
             self._frame_ack_serial = 0
             self._last_frame_started_at = None
             self._queue_delay_estimate_ms = _INITIAL_GUI_QUEUE_DELAY_MS
+            self._queue_delay_samples_ms.clear()
+            self._worker_wakeup_estimate_ms = 0.0
             self._worker_wakeup_lateness_ms.clear()
+            self._last_queue_delay_ms = 0.0
+            self._last_worker_wakeup_lateness_ms = 0.0
         self._stop_event.clear()
         self._thread = Thread(
             target=self._run,
@@ -114,9 +132,14 @@ class _FrameClock:
             self._pending = False
             self._frame_ack_serial += 1
             self._last_frame_started_at = float(started_at)
+            self._last_queue_delay_ms = queue_delay_ms
+            self._queue_delay_samples_ms.append(queue_delay_ms)
+            if len(self._queue_delay_samples_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
+                del self._queue_delay_samples_ms[0]
             self._queue_delay_estimate_ms = (
-                1.0 - _QUEUE_DELAY_SMOOTHING
-            ) * self._queue_delay_estimate_ms + _QUEUE_DELAY_SMOOTHING * queue_delay_ms
+                _sample_p95_ms(self._queue_delay_samples_ms)
+                + _QUEUE_DELAY_SAFETY_MARGIN_MS
+            )
             self._condition.notify_all()
 
     def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
@@ -131,11 +154,19 @@ class _FrameClock:
         """
         actual_emission = time.perf_counter() if emitted_at is None else float(emitted_at)
         with self._condition:
-            emission_deadline = scheduled_at - self._queue_delay_estimate_ms / 1000.0
+            emission_lead_ms = (
+                self._queue_delay_estimate_ms + self._worker_wakeup_estimate_ms
+            )
+            emission_deadline = scheduled_at - emission_lead_ms / 1000.0
             worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
+            self._last_worker_wakeup_lateness_ms = worker_lateness_ms
             self._worker_wakeup_lateness_ms.append(worker_lateness_ms)
             if len(self._worker_wakeup_lateness_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._worker_wakeup_lateness_ms[0]
+            self._worker_wakeup_estimate_ms = (
+                _sample_p95_ms(self._worker_wakeup_lateness_ms)
+                + _WORKER_WAKEUP_SAFETY_MARGIN_MS
+            )
             if self._pending:
                 self._coalesced_pulses += 1
                 return False
@@ -159,6 +190,7 @@ class _FrameClock:
                 "target_fps": self.target_fps,
                 "initial_queue_delay_ms": _INITIAL_GUI_QUEUE_DELAY_MS,
                 "queue_delay_estimate_ms": self._queue_delay_estimate_ms,
+                "worker_wakeup_estimate_ms": self._worker_wakeup_estimate_ms,
                 "signals_emitted": self._signals_emitted,
                 "coalesced_pulses": self._coalesced_pulses,
                 "missed_deadlines": self._missed_deadlines,
@@ -187,8 +219,11 @@ class _FrameClock:
         while not self._stop_event.is_set():
             with self._condition:
                 queue_delay_estimate_ms = self._queue_delay_estimate_ms
+                worker_wakeup_estimate_ms = self._worker_wakeup_estimate_ms
                 ack_before = self._frame_ack_serial
-            emission_deadline = next_deadline - queue_delay_estimate_ms / 1000.0
+            emission_deadline = next_deadline - (
+                queue_delay_estimate_ms + worker_wakeup_estimate_ms
+            ) / 1000.0
             wait_s = max(0.0, emission_deadline - time.perf_counter())
             if self._stop_event.wait(wait_s):
                 return
@@ -211,8 +246,17 @@ class _FrameClock:
                     return
             with self._condition:
                 acknowledged_start = self._last_frame_started_at
+                queue_phase_correction_ms = (
+                    self._queue_delay_estimate_ms - self._last_queue_delay_ms
+                )
+                worker_phase_correction_ms = (
+                    self._worker_wakeup_estimate_ms
+                    - self._last_worker_wakeup_lateness_ms
+                )
             if acknowledged_start is not None:
-                next_deadline = acknowledged_start + period
+                next_deadline = acknowledged_start + period + (
+                    queue_phase_correction_ms + worker_phase_correction_ms
+                ) / 1000.0
 
 
 def _make_frame_dispatcher(

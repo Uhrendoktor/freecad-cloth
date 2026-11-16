@@ -193,6 +193,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "target_fps": validate_realtime_benchmark.TARGET_FPS,
             "initial_queue_delay_ms": 5.0,
             "queue_delay_estimate_ms": 5.0,
+            "worker_wakeup_estimate_ms": 0.0,
             "signals_emitted": 150,
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
