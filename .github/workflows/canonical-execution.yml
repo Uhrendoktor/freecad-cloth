@@ -345,6 +345,7 @@ jobs:
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
           validate-command: ${{ matrix.validate }}
+          scene-report-command: ${{ matrix.scene-report-command }}
           artifact-name: ${{ matrix.artifact }}
           artifact-path: artifacts
           stage-workbench: ${{ matrix.stage }}
