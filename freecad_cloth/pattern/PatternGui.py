@@ -157,16 +157,19 @@ class PatternPieceTaskPanel:
         custom = mode == "Custom"
         self.width.setEnabled(not custom)
         self.height.setEnabled(not custom)
-        for widget, label, text in (
-            (self.width, self._width_label, "Width"),
-            (self.height, self._height_label, "Height"),
-        ):
-            widget.setVisible(not custom)
-            label.setVisible(not custom)
-            label.setText(text)
+        self.width.setVisible(True)
+        self.height.setVisible(True)
+        self._width_label.setVisible(True)
+        self._height_label.setVisible(True)
+        self._width_label.setText("Width (from outline)" if custom else "Width")
+        self._height_label.setText("Height (from outline)" if custom else "Height")
         if custom:
-            self.width.setToolTip("Not used in Custom mode; the linked Sketch defines the outline.")
-            self.height.setToolTip("Not used in Custom mode; the linked Sketch defines the outline.")
+            self.width.setToolTip(
+                "Read-only bounding dimension derived from the custom drafting outline."
+            )
+            self.height.setToolTip(
+                "Read-only bounding dimension derived from the custom drafting outline."
+            )
         else:
             self.width.setToolTip("Width of the parameter-driven rectangle, in millimetres.")
             self.height.setToolTip("Height of the parameter-driven rectangle, in millimetres.")
