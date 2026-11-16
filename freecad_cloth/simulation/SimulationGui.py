@@ -366,15 +366,18 @@ class SimulationTaskPanel:
                 state="warning",
             )
             return
-        target_message = "No DrapeTarget selected"
+        target_message = "No drape target selected"
+        target_state = "missing"
         try:
             from freecad_cloth.simulation.DrapeTarget import target_status
 
-            status = target_status(getattr(self.scene, "DrapeTarget", None))
-            target_message = status["message"]
+            target_info = target_status(getattr(self.scene, "DrapeTarget", None))
+            target_message = str(target_info["message"])
+            target_state = str(target_info["state"])
         except (ImportError, AttributeError, TypeError, ValueError):
-            pass
-        state = "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite"
+            target_state = "unavailable"
+        finite_state = bool(getattr(self.scene, "FiniteState", True))
+        simulation_state = "ready" if finite_state else "invalid/non-finite"
         status_message = (
             message
             or "State: %s | Target: %s | %.3f s | %d particles | %d steps"
@@ -386,10 +389,16 @@ class SimulationTaskPanel:
                 int(getattr(self.scene, "Steps", 0)),
             )
         )
+        if not finite_state:
+            semantic_state = "error"
+        elif target_state != "ready":
+            semantic_state = "warning"
+        else:
+            semantic_state = "success"
         set_status(
             self.status,
             status_message,
-            state="info" if message else ("success" if state == "ready" else "error"),
+            state="info" if message else semantic_state,
         )
 
     def accept(self) -> bool:
