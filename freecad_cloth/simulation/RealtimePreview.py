@@ -35,6 +35,25 @@ def _next_timer_interval_ms(callback_elapsed_ms: float) -> int:
     return max(1, int(remaining_ms))
 
 
+class _PreviewTimer(Protocol):
+    """Expose the one-shot Qt timer operations used to schedule preview frames."""
+
+    def setInterval(self, interval: int) -> None: ...
+
+    def start(self) -> None: ...
+
+
+def _schedule_next_frame(timer: _PreviewTimer, callback_elapsed_ms: float) -> None:
+    """Schedule the next one-shot timer after the current frame has completed.
+
+    Args:
+        timer: Inactive single-shot Qt timer that owns the next preview callback.
+        callback_elapsed_ms: Time spent advancing and presenting the current frame.
+    """
+    timer.setInterval(_next_timer_interval_ms(callback_elapsed_ms))
+    timer.start()
+
+
 class _SceneDocument(Protocol):
     def recompute(self) -> None: ...
 
@@ -117,6 +136,7 @@ class _Preview:
         self.scene = scene
         self.timer = QtCore.QTimer()
         self.timer.setTimerType(QtCore.Qt.PreciseTimer)
+        self.timer.setSingleShot(True)
         self.timer.setInterval(16)
         self.timer.timeout.connect(self.tick)
         self.running = False
@@ -232,7 +252,7 @@ class _Preview:
         finally:
             if self.running:
                 callback_elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
-                self.timer.setInterval(_next_timer_interval_ms(callback_elapsed_ms))
+                _schedule_next_frame(self.timer, callback_elapsed_ms)
 
     @staticmethod
     def _message(message: str) -> None:
