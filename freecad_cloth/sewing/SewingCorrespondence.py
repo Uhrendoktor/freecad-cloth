@@ -289,7 +289,7 @@ def arc_length_vertex_indices(
         msg = "arc-length sampling needs more distinct edge vertices"
         raise ValueError(msg)
 
-    result = []
+    result: list[int] = []
     for sample in range(sample_count):
         local = sample / float(sample_count - 1)
         target = start_distance + (end_distance - start_distance) * local
