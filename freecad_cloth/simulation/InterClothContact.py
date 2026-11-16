@@ -695,8 +695,10 @@ def project_inter_cloth_contacts(
                             query_radius,
                         )
                         for triangle_index in candidates:
-                            triangle = tuple(
-                                int(value) for value in target.triangles[int(triangle_index)]
+                            triangle: tuple[int, int, int] = (
+                                int(target.triangles[int(triangle_index), 0]),
+                                int(target.triangles[int(triangle_index), 1]),
+                                int(target.triangles[int(triangle_index), 2]),
                             )
                             contact, penetration = _accumulate_edge_triangle(
                                 current,
