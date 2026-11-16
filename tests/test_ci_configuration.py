@@ -936,6 +936,27 @@ def test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten() -
     }
 
 
+
+def test_workflow_run_cap_reserves_slot_for_current_cleanup_run() -> None:
+    """Leave nine completed runs so the current cleanup workflow becomes number ten."""
+    runs = [
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
+        for run_id in range(1, 13)
+    ]
+    deleted_paths: list[str] = []
+    result = maintenance_cleanup.cleanup_workflow_runs_to_cap(
+        "owner/repo",
+        keep=9,
+        now=maintenance_cleanup.datetime(2026, 11, 16, tzinfo=maintenance_cleanup.UTC),
+        total_count_loader=lambda *_args: {"total_count": 12},
+        completed_runs_loader=lambda _repo, _cutoff: runs,
+        delete_resource=lambda *_args: deleted_paths.append(str(_args[-1])),
+    )
+    deleted_ids = sorted(int(path.rsplit("/", maxsplit=1)[1]) for path in deleted_paths)
+    assert deleted_ids == [1, 2, 3]
+    assert result["remaining_estimate"] == 9
+
+
 def test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten() -> None:
     """A completed-run inventory already within the cap is left untouched."""
     deleted_paths: list[str] = []
