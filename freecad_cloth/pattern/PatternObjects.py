@@ -5,10 +5,10 @@ import ast
 from collections.abc import Callable, Sequence
 from types import ModuleType
 
-from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeRecord,
     EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
@@ -78,7 +78,7 @@ def _boundary_shape(
     return part_module.Face(wire)
 
 
-def _native_edge_records(piece):
+def _native_edge_records(piece: object) -> list[EdgeRecord] | None:
     """Expose native Sketcher/PatternIR provenance as semantic edge records."""
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
@@ -90,7 +90,7 @@ def _native_edge_records(piece):
     except (AttributeError, KeyError, TypeError, ValueError, RuntimeError):
         return []
     piece_id = str(getattr(piece, "PieceId", ""))
-    records = []
+    records: list[EdgeRecord] = []
     for ordinal, boundary in enumerate(piece_ir.boundaries):
         samples = tuple(
             (float(point[0]), float(point[1]), float(point[2])) for point in boundary.samples
@@ -121,11 +121,11 @@ def _native_edge_records(piece):
 
 
 def _native_edge_record_for_sketch_index(
-    piece,
-    edge,
+    piece: object,
+    edge: int,
     *,
-    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
-):
+    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+) -> EdgeRecord | None:
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
@@ -134,7 +134,7 @@ def _native_edge_record_for_sketch_index(
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if edge < 0 or edge >= len(semantic_ids):
-        msg = f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId}"
+        msg = f"native Sketcher seam edge {edge} is outside pattern piece {str(getattr(piece, "PieceId"))}"
         raise MissingEdgeReference(msg)
     semantic_id = semantic_ids[edge]
     if not semantic_id:
@@ -152,10 +152,10 @@ def _native_edge_record_for_sketch_index(
 
 
 def _edge_records(
-    piece,
+    piece: object,
     *,
-    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
-):
+    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+) -> list[EdgeRecord]:
     """Return edge records derived only from the authoritative native Sketcher boundary.
 
     Args:
@@ -185,12 +185,12 @@ def _edge_records(
 
 
 def _seam_edge_id(
-    piece,
-    edge,
-    prefix,
+    piece: object,
+    edge: int | str,
+    prefix: str,
     *,
-    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
-):
+    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+) -> tuple[str, str]:
     """Return the semantic edge id and captured signature for a seam side."""
     if isinstance(edge, int):
         record = _native_edge_record_for_sketch_index(
@@ -216,7 +216,7 @@ def _seam_edge_id(
     raise MissingEdgeReference(msg)
 
 
-def refresh_edge_reference_signature(piece, edge_id):
+def refresh_edge_reference_signature(piece: object, edge_id: str) -> str:
     """Return a refreshed signature without changing semantic edge identity.
 
     This is an explicit repair primitive: it refreshes a stored reference only
@@ -253,12 +253,12 @@ def refresh_edge_reference_signature(piece, edge_id):
 
 
 def _resolve_document_edge(
-    piece,
-    edge_id,
-    signature,
+    piece: object,
+    edge_id: str,
+    signature: str,
     *,
-    native_edge_records_fn: Callable[..., Sequence[JsonObject] | None] | None = None,
-):
+    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+) -> EdgeRecord:
     """Resolve a stored semantic seam reference against current Sketcher provenance.
 
     Args:

@@ -13,7 +13,7 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Self
+from typing import Self, TypedDict
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -21,8 +21,16 @@ from freecad_cloth.common.JsonTypes import JsonValue
 
 Point = tuple[float, float]
 type _ProvenanceValue = JsonValue | tuple[_ProvenanceValue, ...]
-type _EdgeRecordValue = JsonValue | tuple[_EdgeRecordValue, ...]
-type _EdgeRecord = Mapping[str, _EdgeRecordValue]
+
+
+class EdgeRecord(TypedDict):
+    """Native semantic edge data consumed by the sewing reference resolver."""
+
+    piece_id: str
+    id: str
+    points: tuple[Point, ...]
+    ordinal: int
+    provenance: _ProvenanceValue
 
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
@@ -202,8 +210,8 @@ def capture_edge_reference(
 
 def resolve_edge_reference(
     reference: EdgeReference,
-    edges: Iterable[_EdgeRecord],
-) -> _EdgeRecord:
+    edges: Iterable[EdgeRecord],
+) -> EdgeRecord:
     """Resolve a reference against current edges without ordinal retargeting.
 
     Each edge mapping must contain ``id``, ``points``, and native ``provenance``.
