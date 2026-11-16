@@ -8,6 +8,7 @@ import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
+from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
@@ -129,3 +130,115 @@ def test_position_bounds_uses_vectorized_axis_reductions() -> None:
     }, "axis bounds must match the full particle coordinate set"
     with pytest.raises(ValueError, match="empty PBD position set"):
         position_bounds(())
+
+
+def _parallel_cloth_groups(offset_mm: float = 0.25):
+    """Create two independent, identically triangulated square cloth surfaces."""
+    positions = (
+        (0.0, 0.0, 0.0),
+        (10.0, 0.0, 0.0),
+        (10.0, 10.0, 0.0),
+        (0.0, 10.0, 0.0),
+        (0.0, 0.0, offset_mm),
+        (10.0, 0.0, offset_mm),
+        (10.0, 10.0, offset_mm),
+        (0.0, 10.0, offset_mm),
+    )
+    triangles = ((0, 1, 2), (0, 2, 3))
+    return positions, {
+        "shirt": triangles,
+        "skirt": tuple(tuple(index + 4 for index in triangle) for triangle in triangles),
+    }
+
+
+def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:
+    """Two garment groups must separate by the requested clearance, not by sewing."""
+    positions, groups = _parallel_cloth_groups()
+    corrected, directions, metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=4,
+    )
+
+    assert metrics.contact_count > 0
+    assert metrics.corrected_particle_count == len(positions)
+    assert metrics.remaining_contact_count == 0
+    assert metrics.max_penetration_after_mm <= 1e-7
+    assert all(abs(float(value[2])) > 0.0 for value in directions)
+    assert all(corrected[index][2] < 0.0 for index in range(4))
+    assert all(corrected[index][2] > 0.25 for index in range(4, 8))
+
+
+def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alone() -> None:
+    """Pinned garment particles stay fixed and non-contacting layers are unchanged."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    pinned, _directions, _metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0),
+        clearance_mm=1.0,
+        iterations=4,
+    )
+    assert pinned[:4] == positions[:4]
+    assert any(pinned[index] != positions[index] for index in range(4, 8))
+
+    separated_positions, separated_groups = _parallel_cloth_groups(offset_mm=20.0)
+    untouched, _directions, separated_metrics = project_inter_cloth_contacts(
+        separated_positions,
+        separated_groups,
+        (1.0,) * len(separated_positions),
+        clearance_mm=1.0,
+    )
+    assert untouched == separated_positions
+    assert separated_metrics.contact_count == 0
+    assert separated_metrics.corrected_particle_count == 0
+
+
+def test_inter_cloth_samples_detect_an_edge_piercing_an_opposing_face() -> None:
+    """Mid-edge samples must detect face intersections that have no close vertices."""
+    positions = (
+        (-10.0, -10.0, 0.0),
+        (10.0, -10.0, 0.0),
+        (0.0, 10.0, 0.0),
+        (0.0, -10.0, -10.0),
+        (0.0, 10.0, -10.0),
+        (0.0, 0.0, 10.0),
+    )
+    corrected, _directions, metrics = project_inter_cloth_contacts(
+        positions,
+        {
+            "horizontal": ((0, 1, 2),),
+            "vertical": ((3, 4, 5),),
+        },
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=4,
+    )
+
+    assert metrics.contact_count > 0, "crossing edge/face samples must be observed"
+    assert corrected != positions, "the detected surface crossing must change solver particles"
+
+
+def test_inter_cloth_projection_rejects_shared_particles_and_invalid_clearance() -> None:
+    """Independent garments cannot alias solver particles or request invalid clearance."""
+    positions, groups = _parallel_cloth_groups()
+    shared = {
+        "outer": ((0, 1, 2),),
+        "inner": ((0, 2, 3),),
+    }
+    with pytest.raises(ValueError, match="must not share solver particles"):
+        project_inter_cloth_contacts(
+            positions,
+            shared,
+            (1.0,) * len(positions),
+            clearance_mm=1.0,
+        )
+    with pytest.raises(ValueError, match="positive and finite"):
+        project_inter_cloth_contacts(
+            positions,
+            groups,
+            (1.0,) * len(positions),
+            clearance_mm=0.0,
+        )
