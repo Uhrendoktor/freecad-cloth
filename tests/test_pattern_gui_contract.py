@@ -220,6 +220,53 @@ def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None
     assert calls == [("clear",), ("select", piece), ("top",), ("fit",)]
 
 
+def test_new_pattern_piece_is_framed_once_after_creation() -> None:
+    """Keep initial viewport discovery for newly created pieces behind the OK action."""
+    from unittest.mock import patch
+
+    piece = SimpleNamespace(Label="PatternPiece")
+    calls: list[tuple[object, ...]] = []
+    view = SimpleNamespace(
+        viewTop=lambda: calls.append(("top",)),
+        fitAll=lambda: calls.append(("fit",)),
+    )
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel.obj = None
+    panel._sketch_authoritative = False
+    panel.name = SimpleNamespace(text=lambda: "New front")
+    panel.mode = SimpleNamespace(currentText=lambda: "Rectangle")
+    panel.width = SimpleNamespace(value=lambda: 140.0)
+    panel.height = SimpleNamespace(value=lambda: 85.0)
+    panel.allowance = SimpleNamespace(value=lambda: 4.0)
+    panel.grain = SimpleNamespace(value=lambda: 12.0)
+    panel.App = _App()
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+    panel.focus_piece = SimpleNamespace(setEnabled=lambda value: calls.append(("enabled", value)))
+
+    with patch(
+        "freecad_cloth.pattern.PatternCommands.create_pattern_piece_from_parameters",
+        return_value=piece,
+    ) as create:
+        panel._apply()
+
+    create.assert_called_once_with("New front", 140.0, 85.0, 4.0, 12.0)
+    assert piece.Label == "New front"
+    assert calls == [
+        ("enabled", True),
+        ("clear",),
+        ("select", piece),
+        ("top",),
+        ("fit",),
+    ]
+
+
 def test_pattern_piece_apply_does_not_change_viewport_camera() -> None:
     """Applying piece properties must not silently change the current camera."""
     piece = SimpleNamespace(
