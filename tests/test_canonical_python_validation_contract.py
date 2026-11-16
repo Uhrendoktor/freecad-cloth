@@ -82,6 +82,13 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     assert "test-args: gui" in block, "canonical CI contract"
 
 
+def test_realtime_preview_regression_modules_are_routed_through_pytest_group() -> None:
+    """Keep the new preview-renderer and timer regressions in canonical CI."""
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+    assert '"tests/test_realtime_mesh_preview.py"' in runner, "canonical pytest routing"
+    assert '"tests/test_realtime_preview_timing.py"' in runner, "canonical pytest routing"
+
+
 def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
     assert set(validate_acceptance.CASES) == {
