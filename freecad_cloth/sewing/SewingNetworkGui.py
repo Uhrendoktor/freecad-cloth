@@ -148,7 +148,10 @@ class SewingNetworkTaskPanel:
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
 
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
         controls = QtWidgets.QFormLayout()
+        configure_form_layout(controls, QtWidgets)
         self.alignment = QtWidgets.QComboBox()
         self.alignment.addItems(["endpoints", "uniform"])
         alignments = {
@@ -224,6 +227,7 @@ class SewingNetworkTaskPanel:
         self.selected_seam_label.setWordWrap(True)
         detail_layout.addWidget(self.selected_seam_label)
         range_form = QtWidgets.QFormLayout()
+        configure_form_layout(range_form, QtWidgets)
         self.start_a, self.end_a, self.start_b, self.end_b = (
             self._range_spin(QtWidgets) for _ in range(4)
         )
