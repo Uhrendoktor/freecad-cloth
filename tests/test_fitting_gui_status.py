@@ -1,19 +1,22 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused semantic-status tests for viewport Arrange / Fit feedback."""
 
-from types import SimpleNamespace
+import pytest
 
 from freecad_cloth.avatar.FittingGui import FittingTaskPanel
 from freecad_cloth.common import UiDesign
 
 
-def test_fitting_status_distinguishes_placement_outcomes(monkeypatch):
+def test_fitting_status_distinguishes_placement_outcomes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Show success and failure distinctly while keeping preview guidance informational."""
     panel = FittingTaskPanel.__new__(FittingTaskPanel)
     panel.status = object()
     updates = []
 
-    def set_status(label, message, *, state="info"):
+    def set_status(label: object, message: str, *, state: str = "info") -> None:
+        """Capture the semantic status assigned to the fitting panel."""
         updates.append((label, message, state))
 
     monkeypatch.setattr(UiDesign, "set_status", set_status)
