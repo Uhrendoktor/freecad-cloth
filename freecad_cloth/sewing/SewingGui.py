@@ -206,6 +206,8 @@ class SewingTaskPanel:
         layout.addRow("Stitch samples", self.stitches)
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
+        self.action_feedback = QtWidgets.QLabel()
+        self.action_feedback.setWordWrap(True)
         self.lengths = QtWidgets.QLabel()
         self.lengths.setWordWrap(True)
         self.correspondence = QtWidgets.QLabel()
@@ -250,6 +252,7 @@ class SewingTaskPanel:
 
         configure_form_layout(layout, QtWidgets)
         root.addWidget(self.status)
+        root.addWidget(self.action_feedback)
         root.addWidget(make_scroll_area(content, QtWidgets), 1)
         self._original = {
             "Tolerance": float(obj.Tolerance),
@@ -328,7 +331,7 @@ class SewingTaskPanel:
         if report is None:
             set_status(self.correspondence, "No seam correspondence", state="warning")
             if message:
-                set_status(self.status, message, state="info")
+                set_status(self.action_feedback, message, state="info")
             return
         set_status(
             self.correspondence,
@@ -353,7 +356,7 @@ class SewingTaskPanel:
             )
         )
         if message:
-            set_status(self.status, message, state="info")
+            set_status(self.action_feedback, message, state="info")
 
     def focus_3d(self):
         if self.seam is None:
