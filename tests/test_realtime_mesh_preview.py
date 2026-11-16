@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from pytest import MonkeyPatch
 
 
@@ -53,9 +52,9 @@ class _SceneGraph:
 
     def __init__(self) -> None:
         """Initialize an empty root-node list."""
-        self.children: list[object] = []
+        self.children: list[_CoinNode] = []
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _CoinNode) -> None:
         """Append a child node to the active viewport scenegraph."""
         self.children.append(child)
 
