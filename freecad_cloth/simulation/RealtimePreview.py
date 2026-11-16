@@ -11,6 +11,8 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
+    from PySide2.QtCore import QEvent, QObject
+
     from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _PreviewPanel
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
@@ -285,7 +287,7 @@ def _make_frame_dispatcher(
     class _PulsePoster:
         """Post a single custom event through Qt's thread-safe event queue."""
 
-        def __init__(self, receiver: object) -> None:
+        def __init__(self, receiver: QObject) -> None:
             self._receiver = receiver
 
         def emit(self, scheduled_at: float, emitted_at: float) -> None:
@@ -303,7 +305,7 @@ def _make_frame_dispatcher(
             self._callback = callback
             self._stopped = True
             self._dispatches = 0
-            self.pulse = _PulsePoster(self)
+            self.pulse = _PulsePoster(cast("QObject", self))
 
         def start(self) -> None:
             """Enable event delivery for a new preview session."""
@@ -317,7 +319,7 @@ def _make_frame_dispatcher(
         def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
             self._callback = next_callback
 
-        def event(self, event: object) -> bool:
+        def event(self, event: QEvent) -> bool:
             """Dispatch frame events before normal-priority posted GUI events."""
             event_type_method = getattr(event, "type", None)
             if not callable(event_type_method) or event_type_method() != event_type:

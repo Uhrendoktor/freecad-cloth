@@ -2,6 +2,7 @@
 """Contracts for the feedback-paced realtime preview frame clock."""
 
 from math import inf, isclose, nan
+from typing import Callable, cast
 
 import pytest
 
@@ -106,13 +107,10 @@ def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
     assert _sample_p95_ms([4.25]) == 4.25
     assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0
 
-
-
 def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Post the frame pulse with high priority and dispatch it on the receiver thread."""
-    posted: list[tuple[object, object, int]] = []
     high_priority = 7
 
     class FakeEvent:
@@ -137,14 +135,14 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
         def __init__(self) -> None:
             pass
 
-        def event(self, _event: object) -> bool:
+        def event(self, _event: FakeEvent) -> bool:
             return False
 
     class FakeApplication:
         """Capture worker-thread postEvent calls for the regression assertion."""
 
         @staticmethod
-        def postEvent(receiver: object, event: object, priority: int) -> None:
+        def postEvent(receiver: FakeQObject, event: FakeEvent, priority: int) -> None:
             posted.append((receiver, event, priority))
 
     class FakeQt:
@@ -160,6 +158,7 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
         QCoreApplication = FakeApplication
         Qt = FakeQt
 
+    posted: list[tuple[FakeQObject, FakeEvent, int]] = []
     callbacks: list[tuple[float, float, float]] = []
 
     def on_frame(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
@@ -174,7 +173,8 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     receiver, event, priority = posted[0]
     assert priority == high_priority
     assert receiver is dispatcher
-    assert dispatcher.event(event) is True
+    event_handler = cast("Callable[[FakeEvent], bool]", getattr(dispatcher, "event"))
+    assert event_handler(event) is True
     assert len(callbacks) == 1
     assert callbacks[0][0:2] == (10.0, 9.5)
     assert callbacks[0][2] >= 0.0
