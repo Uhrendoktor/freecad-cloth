@@ -145,7 +145,8 @@ class AvatarTaskPanel:
         action_row.addWidget(self.dimension_gizmo_toggle)
         self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
         self.pose_mode_button.setToolTip(
-            "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
+            "Open the focused mannequin posing editor. Use the 3D rotation gizmo "
+            "instead of typing joint angles."
         )
         action_row.addWidget(self.pose_mode_button)
         action_row.addStretch(1)
@@ -389,8 +390,10 @@ class AvatarTaskPanel:
         self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
         self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.advanced_toggle.setToolTip(
-            "Reveal every normalized Anny phenotype and every paired local-morph target in the installed model. "
-            "These overrides are applied after anthropometric fitting and may change resulting measurements."
+            "Reveal every normalized Anny phenotype and every paired local-morph target "
+            "in the installed model. "
+            "These overrides are applied after anthropometric fitting and may change "
+            "resulting measurements."
         )
         parent.addWidget(self.advanced_toggle)
 
@@ -400,7 +403,8 @@ class AvatarTaskPanel:
         self.advanced_content.setVisible(False)
 
         help_text = QtWidgets.QLabel(
-            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; body morphs use -1 to 1. "
+            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; "
+            "body morphs use -1 to 1. "
             "Primary Gender blend and Breast fullness remain in Body shape."
         )
         help_text.setWordWrap(True)
@@ -929,13 +933,15 @@ class AvatarTaskPanel:
                 self._dimension_controller = AvatarDimensionController(self)
             except (ImportError, RuntimeError, TypeError, ValueError):
                 self._set_status(
-                    "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements.",
+                    "3D dimensions are unavailable in this FreeCAD build; use the numeric "
+                    "measurements.",
                     state="warning",
                 )
                 return
         if not self._dimension_controller.activate():
             self._set_status(
-                "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements.",
+                "3D dimensions are unavailable in this FreeCAD build; use the numeric "
+                "measurements.",
                 state="warning",
             )
 
@@ -988,7 +994,8 @@ class AvatarTaskPanel:
             provider_source is None or provider_source is self.avatar
         ):
             self._refresh_status(
-                "A FreeCAD body or mesh must be selected before switching to the FreeCAD geometry provider."
+                "A FreeCAD body or mesh must be selected before switching to the FreeCAD "
+                "geometry provider."
             )
             return False
         try:
