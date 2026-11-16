@@ -355,6 +355,89 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
     )
 
 
+def ruff_autofix_commands(
+    python: Path, tracked_files: tuple[str, ...]
+) -> tuple[QualityCommand, ...]:
+    """Build safe, repository-wide Ruff formatting and lint-fix commands.
+
+    Args:
+        python: Python executable in the pinned FreeCAD-aware quality environment.
+        tracked_files: Git-tracked Python sources and stubs.
+
+    Returns:
+        Formatter and safe lint-fix commands; unsafe fixes are never requested.
+    """
+    executable = str(python)
+    return (
+        QualityCommand(
+            "Apply Ruff formatting",
+            (executable, "-m", "ruff", "format", *tracked_files),
+            timeout_seconds=600,
+        ),
+        QualityCommand(
+            "Apply safe Ruff lint fixes",
+            (executable, "-m", "ruff", "check", "--fix", *tracked_files),
+            timeout_seconds=600,
+        ),
+    )
+
+
+def _run_repository_ruff_autofix() -> int:
+    """Apply safe Ruff fixes and export the resulting tracked-source patch.
+
+    Returns:
+        Zero when formatting and lint-fix commands ran and the patch was exported.
+    """
+    cache_root = Path(os.environ["RUNNER_TOOL_CACHE"])
+    image_id = os.environ["QUALITY_IMAGE_ID"]
+    workspace_key = os.environ["WORKSPACE_CACHE_KEY"]
+    python = prepare_quality_environment(cache_root, image_id, workspace_key)
+    tracked_files = collect_tracked_python_files(ROOT)
+    if not tracked_files:
+        raise RuntimeError("Git reported no tracked Python sources or stubs.")
+    _run_setup(
+        ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
+        timeout_seconds=10,
+    )
+
+    for command in ruff_autofix_commands(python, tracked_files):
+        sys.stdout.write(f"::group::Safe Ruff autofix: {command.label}\\n")
+        sys.stdout.flush()
+        result = run_command(
+            command.arguments,
+            options=CommandOptions(
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+                timeout=command.timeout_seconds,
+            ),
+        )
+        if result.stdout:
+            sys.stdout.write(result.stdout)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\\n")
+        sys.stdout.write("::endgroup::\\n")
+        sys.stdout.flush()
+
+    diff = run_command(
+        ("git", "diff", "--binary"),
+        options=CommandOptions(cwd=ROOT, capture_output=True, timeout=60),
+    )
+    patch_path = Path("/tmp/ruff-autofix.patch")
+    patch_path.write_text(diff.stdout or "", encoding="utf-8")
+    changed = run_command(
+        ("git", "diff", "--name-only"),
+        options=CommandOptions(cwd=ROOT, capture_output=True, timeout=30),
+    )
+    changed_paths = tuple(path for path in (changed.stdout or "").splitlines() if path)
+    sys.stdout.write(
+        f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\\n"
+    )
+    sys.stdout.flush()
+    return 0
+
+
 def run_quality_commands(commands: tuple[QualityCommand, ...]) -> int:
     """Run every required quality check and return an aggregate failure status.
 
@@ -433,6 +516,11 @@ def main() -> int:
         Zero only when environment setup and every required check succeeds.
     """
     try:
+        if sys.argv[1:] == ["--ruff-autofix"]:
+            return _run_repository_ruff_autofix()
+        if sys.argv[1:]:
+            sys.stderr.write("Usage: python -m tools.ci.strict_quality [--ruff-autofix]\\n")
+            return 2
         return _run_repository_quality()
     except (KeyError, OSError, RuntimeError) as error:
         sys.stderr.write(f"::error::Strict quality environment failed: {error}\n")
