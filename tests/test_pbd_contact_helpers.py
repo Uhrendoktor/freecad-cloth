@@ -7,10 +7,10 @@ from typing import TYPE_CHECKING, Never, NoReturn, cast
 import numpy as np
 import pytest
 
+from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
-from freecad_cloth.shared.Collision import CollisionSurface
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
@@ -190,8 +190,8 @@ def test_inter_cloth_projection_separates_exactly_coincident_parallel_groups() -
     assert metrics.corrected_particle_count == len(positions)
     assert metrics.remaining_contact_count == 0
     assert metrics.max_penetration_after_mm <= 1e-7
-    assert all(corrected[index][2] < 0.0 for index in range(4))
-    assert all(corrected[index][2] > 0.0 for index in range(4, 8))
+    assert all(corrected[index][2] > 0.0 for index in range(4))
+    assert all(corrected[index][2] < 0.0 for index in range(4, 8))
     assert all(abs(float(value[2])) > 0.0 for value in directions)
 
 
@@ -220,8 +220,8 @@ def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alo
     assert separated_metrics.corrected_particle_count == 0
 
 
-def test_inter_cloth_samples_detect_an_edge_piercing_an_opposing_face() -> None:
-    """Mid-edge samples must detect face intersections that have no close vertices."""
+def test_inter_cloth_edge_triangle_query_detects_an_edge_piercing_a_face() -> None:
+    """Exact segment/triangle closest points detect an interior face crossing."""
     positions = (
         (-10.0, -10.0, 0.0),
         (10.0, -10.0, 0.0),
@@ -241,7 +241,7 @@ def test_inter_cloth_samples_detect_an_edge_piercing_an_opposing_face() -> None:
         iterations=4,
     )
 
-    assert metrics.contact_count > 0, "crossing edge/face samples must be observed"
+    assert metrics.contact_count > 0, "crossing edge/face contacts must be observed"
     assert not np.allclose(corrected, np.asarray(positions)), (
         "the detected surface crossing must change solver particles"
     )
