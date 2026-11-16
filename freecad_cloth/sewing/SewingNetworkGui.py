@@ -209,9 +209,11 @@ class SewingNetworkTaskPanel:
         seam_group = QtWidgets.QGroupBox("Seams")
         seam_layout = QtWidgets.QVBoxLayout(seam_group)
         self.seam_filter = QtWidgets.QLineEdit()
-        self.seam_filter.setPlaceholderText("Filter by piece, edge or status…")
+        self.seam_filter.setPlaceholderText("Filter this network by piece, edge or status…")
         self.seam_filter.setClearButtonEnabled(True)
-        self.seam_filter.setToolTip("Search both sides of a seam and its validation status.")
+        self.seam_filter.setToolTip(
+            "Narrow only the seams already contained in this network; no document-wide search."
+        )
         seam_layout.addWidget(self.seam_filter)
         self.seam_list = QtWidgets.QListWidget()
         self.seam_list.setObjectName("ClothSewingNetworkSeamList")
