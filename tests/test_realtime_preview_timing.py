@@ -4,9 +4,9 @@
 from math import inf, nan
 
 from freecad_cloth.simulation.RealtimePreview import (
-    _FrameClock,
     _append_pending_deadline,
     _deadline_timer_interval_ms,
+    _FrameClock,
 )
 
 
@@ -17,9 +17,7 @@ def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one()
     class Pulse:
         """Record queued signal emissions without requiring a Qt application."""
 
-        def emit(
-            self, scheduled_at: float, _emitted_at: float
-        ) -> None:
+        def emit(self, scheduled_at: float, _emitted_at: float) -> None:
             emitted.append(scheduled_at)
 
     clock = _FrameClock(Pulse(), 60.0)
