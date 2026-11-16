@@ -502,7 +502,11 @@ class SewingNetworkTaskPanel:
         from freecad_cloth.common.UiDesign import set_status
 
         label = str(getattr(seam, "Label", getattr(seam, "SeamId", "seam")))
-        set_status(self.status, f"Focused {label} with both pattern pieces in the 3D view.", state="info")
+        set_status(
+            self.status,
+            f"Focused {label} with both pattern pieces in the 3D view.",
+            state="info",
+        )
         return True
 
     def _selected_range_changed(self, _value: float) -> None:
