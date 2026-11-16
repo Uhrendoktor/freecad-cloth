@@ -9,8 +9,11 @@ import os
 import re
 import sys
 import tomllib
-from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 from tools.ci.command_runner import CommandOptions, run_command
 

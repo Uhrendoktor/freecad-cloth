@@ -8,16 +8,17 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-if __package__ is None or __package__ == "":
+if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from tools.ci.repository_paths import add_repository_root
 
 ROOT = add_repository_root(__file__)
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 WORKBENCH_NAMES = ("Pattern", "Sewing", "Simulation")
 BENCHMARK_SCHEMA_VERSION = 2
