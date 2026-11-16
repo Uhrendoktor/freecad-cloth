@@ -983,7 +983,30 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._stitches,
             self._pin_indices,
         )
-        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
+        self._apply_position_corrections(particles, positions_mm, corrected_mm, outward_normals)
+
+
+    def _apply_position_corrections(
+        self,
+        particles: _NativePBDParticles,
+        positions_mm: FloatArray,
+        corrected_mm: FloatArray,
+        correction_directions: FloatArray,
+        *,
+        skip_zero_directions: bool = False,
+    ) -> None:
+        """Apply projected positions and remove velocity into contact normals.
+
+        Args:
+            particles: Native PBD particle collection receiving corrected values.
+            positions_mm: Original particle positions in FreeCAD millimetres.
+            corrected_mm: Projected particle positions in FreeCAD millimetres.
+            correction_directions: Per-particle outward or separation directions.
+            skip_zero_directions: Preserve velocity when a contact direction is zero.
+        """
+        moved_indices = np.flatnonzero(
+            np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7
+        )
         pinned = set(self._pin_indices)
         for raw_index in moved_indices:
             index = int(raw_index)
@@ -997,14 +1020,14 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     dtype=np.float64,
                 ),
             )
-            # Velocity coordinates use the same PBD (X, Z, Y) axis permutation.
-            normal = outward_normals[index]
+            normal = correction_directions[index]
+            if skip_zero_directions and float(np.linalg.norm(normal)) <= 1e-10:
+                continue
             normal_pbd = np.asarray((normal[0], normal[2], normal[1]), dtype=np.float64)
             velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
             inward_speed = float(np.dot(velocity, normal_pbd))
             if inward_speed < 0.0:
                 particles.setVelocity(index, velocity - inward_speed * normal_pbd)
-
 
     def _project_inter_cloth_positions(self) -> None:
         """Separate independent garment groups after each native PBD timestep.
@@ -1041,27 +1064,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             clearance_mm=self._inter_cloth_clearance_mm,
             stitches=self._stitches,
         )
-        moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
-        pinned = set(self._pin_indices)
-        for raw_index in moved_indices:
-            index = int(raw_index)
-            if index in pinned:
-                continue
-            position = corrected_mm[index]
-            particles.setPosition(
-                index,
-                np.asarray(
-                    (position[0] / _MM, position[2] / _MM, position[1] / _MM),
-                    dtype=np.float64,
-                ),
-            )
-            normal = contact_directions[index]
-            if float(np.linalg.norm(normal)) > 1e-10:
-                normal_pbd = np.asarray((normal[0], normal[2], normal[1]), dtype=np.float64)
-                velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
-                inward_speed = float(np.dot(velocity, normal_pbd))
-                if inward_speed < 0.0:
-                    particles.setVelocity(index, velocity - inward_speed * normal_pbd)
+        self._apply_position_corrections(
+            particles, positions_mm, corrected_mm, contact_directions, skip_zero_directions=True
+        )
         self._inter_cloth_metrics = metrics
 
     def _measure_inter_cloth_residual(self) -> None:

@@ -70,22 +70,9 @@ def _closest_point_on_triangle(
         raise ValueError(msg)
     unit_normal = normal / normal_length
 
-    d00 = float(np.dot(ab, ab))
-    d01 = float(np.dot(ab, ac))
-    d11 = float(np.dot(ac, ac))
-    ap = point - a
-    d20 = float(np.dot(ap, ab))
-    d21 = float(np.dot(ap, ac))
-    denominator = d00 * d11 - d01 * d01
-    if denominator <= 1e-18:
-        msg = "inter-cloth collision mesh contains a degenerate triangle"
-        raise ValueError(msg)
-    v = (d11 * d20 - d01 * d21) / denominator
-    w = (d00 * d21 - d01 * d20) / denominator
-    u = 1.0 - v - w
-    if min(u, v, w) >= 0.0:
-        barycentric = np.asarray((u, v, w), dtype=np.float64)
-        return u * a + v * b + w * c, barycentric, unit_normal
+    barycentric = _barycentric_coordinates(point, triangle)
+    if bool(np.all(barycentric >= 0.0)):
+        return barycentric @ triangle, barycentric, unit_normal
 
     candidates: list[tuple[float, PointArray, PointArray]] = []
     for start_index, end_index in ((0, 1), (1, 2), (2, 0)):
@@ -477,6 +464,49 @@ def _share_sewn_corrections(
         corrections[indices] = corrections[indices].mean(axis=0)
 
 
+def _index_garment_surfaces(
+    positions: PointArray,
+    triangles_by_group: Mapping[str, Sequence[Sequence[int]]],
+    *,
+    operation: str,
+) -> tuple[dict[str, _SurfaceIndex], dict[int, str]]:
+    """Validate isolated garment topology and build one spatial index per group.
+
+    Args:
+        positions: Global current solver particle positions in millimetres.
+        triangles_by_group: Triangle indices keyed by independent garment ID.
+        operation: Name of the public operation requesting these indexes.
+
+    Returns:
+        Surface indexes and a mapping from every referenced particle to its group.
+    """
+    if len(triangles_by_group) < 2:
+        msg = f"inter-cloth {operation} requires at least two independent garment groups"
+        raise ValueError(msg)
+    surfaces: dict[str, _SurfaceIndex] = {}
+    particle_owners: dict[int, str] = {}
+    for raw_group_id, raw_triangles in triangles_by_group.items():
+        group_id = str(raw_group_id).strip()
+        if not group_id or group_id in surfaces:
+            msg = "inter-cloth group IDs must be non-empty and unique"
+            raise ValueError(msg)
+        triangles = np.asarray(raw_triangles, dtype=np.int64)
+        if triangles.ndim != 2 or triangles.shape[1] != 3 or triangles.size == 0:
+            msg = f"inter-cloth group {group_id!r} has no valid triangles"
+            raise ValueError(msg)
+        if bool(np.any(triangles < 0)) or bool(np.any(triangles >= len(positions))):
+            msg = f"inter-cloth group {group_id!r} references a missing particle"
+            raise ValueError(msg)
+        for raw_index in np.unique(triangles):
+            particle_index = int(raw_index)
+            previous = particle_owners.setdefault(particle_index, group_id)
+            if previous != group_id:
+                msg = "independent inter-cloth groups must not share solver particles"
+                raise ValueError(msg)
+        surfaces[group_id] = _surface_index(positions, triangles)
+    return surfaces, particle_owners
+
+
 def _measure_contacts(
     positions: PointArray,
     surfaces: Mapping[str, _SurfaceIndex],
@@ -553,31 +583,7 @@ def measure_inter_cloth_contacts(
     if not np.isfinite(clearance) or clearance <= 0.0:
         msg = "inter-cloth clearance must be positive and finite"
         raise ValueError(msg)
-    if len(triangles_by_group) < 2:
-        msg = "inter-cloth measurement requires at least two independent garment groups"
-        raise ValueError(msg)
-
-    surfaces: dict[str, _SurfaceIndex] = {}
-    particle_owners: dict[int, str] = {}
-    for raw_group_id, raw_triangles in triangles_by_group.items():
-        group_id = str(raw_group_id).strip()
-        if not group_id or group_id in surfaces:
-            msg = "inter-cloth group IDs must be non-empty and unique"
-            raise ValueError(msg)
-        triangles = np.asarray(raw_triangles, dtype=np.int64)
-        if triangles.ndim != 2 or triangles.shape[1] != 3 or triangles.size == 0:
-            msg = f"inter-cloth group {group_id!r} has no valid triangles"
-            raise ValueError(msg)
-        if bool(np.any(triangles < 0)) or bool(np.any(triangles >= len(positions))):
-            msg = f"inter-cloth group {group_id!r} references a missing particle"
-            raise ValueError(msg)
-        for raw_index in np.unique(triangles):
-            particle_index = int(raw_index)
-            previous = particle_owners.setdefault(particle_index, group_id)
-            if previous != group_id:
-                msg = "independent inter-cloth groups must not share solver particles"
-                raise ValueError(msg)
-        surfaces[group_id] = _surface_index(positions, triangles)
+    surfaces, _ = _index_garment_surfaces(positions, triangles_by_group, operation="measurement")
     return _measure_contacts(positions, surfaces, clearance)
 
 
@@ -641,32 +647,7 @@ def project_inter_cloth_contacts(
     if not np.isfinite(alpha) or not 0.0 < alpha <= 1.0:
         msg = "inter-cloth relaxation must be in (0, 1]"
         raise ValueError(msg)
-    if len(triangles_by_group) < 2:
-        msg = "inter-cloth projection requires at least two independent garment groups"
-        raise ValueError(msg)
-
-    surfaces: dict[str, _SurfaceIndex] = {}
-    particle_owners: dict[int, str] = {}
-    for raw_group_id, raw_triangles in triangles_by_group.items():
-        group_id = str(raw_group_id).strip()
-        if not group_id or group_id in surfaces:
-            msg = "inter-cloth group IDs must be non-empty and unique"
-            raise ValueError(msg)
-        triangles = np.asarray(raw_triangles, dtype=np.int64)
-        if triangles.ndim != 2 or triangles.shape[1] != 3 or triangles.size == 0:
-            msg = f"inter-cloth group {group_id!r} has no valid triangles"
-            raise ValueError(msg)
-        if bool(np.any(triangles < 0)) or bool(np.any(triangles >= len(positions))):
-            msg = f"inter-cloth group {group_id!r} references a missing particle"
-            raise ValueError(msg)
-        for particle_index in np.unique(triangles):
-            index = int(particle_index)
-            previous = particle_owners.setdefault(index, group_id)
-            if previous != group_id:
-                msg = "independent inter-cloth groups must not share solver particles"
-                raise ValueError(msg)
-        surfaces[group_id] = _surface_index(positions, triangles)
-
+    surfaces, particle_owners = _index_garment_surfaces(positions, triangles_by_group, operation="projection")
     group_ids = tuple(sorted(surfaces))
     for raw_left, raw_right in stitches:
         left, right = int(raw_left), int(raw_right)
