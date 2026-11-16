@@ -267,7 +267,7 @@ class PatternIR:
         graph.validate()
         geometries = geometries or {}
         materials = materials or {}
-        pieces = []
+        pieces: list[PieceIR] = []
         for piece in graph.pieces.values():
             geometry = geometries.get(piece.id) or _line_geometry(piece)
             boundaries = tuple(
@@ -282,7 +282,7 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        return _with_seams(cls, graph, pieces)
+        return _with_seams(graph, pieces)
 
     @classmethod
     def from_sketches(
@@ -319,7 +319,7 @@ class PatternIR:
         graph.validate()
         materials = materials or {}
         pieces = []
-        edge_index_maps = {}
+        edge_index_maps: dict[str, Mapping[int, str]] = {}
         for piece in graph.pieces.values():
             sketch = sketches.get(piece.id)
             if sketch is None:
@@ -336,11 +336,10 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        return _with_seams(cls, graph, pieces, edge_index_maps)
+        return _with_seams(graph, pieces, edge_index_maps)
 
 
 def _with_seams(
-    cls,
     graph: SeamGraph,
     pieces: Sequence[PieceIR],
     edge_index_maps: Mapping[str, Mapping[int, str]] | None = None,
@@ -359,7 +358,7 @@ def _with_seams(
     piece_tuple = tuple(pieces)
     piece_map = {piece.id: piece for piece in piece_tuple}
     edge_index_maps = edge_index_maps or {}
-    seams = []
+    seams: list[SeamIR] = []
     for pair in graph.seams.values():
         seam = pair.seam
         edge_a = _resolve_edge(
@@ -369,7 +368,7 @@ def _with_seams(
             seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b)
         )
         seams.append(SeamIR.from_seam(seam, edge_a=edge_a, edge_b=edge_b))
-    result = cls(piece_tuple, tuple(seams))
+    result = PatternIR(piece_tuple, tuple(seams))
     result.validate()
     return result
 
@@ -383,7 +382,7 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
     Returns:
         Closed parametric boundary containing one stable line segment per outline edge.
     """
-    segments = []
+    segments: list[LineSegment] = []
     for index, start in enumerate(piece.outline):
         end = piece.outline[(index + 1) % len(piece.outline)]
         segments.append(LineSegment(f"edge:{index}", start, end))
