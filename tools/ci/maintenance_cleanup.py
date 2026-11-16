@@ -1205,12 +1205,18 @@ def main() -> int:
         branches_seen, removed_branches, branch_pending = _cleanup_stale_branches(
             repo, open_heads, open_pr_numbers, default_branch, branch_cutoff
         )
-        run_result = cleanup_workflow_runs_to_cap(repo)
+        # The active cleanup workflow becomes completed when this job exits.
+        # Reserve one slot for it so the post-run completed inventory still has ten.
+        run_result = cleanup_workflow_runs_to_cap(
+            repo, keep=MAX_RETAINED_WORKFLOW_RUNS - 1
+        )
         sys.stdout.write(
             "maintenance-cleanup=passed mode=branches-and-runs-only "
             f"branches_seen={branches_seen} removed_branches={removed_branches} "
             f"stale_branches_pending={branch_pending} "
-            f"completed_runs_before={run_result['total_before']} keep_completed_runs={run_result['keep']} "
+            f"completed_runs_before={run_result['total_before']} "
+            f"retained_completed_runs_before_current={run_result['keep']} "
+            f"target_completed_runs_after_current={MAX_RETAINED_WORKFLOW_RUNS} "
             f"removed_runs={run_result['deleted']} "
             f"remaining_completed_runs={run_result['remaining_estimate']} "
             f"runs_pending={run_result['pending']}\n"
