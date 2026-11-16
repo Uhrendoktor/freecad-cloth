@@ -45,7 +45,7 @@ CI keeps Ruff checks read-only and blocking across every tracked `.py` and `.pyi
 
 ## Documentation contract
 
-Every module in `freecad_cloth/` and `tools/` has a module docstring. Public domain classes and functions have docstrings that describe behavior rather than repeating their names. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
+Every non-stub module in `freecad_cloth/` and `tools/` has a module docstring. In production `freecad_cloth/` modules selected by the documentation checker, public module-level functions, classes, and public methods on public classes have substantive Google-style docstrings. Each applicable function documents all non-instance parameters in `Args`, every non-`None` result in `Returns`, and each exception explicitly raised in its body in `Raises`. Do not add empty sections when the corresponding contract does not exist. The checker deliberately excludes dynamically registered GUI/command modules from this extended API-section requirement; their host-boundary docstrings remain subject to Ruff. Comments explain non-obvious reasons, compatibility constraints or performance trade-offs; they do not replace contract documentation.
 
 ## Non-negotiable CI contract
 
