@@ -238,6 +238,15 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "SewingOutline",
         "DraftingBoundary",
         "openTransaction",
+        "PieceId",
+        "PatternA",
+        "PatternB",
+        "EdgeAId",
+        "EdgeASignature",
+        "EdgeA",
+        "EdgeBId",
+        "EdgeBSignature",
+        "EdgeB",
         "viewTop",
     }
     host_api_variables = {

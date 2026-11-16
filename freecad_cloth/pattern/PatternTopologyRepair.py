@@ -6,8 +6,8 @@ from typing import Protocol, TypeVar, cast
 
 from freecad_cloth.pattern.PatternObjects import _edge_records
 from freecad_cloth.pattern.SeamReference import (
-    EdgeRecord,
     ChangedEdgeReference,
+    EdgeRecord,
     EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
@@ -97,7 +97,7 @@ def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:
 
 
 def invalid_seam_sides(
-    doc: DocumentTransactionProtocol,
+    doc: object,
 ) -> list[tuple[SeamFeatureProtocol, str, str]]:
     """Collect every invalid semantic edge reference in one FreeCAD document.
 
@@ -108,7 +108,8 @@ def invalid_seam_sides(
         Tuples containing each invalid seam feature, side selector, and failure reason.
     """
     result: list[tuple[SeamFeatureProtocol, str, str]] = []
-    for obj in doc.Objects:
+    objects = cast(Sequence[object], getattr(doc, "Objects", ()))
+    for obj in objects:
         if getattr(obj, "SeamId", None) is None:
             continue
         for side in ("A", "B"):
@@ -202,7 +203,7 @@ def build_repair_plan(
 
 
 def apply_repair_plan(
-    doc: DocumentTransactionProtocol,
+    doc: object,
     repairs: Iterable[tuple[SeamFeatureProtocol, str, str]],
 ) -> list[tuple[SeamFeatureProtocol, str, EdgeRecord]]:
     """Apply validated semantic seam-edge repairs in one undoable transaction.
@@ -219,7 +220,8 @@ def apply_repair_plan(
         InvalidRepairTarget: If a selected replacement edge cannot be resolved.
     """
     plan = build_repair_plan(repairs)
-    doc.openTransaction("Repair Cloth pattern topology")
+    document = cast(DocumentTransactionProtocol, doc)
+    document.openTransaction("Repair Cloth pattern topology")
     try:
         for seam, side, record in plan:
             if side == "A":
@@ -236,9 +238,9 @@ def apply_repair_plan(
                 seam.EdgeB = int(record["ordinal"])
             if hasattr(seam, "touch"):
                 seam.touch()
-        doc.recompute()
-        doc.commitTransaction()
+        document.recompute()
+        document.commitTransaction()
     except Exception:
-        doc.abortTransaction()
+        document.abortTransaction()
         raise
     return plan
