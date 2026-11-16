@@ -3,10 +3,10 @@
 
 from math import inf, isclose, nan
 
+import pytest
+
 from freecad_cloth.simulation import RealtimePreview
 from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
-
-import pytest
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
