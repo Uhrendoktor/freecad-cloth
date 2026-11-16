@@ -107,12 +107,153 @@ ignore = [
   # A documented exception may propagate from a called API without being explicitly raised here.
   "DOC502",
 
-  # Host callback methods must retain instance binding even when their body does not use self.
+  # Instance binding can be part of a FreeCAD callback/plugin contract even when self is unused.
   "PLR6301",
+
+  # Raise-inside-try is intentional for cleanup, rollback, and exception translation paths.
+  "TRY301",
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.ruff.lint.pep8-naming]
+# Keep exact native FreeCAD/Qt/Pivy/pyPBD API names and module aliases at adapter boundaries.
+extend-ignore-names = [
+  "Activated",
+  "Initialize",
+  "GetResources",
+  "getStandardButtons",
+  "addObject",
+  "IsActive",
+  "getObject",
+  "isNull",
+  "addProperty",
+  "multVec",
+  "addSelection",
+  "addCommand",
+  "addFacets",
+  "setProperty",
+  "setText",
+  "setWordWrap",
+  "toShape",
+  "clearSelection",
+  "isInside",
+  "abortTransaction",
+  "newDocument",
+  "addWidget",
+  "transformShape",
+  "toMatrix",
+  "removeObject",
+  "isVisible",
+  "setVisible",
+  "findChildren",
+  "onDocumentRestored",
+  "BoundBox",
+  "setEnabled",
+  "getSelection",
+  "setMass",
+  "getCurrent",
+  "activeView",
+  "valueAt",
+  "fitAll",
+  "commitTransaction",
+  "currentText",
+  "isChecked",
+  "isActive",
+  "modifyStandardButtons",
+  "setContentsMargins",
+  "setSpacing",
+  "setStyleSheet",
+  "activeWorkbench",
+  "appendToolbar",
+  "appendMenu",
+  "appendContextMenu",
+  "setEditorMode",
+  "setObjectName",
+  "setToolTip",
+  "addLayout",
+  "activeDialog",
+  "closeDialog",
+  "activateWorkbench",
+  "getNumberOfParticles",
+  "getMass",
+  "getVelocity",
+  "setVelocity",
+  "setPosition",
+  "getVertices",
+  "setFrictionCoeff",
+  "setTolerance",
+  "getCollisionDetection",
+  "setValueUInt",
+  "addTriangleModel",
+  "getParticles",
+  "addClothConstraints",
+  "addBendingConstraints",
+  "getConstraints",
+  "addDistanceConstraint_XPBD",
+  "addRigidBody",
+  "getModel",
+  "initDefault",
+  "getTimeStep",
+  "setTime",
+  "setTimeStepSize",
+  "addVertex",
+  "initMesh",
+  "addFace",
+  "buildNeighbors",
+  "generateSDF",
+  "Document",
+  "CountPoints",
+  "CountFacets",
+  "setPoint",
+  "getPosition",
+  "getState",
+  "getButton",
+  "getEvent",
+  "setHandled",
+  "getObjectInfo",
+  "className",
+  "isEnabled",
+  "metaObject",
+  "objectName",
+  "parentWidget",
+  "mapToGlobal",
+  "setFocus",
+  "selectAll",
+  "hasFocus",
+  "activateWindow",
+  "winId",
+  "mapFromGlobal",
+  "getSize",
+  "getPointOnScreen",
+  "setCameraType",
+  "saveImage",
+  "processEvents",
+  "hashCode",
+  "Vertexes",
+  "Edges",
+  "Faces",
+  "Solids",
+  "getConstruction",
+  "SewingOutline",
+  "DraftingBoundary",
+  "openTransaction",
+  "viewTop",
+  "QtWidgets",
+  "QtCore",
+  "Gui",
+  "_QtWidgets",
+  "_App",
+  "_QtGui",
+  "App",
+  "QtTest",
+  "_QtTest",
+  "_QtCore",
+  "QtGui",
+  "QtSvg",
+  "_Gui",
+]
 
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
@@ -124,6 +265,15 @@ convention = "google"
 "tests/test_pattern_geometry.py" = ["PT011"]
 "tests/test_seam_reference.py" = ["PT011"]
 "tests/test_validation_models.py" = ["PT011"]
+
+# Acceptance/CLI diagnostics deliberately use contextual built-in exception messages.
+"tests/freecad_screenshot_source.py" = ["TRY003"]
+"tests/freecad_simulation_quality_acceptance.py" = ["TRY003"]
+"tests/test_scene_understanding_report.py" = ["TRY003"]
+"tests/test_sewing_workbench.py" = ["TRY003"]
+"tools/ci/check_changed_python_types.py" = ["TRY003"]
+"tools/ci/check_docker_workspace_transfer.py" = ["TRY003"]
+"tools/ci/validate_ci_structure.py" = ["TRY003"]
 
 # These CI tools have stable stdout contracts consumed by Actions and developers.
 "tools/ci/check_changed_python_types.py" = ["T201"]
