@@ -273,6 +273,19 @@ def _viewport_panel(source: SimpleNamespace) -> tuple[DrapeGui.DrapeTargetTaskPa
     return panel, panel.Gui.Selection
 
 
+def test_viewport_pick_is_disabled_without_eligible_document_sources() -> None:
+    """Avoid arming a viewport picker when no valid collision source can be selected."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, _selection = _viewport_panel(source)
+    panel._source_objects = []
+
+    panel._update_source_actions()
+
+    assert panel.pick_source_button.enabled is False
+    assert panel.show_source_button.enabled is False
+    assert panel.apply_button.enabled is False
+
+
 def test_viewport_pick_stages_source_and_releases_selection_observer() -> None:
     """Pick a document object in 3D and return to the normal panel actions."""
     source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
