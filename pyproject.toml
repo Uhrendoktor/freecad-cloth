@@ -82,9 +82,7 @@ ignore = [
   # Conflicts with Ruff format or mutually exclusive pydocstyle conventions.
   "COM812",
   "COM819",
-  "D203",
   "D206",
-  "D213",
   "D300",
   "E111",
   "E114",
@@ -112,6 +110,9 @@ ignore = [
   # Host callback methods must retain instance binding even when their body does not use self.
   "PLR6301",
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 # Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
