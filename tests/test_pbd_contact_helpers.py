@@ -6,9 +6,10 @@ from typing import TYPE_CHECKING, Never, NoReturn, cast
 
 import pytest
 
+import numpy as np
 from freecad_cloth.shared.Collision import CollisionSurface
-from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
@@ -132,7 +133,9 @@ def test_position_bounds_uses_vectorized_axis_reductions() -> None:
         position_bounds(())
 
 
-def _parallel_cloth_groups(offset_mm: float = 0.25):
+def _parallel_cloth_groups(
+    offset_mm: float = 0.25,
+) -> tuple[tuple[tuple[float, float, float], ...], dict[str, tuple[tuple[int, int, int], ...]]]:
     """Create two independent, identically triangulated square cloth surfaces."""
     positions = (
         (0.0, 0.0, 0.0),
@@ -181,7 +184,7 @@ def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alo
         clearance_mm=1.0,
         iterations=4,
     )
-    assert pinned[:4] == positions[:4]
+    np.testing.assert_allclose(pinned[:4], positions[:4])
     assert any(pinned[index] != positions[index] for index in range(4, 8))
 
     separated_positions, separated_groups = _parallel_cloth_groups(offset_mm=20.0)
@@ -191,7 +194,7 @@ def test_inter_cloth_projection_preserves_pins_and_leaves_separated_surfaces_alo
         (1.0,) * len(separated_positions),
         clearance_mm=1.0,
     )
-    assert untouched == separated_positions
+    np.testing.assert_allclose(untouched, separated_positions)
     assert separated_metrics.contact_count == 0
     assert separated_metrics.corrected_particle_count == 0
 
@@ -218,7 +221,9 @@ def test_inter_cloth_samples_detect_an_edge_piercing_an_opposing_face() -> None:
     )
 
     assert metrics.contact_count > 0, "crossing edge/face samples must be observed"
-    assert corrected != positions, "the detected surface crossing must change solver particles"
+    assert not np.allclose(corrected, np.asarray(positions)), (
+        "the detected surface crossing must change solver particles"
+    )
 
 
 def test_inter_cloth_projection_rejects_shared_particles_and_invalid_clearance() -> None:
