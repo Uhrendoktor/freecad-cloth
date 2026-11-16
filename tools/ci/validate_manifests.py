@@ -13,6 +13,8 @@ from math import ceil, isclose
 from pathlib import Path
 from typing import NoReturn
 
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+
 ROOT = Path("artifacts/simulation-ladder")
 CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 CHECKPOINT_COUNT = len(CHECKPOINTS)
@@ -33,25 +35,79 @@ MAX_SDF_RESOLUTION = 256
 SDF_PADDING_MM = 200.0
 
 
-def read(path: Path) -> dict:
-    """Read a required JSON manifest from disk.
+def _normalize_json_value(value: JsonValue) -> JsonValue:
+    """Recursively materialize decoded JSON as the repository's precise value type.
+
+    Args:
+        value: Candidate decoded JSON value.
+
+    Returns:
+        JSON-compatible primitives, arrays, and string-keyed objects.
+    """
+    if isinstance(value, dict):
+        return {key: _normalize_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_normalize_json_value(item) for item in value]
+    return value
+
+
+def _require_object(value: JsonValue, context: str) -> JsonObject:
+    """Require one JSON object at a manifest boundary.
+
+    Args:
+        value: Candidate JSON value.
+        context: Manifest field or source name used in the error message.
+
+    Returns:
+        The string-keyed JSON object.
+
+    Raises:
+        SystemExit: If the value is not a JSON object.
+    """
+    if not isinstance(value, dict):
+        msg = f"{context} must be a JSON object"
+        raise SystemExit(msg)
+    return value
+
+
+def _require_array(value: JsonValue, context: str) -> list[JsonValue]:
+    """Require one JSON array at a manifest boundary.
+
+    Args:
+        value: Candidate JSON value.
+        context: Manifest field or source name used in the error message.
+
+    Returns:
+        The JSON array.
+
+    Raises:
+        SystemExit: If the value is not a JSON array.
+    """
+    if not isinstance(value, list):
+        msg = f"{context} must be a JSON array"
+        raise SystemExit(msg)
+    return value
+
+
+def read(path: Path) -> JsonObject:
+    """Read a required JSON-object manifest from disk.
 
     Args:
         path: Filesystem location of the JSON manifest.
 
     Returns:
-        Decoded manifest contents as a dictionary.
+        Decoded manifest contents as a string-keyed JSON object.
 
     Raises:
-        SystemExit: Raised when the manifest file is missing or empty.
+        SystemExit: Raised when the manifest is missing, empty, or not a JSON object.
     """
     if not path.is_file() or not path.stat().st_size:
         msg = f"missing manifest: {path}"
         raise SystemExit(msg)
-    return json.loads(path.read_text(encoding="utf-8"))
+    payload = _normalize_json_value(json.loads(path.read_text(encoding="utf-8")))
+    return _require_object(payload, f"manifest {path}")
 
-
-def _validate_simulation_case(name: str, case: dict, max_penetration: float) -> None:
+def _validate_simulation_case(name: str, case: JsonObject, max_penetration: float) -> None:
     """Validate one simulation collision-ladder case against its release contract.
 
     Args:
@@ -62,21 +118,29 @@ def _validate_simulation_case(name: str, case: dict, max_penetration: float) -> 
     Raises:
         SystemExit: If the case uses invalid solver settings or fails a release check.
     """
-    if not case.get("finite"):
+    if not bool(case.get("finite")):
         msg = f"{name}: non-finite case"
         raise SystemExit(msg)
-    if case.get("solver", {}).get("backend") != "pbd":
+    solver = _require_object(case.get("solver", {}), f"{name}.solver")
+    if solver.get("backend") != "pbd":
         msg = f"{name}: wrong backend"
         raise SystemExit(msg)
-    if len(case.get("checkpoints", ())) != CHECKPOINT_COUNT:
+    checkpoints = _require_array(case.get("checkpoints", []), f"{name}.checkpoints")
+    if len(checkpoints) != CHECKPOINT_COUNT:
         msg = f"{name}: unexpected checkpoint count"
         raise SystemExit(msg)
-    if case.get("max_penetration_mm", 0) > max_penetration + 1e-6:
+    penetration = case.get("max_penetration_mm", 0)
+    if (
+        isinstance(penetration, bool)
+        or not isinstance(penetration, (int, float))
+        or penetration > max_penetration + 1e-6
+    ):
         msg = f"{name}: penetration too large"
         raise SystemExit(msg)
-    for image in case.get("images", ()):
-        if not (ROOT / image).is_file():
-            msg = f"{name}: missing image {image}"
+    images = _require_array(case.get("images", []), f"{name}.images")
+    for image in images:
+        if not isinstance(image, str) or not (ROOT / image).is_file():
+            msg = f"{name}: missing or invalid image {image}"
             raise SystemExit(msg)
 
 
@@ -106,12 +170,18 @@ def _validate_simulation_manifest(
     if data.get("release_gate_effect") != "gate":
         msg = f"{name}: not a release gate"
         raise SystemExit(msg)
-    if len(data.get("cases", ())) != expected_case_count:
+    cases = _require_array(data.get("cases", []), f"{name}.cases")
+    if len(cases) != expected_case_count:
         msg = f"{name}: unexpected case count"
         raise SystemExit(msg)
-    for case in data["cases"]:
+    for index, value in enumerate(cases):
+        case = _require_object(value, f"{name}.cases[{index}]")
         _validate_simulation_case(name, case, max_penetration)
-    if data.get("structural_validation", {}).get("first_failing_rung") is not None:
+    structural = _require_object(
+        data.get("structural_validation", {}),
+        f"{name}.structural_validation",
+    )
+    if structural.get("first_failing_rung") is not None:
         msg = f"{name}: structural rung failed"
         raise SystemExit(msg)
 
@@ -212,7 +282,7 @@ def validate_turntables() -> None:
     sys.stdout.write("turntables=passed\n")
 
 
-def _realtime_failure(data: dict) -> NoReturn:
+def _realtime_failure(data: JsonObject) -> NoReturn:
     """Stop validation with the canonical realtime metric failure message.
 
     Args:
@@ -225,7 +295,7 @@ def _realtime_failure(data: dict) -> NoReturn:
     raise SystemExit(msg)
 
 
-def _validate_versioned_realtime_metadata(data: dict) -> None:
+def _validate_versioned_realtime_metadata(data: JsonObject) -> None:
     """Validate schema and non-timing metadata for versioned realtime metrics.
 
     Args:
@@ -273,7 +343,7 @@ def _finite_realtime_metric(data: dict, name: str) -> float:
     return float(value)
 
 
-def _validate_realtime_metrics(data: dict) -> None:
+def _validate_realtime_metrics(data: JsonObject) -> None:
     """Validate either legacy or schema-versioned realtime metrics without weakening gates.
 
     Args:
@@ -281,11 +351,12 @@ def _validate_realtime_metrics(data: dict) -> None:
     """
     if "schema_version" not in data:
         # Retain the existing contract for historical metric artifacts.
-        if (
-            not data["finite"]
-            or data["mean_frame_ms"] > data["frame_budget_ms"]
-            or data["p95_frame_ms"] > LEGACY_MAX_P95_FRAME_MS
-        ):
+        if not bool(data.get("finite")):
+            _realtime_failure(data)
+        mean_frame = _finite_realtime_metric(data, "mean_frame_ms")
+        frame_budget = _finite_realtime_metric(data, "frame_budget_ms")
+        p95_frame = _finite_realtime_metric(data, "p95_frame_ms")
+        if mean_frame > frame_budget or p95_frame > LEGACY_MAX_P95_FRAME_MS:
             _realtime_failure(data)
         return
 
@@ -438,7 +509,10 @@ def _validate_tunic(*, require_canonical_e2e: bool, require_realtime_metrics: bo
         if not metrics.is_file():
             msg = "tunic: realtime performance evidence is missing"
             raise SystemExit(msg)
-        data = json.loads(metrics.read_text(encoding="utf-8"))
+        data = _require_object(
+            _normalize_json_value(json.loads(metrics.read_text(encoding="utf-8"))),
+            "realtime metrics",
+        )
         _validate_realtime_metrics(data)
     text = progress.read_text(encoding="utf-8")
     markers = (
@@ -504,7 +578,7 @@ def validate_blanket() -> None:
 def _validate_diagnostic_record(
     root: Path,
     name: str,
-    record: dict,
+    record: JsonObject,
     expected_rung: int,
 ) -> None:
     """Validate solver settings and image evidence for one diagnostic rung.
@@ -518,19 +592,26 @@ def _validate_diagnostic_record(
     Raises:
         SystemExit: If the rung number, solver setup, checkpoints, or images are invalid.
     """
-    if record.get("case", {}).get("rung") != expected_rung:
+    case = _require_object(record.get("case", {}), f"diagnostic {name}.case")
+    if case.get("rung") != expected_rung:
         msg = f"diagnostic {name}: unexpected rung"
         raise SystemExit(msg)
-    if record.get("solver", {}).get("backend") != "pbd":
+    solver = _require_object(record.get("solver", {}), f"diagnostic {name}.solver")
+    if solver.get("backend") != "pbd":
         msg = f"diagnostic {name}: wrong backend"
         raise SystemExit(msg)
-    if record.get("solver", {}).get("substeps") != 1:
+    if solver.get("substeps") != 1:
         msg = f"diagnostic {name}: wrong substeps"
         raise SystemExit(msg)
-    if len(record.get("checkpoints", ())) != CHECKPOINT_COUNT:
+    checkpoints = _require_array(record.get("checkpoints", []), f"diagnostic {name}.checkpoints")
+    if len(checkpoints) != CHECKPOINT_COUNT:
         msg = f"diagnostic {name}: wrong checkpoints"
         raise SystemExit(msg)
-    for image in record.get("images", ()):
+    images = _require_array(record.get("images", []), f"diagnostic {name}.images")
+    for image in images:
+        if not isinstance(image, str):
+            msg = f"diagnostic {name}: invalid image path"
+            raise SystemExit(msg)
         candidate = root / ("cube-ladder" if "rung-" in image and "cube" in image else "")
         if not (root / image).is_file() and not candidate.is_file():
             msg = f"diagnostic {name}: missing image {image}"
@@ -561,10 +642,12 @@ def _validate_diagnostic_ladder(
     if data.get("release_gate_effect") != "gate":
         msg = f"diagnostic {name}: wrong gate effect"
         raise SystemExit(msg)
-    if len(data.get("cases", ())) != DIAGNOSTIC_CASE_COUNT:
+    cases = _require_array(data.get("cases", []), f"diagnostic {name}.cases")
+    if len(cases) != DIAGNOSTIC_CASE_COUNT:
         msg = f"diagnostic {name}: wrong case count"
         raise SystemExit(msg)
-    for offset, record in enumerate(data["cases"]):
+    for offset, value in enumerate(cases):
+        record = _require_object(value, f"diagnostic {name}.cases[{offset}]")
         _validate_diagnostic_record(root, name, record, first_rung + offset)
 
 
