@@ -255,6 +255,14 @@ class SewingCreationTaskPanel:
         self.viewport_pick_button.clicked.connect(self.toggle_viewport_picking)
         layout.addWidget(self.viewport_pick_button)
 
+        self.focus_edges_button = QtWidgets.QPushButton("Focus selected edges in 3D")
+        self.focus_edges_button.setToolTip(
+            "Select the staged or currently selected pattern edges and frame them without changing camera orientation."
+        )
+        self.focus_edges_button.setEnabled(bool(self._initial_selection))
+        self.focus_edges_button.clicked.connect(self.focus_selected_edges_in_3d)
+        layout.addWidget(self.focus_edges_button)
+
         buttons = QtWidgets.QHBoxLayout()
         self.preview_button = QtWidgets.QPushButton("Preview")
         self.commit_button = QtWidgets.QPushButton("Commit")
@@ -354,6 +362,53 @@ class SewingCreationTaskPanel:
                 "Selected semantic pattern edges: %d. Preview applies the existing "
                 "edge-count and two-piece validation." % count
             )
+        self.focus_edges_button.setEnabled(bool(self._viewport_picks or count))
+
+    def focus_selected_edges_in_3d(self):
+        """Select and frame the current sewing edge candidates without reorienting the view."""
+        from freecad_cloth.common.UiDesign import set_status
+
+        if self._viewport_picks:
+            edges = tuple(
+                (obj, "Edge%d" % int(component[4:]))
+                for obj, component in self._viewport_picks
+            )
+        else:
+            try:
+                from freecad_cloth.sewing.SewingCommands import _collect_selected_pattern_edges
+
+                current = tuple(_collect_selected_pattern_edges())
+            except (ImportError, RuntimeError, TypeError, ValueError):
+                current = ()
+            selected = current or self._initial_selection
+            edges = tuple((obj, "Edge%d" % (int(index) + 1)) for obj, index in selected)
+        if not edges:
+            set_status(
+                self.feedback,
+                "Select or pick PatternPiece edges before focusing the viewport.",
+                state="warning",
+            )
+            return False
+        active = self.Gui.activeDocument()
+        if active is None:
+            set_status(
+                self.feedback,
+                "An active FreeCAD 3D view is required to focus the selected edges.",
+                state="error",
+            )
+            return False
+        selection = self.Gui.Selection
+        selection.clearSelection()
+        for obj, component in edges:
+            selection.addSelection(obj, component)
+        active.activeView().fitAll()
+        set_status(
+            self.feedback,
+            "Selected and framed %d sewing edge(s); camera orientation was preserved."
+            % len(edges),
+            state="success",
+        )
+        return True
 
     def toggle_viewport_picking(self):
         if self._viewport_picking:
