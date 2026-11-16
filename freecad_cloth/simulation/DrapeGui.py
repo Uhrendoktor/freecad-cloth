@@ -417,8 +417,8 @@ class DrapeTargetTaskPanel:
         if self._loading:
             return
         self._set_status(
-            "Staged target edits. Apply & Refresh to rebuild collision geometry; "
-            "Cancel leaves the document unchanged.",
+            "Staged target edits. Apply & Refresh commits the collision settings now; "
+            "Cancel closes without applying further edits.",
             state="warning",
         )
 
