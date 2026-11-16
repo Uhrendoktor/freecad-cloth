@@ -246,8 +246,7 @@ class _FrameClock:
                     self._queue_delay_estimate_ms - self._last_queue_delay_ms
                 )
                 worker_phase_correction_ms = (
-                    self._worker_wakeup_estimate_ms
-                    - self._last_worker_wakeup_lateness_ms
+                    self._worker_wakeup_estimate_ms - self._last_worker_wakeup_lateness_ms
                 )
             if acknowledged_start is not None:
                 next_deadline = acknowledged_start + period + (
