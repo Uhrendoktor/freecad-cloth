@@ -78,7 +78,8 @@ class SewingGuiContractTests(unittest.TestCase):
         panel.correspondence = SimpleNamespace(status=None)
         updates = []
 
-        def set_status(label, message, state="info"):
+        def set_status(label: object, message: str, state: str = "info") -> None:
+            """Capture validation and action status assignments."""
             label.status = (message, state)
             updates.append((label, message, state))
 
@@ -96,6 +97,7 @@ class SewingGuiContractTests(unittest.TestCase):
             updates[-1],
             (panel.action_feedback, "Focus seam in the 3D view.", "info"),
         )
+
 
 if __name__ == "__main__":
     unittest.main()
