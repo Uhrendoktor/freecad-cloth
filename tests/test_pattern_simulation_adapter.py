@@ -5,6 +5,7 @@ from typing import cast
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeRecord,
     MissingEdgeReference,
     capture_edge_reference,
 )
@@ -275,7 +276,9 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
             }
         )
 
-    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+    reordered: list[EdgeRecord] = reordered
+
+    def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return reordered
 
     edge_id, signature = pattern_objects._seam_edge_id(
@@ -299,11 +302,11 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     )
     piece = _Piece("piece", sketch)
     provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
-    records = [
+    records: list[EdgeRecord] = [
         {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
     ]
 
-    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+    def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return records
 
     edge_id, signature = pattern_objects._seam_edge_id(

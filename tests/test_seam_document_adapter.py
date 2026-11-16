@@ -2,29 +2,19 @@
 """Contract tests for semantic seam references against native Sketcher provenance."""
 
 from types import SimpleNamespace
-from typing import TypedDict
 
 import pytest
 
 from freecad_cloth.pattern.PatternObjects import _edge_records, _resolve_document_edge
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeRecord,
     MissingEdgeReference,
     capture_edge_reference,
 )
 
 type _Point2D = tuple[float, float]
 type _EdgeProvenance = tuple[str, str, str, tuple[float, float], tuple[_Point2D, _Point2D]]
-
-
-class _NativeEdgeRecord(TypedDict):
-    """Semantic edge record with native geometry and source provenance."""
-
-    piece_id: str
-    id: str
-    points: tuple[_Point2D, _Point2D]
-    ordinal: int
-    provenance: _EdgeProvenance
 
 
 def _piece(
@@ -51,7 +41,7 @@ def _piece(
     )
 
 
-def _native_records(piece: SimpleNamespace) -> list[_NativeEdgeRecord]:
+def _native_records(piece: SimpleNamespace) -> list[EdgeRecord]:
     """Create semantic edge records with signatures tied to current geometry.
 
     Args:
@@ -61,7 +51,7 @@ def _native_records(piece: SimpleNamespace) -> list[_NativeEdgeRecord]:
         Ordered edge records carrying stable IDs and native provenance.
     """
     points = piece.NativePoints
-    records: list[_NativeEdgeRecord] = []
+    records: list[EdgeRecord] = []
     for index, start in enumerate(points):
         end = points[(index + 1) % len(points)]
         provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), (start, end))

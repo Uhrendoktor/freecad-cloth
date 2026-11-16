@@ -13,7 +13,7 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Self, TypedDict
+from typing import NotRequired, Self, TypedDict
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -26,11 +26,11 @@ type _ProvenanceValue = JsonValue | tuple[_ProvenanceValue, ...]
 class EdgeRecord(TypedDict):
     """Native semantic edge data consumed by the sewing reference resolver."""
 
-    piece_id: str
     id: str
     points: tuple[Point, ...]
-    ordinal: int
     provenance: _ProvenanceValue
+    piece_id: NotRequired[str]
+    ordinal: NotRequired[int]
 
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
