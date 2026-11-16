@@ -1343,7 +1343,8 @@ class SurfacePenTaskPanel:
             "<b>3D Pattern Pen</b><br>"
             "Point placement: click to add corners. A Curve point between two corners "
             "creates a smooth B-spline segment. Freehand trace remains available for "
-            "drag-based sampling. Reference points creates construction points to connect in Sketcher."
+            "drag-based sampling. Reference points creates construction points to connect "
+            "in Sketcher."
         )
         instructions.setWordWrap(True)
         outer.addWidget(instructions)
