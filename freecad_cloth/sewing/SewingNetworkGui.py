@@ -247,6 +247,13 @@ class SewingNetworkTaskPanel:
         detail_layout.addLayout(range_form)
         layout.addWidget(detail)
 
+        self.focus_seam_button = QtWidgets.QPushButton("Focus selected seam in 3D")
+        self.focus_seam_button.setToolTip(
+            "Frame the selected seam and both participating pattern pieces in the viewport."
+        )
+        self.focus_seam_button.setEnabled(bool(seam_values))
+        self.focus_seam_button.clicked.connect(self._focus_selected_seam_in_viewport)
+
         self.seam_filter.textChanged.connect(self._filter_seams)
         self.seam_list.currentRowChanged.connect(self._select_seam_row)
         for field in self._range_fields:
@@ -266,8 +273,10 @@ class SewingNetworkTaskPanel:
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
 
-        from freecad_cloth.common.UiDesign import make_scroll_area
+        from freecad_cloth.common.UiDesign import make_scroll_area, mark_button
 
+        mark_button(self.focus_seam_button, "secondary")
+        root.addWidget(self.focus_seam_button)
         root.addWidget(make_scroll_area(content, QtWidgets), 1)
         root.addWidget(self.status)
 
@@ -433,6 +442,7 @@ class SewingNetworkTaskPanel:
         """
         self._store_selected_range()
         self._current_row = int(row)
+        self.focus_seam_button.setEnabled(0 <= self._current_row < len(self._seams))
         if not 0 <= self._current_row < len(self._seams):
             from freecad_cloth.common.UiDesign import set_status
 
@@ -462,6 +472,36 @@ class SewingNetworkTaskPanel:
             field.setValue(float(value))
         self._loading_range = False
         self._set_range_editor_enabled(True)
+
+    def _focus_selected_seam_in_viewport(self) -> bool:
+        """Frame the selected relationship and its two pattern pieces in the 3D view.
+
+        Returns:
+            True when a selected seam was successfully focused in the active viewport.
+        """
+        row = int(getattr(self, "_current_row", -1))
+        if not 0 <= row < len(self._seams):
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, "Select a seam before focusing the 3D view.", state="warning")
+            return False
+        seam = self._seams[row]
+        try:
+            self.Gui.Selection.clearSelection()
+            self.Gui.Selection.addSelection(seam)
+            from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
+
+            focus_selected_seam_3d()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, f"Could not focus the selected seam — {exc}.", state="error")
+            return False
+        from freecad_cloth.common.UiDesign import set_status
+
+        label = str(getattr(seam, "Label", getattr(seam, "SeamId", "seam")))
+        set_status(self.status, f"Focused {label} with both pattern pieces in the 3D view.", state="info")
+        return True
 
     def _selected_range_changed(self, _value: float) -> None:
         """Update staged values when an active seam endpoint is edited."""
