@@ -25,7 +25,6 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "E111",
         "E114",
         "E117",
-        "ISC002",
         "N999",
         "PLC0415",
         "PLR6301",
