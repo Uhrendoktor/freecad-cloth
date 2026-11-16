@@ -149,8 +149,8 @@ def test_sketch_authoritative_mode_displays_read_only_sketch_dimensions() -> Non
     assert "linked native Sketch" in height_tooltips[0]
 
 
-def test_pattern_piece_hides_rectangle_dimensions_in_custom_mode() -> None:
-    """Avoid presenting unused rectangle dimensions as editable custom geometry."""
+def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None:
+    """Keep bounding dimensions visible but non-editable for a custom outline."""
     width_enabled: list[bool] = []
     height_enabled: list[bool] = []
     width_visible: list[bool] = []
@@ -189,11 +189,12 @@ def test_pattern_piece_hides_rectangle_dimensions_in_custom_mode() -> None:
 
     panel._mode_changed("Custom")
     assert width_enabled[-1] is False and height_enabled[-1] is False
-    assert width_visible[-1] is False and height_visible[-1] is False
-    assert width_label_visible[-1] is False and height_label_visible[-1] is False
-    assert "Not used in Custom mode" in width_tooltips[-1]
-    assert "Not used in Custom mode" in height_tooltips[-1]
-
+    assert width_visible[-1] is True and height_visible[-1] is True
+    assert width_label_visible[-1] is True and height_label_visible[-1] is True
+    assert width_label_text[-1] == "Width (from outline)"
+    assert height_label_text[-1] == "Height (from outline)"
+    assert "derived from the custom drafting outline" in width_tooltips[-1]
+    assert "derived from the custom drafting outline" in height_tooltips[-1]
 
 def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
     """Restore editable properties while preserving the linked Sketcher object."""
