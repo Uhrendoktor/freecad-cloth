@@ -296,24 +296,144 @@ def _save_png(view, path: Path, camera_action, label: str) -> dict[str, object]:
     }
 
 
-def _seam_measurements(backend, provenance):
-    """Measure exact particle-pair gaps for every authored seam."""
+def _seam_measurements(backend, provenance, seam_objects):
+    """Measure stitch-pair gaps and join each measurement to its semantic seam record."""
     positions = tuple(backend.positions())
     measurements = []
     for seam_id, pairs in sorted(provenance.items()):
-        gaps = []
-        for left, right in pairs:
-            gap = math.dist(positions[int(left)], positions[int(right)])
-            gaps.append(float(gap))
+        gaps = [
+            float(math.dist(positions[int(left)], positions[int(right)]))
+            for left, right in pairs
+        ]
+        seam = seam_objects.get(str(seam_id))
+        if seam is None:
+            raise RuntimeError("solver seam provenance has no matching document seam: " + str(seam_id))
         measurements.append(
             {
                 "seam_id": str(seam_id),
+                "piece_a_id": str(getattr(seam, "PieceA", "")),
+                "piece_b_id": str(getattr(seam, "PieceB", "")),
+                "edge_a_id": str(getattr(seam, "EdgeAId", "")),
+                "edge_b_id": str(getattr(seam, "EdgeBId", "")),
+                "start_a": float(getattr(seam, "StartA", 0.0)),
+                "end_a": float(getattr(seam, "EndA", 1.0)),
+                "start_b": float(getattr(seam, "StartB", 0.0)),
+                "end_b": float(getattr(seam, "EndB", 1.0)),
+                "reversed_b": bool(getattr(seam, "ReversedB", False)),
+                "alignment": str(getattr(seam, "Alignment", "uniform")),
+                "stitch_group": str(getattr(seam, "StitchGroup", "")),
+                "kind": str(getattr(seam, "Kind", "plain")),
+                "status": str(getattr(seam, "Status", "")),
                 "stitch_pair_count": len(gaps),
                 "maximum_gap_mm": max(gaps, default=0.0),
                 "mean_gap_mm": sum(gaps) / len(gaps) if gaps else 0.0,
             }
         )
     return measurements
+
+
+def _world_landmarks(avatar):
+    """Export every persisted mannequin arrangement landmark in document world millimetres."""
+    records = []
+    for raw in getattr(avatar, "ArrangementPoints", ()) or ():
+        name, separator, coordinate_text = str(raw).partition("|")
+        if not separator or not name:
+            continue
+        local = tuple(float(value) for value in coordinate_text.split(","))
+        if len(local) != 3 or not all(math.isfinite(value) for value in local):
+            raise RuntimeError("invalid persisted mannequin landmark: " + str(raw))
+        world = avatar.Placement.multVec(App.Vector(*local))
+        records.append(
+            {
+                "id": name,
+                "local_mm": [float(value) for value in local],
+                "world_mm": [float(world.x), float(world.y), float(world.z)],
+            }
+        )
+    if not records:
+        raise RuntimeError("mannequin did not expose persisted arrangement landmarks")
+    return records
+
+
+def _piece_scene_map(pieces, base, garment_group_by_piece):
+    """Export exact source boundary, placement and derived solver identities for every piece."""
+    from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+
+    panel_for_piece = {
+        str(piece_name): str(panel_name)
+        for panel_name, piece_name in getattr(base, "panel_piece_names", {}).items()
+    }
+    result = []
+    for piece in pieces:
+        piece_id = str(piece.PieceId)
+        placement = piece.Placement
+        boundaries = resolve_piece_ir(piece).boundaries
+        local_points = []
+        boundary_records = []
+        for boundary in boundaries:
+            samples = [
+                (float(sample[0]), float(sample[1]), float(sample[2]))
+                for sample in boundary.samples
+            ]
+            local_points.extend(samples)
+            boundary_records.append(
+                {
+                    "id": str(boundary.id),
+                    "kind": str(boundary.kind),
+                    "length_mm": float(boundary.length),
+                    "samples_local_mm": [list(point) for point in samples],
+                }
+            )
+        if not local_points:
+            raise RuntimeError("PatternIR source boundary has no samples: " + piece_id)
+        world_points = []
+        for x, y, z in local_points:
+            point = placement.multVec(App.Vector(x, y, z))
+            world_points.append((float(point.x), float(point.y), float(point.z)))
+        panel_name = panel_for_piece.get(str(piece.Name))
+        if panel_name is None:
+            raise RuntimeError("solver does not retain a rendered panel for piece " + piece_id)
+        panel_indices = tuple(int(value) for value in base.panel_indices.get(panel_name, ()))
+        panel_triangles = tuple(base.panel_triangles.get(panel_name, ()))
+        if not panel_indices or not panel_triangles:
+            raise RuntimeError("solver panel identity has no particle/triangle mapping: " + piece_id)
+        rotation = placement.Rotation
+        quaternion = tuple(float(value) for value in rotation.Q)
+        result.append(
+            {
+                "piece_id": piece_id,
+                "name": str(piece.Label),
+                "garment_group": str(garment_group_by_piece[piece_id]),
+                "solver_panel_id": panel_name,
+                "local_to_world": {
+                    "translation_mm": [
+                        float(placement.Base.x),
+                        float(placement.Base.y),
+                        float(placement.Base.z),
+                    ],
+                    "rotation_quaternion_xyzw": list(quaternion),
+                },
+                "grainline_angle_deg": float(getattr(piece, "GrainlineAngle", 0.0)),
+                "seam_allowance_mm": float(getattr(piece, "SeamAllowance", 0.0)),
+                "semantic_edge_ids": [
+                    str(value) for value in (getattr(piece.Sketch, "SemanticEdgeIds", ()) or ())
+                ],
+                "boundaries": boundary_records,
+                "local_bounds_mm": {
+                    "min": [min(point[axis] for point in local_points) for axis in range(3)],
+                    "max": [max(point[axis] for point in local_points) for axis in range(3)],
+                },
+                "world_bounds_mm": {
+                    "min": [min(point[axis] for point in world_points) for axis in range(3)],
+                    "max": [max(point[axis] for point in world_points) for axis in range(3)],
+                },
+                "solver_mesh": {
+                    "particle_count": len(panel_indices),
+                    "triangle_count": len(panel_triangles),
+                },
+            }
+        )
+    return result
 
 
 def _body_clearance(scene, backend) -> dict[str, object]:
@@ -503,6 +623,10 @@ def run_acceptance() -> None:
                 for side in ("front", "right", "back", "left")
             ]
         )
+        garment_group_by_piece = {
+            entry.split("|", 1)[1]: entry.split("|", 1)[0]
+            for entry in scene.GarmentGroups
+        }
         scene.InterClothClearance = 8.0
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
@@ -544,6 +668,22 @@ def run_acceptance() -> None:
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
 
+        seam_objects = {
+            str(getattr(obj, "SeamId", "")): obj
+            for obj in doc.Objects
+            if str(getattr(obj, "SeamId", ""))
+        }
+        piece_scene_map = _piece_scene_map(pieces, base, garment_group_by_piece)
+        mannequin_landmarks = _world_landmarks(avatar)
+        collision_surface_record = {
+            "source_object": str(avatar.Name),
+            "source_revision": int(getattr(avatar, "AvatarRevision", 0)),
+            "vertex_count": len(base.collision_surface.vertices),
+            "triangle_count": len(base.collision_surface.triangles),
+            "collision_thickness_mm": float(target.CollisionThickness),
+            "collision_deflection_mm": float(target.CollisionDeflection),
+        }
+
         scene.Steps = 0
         doc.recompute()
         view = Gui.activeDocument().activeView()
@@ -579,7 +719,7 @@ def run_acceptance() -> None:
                         step,
                     )
                 )
-            seam_metrics = _seam_measurements(backend, base.seam_stitch_pairs)
+            seam_metrics = _seam_measurements(backend, base.seam_stitch_pairs, seam_objects)
             max_seam_gap = max(
                 (float(item["maximum_gap_mm"]) for item in seam_metrics),
                 default=0.0,
@@ -717,6 +857,55 @@ def run_acceptance() -> None:
                 "garment_groups": list(saved_groups),
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
                 "particle_distance_mm": float(scene.ParticleDistance),
+            },
+            "scene_map": {
+                "coordinate_system": {
+                    "units": "mm",
+                    "origin": "FreeCAD document world origin",
+                    "x_axis": "mannequin left-right",
+                    "y_axis": "mannequin front-back",
+                    "z_axis": "world up",
+                    "front_direction": "negative Y",
+                    "placement_quaternion_order": "x,y,z,w",
+                },
+                "avatar": {
+                    "id": str(avatar.Name),
+                    "label": str(avatar.Label),
+                    "landmarks": mannequin_landmarks,
+                    "collision_surface": collision_surface_record,
+                },
+                "garment_groups": [
+                    {
+                        "id": "shirt",
+                        "piece_ids": [
+                            str(shirt[side].PieceId) for side in ("front", "right", "back", "left")
+                        ],
+                        "independent_of": ["skirt"],
+                    },
+                    {
+                        "id": "skirt",
+                        "piece_ids": [
+                            str(skirt[side].PieceId)
+                            for side in ("front", "right", "back", "left")
+                        ] + [
+                            str(waistband[side].PieceId)
+                            for side in ("front", "right", "back", "left")
+                        ],
+                        "independent_of": ["shirt"],
+                    },
+                ],
+                "pieces": piece_scene_map,
+                "seams": checkpoints[-1]["seams"],
+                "camera_views": [
+                    {"id": side, "projection": "orthographic", "world_axis_view": side}
+                    for side in ("front", "rear", "right", "left", "top", "bottom")
+                ],
+                "inter_garment_relation": {
+                    "garment_group_a": "shirt",
+                    "garment_group_b": "skirt",
+                    "minimum_requested_clearance_mm": float(scene.InterClothClearance),
+                    "measurement_method": "two-sided edge-to-triangle position projection",
+                },
             },
             "checkpoints": checkpoints,
             "images": images,
