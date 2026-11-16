@@ -257,6 +257,7 @@ def _viewport_panel(source: SimpleNamespace) -> tuple[DrapeGui.DrapeTargetTaskPa
     panel = _panel()
     panel.doc = SimpleNamespace(
         Name="ClothDocument",
+        Objects=(source,),
         getObject=lambda name: source if name == source.Name else None,
     )
     panel.Gui = SimpleNamespace(Selection=_Selection())
