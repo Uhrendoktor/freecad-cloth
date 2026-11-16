@@ -57,7 +57,9 @@ class _NativeShape(Protocol):
         """Return whether the shape has no topological content."""
         ...
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag) -> bool:
+    def isInside(
+        self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag
+    ) -> bool:
         """Test whether a point lies inside the closed native shape."""
         ...
 
@@ -186,7 +188,7 @@ class _SketchDocument(_FreeCADDocument, Protocol):
     def addObject(self, object_type: str, name: str) -> _Sketch:
         """Create and return one native Sketcher profile."""
         ...
-    
+
     def recompute(self) -> None:
         """Recompute document geometry after a sketch update."""
         ...
@@ -393,9 +395,7 @@ def mesh_geometry(
             )
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
-        raise RuntimeError(
-            f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}"
-        )
+        raise RuntimeError(f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}")
     vertices, triangles = shape.tessellate(1.0)
     return (
         tuple((float(v.x), float(v.y), float(v.z)) for v in vertices),
