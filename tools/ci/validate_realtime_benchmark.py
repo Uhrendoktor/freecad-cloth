@@ -19,7 +19,7 @@ ROOT = add_repository_root(__file__)
 
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
-TARGET_FPS = 30.0
+TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
@@ -28,6 +28,7 @@ EXPECTED_PANEL_COUNT = 2
 MIN_COLLISION_TRIANGLES = 1
 FRAME_BUDGET_TOLERANCE_MS = 1e-6
 MIN_PARTICLE_DISTANCE_MM = 40.0
+FRAME_DISPATCH_SAMPLE_LIMIT = 120
 
 
 def _number(value: JsonValue) -> float | None:
@@ -152,7 +153,7 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     """
     budget = _number(metrics.get("frame_budget_ms"))
     if budget is None or abs(budget - FRAME_BUDGET_MS) > FRAME_BUDGET_TOLERANCE_MS:
-        errors.append("frame_budget_ms must match the 30 FPS budget")
+        errors.append("frame_budget_ms must match the 60 FPS budget")
 
     numeric_keys = (
         "mean_frame_interval_ms",
@@ -168,9 +169,82 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     mean_interval = _number(metrics.get("mean_frame_interval_ms"))
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is not None and mean_interval > FRAME_BUDGET_MS:
-        errors.append("mean_frame_interval_ms exceeds the 30 FPS budget")
+        errors.append("mean_frame_interval_ms exceeds the 60 FPS budget")
     if p95_interval is not None and p95_interval > FRAME_BUDGET_MS:
-        errors.append("p95_frame_interval_ms exceeds the 30 FPS budget")
+        errors.append("p95_frame_interval_ms exceeds the 60 FPS budget")
+
+
+def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
+    """Validate the phase-locked worker clock and its single-outstanding-pulse contract.
+
+    Args:
+        metrics: Decoded realtime benchmark artifact.
+        frames: Parsed measured interval count, or None when invalid.
+        errors: Mutable list receiving acceptance failures.
+    """
+    scheduler_value = metrics.get("frame_scheduler")
+    if not isinstance(scheduler_value, dict):
+        errors.append("frame_scheduler must be a JSON object")
+        return
+
+    scheduler = cast("JsonObject", scheduler_value)
+    if scheduler.get("mode") != "threaded-feedback-phase-locked":
+        errors.append("frame_scheduler.mode must be threaded-feedback-phase-locked")
+    target_fps = _number(scheduler.get("target_fps"))
+    if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
+        errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
+    initial_delay = _number(scheduler.get("initial_queue_delay_ms"))
+    if initial_delay is None or abs(initial_delay - 5.0) > 1e-9:
+        errors.append("frame_scheduler.initial_queue_delay_ms must equal 5")
+    for key in ("queue_delay_estimate_ms", "worker_wakeup_estimate_ms"):
+        value = _number(scheduler.get(key))
+        if value is None or value < 0.0:
+            errors.append(f"frame_scheduler.{key} must be finite and non-negative")
+
+    emitted = _integer(scheduler.get("signals_emitted"))
+    if emitted is None or emitted < (frames or MIN_FRAMES):
+        errors.append("frame_scheduler.signals_emitted must cover the measured frames")
+    for key in ("coalesced_pulses", "missed_deadlines"):
+        value = _integer(scheduler.get(key))
+        if value is None or value < 0:
+            errors.append(f"frame_scheduler.{key} must be a non-negative integer")
+    outstanding = _integer(scheduler.get("outstanding_pulses"))
+    if outstanding != 0:
+        errors.append("frame_scheduler.outstanding_pulses must be zero at benchmark completion")
+    dispatch_mode = scheduler.get("dispatch_mode")
+    if dispatch_mode != "Qt.QueuedConnection":
+        errors.append("frame_scheduler.dispatch_mode must be Qt.QueuedConnection")
+    queued_dispatches = _integer(scheduler.get("queued_dispatches"))
+    if queued_dispatches is None or queued_dispatches < (frames or MIN_FRAMES):
+        errors.append("frame_scheduler.queued_dispatches must cover the measured frames")
+
+    dispatch_value = metrics.get("frame_dispatch_lateness")
+    if not isinstance(dispatch_value, dict):
+        errors.append("frame_dispatch_lateness must be a JSON object")
+        return
+    dispatch = cast("JsonObject", dispatch_value)
+    samples = _integer(dispatch.get("samples"))
+    minimum_samples = min(frames or MIN_FRAMES, FRAME_DISPATCH_SAMPLE_LIMIT)
+    if samples is None or samples < minimum_samples:
+        errors.append(f"frame_dispatch_lateness.samples must be >= {minimum_samples}")
+    for key in ("mean_ms", "p95_ms", "max_ms"):
+        value = _number(dispatch.get(key))
+        if value is None or value < 0.0:
+            errors.append(f"frame_dispatch_lateness.{key} must be finite and non-negative")
+
+    for metric_name in ("worker_wakeup_lateness", "gui_queue_dispatch_lateness"):
+        component_value = metrics.get(metric_name)
+        if not isinstance(component_value, dict):
+            errors.append(f"{metric_name} must be a JSON object")
+            continue
+        component = cast("JsonObject", component_value)
+        component_samples = _integer(component.get("samples"))
+        if component_samples is None or component_samples < minimum_samples:
+            errors.append(f"{metric_name}.samples must be >= {minimum_samples}")
+        for key in ("mean_ms", "p95_ms", "max_ms"):
+            value = _number(component.get(key))
+            if value is None or value < 0.0:
+                errors.append(f"{metric_name}.{key} must be finite and non-negative")
 
 
 def _validate_stage_timings(
@@ -186,11 +260,15 @@ def _validate_stage_timings(
         errors: Mutable list receiving acceptance failures.
     """
     stage_value = metrics.get("stage_timings")
+    publication_mode = metrics.get("publication_mode")
+    if publication_mode != "transient-coin3d":
+        errors.append("publication_mode must be transient-coin3d")
     required_stages = (
         "advance_preview_frame",
         "solver_step",
         "state_publish",
         "mesh_write",
+        "preview_mesh_publish",
         "overlay_schedule",
         "viewport_redraw",
     )
@@ -211,11 +289,17 @@ def _validate_stage_timings(
         elif name == "overlay_schedule":
             minimum_samples = max(1, frames // 2 - 2)
         elif name == "mesh_write":
+            minimum_samples = 0
+        elif name == "preview_mesh_publish":
             minimum_samples = frames * 2
         else:
             minimum_samples = frames
         if samples is None or samples < minimum_samples:
             errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
+        if name == "mesh_write":
+            if samples != 0:
+                errors.append("stage_timings.mesh_write.samples must equal 0 during preview")
+            continue
         for metric_name in ("mean_ms", "p95_ms", "max_ms"):
             value = _number(stage.get(metric_name))
             if value is None or value < 0.0:
@@ -289,6 +373,7 @@ def validate_metrics(payload: JsonValue) -> list[str]:
     frames = _validate_frame_counts(metrics, errors)
     _validate_finite_state(metrics, errors)
     _validate_timing_metrics(metrics, errors)
+    _validate_frame_scheduler(metrics, frames, errors)
     _validate_stage_timings(metrics, frames, errors)
     _validate_profile(metrics, errors)
     _validate_runtime(metrics, errors)

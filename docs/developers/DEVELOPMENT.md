@@ -53,18 +53,17 @@ There is exactly one workflow: `.github/workflows/canonical-execution.yml`.
 
 ### Runner routing
 
-All validation, publication, artifact-budget, maintenance, and merge-queue jobs use the existing `self-hosted/linux/x64/docker` runner. GitHub-hosted runners and automatic hosted fallback are disabled; this repository's CI does not consume Microsoft-hosted runner minutes.
+All validation, publication, artifact-budget, maintenance, and merge-queue jobs use a JSON runner target passed to the canonical workflow. The `FREECAD_CUDA_RUNNER_GROUP` Actions variable selects a GitHub-hosted GPU larger-runner group via `runs-on: { group: ... }`; if the variable is unset, callers pass the JSON string `"ubuntu-latest"` and the workflow uses the standard hosted CPU runner. This preserves a working fallback without the previously used local Docker runner.
 
-Pull-request jobs run locally only when the head branch belongs to this repository and the PR author is not Dependabot. Fork-originated and Dependabot PRs are skipped rather than executing untrusted code on the persistent machine. Manual dispatch, scheduled validation, trusted pushes, and merge-queue validation use the same local runner. Merge-group readiness checks the associated PR heads and authors and fails closed for external or Dependabot code.
+The configured GPU larger-runner group must contain only the intended GPU-capable hosts (for example, the organization's T4 runner group) and be authorized for this repository. Each selected GPU runner is expected to expose an NVIDIA device through its host driver and Docker runtime. The FreeCAD container action probes `nvidia-smi` on the host and then starts a throwaway container with `--gpus all` to verify NVIDIA device nodes. It passes `--gpus all` to the actual FreeCAD container only when both checks succeed. Missing drivers, Docker GPU support, or device nodes select the CPU fallback and are recorded with a reason; benchmark and acceptance scripts still run. The `simulation_backend_device` field remains `cpu`: the pinned `pyPBD==2.2.2` runtime and current PositionBasedDynamics backend are CPU implementations, so GPU visibility is infrastructure evidence, not a claim of GPU-accelerated cloth solving.
 
-The `local_runner_readiness` sentinel checks Docker and verifies the workspace transfer mechanism used by the FreeCAD container action: it creates a temporary container, copies a marker from the checked-out workspace into it, reads and writes the marker inside the container, and copies the response back with `docker cp`. The container and temporary probe directory are removed after the check. A failed copy or command stops validation before substantive jobs begin. Static Python tools use a dependency-keyed virtual environment under `RUNNER_TOOL_CACHE/freecad-cloth/venvs`; it is recreated only when the Python version, `pyproject.toml`, or explicit extra requirements change. FreeCAD evidence validators use a separate persistent environment. The PBD image action checks the local Docker daemon first, then pulls the immutable GHCR tag, and builds only when neither cache contains it. Installed packages and Docker images persist across workflow runs.
+The `local_runner_readiness` job validates Docker workspace transfer on the selected GitHub-hosted runner: it creates a temporary container, copies a marker from the checked-out workspace into it, reads and writes the marker inside the container, and copies the response back with `docker cp`. The container and temporary probe directory are removed after the check. A failed copy or command stops validation before substantive jobs begin. Static Python tools use a dependency-keyed virtual environment under `RUNNER_TOOL_CACHE/freecad-cloth/venvs`; it is recreated only when the Python version, `pyproject.toml`, or explicit extra requirements change. FreeCAD evidence validators use a separate environment. The immutable PBD image is published to GHCR and pulled by subsequent hosted jobs.
 
+Pull-request execution remains restricted to same-repository, non-Dependabot heads. Fork-originated and Dependabot PRs remain excluded because canonical jobs execute repository-derived code and have privileged evidence-publication work in separate jobs. PR source checkout remains pinned to the immutable head SHA with persisted checkout credentials disabled.
 
-There is no `pull_request_target` broker, privileged runner discovery token, second workflow, periodic five-minute validation schedule, or duplicate runner heartbeat. The daily schedule remains for repository maintenance and static validation.
+There is no `pull_request_target` broker, privileged runner-discovery token, second workflow, or periodic runner heartbeat. The daily schedule remains for repository maintenance and static validation.
 
-The canonical FreeCAD image is Python 3.12-based. PR checkouts use the immutable PR head SHA with persisted checkout credentials disabled.
-
-Do not replace, duplicate, or casually refactor this routing. Preserve the existing Docker/Xvfb path that launches real FreeCAD and captures the validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
+Preserve the canonical Docker/Xvfb path that launches real FreeCAD and captures validated GUI states and artifacts. Any UI, workflow, runner, or simulation-facing change must use the canonical workflow as its acceptance path. Never weaken screenshot, geometry, simulation, or artifact assertions to make CI green.
 
 ## Tool and test inventories
 
@@ -112,7 +111,7 @@ The canonical workflow is intentionally parallel: runner readiness and the Posit
 Runtime rules:
 
 - Run Ruff format checks and lint read-only over every tracked Python file on every quality-gate invocation; the workflow must report style errors rather than silently rewriting the checkout.
-- Pull immutable, content-derived CI images only when they are not already present on a warm self-hosted runner. Hosted runners will naturally take the pull path.
+- Pull immutable, content-derived CI images only when they are not already present on the selected runner. Ephemeral GitHub-hosted runners naturally take the pull path.
 - The PBD image build publishes the image; downstream jobs are responsible for pulling it. The builder does not perform a second verification pull because that would duplicate the network transfer on an otherwise disposable runner.
 - Superseded workflow runs are cancelled whenever their triggering ref is not `refs/heads/main`; main runs, including the push produced by a merged PR, are never cancelled by concurrency.
 - Use GitHub-hosted dependency caching where supported. The static Python gate caches its pip download cache using pyproject.toml as the dependency key.
@@ -146,3 +145,8 @@ The immutable PBD image contains the Python packages required by the FreeCAD acc
 
 Pre-commit and canonical CI enforce Ruff, Python architecture/dead-code contracts, actionlint, zizmor, yamllint, and the repository-specific CI structure contract. External Actions in the workflow and local composite Actions are pinned to full commit SHAs and maintained by Dependabot.
 
+
+
+## PBD throughput profiling
+
+The dedicated production-throughput investigation is tracked in [dedicated production-throughput issue](https://github.com/Uhrendoktor/freecad-cloth/issues/2839). Its measured baseline, current bottlenecks, unchanged production settings, and the separate Fast-preview results are recorded in [PBD throughput profile](PBD_THROUGHPUT_PROFILE.md). The canonical full tunic audit is a blocking 90-step gate; the realtime-preview 60 FPS target remains a separate diagnostic until its timer-cadence miss is resolved.

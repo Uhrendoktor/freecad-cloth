@@ -125,10 +125,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "  publish-pr-simulation-evidence:", 1
     )[0]
     realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[0]
     realtime_validator = tunic_audit.split(
-        "      - name: Independently validate realtime performance metrics", 1
+        "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
     assert workflow.count("timeout-seconds:") == 6, (
@@ -159,8 +159,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "timeout-minutes: 10" in blanket_visual, (
         "The blanket visual job must allow its bounded FreeCAD command and evidence upload to finish."
     )
-    assert tunic_audit.count("continue-on-error: true") == 3, (
-        "Only the realtime diagnostics and explicitly deferred production audit may be non-blocking."
+    assert tunic_audit.count("continue-on-error: true") == 2, (
+        "Only the realtime benchmark and its independent validator remain diagnostic-only."
     )
     assert "continue-on-error: true" in realtime_step, (
         "The realtime metric capture is diagnostic-only for this PR."
@@ -171,8 +171,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "id: production-tunic-audit" in production_tunic_step, (
         "The production tunic audit outcome must be reported explicitly."
     )
-    assert "continue-on-error: true" in production_tunic_step, (
-        "The production audit is advisory while its throughput follow-up is unresolved."
+    assert "continue-on-error: true" not in production_tunic_step, (
+        "The production audit must block when it fails or does not complete."
     )
     assert 'timeout-seconds: "360"' in production_tunic_step, (
         "The production audit must retain its existing bounded execution budget."
@@ -180,11 +180,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "steps.production-tunic-audit.outcome" in production_tunic_step, (
         "The advisory warning must preserve the actual audit step outcome."
     )
-    assert "this is not a pass" in production_tunic_step, (
-        "A deferred or timed-out production audit must never be reported as passed."
+    assert "::error title=Production tunic audit failed" in production_tunic_step, (
+        "A timed-out or failed production audit must produce a blocking CI error."
     )
-    assert "#2839" in production_tunic_step, (
-        "The deferred production audit must identify its dedicated performance follow-up."
+    assert "is blocking" in production_tunic_step, (
+        "The production audit must explicitly identify the blocking failure outcome."
     )
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
@@ -261,8 +261,8 @@ def test_maintenance_cleanup_receives_github_cli_token() -> None:
     assert "packages: write" in cleanup, 'Expected "packages: write" in cleanup.'
 
 
-def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
-    """Run scheduled retention without hosted fallback or cancellation logic."""
+def test_one_shot_retention_run_uses_the_configured_hosted_runner() -> None:
+    """Run scheduled retention on the configured hosted runner without a watchdog."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -279,8 +279,9 @@ def test_one_shot_retention_run_stays_on_the_local_runner() -> None:
 
     assert f"!({activation})" in readiness
     assert f"!({activation})" in image
-    assert "runs-on: [self-hosted, linux, x64, docker]" in cleanup
-    assert "ubuntu-latest" not in workflow
+    assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in cleanup
+    assert "default: '\"ubuntu-latest\"'" in workflow
+    assert "self-hosted" not in workflow
     assert "runner_watchdog" not in workflow
     assert (
         "!startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')"

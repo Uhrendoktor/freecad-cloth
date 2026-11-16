@@ -101,6 +101,8 @@ GROUPS = {
         "tests/test_gui_structure.py",
         "tests/test_viewport_gizmo_style.py",
         "tests/test_simulation_scene.py",
+        "tests/test_realtime_mesh_preview.py",
+        "tests/test_realtime_preview_timing.py",
         "tests/test_simulation_quality_runtime.py",
         "tests/test_simulation_quality_gui_contract.py",
         "tests/test_project_structure.py",

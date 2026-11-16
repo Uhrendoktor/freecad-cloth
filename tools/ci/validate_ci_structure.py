@@ -88,6 +88,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/MeshBoundary.py",
     "freecad_cloth/simulation/MeshCollisionProjector.py",
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",
+    "freecad_cloth/simulation/RealtimeMeshPreview.py",
     "freecad_cloth/simulation/SimulationObjects.py",
     "freecad_cloth/simulation/SimulationQuality.py",
     "freecad_cloth/simulation/SimulationQualityRuntime.py",

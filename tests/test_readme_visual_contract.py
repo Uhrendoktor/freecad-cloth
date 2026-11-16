@@ -302,8 +302,9 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "\nenv:\n" not in publication
     assert "CLOTH_SIMULATION_BACKEND: position-based-dynamics" in shared
     assert "Required validation gate" in shared
-    assert "runs-on: [self-hosted, linux, x64, docker]" in shared
-    assert "ubuntu-latest" not in shared
+    assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in shared
+    assert "default: '\"ubuntu-latest\"'" in shared
+    assert "self-hosted" not in shared
     assert "runner_watchdog" not in shared
     assert "needs: [local_runner_readiness]" in shared
 
