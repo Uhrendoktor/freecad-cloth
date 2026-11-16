@@ -256,7 +256,6 @@ def main() -> None:
         _prepare,
         _Preview,
         _qt,
-        _timer_wakeup_compensation_ms,
     )
     from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
@@ -484,14 +483,6 @@ def main() -> None:
 
         active_preview = _Preview(scene)
         preview = active_preview
-        timer = active_preview.timer
-        # This fresh timer has only the instrumented production callback connected.
-        try:
-            timer.timeout.disconnect()
-        except (RuntimeError, TypeError) as exc:
-            msg = "Could not instrument the production preview timer"
-            raise RuntimeError(msg) from exc
-
         event_loop = qt_core.QEventLoop()
         last_tick_at: float | None = None
         frame_intervals_ms: list[float] = []
@@ -499,7 +490,7 @@ def main() -> None:
         initial_steps = int(scene.Steps)
         timed_out = False
 
-        def timed_tick() -> None:
+        def timed_tick(scheduled_at: float) -> None:
             nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
             tick_count += 1
@@ -511,13 +502,14 @@ def main() -> None:
                 native_timing_reset = True
             in_tick = True
             try:
-                active_preview.tick()
+                active_preview.tick(scheduled_at)
             finally:
                 in_tick = False
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
             if len(frame_intervals_ms) >= FRAMES:
+                active_preview.stop_frame_clock()
                 event_loop.quit()
 
         def on_deadline() -> None:
@@ -525,8 +517,8 @@ def main() -> None:
             timed_out = True
             event_loop.quit()
 
-        # Measure at callback entry so intervals include both callback work and timer delay.
-        timer.timeout.connect(timed_tick)
+        # Measure at callback entry so intervals include callback work and GUI dispatch.
+        active_preview.set_tick_callback(timed_tick)
         deadline = qt_core.QTimer()
         deadline.setSingleShot(True)
         deadline.timeout.connect(on_deadline)
@@ -537,6 +529,7 @@ def main() -> None:
         active_preview.start()
         execute_loop = getattr(event_loop, "exec", None) or event_loop.exec_
         execute_loop()
+        active_preview.stop_frame_clock()
         elapsed = time.perf_counter() - started
         process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
@@ -650,10 +643,9 @@ def main() -> None:
             "observed_ticks": tick_count,
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
-            "timer_interval_ms": int(timer.interval()),
-            "timer_wakeup_lateness": _timing_summary(active_preview._timer_wakeup_lateness_ms),
-            "timer_wakeup_compensation_ms": _timer_wakeup_compensation_ms(
-                active_preview._timer_wakeup_lateness_ms
+            "frame_scheduler": active_preview.frame_scheduler_metrics(),
+            "frame_dispatch_lateness": _timing_summary(
+                active_preview._frame_dispatch_lateness_ms
             ),
             "frame_interval_measurement": "callback-start-to-start",
             "elapsed_s": elapsed,

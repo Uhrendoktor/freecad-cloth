@@ -28,6 +28,7 @@ EXPECTED_PANEL_COUNT = 2
 MIN_COLLISION_TRIANGLES = 1
 FRAME_BUDGET_TOLERANCE_MS = 1e-6
 MIN_PARTICLE_DISTANCE_MM = 40.0
+FRAME_DISPATCH_SAMPLE_LIMIT = 120
 
 
 def _number(value: JsonValue) -> float | None:
@@ -173,6 +174,49 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("p95_frame_interval_ms exceeds the 60 FPS budget")
 
 
+def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
+    """Validate the worker-clock identity, backpressure counters, and GUI dispatch timing.
+
+    Args:
+        metrics: Decoded realtime benchmark artifact.
+        frames: Parsed measured interval count, or None when invalid.
+        errors: Mutable list receiving acceptance failures.
+    """
+    scheduler_value = metrics.get("frame_scheduler")
+    if not isinstance(scheduler_value, dict):
+        errors.append("frame_scheduler must be a JSON object")
+        return
+
+    scheduler = cast("JsonObject", scheduler_value)
+    if scheduler.get("mode") != "threaded-queued-deadline":
+        errors.append("frame_scheduler.mode must be threaded-queued-deadline")
+    target_fps = _number(scheduler.get("target_fps"))
+    if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
+        errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
+
+    emitted = _integer(scheduler.get("signals_emitted"))
+    if emitted is None or emitted < (frames or MIN_FRAMES):
+        errors.append("frame_scheduler.signals_emitted must cover the measured frames")
+    for key in ("coalesced_pulses", "missed_deadlines"):
+        value = _integer(scheduler.get(key))
+        if value is None or value < 0:
+            errors.append(f"frame_scheduler.{key} must be a non-negative integer")
+
+    dispatch_value = metrics.get("frame_dispatch_lateness")
+    if not isinstance(dispatch_value, dict):
+        errors.append("frame_dispatch_lateness must be a JSON object")
+        return
+    dispatch = cast("JsonObject", dispatch_value)
+    samples = _integer(dispatch.get("samples"))
+    minimum_samples = min(frames or MIN_FRAMES, FRAME_DISPATCH_SAMPLE_LIMIT)
+    if samples is None or samples < minimum_samples:
+        errors.append(f"frame_dispatch_lateness.samples must be >= {minimum_samples}")
+    for key in ("mean_ms", "p95_ms", "max_ms"):
+        value = _number(dispatch.get(key))
+        if value is None or value < 0.0:
+            errors.append(f"frame_dispatch_lateness.{key} must be finite and non-negative")
+
+
 def _validate_stage_timings(
     metrics: JsonObject,
     frames: int | None,
@@ -299,6 +343,7 @@ def validate_metrics(payload: JsonValue) -> list[str]:
     frames = _validate_frame_counts(metrics, errors)
     _validate_finite_state(metrics, errors)
     _validate_timing_metrics(metrics, errors)
+    _validate_frame_scheduler(metrics, frames, errors)
     _validate_stage_timings(metrics, frames, errors)
     _validate_profile(metrics, errors)
     _validate_runtime(metrics, errors)

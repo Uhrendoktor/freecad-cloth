@@ -188,6 +188,19 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "observed_ticks": 150,
         "expected_ticks": 150,
         "frames_advanced": 150,
+        "frame_scheduler": {
+            "mode": "threaded-queued-deadline",
+            "target_fps": validate_realtime_benchmark.TARGET_FPS,
+            "signals_emitted": 150,
+            "coalesced_pulses": 0,
+            "missed_deadlines": 0,
+        },
+        "frame_dispatch_lateness": {
+            "samples": 120,
+            "mean_ms": 0.15,
+            "p95_ms": 0.4,
+            "max_ms": 0.8,
+        },
         "timed_out": False,
         "backend_finite": True,
         "published_state_finite": True,
@@ -271,8 +284,8 @@ def test_realtime_metric_validator_fails_closed_when_samples_are_missing() -> No
     assert "measured_intervals must equal frames_requested" in errors, "canonical CI contract"
 
 
-def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
-    """Require benchmarks to use the production event loop and timer."""
+def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> None:
+    """Require benchmarks to use the production worker clock and GUI event loop."""
     source_path = ROOT / "tests" / "freecad_realtime_benchmark.py"
     parsed = ast.parse(source_path.read_text(encoding="utf-8"))
     identifiers = {node.id for node in ast.walk(parsed) if isinstance(node, ast.Name)}
@@ -285,10 +298,12 @@ def test_realtime_benchmark_uses_the_production_timer_and_event_loop() -> None:
     assert "_Preview" in identifiers, "canonical CI contract"
     assert "_prepare" in identifiers, "canonical CI contract"
     assert "QEventLoop" in attributes, "canonical CI contract"
-    assert "disconnect" in attributes, "canonical CI contract"
-    assert "connect" in attributes, "canonical CI contract"
+    assert "set_tick_callback" in attributes, "canonical CI contract"
+    assert "stop_frame_clock" in attributes, "canonical CI contract"
     assert "WARMUP_FRAMES" in identifiers, "canonical CI contract"
     assert "FRAMES" in identifiers, "canonical CI contract"
+    assert "frame_scheduler" in string_constants, "canonical CI contract"
+    assert "frame_dispatch_lateness" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
