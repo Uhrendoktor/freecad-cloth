@@ -350,13 +350,9 @@ def test_cached_mesh_buffer_uses_bulk_update_instead_of_per_vertex_calls(
             self.faces = list(facets[1])
 
     freecad_module = ModuleType("FreeCAD")
-    setattr(
-        freecad_module,
-        "Vector",
-        lambda x, y, z: (float(x), float(y), float(z)),
-    )
+    freecad_module.Vector = lambda x, y, z: (float(x), float(y), float(z))
     mesh_module = ModuleType("Mesh")
-    setattr(mesh_module, "Mesh", MeshBuffer)
+    mesh_module.Mesh = MeshBuffer
     monkeypatch.setitem(sys.modules, "FreeCAD", freecad_module)
     monkeypatch.setitem(sys.modules, "Mesh", mesh_module)
 
