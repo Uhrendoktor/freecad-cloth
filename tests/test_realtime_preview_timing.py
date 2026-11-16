@@ -36,9 +36,7 @@ def test_frame_clock_coalesces_repeated_pulses_until_gui_dispatch_consumes_one()
     }
 
     clock.consume_frame()
-    assert (
-        clock.request_frame(10.0 + 3.0 / 60.0, 10.0 + 3.0 / 60.0 - 0.015) is True
-    )
+    assert clock.request_frame(10.0 + 3.0 / 60.0, 10.0 + 3.0 / 60.0 - 0.015) is True
     assert emitted == [10.0, 10.0 + 3.0 / 60.0]
     clock.stop()
 
