@@ -1067,6 +1067,40 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     particles.setVelocity(index, velocity - inward_speed * normal_pbd)
         self._inter_cloth_metrics = metrics
 
+    def _measure_inter_cloth_residual(self) -> None:
+        """Refresh residual garment contact after the final avatar projection."""
+        if len(self._inter_cloth_groups) < 2:
+            self._inter_cloth_metrics = None
+            return
+        from freecad_cloth.simulation.InterClothContact import measure_inter_cloth_contacts
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            self._inter_cloth_metrics = None
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        remaining_count, maximum_deficit = measure_inter_cloth_contacts(
+            positions_mm,
+            self._inter_cloth_groups,
+            clearance_mm=self._inter_cloth_clearance_mm,
+        )
+        if self._inter_cloth_metrics is None:
+            from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
+
+            self._inter_cloth_metrics = InterClothContactMetrics(
+                0,
+                0,
+                remaining_count,
+                0.0,
+                maximum_deficit,
+            )
+        else:
+            self._inter_cloth_metrics = self._inter_cloth_metrics._replace(
+                remaining_contact_count=remaining_count,
+                max_penetration_after_mm=maximum_deficit,
+            )
+
     @property
     def inter_cloth_metrics(self):
         """Return the latest measured contact projection result for the garment groups."""
@@ -1131,6 +1165,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         # Cross-cloth response can push fabric back toward the avatar, so preserve
         # the authoritative body shell after the garment-group projection.
         self._project_collision_positions()
+        self._measure_inter_cloth_residual()
         self._time += float(dt)
 
     def reset(self) -> None:

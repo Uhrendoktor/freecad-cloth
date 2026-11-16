@@ -523,6 +523,70 @@ def _measure_contacts(
     return contact_count, maximum
 
 
+def measure_inter_cloth_contacts(
+    positions_mm: npt.ArrayLike,
+    triangles_by_group: Mapping[str, Sequence[Sequence[int]]],
+    *,
+    clearance_mm: float,
+) -> tuple[int, float]:
+    """Measure residual clearance deficits between independent garment groups.
+
+    A positive deficit means the closest sampled edge/triangle distance is
+    smaller than the requested clearance. It is not a signed volumetric
+    intersection depth.
+
+    Args:
+        positions_mm: Current global solver particle positions in millimetres.
+        triangles_by_group: Global triangle indices keyed by independent garment ID.
+        clearance_mm: Minimum requested surface separation.
+
+    Returns:
+        Number of residual edge/triangle pairs below the requested clearance and
+        their maximum clearance deficit in millimetres.
+
+    Raises:
+        ValueError: If positions, triangle indices, garment identities or clearance
+            are invalid.
+    """
+    positions = np.asarray(positions_mm, dtype=np.float64)
+    clearance = float(clearance_mm)
+    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
+        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
+        raise ValueError(msg)
+    if not bool(np.isfinite(positions).all()):
+        msg = "inter-cloth positions must be finite"
+        raise ValueError(msg)
+    if not np.isfinite(clearance) or clearance <= 0.0:
+        msg = "inter-cloth clearance must be positive and finite"
+        raise ValueError(msg)
+    if len(triangles_by_group) < 2:
+        msg = "inter-cloth measurement requires at least two independent garment groups"
+        raise ValueError(msg)
+
+    surfaces: dict[str, _SurfaceIndex] = {}
+    particle_owners: dict[int, str] = {}
+    for raw_group_id, raw_triangles in triangles_by_group.items():
+        group_id = str(raw_group_id).strip()
+        if not group_id or group_id in surfaces:
+            msg = "inter-cloth group IDs must be non-empty and unique"
+            raise ValueError(msg)
+        triangles = np.asarray(raw_triangles, dtype=np.int64)
+        if triangles.ndim != 2 or triangles.shape[1] != 3 or triangles.size == 0:
+            msg = f"inter-cloth group {group_id!r} has no valid triangles"
+            raise ValueError(msg)
+        if bool(np.any(triangles < 0)) or bool(np.any(triangles >= len(positions))):
+            msg = f"inter-cloth group {group_id!r} references a missing particle"
+            raise ValueError(msg)
+        for raw_index in np.unique(triangles):
+            particle_index = int(raw_index)
+            previous = particle_owners.setdefault(particle_index, group_id)
+            if previous != group_id:
+                msg = "independent inter-cloth groups must not share solver particles"
+                raise ValueError(msg)
+        surfaces[group_id] = _surface_index(positions, triangles)
+    return _measure_contacts(positions, surfaces, clearance)
+
+
 def project_inter_cloth_contacts(
     positions_mm: npt.ArrayLike,
     triangles_by_group: Mapping[str, Sequence[Sequence[int]]],

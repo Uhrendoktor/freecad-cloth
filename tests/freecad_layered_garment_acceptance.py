@@ -34,7 +34,7 @@ OUTPUT = Path(os.environ.get("CLOTH_LAYERED_OUTFIT_DIR", "artifacts/layered-outf
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
-CHECKPOINTS = (0, 1, 5, 15)
+CHECKPOINTS = (0, 1, 15, 60)
 SEAM_EDGE_A = 1
 SEAM_EDGE_B = 3
 SEAM_BOTTOM_EDGE = 0
@@ -93,15 +93,18 @@ def _make_piece(
     height_mm: float,
     placement,
     grainline_angle: float,
+    outline_points: tuple[tuple[float, float], ...] | None = None,
 ):
-    """Create one native Sketcher rectangle and adopt it as the pattern authority."""
+    """Create one native Sketcher pattern profile and adopt it as the pattern authority."""
     sketch = doc.addObject("Sketcher::SketchObject", name + "Source")
-    points = (
+    points = outline_points or (
         (0.0, 0.0),
         (float(width_mm), 0.0),
         (float(width_mm), float(height_mm)),
         (0.0, float(height_mm)),
     )
+    if len(points) != 4:
+        raise ValueError("layered outfit profile must contain four connected boundary edges")
     segments = [
         Part.LineSegment(
             App.Vector(points[index][0], points[index][1], 0.0),
@@ -149,52 +152,78 @@ def _make_ring(
     rotation_left,
     center_x: float,
     center_y: float,
+    *,
+    hem_flare_mm: float = 0.0,
 ):
-    """Create four independent rectangular panels arranged as a sewn square shell."""
+    """Create four sewn panels; optional flare widens the lower skirt hem.
+
+    The trapezoids remain planar. A small rigid tilt maps their sloped side
+    edges to the measured world-space rise, so all four corner seams meet.
+    """
+    flare = float(hem_flare_mm)
+    height = float(height_mm)
+    if not math.isfinite(flare) or flare < 0.0:
+        raise ValueError("hem flare must be finite and non-negative")
+    if not math.isfinite(height) or height <= 0.0:
+        raise ValueError("panel height must be positive and finite")
+    angle = math.atan2(flare, height)
+    local_height = math.hypot(height, flare)
+    tilt = App.Rotation(App.Vector(1.0, 0.0, 0.0), -math.degrees(angle))
+    rotations = tuple(
+        rotation.multiply(tilt)
+        for rotation in (rotation_front, rotation_right, rotation_back, rotation_left)
+    )
     specifications = (
         (
             "front",
-            2.0 * radius_x_mm,
+            2.0 * radius_x_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x - radius_x_mm, center_y - radius_y_mm, bottom_z_mm),
-                rotation_front,
+                App.Vector(center_x - radius_x_mm - flare, center_y - radius_y_mm - flare, bottom_z_mm),
+                rotations[0],
             ),
         ),
         (
             "right",
-            2.0 * radius_y_mm,
+            2.0 * radius_y_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x + radius_x_mm, center_y - radius_y_mm, bottom_z_mm),
-                rotation_right,
+                App.Vector(center_x + radius_x_mm + flare, center_y - radius_y_mm - flare, bottom_z_mm),
+                rotations[1],
             ),
         ),
         (
             "back",
-            2.0 * radius_x_mm,
+            2.0 * radius_x_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x + radius_x_mm, center_y + radius_y_mm, bottom_z_mm),
-                rotation_back,
+                App.Vector(center_x + radius_x_mm + flare, center_y + radius_y_mm + flare, bottom_z_mm),
+                rotations[2],
             ),
         ),
         (
             "left",
-            2.0 * radius_y_mm,
+            2.0 * radius_y_mm + 2.0 * flare,
             App.Placement(
-                App.Vector(center_x - radius_x_mm, center_y + radius_y_mm, bottom_z_mm),
-                rotation_left,
+                App.Vector(center_x - radius_x_mm - flare, center_y + radius_y_mm + flare, bottom_z_mm),
+                rotations[3],
             ),
         ),
     )
     pieces = {}
-    for side, width, placement in specifications:
+    for side, bottom_width, placement in specifications:
         name = garment_id + "-" + side
+        profile = (
+            (0.0, 0.0),
+            (bottom_width, 0.0),
+            (bottom_width - flare, local_height),
+            (flare, local_height),
+        )
         pieces[side] = _make_piece(
             doc,
             name,
-            width,
-            height_mm,
+            bottom_width,
+            local_height,
             placement,
             0.0,
+            outline_points=profile,
         )
     return pieces
 
@@ -560,6 +589,7 @@ def run_acceptance() -> None:
             *rotations,
             center_x,
             center_y,
+            hem_flare_mm=65.0,
         )
         skirt_seams = _sew_ring(doc, "Skirt", skirt)
 
@@ -593,7 +623,8 @@ def run_acceptance() -> None:
                 )
             )
 
-        shirt_bottom_z = hip_z - 10.0
+        # The untucked shirt hem overlaps the separate waistband by 45 mm.
+        shirt_bottom_z = hip_z - 85.0
         shirt_top_z = shoulder_z + 35.0
         shirt = _make_ring(
             doc,
@@ -722,6 +753,11 @@ def run_acceptance() -> None:
                 raise RuntimeError(
                     "independent shirt/skirt contact was not observed at step %d" % step
                 )
+            if int(scene.InterClothRemainingContactCount) > 0:
+                raise RuntimeError(
+                    "residual inter-garment edge/triangle pairs remain below clearance at step %d"
+                    % step
+                )
             if float(scene.InterClothResidualPenetration) > MAXIMUM_RESIDUAL_PENETRATION_MM:
                 raise RuntimeError(
                     "inter-cloth residual penetration %.3f mm exceeds %.3f mm at step %d"
@@ -779,6 +815,7 @@ def run_acceptance() -> None:
                 "finite": bool(scene.FiniteState),
                 "contact_count": int(scene.InterClothContactCount),
                 "corrected_particle_count": int(scene.InterClothCorrectedParticleCount),
+                "remaining_contact_count": int(scene.InterClothRemainingContactCount),
                 "max_penetration_before_mm": float(scene.InterClothMaxPenetration),
                 "residual_penetration_mm": float(scene.InterClothResidualPenetration),
                 "max_seam_gap_mm": max_seam_gap,
@@ -835,6 +872,8 @@ def run_acceptance() -> None:
             raise RuntimeError("reloaded multi-piece simulation rebuilt a non-finite solver")
         if int(scene.InterClothContactCount) < MINIMUM_CONTACTS:
             raise RuntimeError("reloaded solver did not retain inter-garment contact activation")
+        if int(scene.InterClothRemainingContactCount) > 0:
+            raise RuntimeError("reloaded solver retained contacts below requested clearance")
         reloaded_base = scene.Proxy._base_or_restore()
         reloaded_backend = reloaded_base.backend
         _log(
@@ -861,7 +900,7 @@ def run_acceptance() -> None:
                 },
             },
             "outfit": {
-                "description": "Twelve-panel shirt, skirt and waistband with two independent garment groups",
+                "description": "Longline shirt shell overlapping a flared A-line skirt and separate waistband; twelve panels in two independent groups",
                 "piece_count": len(scene.ClothPieces),
                 "seam_count": len(reloaded_base.seam_stitch_pairs),
                 "garment_group_count": len({entry.split("|", 1)[0] for entry in saved_groups}),
@@ -917,6 +956,7 @@ def run_acceptance() -> None:
                     "garment_group_b": "skirt",
                     "minimum_requested_clearance_mm": float(scene.InterClothClearance),
                     "measurement_method": "two-sided edge-to-triangle position projection",
+                    "metric_semantics": "positive residual value is the requested clearance deficit (requested gap minus closest sampled edge/triangle distance), not signed volumetric intersection depth",
                 },
             },
             "checkpoints": checkpoints,

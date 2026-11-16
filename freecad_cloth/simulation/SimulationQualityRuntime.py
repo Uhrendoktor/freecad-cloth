@@ -36,6 +36,7 @@ class _QualityScene(Protocol):
     GarmentGroups: Sequence[str]
     InterClothClearance: float
     InterClothContactCount: int
+    InterClothRemainingContactCount: int
     InterClothCorrectedParticleCount: int
     InterClothMaxPenetration: float
     InterClothResidualPenetration: float
@@ -86,6 +87,7 @@ def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
         ("GarmentGroups", "App::PropertyStringList", "Simulation", None, []),
         ("InterClothClearance", "App::PropertyFloat", "Simulation", None, 1.0),
         ("InterClothContactCount", "App::PropertyInteger", "Simulation", None, 0),
+        ("InterClothRemainingContactCount", "App::PropertyInteger", "Simulation", None, 0),
         ("InterClothCorrectedParticleCount", "App::PropertyInteger", "Simulation", None, 0),
         ("InterClothMaxPenetration", "App::PropertyFloat", "Simulation", None, 0.0),
         ("InterClothResidualPenetration", "App::PropertyFloat", "Simulation", None, 0.0),
@@ -126,6 +128,7 @@ def _validate_properties(scene: _QualityScene) -> None:
     scene.InterClothClearance = max(0.01, clearance) if isfinite(clearance) else 1.0
     scene.GarmentGroups = [str(value) for value in scene.GarmentGroups]
     scene.InterClothContactCount = max(0, int(scene.InterClothContactCount))
+    scene.InterClothRemainingContactCount = max(0, int(scene.InterClothRemainingContactCount))
     scene.InterClothCorrectedParticleCount = max(0, int(scene.InterClothCorrectedParticleCount))
     scene.InterClothMaxPenetration = max(0.0, float(scene.InterClothMaxPenetration))
     scene.InterClothResidualPenetration = max(0.0, float(scene.InterClothResidualPenetration))
@@ -289,11 +292,13 @@ class QualitySimulationProxy:
                 metrics = getattr(base.backend, "inter_cloth_metrics", None)
                 if metrics is not None:
                     obj.InterClothContactCount = int(metrics.contact_count)
+                    obj.InterClothRemainingContactCount = int(metrics.remaining_contact_count)
                     obj.InterClothCorrectedParticleCount = int(metrics.corrected_particle_count)
                     obj.InterClothMaxPenetration = float(metrics.max_penetration_before_mm)
                     obj.InterClothResidualPenetration = float(metrics.max_penetration_after_mm)
                 else:
                     obj.InterClothContactCount = 0
+                    obj.InterClothRemainingContactCount = 0
                     obj.InterClothCorrectedParticleCount = 0
                     obj.InterClothMaxPenetration = 0.0
                     obj.InterClothResidualPenetration = 0.0

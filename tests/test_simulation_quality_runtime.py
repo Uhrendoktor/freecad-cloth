@@ -86,6 +86,7 @@ def test_quality_preset_updates_solver_controls() -> None:
         GarmentGroups=[],
         InterClothClearance=1.0,
         InterClothContactCount=0,
+        InterClothRemainingContactCount=0,
         InterClothCorrectedParticleCount=0,
         InterClothMaxPenetration=0.0,
         InterClothResidualPenetration=0.0,
@@ -160,6 +161,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         time: ClassVar[float] = 0.25
         inter_cloth_metrics: ClassVar[SimpleNamespace] = SimpleNamespace(
             contact_count=3,
+            remaining_contact_count=0,
             corrected_particle_count=4,
             max_penetration_before_mm=0.75,
             max_penetration_after_mm=0.0,
@@ -256,6 +258,7 @@ def test_advance_preview_frame_advances_backend_once_without_document_recompute(
         "A preview frame must publish the solved state exactly once."
     )
     assert scene.InterClothContactCount == 3
+    assert scene.InterClothRemainingContactCount == 0
     assert scene.InterClothCorrectedParticleCount == 4
     assert isclose(scene.InterClothMaxPenetration, 0.75)
     assert scene.InterClothResidualPenetration == 0.0

@@ -8,7 +8,10 @@ import numpy as np
 import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
-from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
+from freecad_cloth.simulation.InterClothContact import (
+    measure_inter_cloth_contacts,
+    project_inter_cloth_contacts,
+)
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
 from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
 from tests.support.pbd_contact_helpers import (
@@ -332,3 +335,32 @@ def test_inter_cloth_projection_rejects_stitches_between_independent_garments() 
             clearance_mm=1.0,
             stitches=((0, 4),),
         )
+
+
+def test_inter_cloth_measurement_reports_post_projection_clearance_deficit() -> None:
+    """A later body projection that closes the fabric gap must be observable."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    corrected, _directions, _metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=4,
+    )
+    residual_count, residual_deficit = measure_inter_cloth_contacts(
+        corrected,
+        groups,
+        clearance_mm=1.0,
+    )
+    assert residual_count == 0
+    assert residual_deficit == 0.0
+
+    moved_back = np.asarray(corrected).copy()
+    moved_back[4:, 2] -= 0.75
+    residual_count, residual_deficit = measure_inter_cloth_contacts(
+        moved_back,
+        groups,
+        clearance_mm=1.0,
+    )
+    assert residual_count > 0
+    assert residual_deficit > 0.5
