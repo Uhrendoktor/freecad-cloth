@@ -378,6 +378,7 @@ jobs:
             CLOTH_PBD_SUBSTEPS=1
             CLOTH_REALTIME_FRAMES=120
             CLOTH_REALTIME_WARMUP_FRAMES=30
+            OMP_NUM_THREADS=1
           artifact-name: realtime-preview-performance
           artifact-path: artifacts/freecad-realtime/**
       - name: Independently validate realtime performance metrics
