@@ -491,7 +491,8 @@ def _resolve_inter_cloth_groups(
             raise ValueError(msg)
         assigned_piece_ids.add(piece_id)
         triangles_by_group.setdefault(group_id, []).extend(
-            tuple(int(index) for index in triangle) for triangle in data["triangles"]
+            (int(triangle[0]), int(triangle[1]), int(triangle[2]))
+            for triangle in data["triangles"]
         )
 
     expected_piece_ids = set(panel_data)
@@ -811,7 +812,13 @@ class SimulationProxy:
         else:
             self._build_demo(obj)
 
-    def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+    def _build_pattern_scene(
+        self,
+        obj,
+        pieces: Sequence[_PatternPieceDocumentObject],
+        signature=None,
+        piece_mesh=None,
+    ):
         """Build the particle system and visualization panels from native PatternIR.
 
         Args:
@@ -846,7 +853,11 @@ class SimulationProxy:
             offset = len(positions)
             positions.extend(vertices)
             triangles: tuple[tuple[int, int, int], ...] = tuple(
-                tuple(int(vertex_index) + offset for vertex_index in triangle)
+                (
+                    int(triangle[0]) + offset,
+                    int(triangle[1]) + offset,
+                    int(triangle[2]) + offset,
+                )
                 for triangle in triangles
             )
             triangles_global.extend(triangles)
@@ -857,7 +868,10 @@ class SimulationProxy:
                 "offset": offset,
                 "vertex_count": len(vertices),
                 "boundary_edges": edges,
-                "positions": tuple(positions),
+                "positions": cast(
+                    "tuple[tuple[float, float, float], ...]",
+                    tuple(positions),
+                ),
                 "triangles": triangles,
                 "piece": piece,
             }
