@@ -1,11 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Strict source contracts for the canonical tunic simulation audit."""
 
+from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from freecad_cloth.shared.Collision import CollisionSurface
+from tests.support.freecad_arc_geometry import _native_curve_value
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -904,3 +906,43 @@ def test_tunic_scene_dossier_logs_sampled_topology_before_simulation() -> None:
     assert 'status["result"]' not in simulation, (
         "Contract failed: 'status[\"result\"]' not in simulation"
     )
+
+
+@dataclass
+class _NativeArcPoint:
+    """Mutable native-point stand-in used to test the dynamic coordinate boundary."""
+
+    x: float
+    y: float
+
+
+class _NativeArcCurve:
+    """Expose one native-style parameter evaluator for the boundary regression."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        return _NativeArcPoint(parameter_value, parameter_value + 1.0)
+
+
+class _MalformedNativeArcCurve:
+    """Expose malformed native coordinates without changing the declared method type."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)
+        setattr(point, "x", "invalid")
+        return point
+
+
+def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:
+    """Accept numeric FreeCAD point coordinates and reject malformed binding values."""
+    point = _native_curve_value(_NativeArcCurve(), 2.5)
+    assert (point.x, point.y) == (2.5, 3.5)
+
+    for curve in (
+        _MalformedNativeArcCurve(),
+    ):
+        try:
+            _native_curve_value(curve, 2.5)
+        except TypeError as error:
+            assert "numeric x/y" in str(error)
+        else:
+            raise AssertionError("malformed native point coordinates must be rejected")
