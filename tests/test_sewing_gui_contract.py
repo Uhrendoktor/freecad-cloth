@@ -72,6 +72,7 @@ class SewingGuiContractTests(unittest.TestCase):
         )
         panel.seam = None
         panel.status = SimpleNamespace(status=None)
+        panel.action_feedback = SimpleNamespace(status=None)
         panel.lengths = SimpleNamespace(text="")
         panel.lengths.setText = lambda text: setattr(panel.lengths, "text", text)
         panel.correspondence = SimpleNamespace(status=None)
@@ -86,8 +87,15 @@ class SewingGuiContractTests(unittest.TestCase):
 
         self.assertEqual(panel.lengths.text, "100.00 / 100.00 mm (Δ 0.00)")
         self.assertEqual(panel.correspondence.status, ("No seam correspondence", "warning"))
-        self.assertEqual(panel.status.status, ("Focus seam in the 3D view.", "info"))
-        self.assertEqual(updates[-1], (panel.status, "Focus seam in the 3D view.", "info"))
+        self.assertEqual(panel.status.status, ("Valid", "success"))
+        self.assertEqual(
+            panel.action_feedback.status,
+            ("Focus seam in the 3D view.", "info"),
+        )
+        self.assertEqual(
+            updates[-1],
+            (panel.action_feedback, "Focus seam in the 3D view.", "info"),
+        )
 
 if __name__ == "__main__":
     unittest.main()
