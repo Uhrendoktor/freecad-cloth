@@ -33,6 +33,7 @@ else:
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.UiDesign import apply_panel_style as _apply_panel_style
+from freecad_cloth.common.UiDesign import configure_form_layout as _configure_form_layout
 from freecad_cloth.common.UiDesign import mark_button as _mark_button
 from freecad_cloth.common.UiDesign import set_status as _set_status_label
 from freecad_cloth.simulation.DrapeTarget import assign_drape_target as _assign_drape_target
@@ -216,6 +217,7 @@ class DrapeTargetTaskPanel:
         """
         group = qt_widgets.QGroupBox("Collision object")
         layout = qt_widgets.QFormLayout(group)
+        _configure_form_layout(layout, qt_widgets)
         self.target_type = qt_widgets.QComboBox()
         self.target_type.addItems(("Mannequin", "FreeCAD Geometry"))
         self.source = qt_widgets.QComboBox()
@@ -236,6 +238,7 @@ class DrapeTargetTaskPanel:
         """
         group = qt_widgets.QGroupBox("Collision quality")
         layout = qt_widgets.QFormLayout(group)
+        _configure_form_layout(layout, qt_widgets)
         self.preset = qt_widgets.QComboBox()
         self.preset.addItems([name for name, _value in self.PRESETS])
         self.deflection = qt_widgets.QDoubleSpinBox()
@@ -262,6 +265,7 @@ class DrapeTargetTaskPanel:
         """
         group = qt_widgets.QGroupBox("Target state")
         layout = qt_widgets.QFormLayout(group)
+        _configure_form_layout(layout, qt_widgets)
         self.enabled = qt_widgets.QCheckBox("Enable collision target")
         self.enabled.setToolTip("Disabled targets remain persisted but are not used for draping.")
         layout.addRow(self.enabled)
@@ -272,7 +276,7 @@ class DrapeTargetTaskPanel:
         qt_widgets: ModuleType,
         root: _WidgetLayout,
     ) -> None:
-        """Create semantic status feedback and the Apply/Cancel buttons.
+        """Create semantic status feedback and the primary apply action.
 
         Args:
             qt_widgets: Supported Qt widgets module loaded by the FreeCAD host.
