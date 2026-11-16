@@ -148,11 +148,11 @@ class RealtimeMeshPreview:
                 material.diffuseColor = material_color
                 material.transparency = material_transparency
                 material_specular_color: tuple[float, float, float] = (
-            material_specular,
-            material_specular,
-            material_specular,
-        )
-        material.specularColor = material_specular_color
+                    material_specular,
+                    material_specular,
+                    material_specular,
+                )
+                material.specularColor = material_specular_color
                 material.shininess = material_shininess
                 coordinates = cast("_CoordinateNode", coin.SoCoordinate3())
                 indexed_faces = cast("_IndexedFaceNode", coin.SoIndexedFaceSet())
