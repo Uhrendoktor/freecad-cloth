@@ -277,7 +277,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
     )
     require(
         condition=set(lint.get("ignore", [])) == allowed_ignores,
-        message="Only the propagated-exception documentation rule may be globally ignored.",
+        message="Global ignores must match the reviewed formatter, host API, import, exception-flow, documentation, and callback boundaries.",
     )
     require(
         condition=lint.get("per-file-ignores") == expected_per_file,
