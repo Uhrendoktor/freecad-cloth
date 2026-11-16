@@ -193,7 +193,7 @@ class PatternTopologyRepairTaskPanel:
         )
         outer.addWidget(self.status)
 
-        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
+        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button, set_status
 
         set_status(
             self.status,
@@ -201,8 +201,6 @@ class PatternTopologyRepairTaskPanel:
             state="warning" if self.rows else "info",
         )
         for _seam, _side, _combo, pick_button in self.rows:
-            from freecad_cloth.common.UiDesign import mark_button
-
             mark_button(pick_button, "secondary")
         mark_button(self.cancel_pick_button, "secondary")
         apply_panel_style(self.form)
