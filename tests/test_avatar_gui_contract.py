@@ -76,28 +76,28 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
         assert callable(getattr(AvatarTaskPanel, method, None))
 
 
-def test_avatar_advanced_search_explains_when_no_parameters_match():
+def test_avatar_advanced_search_explains_when_no_parameters_match() -> None:
     """Show a visible empty state in both advanced tabs for an unmatched query."""
 
     class _Visibility:
-        def __init__(self):
+        def __init__(self) -> None:
             self.visible = True
 
-        def setVisible(self, value):
+        def setVisible(self, value: bool) -> None:
             self.visible = bool(value)
 
     class _SearchRow(_Visibility):
-        def property(self, _name):
+        def property(self, _name: str) -> str:
             return "arm length"
 
     class _Tabs:
         def __init__(self):
             self.index = 0
 
-        def currentIndex(self):
+        def currentIndex(self) -> int:
             return self.index
 
-        def setCurrentIndex(self, value):
+        def setCurrentIndex(self, value: int) -> None:
             self.index = int(value)
 
     row = _SearchRow()
@@ -120,6 +120,7 @@ def test_avatar_advanced_search_explains_when_no_parameters_match():
     assert group.visible is False
     assert phenotypes_empty.visible is True
     assert morphs_empty.visible is True
+
 
 def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController

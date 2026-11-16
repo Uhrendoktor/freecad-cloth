@@ -309,7 +309,7 @@ class SewingTaskPanel:
         self._transaction_active = False
         return False
 
-    def _refresh(self, message: str | None = None):
+    def _refresh(self, message: str | None = None) -> None:
         from freecad_cloth.common.UiDesign import set_status
 
         current_status = str(self.obj.Status)

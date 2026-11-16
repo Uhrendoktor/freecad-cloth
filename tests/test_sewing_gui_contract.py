@@ -59,8 +59,7 @@ class SewingGuiContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "length mismatch requires editing"):
             repair_correspondence_settings(seam, report)
 
-
-    def test_refresh_accepts_and_preserves_action_feedback(self):
+    def test_refresh_accepts_and_preserves_action_feedback(self) -> None:
         """Keep seam validity visible when a navigation action completes."""
         panel = SewingTaskPanel.__new__(SewingTaskPanel)
         panel.obj = SimpleNamespace(
@@ -78,7 +77,7 @@ class SewingGuiContractTests(unittest.TestCase):
         panel.correspondence = SimpleNamespace(status=None)
         updates = []
 
-        def set_status(label: object, message: str, state: str = "info") -> None:
+        def set_status(label: SimpleNamespace, message: str, state: str = "info") -> None:
             """Capture validation and action status assignments."""
             label.status = (message, state)
             updates.append((label, message, state))

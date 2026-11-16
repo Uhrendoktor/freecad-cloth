@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused semantic-status tests for viewport Arrange / Fit feedback."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from freecad_cloth.avatar.FittingGui import FittingTaskPanel
@@ -12,10 +14,10 @@ def test_fitting_status_distinguishes_placement_outcomes(
 ) -> None:
     """Show success and failure distinctly while keeping preview guidance informational."""
     panel = FittingTaskPanel.__new__(FittingTaskPanel)
-    panel.status = object()
+    panel.status = SimpleNamespace()
     updates = []
 
-    def set_status(label: object, message: str, *, state: str = "info") -> None:
+    def set_status(label: SimpleNamespace, message: str, *, state: str = "info") -> None:
         """Capture the semantic status assigned to the fitting panel."""
         updates.append((label, message, state))
 

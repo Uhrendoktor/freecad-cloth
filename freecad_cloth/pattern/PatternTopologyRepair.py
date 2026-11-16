@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
+from freecad_cloth.common.JsonTypes import JsonObject
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
@@ -97,7 +99,9 @@ def current_edge_candidates(seam, side):
     return list(_edge_records(piece))
 
 
-def current_edge_candidate_for_sketch_index(seam, side, edge_index):
+def current_edge_candidate_for_sketch_index(
+    seam: FreeCADDocumentObjectProtocol, side: str, edge_index: int
+) -> JsonObject:
     """Resolve a viewport-picked native Sketcher edge to its current semantic record.
 
     Args:
@@ -109,7 +113,8 @@ def current_edge_candidate_for_sketch_index(seam, side, edge_index):
         Current semantic edge record for the exact native Sketcher edge that was picked.
 
     Raises:
-        ValueError: If the side is invalid or the picked native edge is not a current boundary.
+        ValueError: If the side is invalid.
+        InvalidRepairTarget: If the picked Sketcher geometry is not a current semantic boundary edge.
     """
     side = str(side).upper()
     if side not in ("A", "B"):

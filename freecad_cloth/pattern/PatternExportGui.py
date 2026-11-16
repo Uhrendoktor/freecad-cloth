@@ -105,7 +105,7 @@ class PatternExportTaskPanel:
         mark_button(self.focus_source, "secondary")
         apply_panel_style(self.form)
 
-    def focus_source_in_3d(self):
+    def focus_source_in_3d(self) -> bool:
         """Select and frame the export source without changing camera orientation."""
         if self.piece is None:
             return False

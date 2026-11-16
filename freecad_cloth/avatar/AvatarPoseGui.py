@@ -311,9 +311,7 @@ class SkeletonPoseController:
             str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
             != "makehuman-hm08"
         ):
-            self.panel._set_status(
-                "Pose Mode is available for the MakeHuman HM08 avatar provider."
-            )
+            self.panel._set_status("Pose Mode is available for the MakeHuman HM08 avatar provider.")
             return
 
         self.view = self.Gui.activeDocument().activeView()

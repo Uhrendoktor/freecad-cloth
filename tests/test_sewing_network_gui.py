@@ -808,7 +808,7 @@ def test_network_editor_can_focus_the_selected_seam_and_both_pieces_in_3d() -> N
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
 
     seams = (_ReferenceSeam("seam-1"), _ReferenceSeam("seam-2"))
-    selection_calls: list[tuple[object, ...]] = []
+    selection_calls: list[tuple[str] | tuple[str, _ReferenceSeam]] = []
     selection = SimpleNamespace(
         clearSelection=lambda: selection_calls.append(("clear",)),
         addSelection=lambda obj: selection_calls.append(("select", obj)),

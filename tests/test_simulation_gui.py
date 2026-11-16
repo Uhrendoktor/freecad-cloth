@@ -69,18 +69,17 @@ def test_simulation_status_warns_when_the_drape_target_is_not_ready() -> None:
     panel.status = SimpleNamespace()
     updates = []
 
-    def capture_status(label, message, *, state):
+    def capture_status(label: SimpleNamespace, message: str, *, state: str) -> None:
         updates.append((label, message, state))
 
-    with patch("freecad_cloth.common.UiDesign.set_status", side_effect=capture_status):
-        with patch(
-            "freecad_cloth.simulation.DrapeTarget.target_status",
-            return_value={
-                "state": "missing",
-                "message": "No drape target selected",
-            },
-        ):
-            panel._refresh_status()
+    with patch("freecad_cloth.common.UiDesign.set_status", side_effect=capture_status), patch(
+        "freecad_cloth.simulation.DrapeTarget.target_status",
+        return_value={
+            "state": "missing",
+            "message": "No drape target selected",
+        },
+    ):
+        panel._refresh_status()
 
     require(
         condition=len(updates) == 1 and updates[0][2] == "warning",
@@ -92,19 +91,19 @@ class _ViewportSelection:
     """Capture native selection changes requested by viewport helper buttons."""
 
     def __init__(self) -> None:
-        self.items = []
-        self.calls = []
+        self.items: list[SimpleNamespace] = []
+        self.calls: list[tuple[str] | tuple[str, SimpleNamespace]] = []
 
     def clearSelection(self) -> None:
         self.items.clear()
         self.calls.append(("clear",))
 
-    def addSelection(self, obj) -> None:
+    def addSelection(self, obj: SimpleNamespace) -> None:
         self.items.append(obj)
         self.calls.append(("select", obj))
 
 
-def _viewport_panel():
+def _viewport_panel() -> tuple[SimulationTaskPanel, SimpleNamespace, SimpleNamespace]:
     """Build a headless simulation panel with selected cloth/target document objects."""
     cloth = SimpleNamespace(Name="PatternFront", Label="Front panel")
     target_source = SimpleNamespace(Name="AvatarBody", Label="Cloth mannequin")

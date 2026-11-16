@@ -637,9 +637,7 @@ class SimulationQualityTaskPanel:
             self.target_context,
             str(target_info["message"]),
             state=(
-                "error"
-                if blocked
-                else ("success" if target_info["state"] == "ready" else "info")
+                "error" if blocked else ("success" if target_info["state"] == "ready" else "info")
             ),
         )
         target = getattr(self.scene, "DrapeTarget", None)

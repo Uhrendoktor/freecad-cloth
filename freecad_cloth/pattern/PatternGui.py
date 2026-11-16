@@ -143,7 +143,7 @@ class PatternPieceTaskPanel:
             raise RuntimeError(msg)
         active.setEdit(sketch.Name)
 
-    def _focus_piece(self):
+    def _focus_piece(self) -> bool:
         """Select and frame the current PatternPiece in FreeCAD's top viewport.
 
         Returns:

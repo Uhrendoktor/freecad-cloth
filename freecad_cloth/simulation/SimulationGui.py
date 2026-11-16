@@ -3,6 +3,8 @@
 
 from typing import TYPE_CHECKING, ClassVar
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 
 def _modules():
     import FreeCAD as App
@@ -305,7 +307,7 @@ class SimulationTaskPanel:
         self._refresh_viewport_actions()
         self._refresh_status()
 
-    def _active_document_object(self, name):
+    def _active_document_object(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Resolve a selected scene object in the current FreeCAD document."""
         document = getattr(self.scene, "Document", None) or self.App.ActiveDocument
         if document is None or not name:
@@ -315,16 +317,16 @@ class SimulationTaskPanel:
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return None
 
-    def _selected_cloth_object(self):
+    def _selected_cloth_object(self) -> FreeCADDocumentObjectProtocol | None:
         """Return the current cloth piece selected in the scene combo box."""
         return self._active_document_object(self.cloth.currentData())
 
-    def _selected_target_source(self):
+    def _selected_target_source(self) -> FreeCADDocumentObjectProtocol | None:
         """Resolve the current Drape Target and its linked visible collision source."""
         target = self._active_document_object(self.target.currentData())
         return getattr(target, "SourceObject", None) if target is not None else None
 
-    def _refresh_viewport_actions(self):
+    def _refresh_viewport_actions(self) -> None:
         """Enable viewport selection actions only when their objects are resolvable."""
         cloth_button = getattr(self, "cloth_view_button", None)
         if cloth_button is not None:
@@ -333,7 +335,7 @@ class SimulationTaskPanel:
         if target_button is not None:
             target_button.setEnabled(self._selected_target_source() is not None)
 
-    def _select_in_viewport(self, obj, role):
+    def _select_in_viewport(self, obj: FreeCADDocumentObjectProtocol | None, role: str) -> bool:
         """Highlight one selected scene object without changing the current camera.
 
         Args:
@@ -370,11 +372,11 @@ class SimulationTaskPanel:
         )
         return True
 
-    def _select_cloth_in_viewport(self):
+    def _select_cloth_in_viewport(self) -> bool:
         """Highlight the currently selected cloth object in the active 3D view."""
         return self._select_in_viewport(self._selected_cloth_object(), "cloth")
 
-    def _select_target_source_in_viewport(self):
+    def _select_target_source_in_viewport(self) -> bool:
         """Highlight the selected target's linked collision source in the active 3D view."""
         return self._select_in_viewport(self._selected_target_source(), "drape target source")
 
@@ -478,16 +480,12 @@ class SimulationTaskPanel:
             target_state = "unavailable"
         finite_state = bool(getattr(self.scene, "FiniteState", True))
         simulation_state = "ready" if finite_state else "invalid/non-finite"
-        status_message = (
-            message
-            or "State: %s | Target: %s | %.3f s | %d particles | %d steps"
-            % (
-                simulation_state,
-                target_message,
-                float(getattr(self.scene, "SimulatedTime", 0.0)),
-                int(getattr(self.scene, "ParticleCount", 0)),
-                int(getattr(self.scene, "Steps", 0)),
-            )
+        status_message = message or "State: %s | Target: %s | %.3f s | %d particles | %d steps" % (
+            simulation_state,
+            target_message,
+            float(getattr(self.scene, "SimulatedTime", 0.0)),
+            int(getattr(self.scene, "ParticleCount", 0)),
+            int(getattr(self.scene, "Steps", 0)),
         )
         if not finite_state:
             semantic_state = "error"

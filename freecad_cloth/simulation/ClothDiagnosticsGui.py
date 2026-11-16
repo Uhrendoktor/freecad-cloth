@@ -365,7 +365,7 @@ class DiagnosticsTaskPanel:
         """Refresh the metric description and availability after selection changes."""
         self.refresh()
 
-    def focus_panels_in_3d(self):
+    def focus_panels_in_3d(self) -> bool:
         """Select and frame source cloth panels without changing camera orientation."""
         from freecad_cloth.common.UiDesign import set_status
 

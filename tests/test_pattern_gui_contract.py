@@ -202,10 +202,11 @@ def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None
     assert "derived from the custom drafting outline" in width_tooltips[-1]
     assert "derived from the custom drafting outline" in height_tooltips[-1]
 
-def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None:
-    """Keep viewport camera changes behind the explicit task-panel action."""
-    piece = SimpleNamespace(Name="FrontPiece", Label="Front")
-    calls: list[tuple[object, ...]] = []
+
+def _pattern_piece_viewport_fixture(
+    piece: SimpleNamespace,
+) -> tuple[PatternGui.PatternPieceTaskPanel, list[tuple[str | SimpleNamespace | bool, ...]]]:
+    calls: list[tuple[str | SimpleNamespace | bool, ...]] = []
     view = SimpleNamespace(
         viewTop=lambda: calls.append(("top",)),
         fitAll=lambda: calls.append(("fit",)),
@@ -215,11 +216,18 @@ def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None
         addSelection=lambda obj: calls.append(("select", obj)),
     )
     panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
-    panel.obj = piece
     panel.Gui = SimpleNamespace(
         activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
         Selection=selection,
     )
+    return panel, calls
+
+
+def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None:
+    """Keep viewport camera changes behind the explicit task-panel action."""
+    piece = SimpleNamespace(Name="FrontPiece", Label="Front")
+    panel, calls = _pattern_piece_viewport_fixture(piece)
+    panel.obj = piece
 
     assert panel._focus_piece() is True
 
@@ -231,16 +239,7 @@ def test_new_pattern_piece_is_framed_once_after_creation() -> None:
     from unittest.mock import patch
 
     piece = SimpleNamespace(Label="PatternPiece")
-    calls: list[tuple[object, ...]] = []
-    view = SimpleNamespace(
-        viewTop=lambda: calls.append(("top",)),
-        fitAll=lambda: calls.append(("fit",)),
-    )
-    selection = SimpleNamespace(
-        clearSelection=lambda: calls.append(("clear",)),
-        addSelection=lambda obj: calls.append(("select", obj)),
-    )
-    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel, calls = _pattern_piece_viewport_fixture(piece)
     panel.obj = None
     panel._sketch_authoritative = False
     panel.name = SimpleNamespace(text=lambda: "New front")
@@ -355,11 +354,10 @@ def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
     assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
 
 
-
 def test_pattern_export_focus_action_selects_and_frames_source_without_changing_camera() -> None:
     """Expose a source-focus action while preserving the current viewport orientation."""
     piece = SimpleNamespace(Name="FrontPiece")
-    calls: list[tuple[object, ...]] = []
+    calls: list[tuple[str | SimpleNamespace | bool, ...]] = []
     view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
     selection = SimpleNamespace(
         clearSelection=lambda: calls.append(("clear",)),

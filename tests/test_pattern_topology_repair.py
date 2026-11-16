@@ -117,7 +117,7 @@ def test_duplicate_side_mapping_is_rejected_before_mutation():
         build_repair_plan([(seam, "A", edge), (seam, "A", edge)])
 
 
-def test_viewport_native_sketch_index_resolves_exact_semantic_edge():
+def test_viewport_native_sketch_index_resolves_exact_semantic_edge() -> None:
     """Map a viewport EdgeN hit to the same stable semantic ID used by repair rows."""
     seam = _seam(_piece())
 
@@ -127,7 +127,7 @@ def test_viewport_native_sketch_index_resolves_exact_semantic_edge():
     assert record["id"] == current_edge_candidates(seam, "A")[2]["id"]
 
 
-def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_geometry():
+def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_geometry() -> None:
     """Keep EdgeN mapped to original Sketcher Geometry index when construction is skipped."""
 
     class Point:
@@ -163,7 +163,7 @@ def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_ge
     }
 
 
-def test_viewport_native_sketch_index_rejects_nonexistent_edge():
+def test_viewport_native_sketch_index_rejects_nonexistent_edge() -> None:
     """Fail closed when a viewport edge index is outside the current Sketcher source."""
     seam = _seam(_piece())
 
@@ -171,7 +171,7 @@ def test_viewport_native_sketch_index_rejects_nonexistent_edge():
         current_edge_candidate_for_sketch_index(seam, "A", 99)
 
 
-def test_viewport_native_sketch_index_rejects_invalid_seam_side():
+def test_viewport_native_sketch_index_rejects_invalid_seam_side() -> None:
     """Do not map an edge when the caller does not identify side A or B."""
     seam = _seam(_piece())
 

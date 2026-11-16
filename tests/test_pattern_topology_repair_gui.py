@@ -139,7 +139,7 @@ def test_viewport_picker_rejects_a_different_pattern_piece() -> None:
 
 def test_viewport_picker_rejects_foreign_document_and_non_edge_hits() -> None:
     """Reject foreign documents and face hits without losing the active pick mode."""
-    panel, picker, combo, selection, updates = _picker_fixture()
+    _panel, picker, combo, selection, updates = _picker_fixture()
 
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index"
@@ -173,7 +173,7 @@ def test_viewport_picker_cancels_and_unregisters_cleanly() -> None:
 
 def test_viewport_picker_rejects_a_semantic_edge_not_in_the_row_candidates() -> None:
     """Do not choose a semantically valid edge that is absent from this repair row."""
-    panel, picker, combo, selection, updates = _picker_fixture()
+    _panel, picker, combo, selection, updates = _picker_fixture()
 
     with patch(
         "freecad_cloth.pattern.PatternTopologyRepair.current_edge_candidate_for_sketch_index",

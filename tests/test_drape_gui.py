@@ -424,6 +424,7 @@ def test_cancel_and_reject_remove_viewport_selection_observer() -> None:
     assert selection.observers == []
     assert panel._source_picker is None
 
+
 def test_presets_are_explicit_and_materially_distinct() -> None:
     """Keep the three authored collision-quality presets stable."""
     assert DrapeGui.DrapeTargetTaskPanel.PRESETS == EXPECTED_PRESETS, (

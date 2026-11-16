@@ -2,8 +2,10 @@
 """Focused behavior checks for the diagnostics task-panel frontend."""
 
 from collections.abc import Callable
-from types import ModuleType
-from typing import cast
+from types import ModuleType, SimpleNamespace
+from typing import NoReturn, cast
+
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 import pytest
 
@@ -14,12 +16,12 @@ class _Signal:
     """Small signal double used to exercise live metric-selection updates."""
 
     def __init__(self) -> None:
-        self.callbacks: list[Callable[..., object]] = []
+        self.callbacks: list[Callable[..., None]] = []
 
-    def connect(self, callback: Callable[..., object]) -> None:
+    def connect(self, callback: Callable[..., None]) -> None:
         self.callbacks.append(callback)
 
-    def emit(self, *args: object) -> None:
+    def emit(self, *args: str) -> None:
         for callback in self.callbacks:
             callback(*args)
 
@@ -88,10 +90,10 @@ class _Button(_Widget):
 class _Layout:
     """Vertical layout double sufficient for assembling the task panel."""
 
-    def __init__(self, *_args: object) -> None:
-        self.widgets: list[object] = []
+    def __init__(self, *_args: _Widget) -> None:
+        self.widgets: list[_Widget] = []
 
-    def addWidget(self, widget: object) -> None:
+    def addWidget(self, widget: _Widget) -> None:
         self.widgets.append(widget)
 
     def addStretch(self, _stretch: int = 0) -> None:
@@ -151,7 +153,7 @@ def test_metric_selection_refreshes_definition_range_and_action_state(
 ) -> None:
     """Changing the metric immediately updates the summary and keeps actions available."""
     _install_panel_dependencies(monkeypatch)
-    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel(cast("object", object()))
+    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel(cast("SimulationScene", object()))
 
     assert panel.definition.text == (
         "Formula: stress formula | Units: unit | Read-only derived analysis"
@@ -176,7 +178,7 @@ def test_analysis_failure_disables_map_and_export_actions(
     """Do not leave actions enabled when current simulation data cannot be analysed."""
     _install_panel_dependencies(monkeypatch)
 
-    def unavailable(_scene: object) -> list[object]:
+    def unavailable(_scene: SimulationScene) -> NoReturn:
         raise RuntimeError("run the simulation before opening diagnostics")
 
     monkeypatch.setattr(ClothDiagnosticsGui, "_simulation_data", unavailable)
@@ -188,15 +190,14 @@ def test_analysis_failure_disables_map_and_export_actions(
     assert panel.status.properties["clothState"] == "error"
 
 
-
 def test_focus_panels_selects_sources_and_frames_view_without_reorienting(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The diagnostics viewport action frames source panels without setting a camera view."""
     from types import SimpleNamespace
 
-    calls: list[tuple[object, ...]] = []
-    panel_a, panel_b = object(), object()
+    calls: list[tuple[str] | tuple[str, SimpleNamespace]] = []
+    panel_a, panel_b = SimpleNamespace(), SimpleNamespace()
     selection = SimpleNamespace(
         clearSelection=lambda: calls.append(("clear",)),
         addSelection=lambda obj: calls.append(("select", obj)),

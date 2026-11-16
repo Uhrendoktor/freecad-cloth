@@ -318,9 +318,9 @@ def test_picking_guidance_uses_shared_information_status_style(
     """Render viewport-picking instructions with the shared informational status role."""
     panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
     panel.feedback = Mock()
-    updates: list[tuple[object, str, str]] = []
+    updates: list[tuple[Mock, str, str]] = []
 
-    def set_status(label: object, message: str, *, state: str = "info") -> None:
+    def set_status(label: Mock, message: str, *, state: str = "info") -> None:
         updates.append((label, message, state))
 
     from freecad_cloth.common import UiDesign
@@ -444,7 +444,7 @@ def test_focus_selected_edges_frames_staged_viewport_picks_without_reorienting(
 
     first = _PatternPiece(Name="Front")
     second = _PatternPiece(Name="Back")
-    calls: list[tuple[object, ...]] = []
+    calls: list[tuple[str, ...]] = []
     selection = _SubelementSelection()
     view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
     active = SimpleNamespace(activeView=lambda: view)

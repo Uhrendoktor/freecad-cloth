@@ -365,14 +365,13 @@ class SewingCreationTaskPanel:
             )
         self.focus_edges_button.setEnabled(bool(self._viewport_picks or count))
 
-    def focus_selected_edges_in_3d(self):
+    def focus_selected_edges_in_3d(self) -> bool:
         """Select and frame the current sewing edge candidates without reorienting the view."""
         from freecad_cloth.common.UiDesign import set_status
 
         if self._viewport_picks:
             edges = tuple(
-                (obj, "Edge%d" % int(component[4:]))
-                for obj, component in self._viewport_picks
+                (obj, "Edge%d" % int(component[4:])) for obj, component in self._viewport_picks
             )
         else:
             try:
@@ -405,18 +404,15 @@ class SewingCreationTaskPanel:
         active.activeView().fitAll()
         set_status(
             self.feedback,
-            "Selected and framed %d sewing edge(s); camera orientation was preserved."
-            % len(edges),
+            "Selected and framed %d sewing edge(s); camera orientation was preserved." % len(edges),
             state="success",
         )
         return True
 
-    def toggle_viewport_picking(self):
+    def toggle_viewport_picking(self) -> None:
         if self._viewport_picking:
             self._stop_viewport_picking()
-            self._show_info(
-                "Viewport picking paused. Press Preview to review the selected edges."
-            )
+            self._show_info("Viewport picking paused. Press Preview to review the selected edges.")
             self.commit_button.setEnabled(False)
             return
         self._start_viewport_picking()
@@ -491,9 +487,7 @@ class SewingCreationTaskPanel:
             hit = None
         candidate = viewport_edge_candidate(self.App.ActiveDocument, hit)
         if candidate is None:
-            self._show_info(
-                "Pick an outline edge on a PatternPiece, not a face or sewing overlay."
-            )
+            self._show_info("Pick an outline edge on a PatternPiece, not a face or sewing overlay.")
             return
         obj, component = candidate
         if any(previous is obj and edge == component for previous, edge in self._viewport_picks):

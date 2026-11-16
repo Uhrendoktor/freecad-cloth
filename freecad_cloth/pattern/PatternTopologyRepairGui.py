@@ -1,14 +1,20 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD task panel for explicit semantic-edge topology repair."""
 
+from __future__ import annotations
+
 import re
 from typing import TYPE_CHECKING
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 if TYPE_CHECKING:
+    from types import ModuleType
+
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
 
-def _gui_modules():
+def _gui_modules() -> tuple[ModuleType, ModuleType]:
     import FreeCADGui as Gui
 
     if TYPE_CHECKING:
@@ -24,7 +30,13 @@ def _gui_modules():
 class _TopologyRepairViewportPicker:
     """Resolve one viewport edge pick for one explicit seam-side repair row."""
 
-    def __init__(self, panel, seam, side, combo) -> None:
+    def __init__(
+        self,
+        panel: PatternTopologyRepairTaskPanel,
+        seam: FreeCADDocumentObjectProtocol,
+        side: str,
+        combo: _QT_TYPE_QtWidgets.QComboBox,
+    ) -> None:
         """Register a one-shot selection observer scoped to one seam side.
 
         Args:
@@ -81,7 +93,7 @@ class _TopologyRepairViewportPicker:
         document_name: str,
         object_name: str,
         subelement_name: str,
-        *_position: object,
+        *_position: float,
     ) -> None:
         """Accept only the selected seam side's current native Sketcher edge.
 
@@ -264,7 +276,12 @@ class PatternTopologyRepairTaskPanel:
         mark_button(self.cancel_pick_button, "secondary")
         apply_panel_style(self.form)
 
-    def _begin_viewport_pick(self, seam, side, combo) -> None:
+    def _begin_viewport_pick(
+        self,
+        seam: FreeCADDocumentObjectProtocol,
+        side: str,
+        combo: _QT_TYPE_QtWidgets.QComboBox,
+    ) -> None:
         """Arm a one-shot viewport picker for one explicitly selected repair row.
 
         Args:
@@ -289,8 +306,8 @@ class PatternTopologyRepairTaskPanel:
         sketch_label = str(getattr(sketch, "Label", "the native Sketch"))
         piece_label = str(getattr(piece, "Label", "PatternPiece"))
         self._set_status(
-            "The linked Sketch '{}' is shown temporarily; pick its current boundary edge "
-            "for seam side {} ({}).".format(sketch_label, side, piece_label),
+            f"The linked Sketch '{sketch_label}' is shown temporarily; pick its current boundary edge "
+            f"for seam side {side} ({piece_label}).",
             state="info",
         )
 
