@@ -39,6 +39,9 @@ class _Widget:
     def setWordWrap(self, enabled: bool) -> None:
         self.wrapped = bool(enabled)
 
+    def setToolTip(self, text: str) -> None:
+        self.tooltip = str(text)
+
     def setEnabled(self, enabled: bool) -> None:
         self.enabled = bool(enabled)
 
@@ -183,3 +186,41 @@ def test_analysis_failure_disables_map_and_export_actions(
     assert panel.export_button.enabled is False
     assert panel.status.text == "run the simulation before opening diagnostics"
     assert panel.status.properties["clothState"] == "error"
+
+
+
+def test_focus_panels_selects_sources_and_frames_view_without_reorienting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The diagnostics viewport action frames source panels without setting a camera view."""
+    from types import SimpleNamespace
+
+    calls: list[tuple[object, ...]] = []
+    panel_a, panel_b = object(), object()
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
+    gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+    monkeypatch.setattr(
+        ClothDiagnosticsGui,
+        "_qt",
+        lambda: (cast("ModuleType", object()), gui, cast("ModuleType", object())),
+    )
+    from freecad_cloth.common import UiDesign
+
+    status = _Widget()
+    task_panel = ClothDiagnosticsGui.DiagnosticsTaskPanel.__new__(
+        ClothDiagnosticsGui.DiagnosticsTaskPanel
+    )
+    task_panel._source_panels = (panel_a, panel_b)
+    task_panel.status = status
+
+    assert task_panel.focus_panels_in_3d() is True
+    assert calls == [("clear",), ("select", panel_a), ("select", panel_b), ("fit",)]
+    assert status.text.startswith("Selected and framed 2 source cloth panel(s)")
+    assert status.properties["clothState"] == "success"
