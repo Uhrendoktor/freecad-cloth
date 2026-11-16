@@ -338,7 +338,10 @@ class DrapeTargetTaskPanel:
         layout.addRow("Source", self.source)
 
         viewport_actions = qt_widgets.QWidget()
-        viewport_layout = qt_widgets.QHBoxLayout(viewport_actions)
+        viewport_layout = qt_widgets.QGridLayout(viewport_actions)
+        viewport_layout.setContentsMargins(0, 0, 0, 0)
+        viewport_layout.setHorizontalSpacing(4)
+        viewport_layout.setVerticalSpacing(4)
         self.pick_source_button = qt_widgets.QPushButton("Pick in 3D")
         self.pick_source_button.setToolTip(
             "Choose a mannequin, shape, or mesh by clicking it in the FreeCAD viewport."
@@ -355,9 +358,11 @@ class DrapeTargetTaskPanel:
         _mark_button(self.pick_source_button, "secondary")
         _mark_button(self.cancel_pick_button, "secondary")
         _mark_button(self.show_source_button, "secondary")
-        viewport_layout.addWidget(self.pick_source_button)
-        viewport_layout.addWidget(self.cancel_pick_button)
-        viewport_layout.addWidget(self.show_source_button)
+        viewport_layout.addWidget(self.pick_source_button, 0, 0)
+        viewport_layout.addWidget(self.show_source_button, 0, 1)
+        viewport_layout.addWidget(self.cancel_pick_button, 1, 0)
+        viewport_layout.setColumnStretch(0, 1)
+        viewport_layout.setColumnStretch(1, 1)
         layout.addRow("Viewport", viewport_actions)
         return group
 
