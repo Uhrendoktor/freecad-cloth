@@ -6,6 +6,8 @@ from __future__ import annotations
 type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
 type ApiJsonObject = dict[str, ApiJsonValue]
 
+import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import http.client
 import json
@@ -33,13 +35,18 @@ MAX_BRANCH_DELETIONS_PER_RUN = 250
 BRANCH_COMMIT_QUERY_BATCH_SIZE = 40
 COMMIT_SHA_HEX_LENGTH = 40
 MAX_RUN_DELETIONS_PER_RUN = 100
+MAX_RUN_CAP_DELETIONS_PER_RUN = 4000
+MAX_RUN_DELETE_WORKERS = 12
+MAX_RETAINED_WORKFLOW_RUNS = 10
+MAX_RUN_RESULTS_PER_API_QUERY = 1000
+MAX_RUN_QUERY_SPLITS = 16
 MAX_PACKAGE_VERSION_DELETIONS_PER_RUN = 50
 DOCKERFILE_TAG_QUERY_BATCH_SIZE = 40
 PBD_PACKAGE_SUFFIX = "freecad-cloth/pbd-validation"
 
 # Published documentation assets are long-lived public refs, not disposable work branches.
 RESERVED_BRANCH_NAMES = frozenset({"docs/screenshots"})
-RESERVED_BRANCH_PREFIXES = ("simulation-evidence/",)
+EVIDENCE_BRANCH_PREFIX = "simulation-evidence/pr-"
 GITHUB_API_VERSION = "2022-11-28"
 
 
@@ -57,6 +64,7 @@ class ClosedPullRequestLookup:
         default_branch: Branch name that must never be selected for deletion.
         activity_epochs: Verified activity timestamps keyed by commit SHA.
         cutoff_epoch: Timestamp boundary for looking up recently active closed PR heads.
+        open_pr_numbers: PR numbers whose generated evidence refs must remain available.
     """
 
     repo: str
@@ -64,6 +72,7 @@ class ClosedPullRequestLookup:
     default_branch: str
     activity_epochs: dict[str, float]
     cutoff_epoch: float
+    open_pr_numbers: set[int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,11 +83,13 @@ class BranchRetentionPolicy:
         activity_epochs: Commit activity timestamps keyed by full SHA.
         cutoff_epoch: Latest timestamp that qualifies as stale.
         closed_pr_head_shas: Exact closed-PR head SHAs allowed through the cutoff.
+        open_pr_numbers: PR numbers whose generated evidence refs are still in use.
     """
 
     activity_epochs: dict[str, float]
     cutoff_epoch: float
     closed_pr_head_shas: dict[str, set[str]]
+    open_pr_numbers: set[int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,12 +251,16 @@ def epoch(value: str) -> float:
 
 
 def is_reserved_branch(name: str, default_branch: str) -> bool:
-    """Return whether a ref is the default branch or a long-lived evidence publication."""
-    return (
-        name == default_branch
-        or name in RESERVED_BRANCH_NAMES
-        or name.startswith(RESERVED_BRANCH_PREFIXES)
-    )
+    """Return whether a ref is the default branch or a deliberately retained documentation ref."""
+    return name == default_branch or name in RESERVED_BRANCH_NAMES
+
+
+def is_open_pr_evidence_branch(name: str, open_pr_numbers: set[int]) -> bool:
+    """Return whether an evidence ref belongs to a pull request that is still open."""
+    if not name.startswith(EVIDENCE_BRANCH_PREFIX):
+        return False
+    number_text = name.removeprefix(EVIDENCE_BRANCH_PREFIX)
+    return number_text.isdecimal() and int(number_text) in open_pr_numbers
 
 
 def paginated_api_items(
@@ -470,6 +485,7 @@ def closed_pr_head_shas_by_branch(
         if (
             not isinstance(name, str)
             or is_reserved_branch(name, lookup.default_branch)
+            or name.startswith(EVIDENCE_BRANCH_PREFIX)
             or name in lookup.open_heads
             or branch.get("protected") is not False
         ):
@@ -510,8 +526,8 @@ def stale_unprotected_branches(
 ) -> list[ApiJsonObject]:
     """Return unprotected, non-default branches inactive before the cutoff.
 
-    Reserved evidence/publication refs, open pull-request heads, and branches with
-    missing activity evidence are retained. Results are ordered oldest first.
+    Reserved documentation refs, evidence refs for open PRs, open pull-request heads,
+    and branches with missing activity evidence are retained. Results are ordered oldest first.
 
     Args:
         branches: Branch records returned by GitHub for the repository.
@@ -528,6 +544,7 @@ def stale_unprotected_branches(
         if (
             not isinstance(name, str)
             or is_reserved_branch(name, default_branch)
+            or is_open_pr_evidence_branch(name, retention.open_pr_numbers)
             or name in open_heads
             or branch.get("protected") is not False
         ):
@@ -829,19 +846,23 @@ def cleanup_pbd_package_versions(
         return progress.result
 
 
-def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str]]:
-    """Collect the branch names and commit SHAs protected by open pull requests.
+def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str], set[int]]:
+    """Collect open head refs, commit SHAs, and PR numbers protected by open pull requests.
 
     Args:
         repo: Full owner/repository name queried through GitHub.
 
     Returns:
-        Open head branch names and commit SHAs used by those pull requests.
+        Open head branch names, head commit SHAs, and open pull-request numbers.
     """
     pull_requests = list(paginated_api_items(f"repos/{repo}/pulls?state=open"))
     open_heads: set[str] = set()
     protected_shas: set[str] = set()
+    open_pr_numbers: set[int] = set()
     for pull_request in pull_requests:
+        number = pull_request.get("number")
+        if isinstance(number, int):
+            open_pr_numbers.add(number)
         head = pull_request.get("head")
         if isinstance(head, dict):
             ref, sha = head.get("ref"), head.get("sha")
@@ -849,7 +870,7 @@ def _open_pull_request_refs(repo: str) -> tuple[set[str], set[str]]:
                 open_heads.add(ref)
             if isinstance(sha, str):
                 protected_shas.add(sha)
-    return open_heads, protected_shas
+    return open_heads, protected_shas, open_pr_numbers
 
 
 def _default_branch_for_repo(repo: str) -> str:
@@ -877,6 +898,7 @@ def _default_branch_for_repo(repo: str) -> str:
 def _branch_head_shas(
     branches: list[ApiJsonObject],
     open_heads: set[str],
+    open_pr_numbers: set[int],
     default_branch: str,
 ) -> set[str]:
     """Collect deletable branch head SHAs before querying activity dates.
@@ -884,6 +906,7 @@ def _branch_head_shas(
     Args:
         branches: Branch records returned by GitHub.
         open_heads: Branch names used by open pull requests.
+        open_pr_numbers: PR numbers whose generated evidence refs must be retained.
         default_branch: Branch name that must never be selected for deletion.
 
     Returns:
@@ -896,6 +919,7 @@ def _branch_head_shas(
         if (
             not isinstance(name, str)
             or is_reserved_branch(name, default_branch)
+            or is_open_pr_evidence_branch(name, open_pr_numbers)
             or name in open_heads
             or branch.get("protected") is not False
         ):
@@ -909,6 +933,7 @@ def _branch_head_shas(
 def _cleanup_stale_branches(
     repo: str,
     open_heads: set[str],
+    open_pr_numbers: set[int],
     default_branch: str,
     branch_cutoff: float,
 ) -> tuple[int, int, int]:
@@ -917,6 +942,7 @@ def _cleanup_stale_branches(
     Args:
         repo: Full owner/repository name queried through GitHub.
         open_heads: Branch names used by open pull requests.
+        open_pr_numbers: PR numbers whose generated evidence refs must be retained.
         default_branch: Branch name that must never be selected for deletion.
         branch_cutoff: Unix timestamp before which a branch is considered stale.
 
@@ -927,7 +953,7 @@ def _cleanup_stale_branches(
         TypeError: If a selected branch is missing its name.
     """
     branches = list(paginated_api_items(f"repos/{repo}/branches"))
-    branch_shas = _branch_head_shas(branches, open_heads, default_branch)
+    branch_shas = _branch_head_shas(branches, open_heads, open_pr_numbers, default_branch)
     # Resolve all candidate activity before deleting anything; incomplete GraphQL data
     # aborts the branch pass instead of treating an unknown branch as stale.
     activity_epochs = branch_activity_epochs(repo, branch_shas)
@@ -937,12 +963,14 @@ def _cleanup_stale_branches(
         default_branch=default_branch,
         activity_epochs=activity_epochs,
         cutoff_epoch=branch_cutoff,
+        open_pr_numbers=open_pr_numbers,
     )
     closed_pr_heads = closed_pr_head_shas_by_branch(branches, lookup)
     retention = BranchRetentionPolicy(
         activity_epochs=activity_epochs,
         cutoff_epoch=branch_cutoff,
         closed_pr_head_shas=closed_pr_heads,
+        open_pr_numbers=open_pr_numbers,
     )
     stale_branches = stale_unprotected_branches(branches, open_heads, default_branch, retention)
     selected_branches = stale_branches[:MAX_BRANCH_DELETIONS_PER_RUN]
@@ -955,6 +983,127 @@ def _cleanup_stale_branches(
         gh_delete("api", "--method", "DELETE", f"repos/{repo}/git/refs/heads/{name}")
         removed_branches += 1
     return len(branches), removed_branches, len(stale_branches) - len(selected_branches)
+
+
+
+def stale_completed_workflow_runs(
+    repo: str,
+    cutoff_epoch: float,
+    *,
+    api_items_loader: Callable[..., Iterator[ApiJsonObject]] | None = None,
+    depth: int = 0,
+) -> list[ApiJsonObject]:
+    """Collect all completed runs older than a cutoff, splitting below GitHub's 1,000-result cap."""
+    if depth > MAX_RUN_QUERY_SPLITS:
+        raise RuntimeError("stale workflow-run inventory exceeded the safe date-split depth")
+    load_api_items = paginated_api_items if api_items_loader is None else api_items_loader
+    cutoff = datetime.fromtimestamp(cutoff_epoch, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    endpoint = f"repos/{repo}/actions/runs?status=completed&created=%3C{cutoff}"
+    inventory = list(load_api_items(endpoint, collection_key="workflow_runs"))
+    stale = stale_completed_runs(inventory, cutoff_epoch)
+    if len(inventory) < MAX_RUN_RESULTS_PER_API_QUERY:
+        return stale
+    if not stale:
+        raise RuntimeError("GitHub returned a capped run page without verifiable creation dates")
+    oldest_created_at = stale[0].get("created_at")
+    if not isinstance(oldest_created_at, str):
+        raise RuntimeError("oldest completed workflow run has no verifiable creation date")
+    next_cutoff = epoch(oldest_created_at)
+    if next_cutoff >= cutoff_epoch:
+        raise RuntimeError("stale workflow-run inventory could not advance its date boundary")
+    older = stale_completed_workflow_runs(
+        repo, next_cutoff, api_items_loader=load_api_items, depth=depth + 1
+    )
+    combined_by_id: dict[int, ApiJsonObject] = {}
+    for run in older + stale:
+        run_id = run.get("id")
+        if not isinstance(run_id, int):
+            raise RuntimeError("GitHub returned a workflow run without an integer ID")
+        combined_by_id[run_id] = run
+    combined = list(combined_by_id.values())
+    combined.sort(key=lambda run: epoch(str(run["created_at"])))
+    return combined
+
+
+def cleanup_workflow_runs_to_cap(
+    repo: str,
+    *,
+    keep: int = MAX_RETAINED_WORKFLOW_RUNS,
+    now: datetime | None = None,
+    total_count_loader: Callable[..., ApiJsonValue] | None = None,
+    completed_runs_loader: Callable[[str, float], list[ApiJsonObject]] | None = None,
+    delete_resource: Callable[..., None] | None = None,
+) -> dict[str, int]:
+    """Keep the newest completed runs up to a repository-wide cap; active runs are never deleted."""
+    if keep < 0:
+        raise ValueError("workflow-run retention cap must be non-negative")
+    load_total = gh_json if total_count_loader is None else total_count_loader
+    load_candidates = (
+        stale_completed_workflow_runs if completed_runs_loader is None else completed_runs_loader
+    )
+    delete_api_resource = gh_delete if delete_resource is None else delete_resource
+    payload = load_total("api", f"repos/{repo}/actions/runs?status=completed&per_page=1")
+    if not isinstance(payload, dict):
+        raise RuntimeError("GitHub returned an invalid workflow-run count response")
+    total_count = payload.get("total_count")
+    if not isinstance(total_count, int) or total_count < 0:
+        raise RuntimeError("GitHub returned an invalid total_count for workflow runs")
+    needed = max(0, total_count - keep)
+    if needed == 0:
+        return {
+            "total_before": total_count,
+            "keep": keep,
+            "deleted": 0,
+            "remaining_estimate": total_count,
+            "pending": 0,
+        }
+    clock = datetime.now(UTC) if now is None else now.astimezone(UTC)
+    candidates = load_candidates(repo, clock.timestamp())
+    candidates.sort(key=lambda run: epoch(str(run.get("created_at", ""))))
+    if len(candidates) < needed:
+        raise RuntimeError(
+            f"only {len(candidates)} completed runs are safely enumerable; "
+            f"{needed} must be removed to reach the {keep}-run cap"
+        )
+    delete_count = min(needed, MAX_RUN_CAP_DELETIONS_PER_RUN)
+    selected = candidates[:delete_count]
+    run_ids: list[int] = []
+    for run in selected:
+        run_id = run.get("id")
+        created_at = run.get("created_at")
+        if not isinstance(run_id, int) or not isinstance(created_at, str):
+            raise RuntimeError("GitHub returned an unverifiable run deletion candidate")
+        run_ids.append(run_id)
+    if len(set(run_ids)) != len(run_ids):
+        raise RuntimeError("completed workflow-run inventory contains duplicate IDs")
+
+    def delete_run(run_id: int) -> None:
+        delete_api_resource("api", "--method", "DELETE", f"repos/{repo}/actions/runs/{run_id}")
+
+    failures: list[tuple[int, str]] = []
+    deleted = 0
+    with ThreadPoolExecutor(max_workers=MAX_RUN_DELETE_WORKERS) as executor:
+        futures = {executor.submit(delete_run, run_id): run_id for run_id in run_ids}
+        for future in as_completed(futures):
+            run_id = futures[future]
+            try:
+                future.result()
+                deleted += 1
+            except Exception as exc:
+                failures.append((run_id, str(exc)[:200]))
+    if failures:
+        sample = "; ".join(f"{run_id}: {error}" for run_id, error in failures[:5])
+        raise RuntimeError(
+            f"failed to delete {len(failures)} workflow runs after deleting {deleted}: {sample}"
+        )
+    pending = max(0, needed - deleted)
+    return {
+        "total_before": total_count,
+        "keep": keep,
+        "deleted": deleted,
+        "remaining_estimate": total_count - deleted,
+        "pending": pending,
+    }
 
 
 def _cleanup_stale_completed_runs(
@@ -1039,14 +1188,36 @@ def main() -> int:
         Zero after the retention pass completes, including recoverable package-cleanup errors.
 
     """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--branches-and-runs-only",
+        action="store_true",
+        help="prune stale branches and completed Actions runs without package cleanup",
+    )
+    args = parser.parse_args()
     repo = os.environ["REPO"]
     now = datetime.now(UTC)
     branch_cutoff = (now - timedelta(days=BRANCH_RETENTION_DAYS)).timestamp()
     run_cutoff = (now - timedelta(days=RUN_RETENTION_DAYS)).timestamp()
-    open_heads, protected_shas = _open_pull_request_refs(repo)
+    open_heads, protected_shas, open_pr_numbers = _open_pull_request_refs(repo)
     default_branch = _default_branch_for_repo(repo)
+    if args.branches_and_runs_only:
+        branches_seen, removed_branches, branch_pending = _cleanup_stale_branches(
+            repo, open_heads, open_pr_numbers, default_branch, branch_cutoff
+        )
+        run_result = cleanup_workflow_runs_to_cap(repo)
+        sys.stdout.write(
+            "maintenance-cleanup=passed mode=branches-and-runs-only "
+            f"branches_seen={branches_seen} removed_branches={removed_branches} "
+            f"stale_branches_pending={branch_pending} "
+            f"completed_runs_before={run_result['total_before']} keep_completed_runs={run_result['keep']} "
+            f"removed_runs={run_result['deleted']} "
+            f"remaining_completed_runs={run_result['remaining_estimate']} "
+            f"runs_pending={run_result['pending']}\n"
+        )
+        return 0
     branches_seen, removed_branches, stale_branches_pending = _cleanup_stale_branches(
-        repo, open_heads, default_branch, branch_cutoff
+        repo, open_heads, open_pr_numbers, default_branch, branch_cutoff
     )
     completed_runs, removed_runs, stale_runs_pending = _cleanup_stale_completed_runs(
         repo, run_cutoff

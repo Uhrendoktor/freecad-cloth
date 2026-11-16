@@ -55,7 +55,7 @@ jobs:
 
   explicit-full-validation:
     name: Explicit full validation
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[full-validation]') }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[full-validation]') && !startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') }}
     permissions:
       actions: write
       contents: write
@@ -66,6 +66,43 @@ jobs:
       execution_mode: full
       diagnostic_controls: false
       pr_number: ${{ github.event.pull_request.number }}
+
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      actions: write
+      contents: write
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify cleanup script and retention contracts
+        run: |
+          set -euo pipefail
+          python3 -m compileall -q tools/ci/maintenance_cleanup.py
+          python3 - <<'PY'
+          import runpy
+
+          tests = runpy.run_path("tests/test_ci_configuration.py")
+          for name in (
+              "test_closed_pr_head_lookup_matches_only_unchanged_same_repo_heads",
+              "test_stale_unprotected_branches_cover_all_namespaces_and_preserve_live_refs",
+              "test_workflow_run_cap_deletes_oldest_completed_runs_and_keeps_newest_ten",
+              "test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten",
+          ):
+              tests[name]()
+          print("maintenance-cleanup-contracts=passed")
+          PY
+      - name: Prune stale branches and completed workflow runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: timeout --signal=TERM --kill-after=5s 600s python3 tools/ci/maintenance_cleanup.py --branches-and-runs-only
 
   full-validation:
     name: Full validation
