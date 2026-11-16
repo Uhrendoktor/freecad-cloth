@@ -66,13 +66,13 @@ def seam_visual_markers(points_a, points_b):
     }
 
 
-def _seam_tangent_frame(start, end):
-    """Return a normalized 3D tangent, stable perpendicular, and segment length.
+def _seam_tangent_frame(start, end, plane_normal=(0.0, 0.0, 1.0)):
+    """Return an in-plane 3D tangent frame and segment length.
 
-    The reference axis is chosen least parallel to the tangent so the cross
-    product remains well-conditioned for horizontal, vertical, and oblique seams.
-    Degenerate or non-finite segments return None instead of emitting invalid
-    direction markers.
+    The side direction is the cross product of the panel normal and seam
+    tangent, so presentation markers stay in the source panel plane after a
+    pattern piece is rotated into world space. Degenerate/non-finite inputs
+    return None rather than producing invalid direction geometry.
     """
     delta = tuple(float(end[index]) - float(start[index]) for index in range(3))
     length = sum(component * component for component in delta) ** 0.5
@@ -80,20 +80,20 @@ def _seam_tangent_frame(start, end):
         return None
 
     tangent = tuple(component / length for component in delta)
-    axes = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
-    reference = min(
-        axes,
-        key=lambda axis: abs(sum(tangent[index] * axis[index] for index in range(3))),
-    )
-    perpendicular = (
-        reference[1] * tangent[2] - reference[2] * tangent[1],
-        reference[2] * tangent[0] - reference[0] * tangent[2],
-        reference[0] * tangent[1] - reference[1] * tangent[0],
-    )
-    perpendicular_length = sum(value * value for value in perpendicular) ** 0.5
-    if not perpendicular_length > 1e-12:
+    normal = tuple(float(value) for value in plane_normal)
+    normal_length = sum(component * component for component in normal) ** 0.5
+    if not normal_length > 1e-12:
         return None
-    side = tuple(value / perpendicular_length for value in perpendicular)
+    normal = tuple(component / normal_length for component in normal)
+    side = (
+        normal[1] * tangent[2] - normal[2] * tangent[1],
+        normal[2] * tangent[0] - normal[0] * tangent[2],
+        normal[0] * tangent[1] - normal[1] * tangent[0],
+    )
+    side_length = sum(component * component for component in side) ** 0.5
+    if not side_length > 1e-12:
+        return None
+    side = tuple(component / side_length for component in side)
     return tangent, side, length
 
 
@@ -137,12 +137,16 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
     )
     if bool(getattr(seam, "ReversedB", False)):
         b.reverse()
+    placement_a = getattr(piece_a, "Placement", None)
+    placement_b = getattr(piece_b, "Placement", None)
+    normal_a = App.Vector(0.0, 0.0, 1.0)
+    normal_b = App.Vector(0.0, 0.0, 1.0)
     if world_space:
-        placement_a = getattr(piece_a, "Placement", None)
-        placement_b = getattr(piece_b, "Placement", None)
         if placement_a is not None:
+            normal_a = placement_a.Rotation.multVec(normal_a)
             a = [placement_a.multVec(point) for point in a]
         if placement_b is not None:
+            normal_b = placement_b.Rotation.multVec(normal_b)
             b = [placement_b.multVec(point) for point in b]
 
     def distinct(points, tolerance=1e-9):
@@ -171,7 +175,7 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         dz = pb.z - pa.z
         if (dx * dx + dy * dy + dz * dz) > 1e-18:
             shapes.append(Part.makeLine(pa, pb))
-    for points in (a_distinct, b_distinct):
+    for points, plane_normal in ((a_distinct, normal_a), (b_distinct, normal_b)):
         if len(points) < 2:
             continue
         mid = len(points) // 2
@@ -179,6 +183,7 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         frame = _seam_tangent_frame(
             (prev.x, prev.y, prev.z),
             (nxt.x, nxt.y, nxt.z),
+            (plane_normal.x, plane_normal.y, plane_normal.z),
         )
         if frame is None:
             continue
