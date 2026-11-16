@@ -269,9 +269,12 @@ class DiagnosticsTaskPanel:
         self.scene = scene
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
+        metric_group = QtWidgets.QGroupBox("Diagnostic metric")
+        metric_layout = QtWidgets.QVBoxLayout(metric_group)
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
-        layout.addWidget(self.metric)
+        metric_layout.addWidget(self.metric)
+        layout.addWidget(metric_group)
         self.definition = QtWidgets.QLabel()
         self.definition.setWordWrap(True)
         layout.addWidget(self.definition)
@@ -286,10 +289,13 @@ class DiagnosticsTaskPanel:
         mark_button(self.refresh_button, "secondary")
         mark_button(self.map_button, "primary")
         mark_button(self.export_button, "secondary")
+        self.map_button.setEnabled(False)
+        self.export_button.setEnabled(False)
         layout.addWidget(self.refresh_button)
         layout.addWidget(self.map_button)
         layout.addWidget(self.export_button)
         self.refresh_button.clicked.connect(self.refresh)
+        self.metric.currentTextChanged.connect(self._metric_changed)
         self.map_button.clicked.connect(self.create_map)
         self.export_button.clicked.connect(self.export_data)
         layout.addStretch(1)
@@ -319,6 +325,16 @@ class DiagnosticsTaskPanel:
                     definition["formula"], definition["units"]
                 )
             )
+            available = bool(panels and values)
+            self.map_button.setEnabled(available)
+            self.export_button.setEnabled(available)
+            if not available:
+                set_status(
+                    self.status,
+                    "No diagnostic faces are available for this metric.",
+                    state="warning",
+                )
+                return summaries
             set_status(
                 self.status,
                 "%s map: %d faces | range %.5g … %.5g | panels %d"
@@ -327,8 +343,14 @@ class DiagnosticsTaskPanel:
             )
             return summaries
         except RuntimeError as exc:
+            self.map_button.setEnabled(False)
+            self.export_button.setEnabled(False)
             set_status(self.status, str(exc), state="error")
             return []
+
+    def _metric_changed(self, _value: str) -> None:
+        """Refresh the metric description and availability after selection changes."""
+        self.refresh()
 
     def export_data(self):
         """Export aggregated diagnostic metrics to a user-selected JSON file."""
