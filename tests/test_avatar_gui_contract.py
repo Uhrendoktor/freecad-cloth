@@ -75,6 +75,44 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
         assert callable(getattr(AvatarTaskPanel, method, None))
 
 
+def test_avatar_advanced_search_explains_when_no_parameters_match():
+    """Show a visible empty state in both advanced tabs for an unmatched query."""
+    from types import SimpleNamespace
+
+    def visibility_widget():
+        widget = SimpleNamespace(visible=True)
+        widget.setVisible = lambda value: setattr(widget, "visible", bool(value))
+        return widget
+
+    row = SimpleNamespace(
+        property=lambda _name: "arm length",
+        setVisible=lambda value: setattr(row, "visible", bool(value)),
+        visible=True,
+    )
+    group = visibility_widget()
+    phenotypes_empty = visibility_widget()
+    morphs_empty = visibility_widget()
+    tabs = SimpleNamespace(index=0)
+    tabs.currentIndex = lambda: tabs.index
+    tabs.setCurrentIndex = lambda value: setattr(tabs, "index", int(value))
+    panel = SimpleNamespace(
+        _advanced_rows=[{"row": row, "group": group, "page": "morphs"}],
+        _advanced_groups=[group],
+        _advanced_pages={
+            "phenotypes": {"empty_label": phenotypes_empty},
+            "morphs": {"empty_label": morphs_empty},
+        },
+        advanced_tabs=tabs,
+    )
+
+    AvatarTaskPanel._filter_advanced_parameters(panel, "parameter-does-not-exist")
+
+    assert row.visible is False
+    assert group.visible is False
+    assert phenotypes_empty.visible is True
+    assert morphs_empty.visible is True
+
+
 def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
 
