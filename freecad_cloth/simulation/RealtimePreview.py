@@ -153,9 +153,7 @@ class _FrameClock:
         """
         actual_emission = time.perf_counter() if emitted_at is None else float(emitted_at)
         with self._condition:
-            emission_lead_ms = (
-                self._queue_delay_estimate_ms + self._worker_wakeup_estimate_ms
-            )
+            emission_lead_ms = self._queue_delay_estimate_ms + self._worker_wakeup_estimate_ms
             emission_deadline = scheduled_at - emission_lead_ms / 1000.0
             worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
             self._last_worker_wakeup_lateness_ms = worker_lateness_ms
