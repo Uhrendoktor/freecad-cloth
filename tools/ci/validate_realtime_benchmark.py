@@ -19,7 +19,7 @@ ROOT = add_repository_root(__file__)
 
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
-TARGET_FPS = 30.0
+TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
@@ -152,7 +152,7 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     """
     budget = _number(metrics.get("frame_budget_ms"))
     if budget is None or abs(budget - FRAME_BUDGET_MS) > FRAME_BUDGET_TOLERANCE_MS:
-        errors.append("frame_budget_ms must match the 30 FPS budget")
+        errors.append("frame_budget_ms must match the 60 FPS budget")
 
     numeric_keys = (
         "mean_frame_interval_ms",
@@ -168,9 +168,9 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
     mean_interval = _number(metrics.get("mean_frame_interval_ms"))
     p95_interval = _number(metrics.get("p95_frame_interval_ms"))
     if mean_interval is not None and mean_interval > FRAME_BUDGET_MS:
-        errors.append("mean_frame_interval_ms exceeds the 30 FPS budget")
+        errors.append("mean_frame_interval_ms exceeds the 60 FPS budget")
     if p95_interval is not None and p95_interval > FRAME_BUDGET_MS:
-        errors.append("p95_frame_interval_ms exceeds the 30 FPS budget")
+        errors.append("p95_frame_interval_ms exceeds the 60 FPS budget")
 
 
 def _validate_stage_timings(
@@ -186,11 +186,15 @@ def _validate_stage_timings(
         errors: Mutable list receiving acceptance failures.
     """
     stage_value = metrics.get("stage_timings")
+    publication_mode = metrics.get("publication_mode")
+    if publication_mode != "transient-coin3d":
+        errors.append("publication_mode must be transient-coin3d")
     required_stages = (
         "advance_preview_frame",
         "solver_step",
         "state_publish",
         "mesh_write",
+        "preview_mesh_publish",
         "overlay_schedule",
         "viewport_redraw",
     )
@@ -211,11 +215,15 @@ def _validate_stage_timings(
         elif name == "overlay_schedule":
             minimum_samples = max(1, frames // 2 - 2)
         elif name == "mesh_write":
+            minimum_samples = 0
+        elif name == "preview_mesh_publish":
             minimum_samples = frames * 2
         else:
             minimum_samples = frames
         if samples is None or samples < minimum_samples:
             errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
+        if name == "mesh_write" and samples == 0:
+            continue
         for metric_name in ("mean_ms", "p95_ms", "max_ms"):
             value = _number(stage.get(metric_name))
             if value is None or value < 0.0:
