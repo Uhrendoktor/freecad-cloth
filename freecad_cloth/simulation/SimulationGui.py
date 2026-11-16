@@ -42,8 +42,11 @@ class SimulationTaskPanel:
         content = QtWidgets.QWidget()
         content_layout = QtWidgets.QVBoxLayout(content)
 
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
         selection = QtWidgets.QGroupBox("Scene")
         layout = QtWidgets.QFormLayout(selection)
+        configure_form_layout(layout, QtWidgets)
         self.cloth, self.target = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self._populate_selection_lists()
         layout.addRow("Cloth pieces", self.cloth)
@@ -52,6 +55,7 @@ class SimulationTaskPanel:
 
         material = QtWidgets.QGroupBox("Fabric")
         layout = QtWidgets.QFormLayout(material)
+        configure_form_layout(layout, QtWidgets)
         self.material = QtWidgets.QComboBox()
         self.material.addItems(tuple(self.MATERIALS))
         self.material.currentTextChanged.connect(self._material_changed)
@@ -71,6 +75,7 @@ class SimulationTaskPanel:
 
         solver = QtWidgets.QGroupBox("Solver")
         layout = QtWidgets.QFormLayout(solver)
+        configure_form_layout(layout, QtWidgets)
         self.iterations = self._spin(1, 100, int(getattr(scene, "Iterations", 8)))
         self.timestep = self._double_box(0.0001, 1.0, float(getattr(scene, "TimeStep", 1 / 60)), 5)
         self.gravity_x = self._double_box(-50000, 50000, float(getattr(scene, "GravityX", 0)), 1)
@@ -89,6 +94,7 @@ class SimulationTaskPanel:
 
         collision = QtWidgets.QGroupBox("Drape target collision")
         layout = QtWidgets.QFormLayout(collision)
+        configure_form_layout(layout, QtWidgets)
         self.thickness = self._double_box(0.0, 100.0, 2.0, 2)
         self.deflection = self._double_box(0.01, 100.0, 1.0, 2)
         self.collision_radius = self._double_box(
@@ -101,6 +107,7 @@ class SimulationTaskPanel:
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        configure_form_layout(layout, QtWidgets)
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
         self.pins.setToolTip("Particle indices separated by commas")
