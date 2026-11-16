@@ -8,6 +8,9 @@
 
 FreeCAD Cloth adds garment-pattern design and cloth simulation to FreeCAD. Create editable 2D pattern pieces, connect them with persistent seam relationships, fit them to a mannequin or supported CAD target, and inspect the resulting drape.
 
+
+**Development status:** FreeCAD Cloth is still a work in progress. Contributions, bug reports, and feedback are welcome; see [Contributing](CONTRIBUTING.md) to get started.
+
 ## What the workbenches do
 
 | Workbench | Purpose |
