@@ -337,7 +337,7 @@ def test_canonical_workflow_uses_configured_hosted_runner_and_cpu_fallback() -> 
     )
     require(
         condition=(
-            "default: ubuntu-latest" in workflow
+            "default: '\"ubuntu-latest\"'" in workflow
             and "self-hosted" not in workflow
             and "runner_watchdog" not in workflow
         ),
