@@ -189,14 +189,16 @@ jobs:
         name: Derive immutable PBD image tag
         run: |
           set -euo pipefail
-          digest="$(
-            {
-              sha256sum docker/freecad-ci/Dockerfile
-              if [[ -f docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch ]]; then
+          if [[ -f docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch ]]; then
+            digest="$(
+              {
+                sha256sum docker/freecad-ci/Dockerfile
                 sha256sum docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch
-              fi
-            } | sha256sum | cut -d' ' -f1
-          )"
+              } | sha256sum | cut -d' ' -f1
+            )"
+          else
+            digest="$(sha256sum < docker/freecad-ci/Dockerfile | cut -d' ' -f1)"
+          fi
           short_digest="$(printf '%s' "$digest" | cut -c1-32)"
           echo "image=ghcr.io/uhrendoktor/freecad-cloth/pbd-validation:$short_digest" >> "$GITHUB_OUTPUT"
       - uses: ./.github/actions/pbd-image
