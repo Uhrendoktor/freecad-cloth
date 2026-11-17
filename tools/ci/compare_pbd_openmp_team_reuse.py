@@ -96,7 +96,9 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
     if any(settings.get(key) != value for key, value in expected_settings.items()):
         raise ValueError(f"{label}: production solver or collision settings changed")
 
-    groups = _as_object(profile.get("native_constraint_groups"), f"{label}.native_constraint_groups")
+    groups = _as_object(
+        profile.get("native_constraint_groups"), f"{label}.native_constraint_groups"
+    )
     if groups.get("constraint_count") != 9624 or groups.get("group_count") != 30:
         raise ValueError(f"{label}: native constraint-group distribution changed")
 
@@ -130,7 +132,10 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
         raise ValueError(f"{label}: unexpected {EXPERIMENT_ENVIRONMENT_KEY} mode")
 
     provenance = profile.get("pypbd_provenance")
-    if not isinstance(provenance, str) or "10a70bc146a97873dc3c8fef372f5217e010542e" not in provenance:
+    if (
+        not isinstance(provenance, str)
+        or "10a70bc146a97873dc3c8fef372f5217e010542e" not in provenance
+    ):
         raise ValueError(f"{label}: missing pinned native pyPBD provenance")
     if "Patch SHA256:" not in provenance or "Binary SHA256:" not in provenance:
         raise ValueError(f"{label}: native experiment binary provenance is incomplete")
@@ -181,8 +186,14 @@ def compare_profile_sets(
         raise ValueError("exactly two baseline and two candidate profiles are required")
 
     records = [
-        *((profile, "0", f"baseline-{index + 1}") for index, profile in enumerate(baseline_profiles)),
-        *((profile, "1", f"candidate-{index + 1}") for index, profile in enumerate(candidate_profiles)),
+        *(
+            (profile, "0", f"baseline-{index + 1}")
+            for index, profile in enumerate(baseline_profiles)
+        ),
+        *(
+            (profile, "1", f"candidate-{index + 1}")
+            for index, profile in enumerate(candidate_profiles)
+        ),
     ]
     for profile, mode, label in records:
         _validate_profile(profile, mode, label)
@@ -195,7 +206,9 @@ def compare_profile_sets(
         if profile.get("production_settings") != settings:
             raise ValueError(f"{label}: production settings differ from the matched baseline")
         if profile.get("native_constraint_groups") != groups:
-            raise ValueError(f"{label}: native constraint grouping differs from the matched baseline")
+            raise ValueError(
+                f"{label}: native constraint grouping differs from the matched baseline"
+            )
         if _runtime_signature(profile) != runtime:
             raise ValueError(f"{label}: runner, OpenMP, or native build context differs")
 
@@ -230,8 +243,7 @@ def compare_profile_sets(
         )
     if wall_time_change > 0.0:
         raise ValueError(
-            "persistent-team median production wall time regressed: "
-            f"{wall_time_change * 100:.2f}%"
+            f"persistent-team median production wall time regressed: {wall_time_change * 100:.2f}%"
         )
 
     return {
