@@ -8,7 +8,7 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if __package__ is None or __package__ == "":
     from repository_paths import add_repository_root
