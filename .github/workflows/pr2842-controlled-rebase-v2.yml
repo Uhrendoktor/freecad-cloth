@@ -48,10 +48,12 @@ jobs:
                 exit 1
               fi
               for path in "${conflicts[@]}"; do
+                tmpdir="$(mktemp -d)"
                 if [[ "$path" == "pyrightconfig.json" ]]; then
                   # Preserve the PR's explicit repository-root strict Pyright policy.
                   git checkout --theirs -- "$path"
                   git add -- "$path"
+                  rm -rf "$tmpdir"
                   continue
                 fi
                 if [[ "$path" == "tools/ci/validate_ci_structure.py" ]]; then
@@ -98,10 +100,10 @@ jobs:
           output_path.write_text("".join(result), encoding="utf-8")
           PY
                   git add -- "$path"
+                  rm -rf "$tmpdir"
                   continue
                 fi
                 # Use a true three-way merge; only non-overlapping changes are accepted.
-                tmpdir="$(mktemp -d)"
                 git show ":1:$path" > "$tmpdir/base"
                 git show ":2:$path" > "$tmpdir/main"
                 git show ":3:$path" > "$tmpdir/pr"
