@@ -709,12 +709,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         ):
             msg = "inter-cloth clearance must be positive and finite"
             raise ValueError(msg)
+        self._particle_count = len(self._initial.particles)
         self._inter_cloth_metrics: InterClothContactMetrics | None = None
         self._inter_cloth_metrics_before_body_projection: InterClothContactMetrics | None = None
         self._inter_cloth_inverse_masses = np.ones(self._particle_count, dtype=np.float64)
         self._time = 0.0
         self._substeps = _pbd_substeps()
-        self._particle_count = len(self._initial.particles)
         self._simulation_initialized = False
         self._build()
 
