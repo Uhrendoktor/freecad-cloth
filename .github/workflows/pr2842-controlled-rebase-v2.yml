@@ -485,7 +485,13 @@ jobs:
           git add -- .github/workflows/canonical-execution.yml
           tree_sha="$(git write-tree)"
           main_sha="$(git rev-parse origin/main)"
-          merge_commit="$(printf '%s\n' "Merge main into PR #2842 after reviewed rebase" | git commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD")"
+          set +e
+          commit_output="$(printf '%s\\n' "Merge main into PR #2842 after reviewed rebase" | git -c commit.gpgsign=false commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD" 2>&1)"
+          commit_status=$?
+          set -e
+          echo "git-commit-tree-exit=$commit_status output=$commit_output"
+          if (( commit_status != 0 )); then exit "$commit_status"; fi
+          merge_commit="$commit_output"
           test -n "$merge_commit"
           echo "Prepared merge commit $merge_commit with tree $tree_sha"
           git cat-file -p "$merge_commit" | sed -n '1,8p'
