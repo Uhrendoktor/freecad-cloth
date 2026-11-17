@@ -42,15 +42,35 @@ jobs:
           if ! git rebase origin/main; then
             while [[ -d .git/rebase-merge || -d .git/rebase-apply ]]; do
               mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
-              if (( ${#conflicts[@]} != 1 )) || [[ "${conflicts[0]}" != "pyrightconfig.json" ]]; then
-                printf '::error::Unreviewed rebase conflict(s): %s\n' "${conflicts[*]:-none}"
+              if (( ${#conflicts[@]} == 0 )); then
+                echo "::error::Rebase continuation stopped without an identifiable conflict."
                 git rebase --abort
                 exit 1
               fi
-              # The PR explicitly introduces repository-root strict mode; retain that policy
-              # rather than reverting to main's staged inventory configuration.
-              git checkout --theirs -- pyrightconfig.json
-              git add -- pyrightconfig.json
+              for path in "${conflicts[@]}"; do
+                if [[ "$path" == "pyrightconfig.json" ]]; then
+                  # The PR explicitly introduces repository-root strict mode; retain that policy
+                  # rather than reverting to main's staged inventory configuration.
+                  git checkout --theirs -- "$path"
+                  git add -- "$path"
+                  continue
+                fi
+                # Merge non-overlapping edits from main and the replayed PR commit.
+                # If the three-way merge still conflicts, stop for explicit review.
+                tmpdir="$(mktemp -d)"
+                git show ":1:$path" > "$tmpdir/base"
+                git show ":2:$path" > "$tmpdir/main"
+                git show ":3:$path" > "$tmpdir/pr"
+                if ! git merge-file -p "$tmpdir/main" "$tmpdir/base" "$tmpdir/pr" > "$tmpdir/merged"; then
+                  printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
+                  rm -rf "$tmpdir"
+                  git rebase --abort
+                  exit 1
+                fi
+                cat "$tmpdir/merged" > "$path"
+                rm -rf "$tmpdir"
+                git add -- "$path"
+              done
               if ! GIT_EDITOR=true git rebase --continue; then
                 if ! git diff --name-only --diff-filter=U | grep -q .; then
                   echo "::error::Rebase continuation failed without a conflict; refusing to skip commits."
