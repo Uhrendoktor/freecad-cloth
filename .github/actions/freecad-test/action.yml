@@ -32,7 +32,7 @@ inputs:
     required: false
     default: ""
   timeout-seconds:
-    description: Hard FreeCAD/container command timeout in seconds (maximum 1800); defaults to 120.
+    description: Hard FreeCAD/container command timeout in seconds (maximum 7200); defaults to 120.
     required: false
     default: "120"
   environment:
