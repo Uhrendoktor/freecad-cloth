@@ -157,7 +157,7 @@ def _existing_target_prerequisite_status(target: _DrapeTargetFeature) -> _Target
     return None
 
 
-def target_status(target: object | None) -> _TargetStatus:
+def target_status(target: FreeCADDocumentObjectProtocol | None) -> _TargetStatus:
     """Summarize whether the persisted collision cache is current.
 
     Args:

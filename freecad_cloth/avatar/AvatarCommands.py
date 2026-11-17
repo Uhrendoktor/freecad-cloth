@@ -8,9 +8,12 @@ import sys
 from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast, override
 
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
+from freecad_cloth.avatar.avatar_protocols import (
+    AvatarParametersFeatureProtocol,
+    NativeAvatarMeshProtocol,
+)
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -76,24 +79,8 @@ class _AvatarViewObject(Protocol):
     Visibility: bool
 
 
-class _NativeVector(Protocol):
-    """Coordinate fields exposed by FreeCAD's native vector type."""
-
-    x: float
-    y: float
-    z: float
-
-
-class _NativeAvatarMesh(Protocol):
-    """Indexed native mesh operations required by the avatar builder."""
-
-    def addFacets(
-        self,
-        facets: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]],
-        check_manifold: bool = False,
-    ) -> None:
-        """Populate the mesh with shared vertices and indexed triangular faces."""
-        ...
+class _NativeAvatarMesh(NativeAvatarMeshProtocol, Protocol):
+    """Native FreeCAD mesh contract retained at the avatar command boundary."""
 
 
 class _AvatarFeatureView(Protocol):
@@ -125,6 +112,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         """
         ...
 
+    @override
     def recompute(self, /) -> int | None:
         """Recompute the document after changing persistent avatar state."""
         ...
@@ -591,7 +579,7 @@ def _mesh_data(
 
         mesh_module = Mesh
 
-    native = mesh_module.Mesh()
+    native = cast("_NativeAvatarMesh", mesh_module.Mesh())
     vectors = list(starmap(app_module.Vector, vertices))
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the

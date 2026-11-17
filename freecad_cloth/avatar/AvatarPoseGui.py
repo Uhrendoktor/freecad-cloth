@@ -13,7 +13,7 @@ import math
 from collections.abc import Callable, Sequence
 from importlib import import_module
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast, overload, override
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -69,15 +69,19 @@ if TYPE_CHECKING:
         QWidget as _QWidget,
     )
 
+    from freecad_cloth.common.UiDesign import _Panel, _StatusLabel
     from freecad_cloth.avatar.avatar_protocols import (
         AvatarParametersFeatureProtocol,
         AvatarTaskPanelProtocol,
+        NativeAvatarMeshProtocol,
     )
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
     from freecad_cloth.avatar.coin_protocols import (
+        CoinClassType,
         CoinDynamicDragger,
         CoinEventCallback,
         CoinModule,
+        CoinNode,
         CoinRotatorGeometry,
         CoinSeparator,
         CoinTransform,
@@ -142,8 +146,14 @@ class _PoseRotationFactory(Protocol):
 
     Extrinsic_XYZ: int
 
-    def __call__(self, *args: object) -> _PoseRotation:
-        """Construct a native FreeCAD rotation."""
+    @overload
+    def __call__(self) -> _PoseRotation:
+        """Construct an identity FreeCAD rotation."""
+        ...
+
+    @overload
+    def __call__(self, axis: _PoseVector, angle: float) -> _PoseRotation:
+        """Construct a rotation around one native axis."""
         ...
 
 
@@ -159,12 +169,17 @@ class _PoseAvatarFeature(AvatarParametersFeatureProtocol, Protocol):
     """Persistent avatar fields consumed and updated by Pose Mode."""
 
     @property
+    @override
     def Document(self) -> _PoseDocument:
         """Return the document that owns this avatar."""
         ...
 
     AvatarProviderId: str
-    Mesh: object
+
+    @property
+    def Mesh(self) -> NativeAvatarMeshProtocol:
+        """Return the indexed native mannequin mesh."""
+        ...
 
 
 class _PoseApplication(Protocol):
@@ -195,12 +210,12 @@ class _PoseView(Protocol):
         ...
 
     def addEventCallbackPivy(
-        self, event_type: object, callback: Callable[[CoinEventCallback], None]
+        self, event_type: CoinClassType, callback: Callable[[CoinEventCallback], None]
     ) -> int:
         """Register a callback for one Pivy event type."""
         ...
 
-    def removeEventCallbackPivy(self, event_type: object, callback_id: int) -> None:
+    def removeEventCallbackPivy(self, event_type: CoinClassType, callback_id: int) -> None:
         """Remove a Pivy callback previously registered on this view."""
         ...
 
@@ -269,7 +284,7 @@ class _PoseGuiAdapter:
         return cast("_PoseGuiDocument | None", self._module.activeDocument())
 
 
-def _modules() -> tuple[_PoseApplication, _PoseGui, ModuleType, ModuleType]:
+def _modules() -> tuple[_PoseApplicationAdapter, _PoseGuiAdapter, _QT_TYPE_QtCore, _QT_TYPE_QtWidgets]:
     """Load FreeCAD, GUI, Qt and Coin modules only when Pose Mode is opened.
 
     Returns:
@@ -361,13 +376,13 @@ class _FallbackGizmo:
     is_visual = False
     isActive = False
 
-    def __init__(self, objects: Sequence[object] = ()) -> None:
+    def __init__(self, objects: Sequence[FreeCADDocumentObjectProtocol] = ()) -> None:
         """Retain scene objects used by the non-viewport fallback gizmo.
 
         Args:
             objects: Scene objects retained for the lifetime of the fallback gizmo.
         """
-        self.objects: tuple[object, ...] = tuple(objects)
+        self.objects: tuple[FreeCADDocumentObjectProtocol, ...] = tuple(objects)
 
 
 class _NativeGizmoHandle:
@@ -409,7 +424,7 @@ class SkeletonPoseController:
         Args:
             panel: Pose task panel providing the avatar and staged rotations.
         """
-        self.panel: _PosePanel = panel
+        self.panel: AvatarPoseTaskPanel = panel
         self.App: _PoseApplication = panel.App
         self.Gui: _PoseGui = panel.Gui
         self.view: _PoseView | None = None
@@ -719,7 +734,7 @@ class SkeletonPoseController:
         editable = set(CONTROLLABLE_BONES)
 
         def add_lines(
-            parent: _CoinNode,
+            parent: CoinNode,
             segments: Sequence[PoseSegment],
             width: float,
             rgb: tuple[float, float, float],
@@ -1087,11 +1102,11 @@ class SkeletonPoseController:
         self.panel._select_joint_without_preview(bone)
         self._create_gizmo(bone)
 
-    def _gizmo_start(self, _data: object, dragger: CoinDynamicDragger) -> None:
+    def _gizmo_start(self, _data: None, dragger: CoinDynamicDragger) -> None:
         """Record the beginning of a user-driven rotation drag.
 
         Args:
-            _data: Callback data supplied by Pivy Coin and unused by the handler.
+            _data: Unused callback data; no user-data value is registered.
             dragger: Native dragger beginning the interactive rotation gesture.
         """
         from freecad_cloth.avatar.SkeletonPose import JointRotation
@@ -1144,7 +1159,7 @@ class SkeletonPoseController:
             float(values[3]),
         )
 
-    def _gizmo_motion(self, _data: object, dragger: CoinDynamicDragger) -> None:
+    def _gizmo_motion(self, _data: None, dragger: CoinDynamicDragger) -> None:
         """Apply an in-progress drag rotation to the selected skeleton bone.
 
         Args:
@@ -1182,7 +1197,7 @@ class SkeletonPoseController:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             return
 
-    def _gizmo_finish(self, _data: object, _dragger: CoinDynamicDragger) -> None:
+    def _gizmo_finish(self, _data: None, _dragger: CoinDynamicDragger) -> None:
         """Commit drag completion and clear the active interaction state.
 
         Args:
@@ -1364,8 +1379,8 @@ class AvatarPoseTaskPanel:
         App, Gui, QtCore, QtWidgets = _modules()
         self.App: _PoseApplication = App
         self.Gui: _PoseGui = Gui
-        self.QtCore: ModuleType = QtCore
-        self.QtWidgets: ModuleType = QtWidgets
+        self.QtCore: _QT_TYPE_QtCore = QtCore
+        self.QtWidgets: _QT_TYPE_QtWidgets = QtWidgets
         self.avatar: _PoseAvatarFeature | None = self._find_avatar() if avatar is None else avatar
         self.form: _QWidget = QtWidgets.QWidget()
         self.form.setObjectName("ClothAvatarPoseTaskPanel")
@@ -1421,7 +1436,7 @@ class AvatarPoseTaskPanel:
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
         self.selected_label: _QLabel = QtWidgets.QLabel("Select a bone in the 3D view.")
-        self.selected_label.setProperty("clothRole", "subtitle")
+        cast("Callable[[str, str], bool]", self.selected_label.setProperty)("clothRole", "subtitle")
         selected_layout.addWidget(self.selected_label)
 
         self.instruction_label: _QLabel = QtWidgets.QLabel(
@@ -1512,7 +1527,7 @@ class AvatarPoseTaskPanel:
         from freecad_cloth.common.UiDesign import set_status
 
         set_status(
-            self.status,
+            cast("_StatusLabel", self.status),
             "Ready — select a joint in the 3D view or choose a pose preset.",
             state="info",
         )
@@ -1532,7 +1547,7 @@ class AvatarPoseTaskPanel:
 
         from freecad_cloth.common.UiDesign import apply_panel_style
 
-        apply_panel_style(self.form)
+        apply_panel_style(cast("_Panel", self.form))
 
     def _find_avatar(self) -> _PoseAvatarFeature | None:
         """Find the avatar feature that Pose Mode should edit.
@@ -1637,9 +1652,12 @@ class AvatarPoseTaskPanel:
         """Select the first valid skeleton joint in the joint list."""
         for index in range(self.joints.topLevelItemCount()):
             top = self.joints.topLevelItem(index)
-            if top.childCount():
-                item = top.child(0)
-                self.joints.setCurrentItem(item)
+            if top is None or not top.childCount():
+                continue
+            item = top.child(0)
+            if item is None:
+                continue
+            self.joints.setCurrentItem(item)
                 bone = item.data(0, self.QtCore.Qt.UserRole)
                 if bone:
                     self._select_joint_without_preview(str(bone))

@@ -9,16 +9,12 @@ from collections.abc import Callable, Sequence
 from typing import Protocol, overload
 
 
-class _CoinField(Protocol):
-    """Writable Coin field supporting scalar and multi-value assignment."""
+class _CoinVector3(Protocol):
+    """Three-dimensional value accepted by native Coin vector fields."""
 
-    def setValue(self, *values: object) -> None:
-        """Assign values to this native Coin field."""
-        ...
-
-    def setValues(self, start: int, count: int, values: Sequence[object]) -> None:
-        """Assign a contiguous sequence of values to this native Coin field."""
-        ...
+    x: float
+    y: float
+    z: float
 
 
 class _CoinRotation(Protocol):
@@ -26,6 +22,28 @@ class _CoinRotation(Protocol):
 
     def getValue(self) -> Sequence[float]:
         """Return quaternion components in native Coin order."""
+        ...
+
+
+type CoinCoordinates = tuple[float, float, float]
+type CoinFieldSequenceValue = int | CoinCoordinates
+type CoinFieldValue = int | float | bool | CoinCoordinates | _CoinVector3 | _CoinRotation
+
+
+class _CoinField(Protocol):
+    """Writable Coin field supporting scalar and multi-value assignment."""
+
+    def setValue(self, *values: CoinFieldValue) -> None:
+        """Assign supported scalar, coordinate, or rotation values."""
+        ...
+
+    def setValues(
+        self,
+        start: int,
+        count: int,
+        values: Sequence[CoinFieldSequenceValue],
+    ) -> None:
+        """Assign a contiguous sequence of integer or coordinate values."""
         ...
 
 
@@ -40,7 +58,7 @@ class _CoinRotationField(_CoinField, Protocol):
 class _CoinNode(Protocol):
     """Scene-graph node that can receive child nodes."""
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _CoinNode) -> None:
         """Append a child node to this scene graph."""
         ...
 
@@ -120,6 +138,14 @@ class _CoinName(Protocol):
         ...
 
 
+class _CoinClassType(Protocol):
+    """Runtime Coin type identifier accepted by FreeCAD's Pivy event hooks."""
+
+    def getName(self) -> _CoinName:
+        """Return the stable name of the registered Coin event type."""
+        ...
+
+
 class _CoinRotatorGeometry(_CoinNode, Protocol):
     """Coin geometry fields used to draw native colored rotation rings."""
 
@@ -145,7 +171,7 @@ class _CoinDynamicDragger(_CoinSeparator, Protocol):
     baseGeomVisible: _CoinField
     scaleFactor: _CoinField
 
-    def setPart(self, name: str, part: object) -> bool:
+    def setPart(self, name: str, part: _CoinNode) -> bool:
         """Replace a named dragger part with the supplied Coin node."""
         ...
 
@@ -193,7 +219,7 @@ class _CoinTypeRegistry(Protocol):
 class _CoinEventType(Protocol):
     """Coin event class exposing its runtime type identifier."""
 
-    def getClassTypeId(self) -> object:
+    def getClassTypeId(self) -> _CoinClassType:
         """Return the native event type identifier."""
         ...
 
@@ -201,18 +227,18 @@ class _CoinEventType(Protocol):
 class _CoinMouseButtonEventType(_CoinEventType, Protocol):
     """Mouse event class with the press and primary-button constants."""
 
-    DOWN: object
-    BUTTON1: object
+    DOWN: int
+    BUTTON1: int
 
 
 class _CoinEvent(Protocol):
     """Mouse/location event values delivered by a Pivy callback."""
 
-    def getState(self) -> object:
+    def getState(self) -> int:
         """Return the native mouse-button event state."""
         ...
 
-    def getButton(self) -> object:
+    def getButton(self) -> int:
         """Return the native mouse button identifier."""
         ...
 
@@ -244,15 +270,18 @@ class _CoinModule(Protocol):
     SoPointSet: Callable[[], _CoinPointSet]
     SoTransform: Callable[[], _CoinTransform]
     SoTrackballDragger: Callable[[], _CoinDynamicDragger]
-    SbVec3f: Callable[..., object]
-    SbRotation: Callable[..., object]
+    SbVec3f: Callable[..., _CoinVector3]
+    SbRotation: Callable[..., _CoinRotation]
 
 
 # Public structural aliases for consumers crossing module boundaries.
+CoinClassType = _CoinClassType
 CoinDynamicDragger = _CoinDynamicDragger
 CoinEventCallback = _CoinEventCallback
 CoinModule = _CoinModule
+CoinNode = _CoinNode
 CoinSeparator = _CoinSeparator
 CoinTransform = _CoinTransform
 CoinType = _CoinType
+CoinVector3 = _CoinVector3
 CoinRotatorGeometry = _CoinRotatorGeometry

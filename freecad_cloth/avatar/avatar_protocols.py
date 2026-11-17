@@ -1,12 +1,38 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Structural avatar parameter views shared across dependency-sensitive modules."""
 
+from collections.abc import Sequence
 from typing import Protocol
 
 from freecad_cloth.common.garment_document import (
     FreeCADDocumentObjectProtocol,
     FreeCADDocumentProtocol,
 )
+
+
+class AvatarMeshVectorProtocol(Protocol):
+    """Coordinate interface exposed by native FreeCAD mesh vectors."""
+
+    x: float
+    y: float
+    z: float
+
+
+class NativeAvatarMeshProtocol(Protocol):
+    """Indexed native mesh operations required by the avatar builder."""
+
+    def addFacets(
+        self,
+        facets: tuple[Sequence[AvatarMeshVectorProtocol], Sequence[Sequence[int]]],
+        check_manifold: bool = False,
+    ) -> None:
+        """Populate the native mesh with shared vertices and indexed faces.
+
+        Args:
+            facets: Shared coordinate records and triangle-index sequences.
+            check_manifold: Whether FreeCAD should check the supplied topology.
+        """
+        ...
 
 
 class AvatarPoseProtocol(Protocol):
@@ -172,4 +198,11 @@ class AvatarTaskPanelFormProtocol(Protocol):
 class AvatarTaskPanelProtocol(Protocol):
     """Minimal handle for a FreeCAD avatar task panel."""
 
-    form: AvatarTaskPanelFormProtocol
+    @property
+    def form(self) -> AvatarTaskPanelFormProtocol:
+        """Return the native Qt form owned by the task panel.
+
+        Returns:
+            Visible form exposing the task-panel lifecycle operations.
+        """
+        ...
