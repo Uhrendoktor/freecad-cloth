@@ -9,6 +9,7 @@ permissions:
   pull-requests: read
 jobs:
   dispatch:
+    if: ${{ startsWith(github.event.head_commit.message, 'DISPATCH FULL VALIDATION PR #2842') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
