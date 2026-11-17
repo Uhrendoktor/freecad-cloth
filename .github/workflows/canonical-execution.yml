@@ -93,8 +93,7 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          # Rebase without conflict heuristics or generated source/configuration repair.
-          # A genuine conflict is an explicit maintainer decision; fail rather than synthesize a commit.
+          # Conflicts require maintainer resolution; no heuristic rebase or generated source/config repair.
           git rebase origin/main
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
