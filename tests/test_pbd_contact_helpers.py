@@ -9,6 +9,7 @@ import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import (
+    InterClothContactMetrics,
     _candidate_edge_triangle_pairs,
     _closest_segment_triangle,
     _closest_segment_triangles_batch,
@@ -16,7 +17,10 @@ from freecad_cloth.simulation.InterClothContact import (
     measure_inter_cloth_contacts,
     project_inter_cloth_contacts,
 )
-from freecad_cloth.simulation.PositionBasedDynamicsBackend import pbd_collision_resolution
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+    PositionBasedDynamicsBackend,
+    pbd_collision_resolution,
+)
 from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
@@ -479,6 +483,84 @@ def test_inter_cloth_measurement_reports_post_projection_clearance_deficit() -> 
     )
     assert residual_count > 0
     assert residual_deficit > 0.5
+
+
+def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Run a corrective contact/body cycle only when the final body pass reopens contact."""
+    backend = object.__new__(PositionBasedDynamicsBackend)
+    backend._inter_cloth_metrics = InterClothContactMetrics(100, 50, 12, 7.1, 0.71)
+    residual_measurements = iter(((12, 0.71), (0, 0.0)))
+    calls = {"inter_cloth": 0, "body": 0, "measure": 0}
+
+    def measure_residual() -> None:
+        calls["measure"] += 1
+        remaining, deficit = next(residual_measurements)
+        metrics = backend._inter_cloth_metrics
+        backend._inter_cloth_metrics = metrics._replace(
+            remaining_contact_count=remaining,
+            max_penetration_after_mm=deficit,
+        )
+
+    def project_inter_cloth() -> None:
+        calls["inter_cloth"] += 1
+        backend._inter_cloth_metrics = InterClothContactMetrics(10, 8, 0, 0.71, 0.0)
+
+    def project_body() -> None:
+        calls["body"] += 1
+
+    monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
+    monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_inter_cloth)
+    monkeypatch.setattr(backend, "_project_collision_positions", project_body)
+
+    backend._resolve_inter_cloth_body_contacts()
+
+    assert calls == {"inter_cloth": 1, "body": 1, "measure": 2}, (
+        "a post-body residual must trigger one bounded inter-cloth/body reconciliation"
+    )
+    assert backend._inter_cloth_metrics == InterClothContactMetrics(110, 58, 0, 7.1, 0.0), (
+        "final metrics must retain initial and corrective contact activity and report "
+        "the post-body residual"
+    )
+
+
+def test_backend_bounds_inter_cloth_body_reconciliation_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Never loop indefinitely when body and garment constraints remain coupled."""
+    backend = object.__new__(PositionBasedDynamicsBackend)
+    backend._inter_cloth_metrics = InterClothContactMetrics(10, 5, 3, 1.0, 0.2)
+    residual_measurements = iter(((3, 0.2), (2, 0.1), (1, 0.05)))
+    calls = {"inter_cloth": 0, "body": 0}
+
+    def measure_residual() -> None:
+        remaining, deficit = next(residual_measurements)
+        metrics = backend._inter_cloth_metrics
+        backend._inter_cloth_metrics = metrics._replace(
+            remaining_contact_count=remaining,
+            max_penetration_after_mm=deficit,
+        )
+
+    def project_inter_cloth() -> None:
+        calls["inter_cloth"] += 1
+        backend._inter_cloth_metrics = InterClothContactMetrics(1, 1, 0, 0.2, 0.0)
+
+    def project_body() -> None:
+        calls["body"] += 1
+
+    monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
+    monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_inter_cloth)
+    monkeypatch.setattr(backend, "_project_collision_positions", project_body)
+
+    backend._resolve_inter_cloth_body_contacts()
+
+    assert calls == {"inter_cloth": 2, "body": 2}, (
+        "coupled contact correction must stop after the configured bounded retry count"
+    )
+    assert backend._inter_cloth_metrics.remaining_contact_count == 1, (
+        "an unresolved residual must remain visible instead of being reported as clear"
+    )
 
 
 def test_inter_cloth_coincident_sheets_receive_opposite_stable_corrections() -> None:
