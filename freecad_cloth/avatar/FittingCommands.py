@@ -239,11 +239,24 @@ class _NativePropertyAdder(Protocol):
         ...
 
 
+class _FittingSceneProxy(Protocol):
+    """Recompute callback installed on the persistent fitting-scene feature."""
+
+    def execute(self, obj: _FittingSceneFeature) -> None:
+        """Validate serialized fitting-scene state before the document is saved."""
+        ...
+
+
 class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
     Label: str
-    Document: _FittingDocument
+    Proxy: _FittingSceneProxy
+
+    @property
+    def Document(self) -> _FittingDocument:
+        """Return the owning native FreeCAD document."""
+        ...
     FittingType: str
     MeasurementData: str
     MeasurementUnit: str
@@ -1292,6 +1305,11 @@ class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
     """Small structural interface for the FreeCAD presentation group."""
 
     Label: str
+
+    @property
+    def Group(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the current children of the marker group."""
+        ...
 
     def addObject(self, obj: FreeCADDocumentObjectProtocol) -> None:
         """Add a generated marker to the document's presentation group.

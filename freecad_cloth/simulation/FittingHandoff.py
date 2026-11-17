@@ -157,7 +157,12 @@ class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Describe the simulation fields consumed or updated by this bridge."""
 
     ClothPieces: Sequence[_PatternPiece]
-    Document: _FreeCADDocument | None
+
+    @property
+    def Document(self) -> _FreeCADDocument | None:
+        """Return the owning document when the simulation scene is attached."""
+        ...
+
     DrapeTarget: _DrapeTarget | None
 
 

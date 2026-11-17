@@ -35,7 +35,11 @@ class _FreeCADDocument(Protocol):
 class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Simulation-scene properties owned by the canonical target model."""
 
-    Document: _FreeCADDocument
+    @property
+    def Document(self) -> _FreeCADDocument:
+        """Return the owning native FreeCAD document."""
+        ...
+
     DrapeTarget: _DrapeTarget | None
 
 

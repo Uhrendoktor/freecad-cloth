@@ -140,7 +140,12 @@ class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol
     """Dynamic FreeCAD avatar properties used by its command lifecycle."""
 
     Label: str
-    Document: _FreeCADDocument
+
+    @property
+    def Document(self) -> _FreeCADDocument:
+        """Return the owning document for this persistent avatar feature."""
+        ...
+
     Mesh: _NativeAvatarMesh
     PosePreset: str
     SkinOffset: float

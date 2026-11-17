@@ -10,7 +10,11 @@ import numpy as np
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.JsonTypes import JsonObject
-from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
+from freecad_cloth.pattern.SeamReference import (
+    ChangedEdgeReference,
+    EdgeRecord,
+    MissingEdgeReference,
+)
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     correspondence_status_label,
@@ -112,7 +116,7 @@ class _SewingProxy(Protocol):
         ...
 
 
-type _EdgeRecordReader = Callable[..., JsonObject | None]
+type _EdgeRecordReader = Callable[..., EdgeRecord | None]
 
 
 class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
@@ -151,12 +155,21 @@ class _FreeCADDocument(Protocol):
     """Native document operation required to create a persistent sewing feature."""
 
     @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
         """Return the native objects owned by the sewing document."""
         ...
 
     def addObject(self, _type_id: str, name: str) -> _SewingFeature:
         """Create a Python-backed sewing feature with the requested internal name."""
+        ...
+
+    def recompute(self) -> int | None:
+        """Recompute native sewing features and their document dependencies."""
         ...
 
 

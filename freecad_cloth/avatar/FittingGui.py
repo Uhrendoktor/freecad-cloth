@@ -9,8 +9,9 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
+from collections.abc import Callable
 from itertools import starmap
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
@@ -25,6 +26,54 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
 if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
+
+class _ViewVector(Protocol):
+    """Coordinates exposed by FreeCAD's native viewport projection methods."""
+
+    x: float
+    y: float
+    z: float
+
+
+class _ViewSceneGraph(Protocol):
+    """Scene-graph mutations required by transient fitting overlays."""
+
+    def addChild(self, child: object) -> None:
+        """Attach a transient overlay node to the active viewport."""
+        ...
+
+    def removeChild(self, child: object) -> None:
+        """Remove a previously attached overlay node."""
+        ...
+
+
+class _FittingView(Protocol):
+    """Native FreeCAD view operations used by Interactive Arrange."""
+
+    def getPointOnScreen(self, point: _ViewVector) -> tuple[float, float]:
+        """Project a world-space point into viewport screen coordinates."""
+        ...
+
+    def getSize(self) -> tuple[int, int]:
+        """Return viewport width and height in pixels."""
+        ...
+
+    def getSceneGraph(self) -> _ViewSceneGraph:
+        """Return the Coin scene root for transient overlay nodes."""
+        ...
+
+    def getPoint(self, x: int, y: int) -> _ViewVector:
+        """Return the world-space point under a screen coordinate."""
+        ...
+
+    def addEventCallback(self, event: str, callback: Callable[..., object]) -> int:
+        """Register one callback for a Coin event type."""
+        ...
+
+    def removeEventCallback(self, event: str, callback_id: int) -> None:
+        """Remove a previously registered Coin event callback."""
+        ...
 
 
 def _modules():
@@ -222,13 +271,13 @@ class DirectArrangeController:
         """
         self.App, self.Gui, self.QtCore, self.QtWidgets = _modules()
         self.scene = scene
-        self.view = None
+        self.view: _FittingView | None = None
         self.status_callback = status_callback or (lambda _message: None)
         self.snap_enabled = bool(snap_enabled)
         self.drag_piece = None
-        self.drag_start_screen = None
-        self.drag_start_world = None
-        self.drag_start_base = None
+        self.drag_start_screen: tuple[float, float] | None = None
+        self.drag_start_world: _ViewVector | None = None
+        self.drag_start_base: tuple[float, float, float] | None = None
         self.drag_start_rotation = 0.0
         self.snap_point = None
         self._mouse_callback = None
@@ -345,10 +394,15 @@ class DirectArrangeController:
         Returns:
             Projected screen X/Y position in pixels.
         """
-        projected = self.view.getPointOnScreen(
-            self.App.Vector(float(point.X), float(point.Y), float(point.Offset))
+        view = self.view
+        if view is None:
+            raise RuntimeError("an active FreeCAD 3D view is required for point projection")
+        world_point = cast(
+            "_ViewVector",
+            self.App.Vector(float(point.X), float(point.Y), float(point.Offset)),
         )
-        size = self.view.getSize()
+        projected = view.getPointOnScreen(world_point)
+        size = view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
     def _nearest_snap_point(self, screen_position):
@@ -623,7 +677,12 @@ class DirectArrangeController:
         if self.scene is None:
             msg = "a fitting scene is required for Interactive Arrange"
             raise RuntimeError(msg)
-        self.view = self.Gui.activeDocument().activeView() if self.Gui.activeDocument() else None
+        active_document = self.Gui.activeDocument()
+        self.view = (
+            cast("_FittingView", active_document.activeView())
+            if active_document
+            else None
+        )
         if self.view is None:
             msg = "an active FreeCAD 3D view is required for Interactive Arrange"
             raise RuntimeError(msg)
@@ -677,6 +736,9 @@ class DirectArrangeController:
         Args:
             info: Coin mouse event mapping containing Position, Button, and State.
         """
+        view = self.view
+        if view is None:
+            return
         position = self._event_position(info)
         if position is None:
             return
@@ -688,7 +750,7 @@ class DirectArrangeController:
             piece = self._piece_from_info(info)
             if piece is None:
                 return
-            cursor = self.view.getPoint(int(position[0]), int(position[1]))
+            cursor = view.getPoint(int(position[0]), int(position[1]))
             self.drag_piece = piece
             self.drag_start_screen = position
             self.drag_start_world = cursor
@@ -752,9 +814,12 @@ class DirectArrangeController:
         Args:
             info: Coin location event mapping containing the current screen Position.
         """
+        view = self.view
         if (
-            self.drag_piece is None
+            view is None
+            or self.drag_piece is None
             or self.drag_start_screen is None
+            or self.drag_start_world is None
             or self.drag_start_base is None
         ):
             return
@@ -766,14 +831,14 @@ class DirectArrangeController:
         if dx * dx + dy * dy < self.DRAG_PIXEL_THRESHOLD**2:
             return
         try:
-            cursor = self.view.getPoint(int(position[0]), int(position[1]))
+            cursor = view.getPoint(int(position[0]), int(position[1]))
             delta = cursor.sub(self.drag_start_world)
             base = (
                 self.drag_start_base[0] + float(delta.x),
                 self.drag_start_base[1] + float(delta.y),
                 self.drag_start_base[2] + float(delta.z),
             )
-            screen_position = coin_position_to_screen(position, self.view.getSize()[1])
+            screen_position = coin_position_to_screen(position, view.getSize()[1])
             snap = self._nearest_snap_point(screen_position) if self.snap_enabled else None
             self.snap_point = snap
             if snap is not None:

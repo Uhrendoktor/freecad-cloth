@@ -49,15 +49,32 @@ if TYPE_CHECKING:
 class _FreeCADDocument(Protocol):
     """Document operations and object inventory used by the task panel."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
-    getObject: Callable[[str], FreeCADDocumentObjectProtocol | None]
-    recompute: Callable[[], None]
+    @property
+    def Name(self) -> str:
+        """Return the immutable native document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence."""
+        ...
+
+    def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
+        """Return the object with this internal name, when present."""
+        ...
+
+    def recompute(self) -> int | None:
+        """Recompute document features and return the host status code."""
+        ...
 
 
 class _FreeCADApplication(Protocol):
     """Active-document member exported by the FreeCAD application module."""
 
-    ActiveDocument: _FreeCADDocument | None
+    @property
+    def ActiveDocument(self) -> _FreeCADDocument | None:
+        """Return the active native document when one is open."""
+        ...
 
 
 class _TaskPanelDialog(Protocol):
