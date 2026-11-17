@@ -1,0 +1,112 @@
+name: PR 2842 safe Ruff autofix and full validation
+on:
+  push:
+    branches:
+      - agents/pr2842-safe-ruff-and-validate
+permissions:
+  actions: write
+  contents: write
+  packages: read
+  pull-requests: read
+jobs:
+  safe-ruff-autofix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: agents/strict-python-all-files
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ github.token }}
+      - name: Apply only safe Ruff fixes to the exact PR head
+        shell: bash
+        env:
+          SOURCE_SHA: b3304c871ed5a24bb3e42f5ade88c44db636542e
+          PR_BRANCH: agents/strict-python-all-files
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python3 -m venv "$RUNNER_TEMP/ruff-venv"
+          "$RUNNER_TEMP/ruff-venv/bin/python" -m pip install --disable-pip-version-check "ruff==0.17.2"
+          mapfile -d '' tracked_files < <(git ls-files -z -- '*.py' '*.pyi')
+          if (( ${#tracked_files[@]} == 0 )); then
+            echo "::error::No tracked Python sources or stubs were found."
+            exit 1
+          fi
+          "$RUNNER_TEMP/ruff-venv/bin/python" -m ruff format "${tracked_files[@]}"
+          set +e
+          "$RUNNER_TEMP/ruff-venv/bin/python" -m ruff check --fix "${tracked_files[@]}"
+          lint_status=$?
+          set -e
+          if (( lint_status > 1 )); then
+            echo "::error::Ruff safe autofix could not complete (exit=$lint_status)."
+            exit "$lint_status"
+          fi
+          remote_sha="$(git ls-remote origin "refs/heads/$PR_BRANCH" | awk 'NR == 1 { print $1 }')"
+          if [[ "$remote_sha" != "$SOURCE_SHA" ]]; then
+            echo "::error::PR branch advanced during Ruff autofix; refusing a stale patch."
+            exit 1
+          fi
+          git diff --check
+          changed_paths="$(git diff --name-only)"
+          if [[ -z "$changed_paths" ]]; then
+            echo "ruff-autofix=no-changes"
+            exit 0
+          fi
+          while IFS= read -r path; do
+            [[ "$path" == *.py || "$path" == *.pyi ]] || {
+              echo "::error::Autofix changed a non-Python path: $path"
+              exit 1
+            }
+          done <<< "$changed_paths"
+          git add -- "${tracked_files[@]}"
+          if git diff --cached --quiet; then
+            echo "ruff-autofix=no-staged-changes"
+            exit 0
+          fi
+          git diff --cached --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "style: apply safe repository-wide Ruff autofixes"
+          git push origin "HEAD:refs/heads/$PR_BRANCH"
+          echo "ruff-autofix=committed files=$(git diff-tree --no-commit-id --name-only -r HEAD | wc -l | tr -d ' ')"
+  dispatch-full-validation:
+    needs: safe-ruff-autofix
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+      - name: Dispatch full validation against the post-autofix exact head
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          pr_number=2842
+          branch="agents/strict-python-all-files"
+          pr_json="$(gh api "repos/${repo}/pulls/${pr_number}")"
+          test "$(jq -r '.state' <<< "$pr_json")" = "open"
+          test "$(jq -r '.head.ref' <<< "$pr_json")" = "$branch"
+          expected="$(jq -r '.head.sha' <<< "$pr_json")"
+          gh workflow run commit-validation.yml --repo "$repo" --ref "$branch" -f execution_mode=full -f pr_number="$pr_number"
+          for _ in $(seq 1 45); do
+            run_json="$(gh run list --repo "$repo" --workflow "Commit validation" --branch "$branch" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "$expected" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [[ -n "$run_json" ]]; then
+              echo "$run_json"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::No exact-head full-validation run appeared for $expected."
+          exit 1
