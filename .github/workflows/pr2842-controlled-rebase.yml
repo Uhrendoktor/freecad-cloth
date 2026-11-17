@@ -1,0 +1,76 @@
+name: PR 2842 controlled rebase
+on:
+  push:
+    branches:
+      - agents/pr2842-controlled-rebase
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+jobs:
+  rebase-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Resolve only the reviewed strict-Pyright policy conflict, rebase, and dispatch full validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: 1e3fd604e503ed77608134135911d3ce91c3424a
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          pr_number=2842
+          branch="agents/strict-python-all-files"
+          pr_json="$(gh api "repos/${repo}/pulls/${pr_number}")"
+          test "$(jq -r '.state' <<< "$pr_json")" = "open"
+          test "$(jq -r '.base.ref' <<< "$pr_json")" = "main"
+          test "$(jq -r '.head.ref' <<< "$pr_json")" = "$branch"
+          test "$(jq -r '.head.sha' <<< "$pr_json")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.head.repo.full_name' <<< "$pr_json")" = "$repo"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git"
+          git fetch origin main "refs/heads/${branch}:refs/remotes/origin/${branch}"
+          test "$(git rev-parse "refs/remotes/origin/${branch}")" = "$EXPECTED_HEAD"
+          git checkout -B "$branch" "refs/remotes/origin/$branch"
+          if ! git rebase origin/main; then
+            while [[ -d .git/rebase-merge || -d .git/rebase-apply ]]; do
+              mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
+              if (( ${#conflicts[@]} != 1 )) || [[ "${conflicts[0]}" != "pyrightconfig.json" ]]; then
+                printf '::error::Unreviewed rebase conflict(s): %s\n' "${conflicts[*]:-none}"
+                git rebase --abort
+                exit 1
+              fi
+              # The PR explicitly introduces repository-root strict mode; retain that policy
+              # rather than reverting to main's staged inventory configuration.
+              git checkout --theirs -- pyrightconfig.json
+              git add -- pyrightconfig.json
+              if ! GIT_EDITOR=true git rebase --continue; then
+                if ! git diff --name-only --diff-filter=U | grep -q .; then
+                  echo "::error::Rebase continuation failed without a conflict; refusing to skip commits."
+                  git rebase --abort
+                  exit 1
+                fi
+              fi
+            done
+          fi
+          git merge-base --is-ancestor origin/main HEAD
+          rebased_head="$(git rev-parse HEAD)"
+          git push --force-with-lease="refs/heads/${branch}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${branch}"
+          gh workflow run commit-validation.yml --repo "$repo" --ref "$branch" -f execution_mode=full -f pr_number="$pr_number"
+          for _ in $(seq 1 45); do
+            run_json="$(gh run list --repo "$repo" --workflow "Commit validation" --branch "$branch" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "$rebased_head" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [[ -n "$run_json" ]]; then
+              echo "$run_json"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Full validation was dispatched but no exact-head run appeared for $rebased_head."
+          exit 1
