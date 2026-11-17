@@ -1,8 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 
@@ -10,11 +7,11 @@ from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph, Transform3D
 
 
-def piece(name, ident):
+def piece(name: str, ident: str) -> PatternPiece:
     return PatternPiece(name, [(0, 0), (10, 0), (10, 10), (0, 10)], id=ident)
 
 
-def graph():
+def graph() -> SeamGraph:
     value = SeamGraph()
     value.add_piece(piece("left", "left"))
     value.add_piece(piece("right", "right"))

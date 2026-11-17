@@ -44,7 +44,7 @@ def test_agent_instructions_use_live_ledger_pointer_without_hardcoding_an_issue(
 
 
 def test_architecture_distinguishes_persisted_authority_from_headless_value_types() -> None:
-    """architecture distinguishes persisted authority from headless value types."""
+    """Architecture distinguishes persisted authority from headless value types."""
     architecture = (ROOT / "docs" / "developers" / "ARCHITECTURE.md").read_text(encoding="utf-8")
     model = (ROOT / "freecad_cloth" / "pattern" / "PatternModel.py").read_text(encoding="utf-8")
     assert "persisted FreeCAD Seam object is the document-level source of truth" in architecture, (

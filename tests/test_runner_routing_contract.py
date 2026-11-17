@@ -88,7 +88,8 @@ def test_every_canonical_job_uses_the_configured_github_hosted_runner() -> None:
         assert expected in block, f"{name} must use its configured GitHub-hosted runner."
         assert "self-hosted" not in block
     assert "runner_target:" in source
-    assert "default: '" in source and '"ubuntu-latest"' in source
+    assert "default: '" in source
+    assert '"ubuntu-latest"' in source
     assert "runner_watchdog" not in source
     assert "fallback_source_run" not in source
 

@@ -6,15 +6,16 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 
-class SimulationDocument(Protocol):
+class SimulationDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document operations required by simulation commands."""
 
-    Objects: list[FreeCADDocumentObjectProtocol]
-
-    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
 
         Args:
@@ -26,7 +27,7 @@ class SimulationDocument(Protocol):
         """
         ...
 
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a feature by its stable internal name.
 
         Args:
@@ -35,10 +36,6 @@ class SimulationDocument(Protocol):
         Returns:
             The matching feature or None when it is absent.
         """
-        ...
-
-    def recompute(self) -> None:
-        """Recompute the document after simulation state changes."""
         ...
 
 

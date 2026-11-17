@@ -9,7 +9,10 @@ import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Protocol, SupportsFloat, SupportsInt, cast
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
 type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
@@ -212,8 +215,11 @@ class _BoundingVolumeRef(Protocol):
 class _FittingAnchorTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Native target fields needed to persist a surface-local arrangement anchor."""
 
-    Name: str
-    Document: _FittingDocument | None
+    @property
+    def Document(self) -> _FittingDocument | None:
+        """Return the owning document when the anchor target is attached."""
+        ...
+
     Placement: _NativePlacement
 
 
@@ -236,12 +242,25 @@ class _NativePropertyAdder(Protocol):
         ...
 
 
+class _FittingSceneProxy(Protocol):
+    """Recompute callback installed on the persistent fitting-scene feature."""
+
+    def execute(self, obj: _FittingSceneFeature) -> None:
+        """Validate serialized fitting-scene state before the document is saved."""
+        ...
+
+
 class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
-    Name: str
     Label: str
-    Document: _FittingDocument
+    Proxy: _FittingSceneProxy
+
+    @property
+    def Document(self) -> _FittingDocument:
+        """Return the owning native FreeCAD document."""
+        ...
+
     FittingType: str
     MeasurementData: str
     MeasurementUnit: str
@@ -277,7 +296,6 @@ class _FittingVisualView(Protocol):
 class _FittingVisualFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Native display object contract for generated fitting point/volume markers."""
 
-    Name: str
     Label: str
     FittingType: str
     ViewObject: _FittingVisualView
@@ -1290,10 +1308,12 @@ _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
     """Small structural interface for the FreeCAD presentation group."""
 
-    TypeId: str
     Label: str
-    Name: str
-    Group: Sequence[FreeCADDocumentObjectProtocol]
+
+    @property
+    def Group(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the current children of the marker group."""
+        ...
 
     def addObject(self, obj: FreeCADDocumentObjectProtocol) -> None:
         """Add a generated marker to the document's presentation group.
@@ -1304,13 +1324,10 @@ class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
         ...
 
 
-class _FittingDocument(Protocol):
+class _FittingDocument(FreeCADDocumentProtocol, Protocol):
     """Document API used to organize generated marker features."""
 
-    Name: str
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
-
-    def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Return the named native object, or None when it is not in the document.
 
         Args:
@@ -1321,7 +1338,7 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def addObject(self, type_id: str, name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, type_id: str, name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native document object with the supplied type and internal name.
 
         Args:
@@ -1333,7 +1350,7 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def removeObject(self, name: str) -> None:
+    def removeObject(self, name: str, /) -> None:
         """Remove the named generated feature from this document.
 
         Args:
@@ -1341,7 +1358,7 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self, /) -> int | None:
         """Recompute features and document dependencies after property updates."""
         ...
 

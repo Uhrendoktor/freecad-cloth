@@ -8,16 +8,17 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-if __package__:
-    from tools.ci.repository_paths import add_repository_root
-else:
+if __package__ is None or __package__ == "":
     from repository_paths import add_repository_root
+else:
+    from .repository_paths import add_repository_root
 
 ROOT = add_repository_root(__file__)
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
@@ -29,6 +30,8 @@ MIN_COLLISION_TRIANGLES = 1
 FRAME_BUDGET_TOLERANCE_MS = 1e-6
 MIN_PARTICLE_DISTANCE_MM = 40.0
 FRAME_DISPATCH_SAMPLE_LIMIT = 120
+FRAME_SCHEDULER_TOLERANCE = 1e-9
+INITIAL_QUEUE_DELAY_MS = 5.0
 
 
 def _number(value: JsonValue) -> float | None:
@@ -174,28 +177,31 @@ def _validate_timing_metrics(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("p95_frame_interval_ms exceeds the 60 FPS budget")
 
 
-def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
-    """Validate the phase-locked worker clock and its single-outstanding-pulse contract.
+def _validate_frame_scheduler_fields(
+    scheduler: JsonObject,
+    frames: int | None,
+    errors: list[str],
+) -> None:
+    """Validate clock values and the worker's single-outstanding-pulse contract.
 
     Args:
-        metrics: Decoded realtime benchmark artifact.
+        scheduler: Frame scheduler metrics object from the benchmark artifact.
         frames: Parsed measured interval count, or None when invalid.
         errors: Mutable list receiving acceptance failures.
     """
-    scheduler_value = metrics.get("frame_scheduler")
-    if not isinstance(scheduler_value, dict):
-        errors.append("frame_scheduler must be a JSON object")
-        return
-
-    scheduler = cast("JsonObject", scheduler_value)
     if scheduler.get("mode") != "threaded-feedback-phase-locked":
         errors.append("frame_scheduler.mode must be threaded-feedback-phase-locked")
     target_fps = _number(scheduler.get("target_fps"))
-    if target_fps is None or abs(target_fps - TARGET_FPS) > 1e-9:
+    if target_fps is None or abs(target_fps - TARGET_FPS) > FRAME_SCHEDULER_TOLERANCE:
         errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
     initial_delay = _number(scheduler.get("initial_queue_delay_ms"))
-    if initial_delay is None or abs(initial_delay - 5.0) > 1e-9:
-        errors.append("frame_scheduler.initial_queue_delay_ms must equal 5")
+    if (
+        initial_delay is None
+        or abs(initial_delay - INITIAL_QUEUE_DELAY_MS) > FRAME_SCHEDULER_TOLERANCE
+    ):
+        errors.append(
+            f"frame_scheduler.initial_queue_delay_ms must equal {INITIAL_QUEUE_DELAY_MS:g}"
+        )
     for key in ("queue_delay_estimate_ms", "worker_wakeup_estimate_ms"):
         value = _number(scheduler.get(key))
         if value is None or value < 0.0:
@@ -211,40 +217,134 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
     outstanding = _integer(scheduler.get("outstanding_pulses"))
     if outstanding != 0:
         errors.append("frame_scheduler.outstanding_pulses must be zero at benchmark completion")
-    dispatch_mode = scheduler.get("dispatch_mode")
-    if dispatch_mode != "Qt.QueuedConnection":
+    if scheduler.get("dispatch_mode") != "Qt.QueuedConnection":
         errors.append("frame_scheduler.dispatch_mode must be Qt.QueuedConnection")
     queued_dispatches = _integer(scheduler.get("queued_dispatches"))
     if queued_dispatches is None or queued_dispatches < (frames or MIN_FRAMES):
         errors.append("frame_scheduler.queued_dispatches must cover the measured frames")
 
+
+def _validate_lateness_component(
+    metrics: JsonObject,
+    metric_name: str,
+    minimum_samples: int,
+    errors: list[str],
+) -> None:
+    """Validate one scheduler lateness component and its timing samples.
+
+    Args:
+        metrics: Decoded realtime benchmark artifact.
+        metric_name: Name of the component whose samples are checked.
+        minimum_samples: Minimum number of observations required for the component.
+        errors: Mutable list receiving acceptance failures.
+    """
+    component_value = metrics.get(metric_name)
+    if not isinstance(component_value, dict):
+        errors.append(f"{metric_name} must be a JSON object")
+        return
+    component_samples = _integer(component_value.get("samples"))
+    if component_samples is None or component_samples < minimum_samples:
+        errors.append(f"{metric_name}.samples must be >= {minimum_samples}")
+    for key in ("mean_ms", "p95_ms", "max_ms"):
+        value = _number(component_value.get(key))
+        if value is None or value < 0.0:
+            errors.append(f"{metric_name}.{key} must be finite and non-negative")
+
+
+def _validate_frame_dispatch_lateness(
+    metrics: JsonObject,
+    minimum_samples: int,
+    errors: list[str],
+) -> None:
+    """Validate queued frame-dispatch lateness measurements.
+
+    Args:
+        metrics: Decoded realtime benchmark artifact.
+        minimum_samples: Minimum sample count covering the measured frames.
+        errors: Mutable list receiving acceptance failures.
+    """
     dispatch_value = metrics.get("frame_dispatch_lateness")
     if not isinstance(dispatch_value, dict):
         errors.append("frame_dispatch_lateness must be a JSON object")
         return
-    dispatch = cast("JsonObject", dispatch_value)
-    samples = _integer(dispatch.get("samples"))
-    minimum_samples = min(frames or MIN_FRAMES, FRAME_DISPATCH_SAMPLE_LIMIT)
+    samples = _integer(dispatch_value.get("samples"))
     if samples is None or samples < minimum_samples:
         errors.append(f"frame_dispatch_lateness.samples must be >= {minimum_samples}")
     for key in ("mean_ms", "p95_ms", "max_ms"):
-        value = _number(dispatch.get(key))
+        value = _number(dispatch_value.get(key))
         if value is None or value < 0.0:
             errors.append(f"frame_dispatch_lateness.{key} must be finite and non-negative")
 
     for metric_name in ("worker_wakeup_lateness", "gui_queue_dispatch_lateness"):
-        component_value = metrics.get(metric_name)
-        if not isinstance(component_value, dict):
-            errors.append(f"{metric_name} must be a JSON object")
-            continue
-        component = cast("JsonObject", component_value)
-        component_samples = _integer(component.get("samples"))
-        if component_samples is None or component_samples < minimum_samples:
-            errors.append(f"{metric_name}.samples must be >= {minimum_samples}")
-        for key in ("mean_ms", "p95_ms", "max_ms"):
-            value = _number(component.get(key))
-            if value is None or value < 0.0:
-                errors.append(f"{metric_name}.{key} must be finite and non-negative")
+        _validate_lateness_component(metrics, metric_name, minimum_samples, errors)
+
+
+def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: list[str]) -> None:
+    """Validate the phase-locked worker clock and its single-outstanding-pulse contract.
+
+    Args:
+        metrics: Decoded realtime benchmark artifact.
+        frames: Parsed measured interval count, or None when invalid.
+        errors: Mutable list receiving acceptance failures.
+    """
+    scheduler_value = metrics.get("frame_scheduler")
+    if not isinstance(scheduler_value, dict):
+        errors.append("frame_scheduler must be a JSON object")
+        return
+    _validate_frame_scheduler_fields(scheduler_value, frames, errors)
+    minimum_samples = min(frames or MIN_FRAMES, FRAME_DISPATCH_SAMPLE_LIMIT)
+    _validate_frame_dispatch_lateness(metrics, minimum_samples, errors)
+
+
+def _minimum_stage_samples(name: str, frames: int | None) -> int:
+    """Return the required observation count for one preview stage.
+
+    Args:
+        name: Stable name of the preview stage.
+        frames: Measured frame count, or None when the frame count is invalid.
+
+    Returns:
+        Minimum required samples for the selected stage.
+    """
+    if frames is None:
+        return MIN_FRAMES
+    if name == "overlay_schedule":
+        return max(1, frames // 2 - 2)
+    if name == "mesh_write":
+        return 0
+    if name == "preview_mesh_publish":
+        return frames * 2
+    return frames
+
+
+def _validate_stage_record(
+    name: str,
+    stage: JsonObject,
+    frames: int | None,
+    errors: list[str],
+) -> None:
+    """Validate sample counts and timing values for one preview stage.
+
+    Args:
+        name: Stable name of the preview stage.
+        stage: Stage metrics object from the benchmark artifact.
+        frames: Measured frame count, or None when invalid.
+        errors: Mutable list receiving acceptance failures.
+    """
+    samples = _integer(stage.get("samples"))
+    minimum_samples = _minimum_stage_samples(name, frames)
+    if samples is None or samples < minimum_samples:
+        errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
+    if name == "mesh_write":
+        if samples != 0:
+            errors.append("stage_timings.mesh_write.samples must equal 0 during preview")
+        return
+    for metric_name in ("mean_ms", "p95_ms", "max_ms"):
+        value = _number(stage.get(metric_name))
+        if value is None or value < 0.0:
+            errors.append(
+                f"stage_timings.{name}.{metric_name} must be a finite non-negative number"
+            )
 
 
 def _validate_stage_timings(
@@ -259,10 +359,13 @@ def _validate_stage_timings(
         frames: Parsed number of measured frames, or None if malformed.
         errors: Mutable list receiving acceptance failures.
     """
-    stage_value = metrics.get("stage_timings")
-    publication_mode = metrics.get("publication_mode")
-    if publication_mode != "transient-coin3d":
+    if metrics.get("publication_mode") != "transient-coin3d":
         errors.append("publication_mode must be transient-coin3d")
+    stage_value = metrics.get("stage_timings")
+    if not isinstance(stage_value, dict):
+        errors.append("stage_timings must be a JSON object")
+        return
+
     required_stages = (
         "advance_preview_frame",
         "solver_step",
@@ -272,40 +375,12 @@ def _validate_stage_timings(
         "overlay_schedule",
         "viewport_redraw",
     )
-    if not isinstance(stage_value, dict):
-        errors.append("stage_timings must be a JSON object")
-        return
-
-    stages = cast("JsonObject", stage_value)
     for name in required_stages:
-        stage_value_for_name = stages.get(name)
-        if not isinstance(stage_value_for_name, dict):
+        stage = stage_value.get(name)
+        if not isinstance(stage, dict):
             errors.append(f"stage_timings.{name} must be a JSON object")
             continue
-        stage = cast("JsonObject", stage_value_for_name)
-        samples = _integer(stage.get("samples"))
-        if frames is None:
-            minimum_samples = MIN_FRAMES
-        elif name == "overlay_schedule":
-            minimum_samples = max(1, frames // 2 - 2)
-        elif name == "mesh_write":
-            minimum_samples = 0
-        elif name == "preview_mesh_publish":
-            minimum_samples = frames * 2
-        else:
-            minimum_samples = frames
-        if samples is None or samples < minimum_samples:
-            errors.append(f"stage_timings.{name}.samples must be >= {minimum_samples}")
-        if name == "mesh_write":
-            if samples != 0:
-                errors.append("stage_timings.mesh_write.samples must equal 0 during preview")
-            continue
-        for metric_name in ("mean_ms", "p95_ms", "max_ms"):
-            value = _number(stage.get(metric_name))
-            if value is None or value < 0.0:
-                errors.append(
-                    f"stage_timings.{name}.{metric_name} must be a finite non-negative number"
-                )
+        _validate_stage_record(name, stage, frames, errors)
 
 
 def _validate_profile(metrics: JsonObject, errors: list[str]) -> None:
@@ -320,7 +395,7 @@ def _validate_profile(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("profile must be a JSON object")
         return
 
-    profile = cast("JsonObject", profile_value)
+    profile = profile_value
     if profile.get("quality_preset") != "Fast":
         errors.append("profile.quality_preset must be Fast")
     spacing = _number(profile.get("particle_distance_mm"))
@@ -345,7 +420,7 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("runtime must be a JSON object")
         return
 
-    runtime = cast("JsonObject", runtime_value)
+    runtime = runtime_value
     for key in ("platform", "python_version", "freecad_version"):
         value = runtime.get(key)
         if not isinstance(value, str) or not value:
@@ -366,7 +441,7 @@ def validate_metrics(payload: JsonValue) -> list[str]:
     """
     if not isinstance(payload, dict):
         return ["metrics artifact must contain a JSON object"]
-    metrics = cast("JsonObject", payload)
+    metrics = payload
     errors: list[str] = []
     _validate_artifact_identity(metrics, errors)
     _validate_fixture_size(metrics, errors)

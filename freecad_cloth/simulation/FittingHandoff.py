@@ -11,7 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import register_commands
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -23,24 +26,21 @@ _FREECAD_COLLISION_THICKNESS_MM = 2.0
 _COLLISION_DEFLECTION_MM = 1.0
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Describe the document methods used by the fitting handoff."""
-
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Look up a native document feature by its internal name."""
-        ...
-
-    def recompute(self) -> None:
-        """Recompute the active document."""
         ...
 
 
 class _FreeCADApplication(Protocol):
     """Describe the application methods used to resolve FreeCAD documents."""
 
-    ActiveDocument: _FreeCADDocument | None
+    @property
+    def ActiveDocument(self) -> _FreeCADDocument | None:
+        """Return the active document when one is open."""
+        ...
 
     def newDocument(self, name: str) -> _FreeCADDocument:
         """Create a FreeCAD document with the supplied internal name."""
@@ -142,11 +142,16 @@ class _FittingScene(Protocol):
     PiecePlacements: Sequence[str]
 
 
-class _SimulationScene(Protocol):
+class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Describe the simulation fields consumed or updated by this bridge."""
 
     ClothPieces: Sequence[_PatternPiece]
-    Document: _FreeCADDocument | None
+
+    @property
+    def Document(self) -> _FreeCADDocument | None:
+        """Return the owning document when the simulation scene is attached."""
+        ...
+
     DrapeTarget: _DrapeTarget | None
 
 

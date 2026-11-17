@@ -8,8 +8,10 @@ import json
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeGuard
 from urllib.parse import urlencode
+
+from freecad_cloth.common.JsonTypes import as_json_value
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -49,9 +51,21 @@ def _safe_error_body_preview(body: bytes) -> str:
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
 
 
+def _is_artifact_identifier(value: JSONValue) -> TypeGuard[int]:
+    """Return whether a value is an integer artifact identifier, excluding booleans.
+
+    Args:
+        value: Candidate artifact identifier returned by the workflow API.
+
+    Returns:
+        True when the identifier is an integer and not a boolean.
+    """
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def latest_artifacts_by_name(
-    artifacts: Iterable[Mapping[str, object]],
-) -> list[Mapping[str, object]]:
+    artifacts: Iterable[Mapping[str, JSONValue]],
+) -> list[Mapping[str, JSONValue]]:
     """Keep the newest upload for each logical artifact name across run attempts.
 
     Args:
@@ -61,9 +75,10 @@ def latest_artifacts_by_name(
         The latest upload for each artifact name, sorted by name.
 
     Raises:
-        ValueError: If duplicate uploads cannot be ordered deterministically.
+        ValueError: If duplicate uploads omit required ordering metadata.
+        TypeError: If creation timestamps or artifact identifiers have invalid types.
     """
-    latest: dict[str, Mapping[str, object]] = {}
+    latest: dict[str, Mapping[str, JSONValue]] = {}
     for artifact in artifacts:
         name = artifact.get("name")
         if not isinstance(name, str) or not name:
@@ -78,22 +93,23 @@ def latest_artifacts_by_name(
         previous_created = previous.get("created_at")
         current_id = artifact.get("id")
         previous_id = previous.get("id")
-        if (
-            not isinstance(current_created, str)
-            or not isinstance(previous_created, str)
-            or not isinstance(current_id, int)
-            or isinstance(current_id, bool)
-            or not isinstance(previous_id, int)
-            or isinstance(previous_id, bool)
+        if any(
+            value is None for value in (current_created, previous_created, current_id, previous_id)
         ):
             msg = f"duplicate artifact name {name!r} lacks creation time or artifact ID"
             raise ValueError(msg)
+        if not isinstance(current_created, str) or not isinstance(previous_created, str):
+            msg = f"duplicate artifact name {name!r} has a non-string creation time"
+            raise TypeError(msg)
+        if not _is_artifact_identifier(current_id) or not _is_artifact_identifier(previous_id):
+            msg = f"duplicate artifact name {name!r} has a non-integer artifact ID"
+            raise TypeError(msg)
         if (current_created, current_id) > (previous_created, previous_id):
             latest[name] = artifact
     return [latest[name] for name in sorted(latest)]
 
 
-def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
+def accumulated_size(artifacts: Iterable[Mapping[str, JSONValue]]) -> int:
     """Return the accumulated stored size of workflow artifacts in bytes.
 
     Args:
@@ -125,8 +141,8 @@ def _github_error_detail(error_body: bytes) -> str | None:
         A trimmed GitHub error message, or None when the body has no usable message.
     """
     try:
-        payload = json.loads(error_body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = as_json_value(json.loads(error_body))
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
         return None
     if not isinstance(payload, dict):
         return None
@@ -224,12 +240,12 @@ def request_artifact_payload(
         error_body = response.read(API_ERROR_BODY_BYTES)
         msg = _artifact_response_error_message(response, error_body)
         raise RuntimeError(msg)
-    return cast("JSONValue", json.loads(response.read()))
+    return as_json_value(json.loads(response.read()))
 
 
 def fetch_artifact_page(
     repository: str, run_id: int, token: str, page: int
-) -> list[Mapping[str, object]]:
+) -> list[Mapping[str, JSONValue]]:
     """Fetch one paginated workflow-artifact response.
 
     Args:
@@ -271,7 +287,7 @@ def fetch_artifact_page(
     if not isinstance(artifacts, list):
         msg = "GitHub artifact API response has no artifact list"
         raise TypeError(msg)
-    normalized: list[Mapping[str, object]] = []
+    normalized: list[Mapping[str, JSONValue]] = []
     for item in artifacts:
         if not isinstance(item, dict):
             msg = "GitHub artifact API returned a malformed artifact list"
@@ -280,7 +296,7 @@ def fetch_artifact_page(
     return normalized
 
 
-def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, object]]:
+def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, JSONValue]]:
     """Fetch every artifact belonging to one workflow run.
 
     Args:
@@ -291,7 +307,7 @@ def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mappin
     Returns:
         All artifact records from the workflow run.
     """
-    artifacts: list[Mapping[str, object]] = []
+    artifacts: list[Mapping[str, JSONValue]] = []
     page = 1
     while True:
         batch = fetch_artifact_page(repository, run_id, token, page)

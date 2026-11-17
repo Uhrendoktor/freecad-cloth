@@ -1,12 +1,12 @@
 [environment]
-root = ["."]
+root = [".", "./tools/ci", "./tests", "./tests/support"]
 
 [terminal]
 output-format = "github"
 error-on-warning = true
 
 [rules]
-all = "warn"
+all = "error"
 
 [analysis]
 allowed-unresolved-imports = [
@@ -16,4 +16,5 @@ allowed-unresolved-imports = [
   "FreeCADGui.*",
   "pivy",
   "pivy.*",
+  "pypbd",
 ]

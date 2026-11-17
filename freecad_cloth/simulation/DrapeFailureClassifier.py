@@ -14,12 +14,59 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 class DrapeMetrics(Protocol):
     """Describe the metric attributes consumed by the evidence classifier."""
 
-    finite: bool
-    vertices: int
-    state: str
-    vertical_span_ratio: float
-    lateral_span_ratio: float
-    target_vertex_clearance: float | None
+    @property
+    def finite(self) -> bool:
+        """Whether all measured mesh coordinates are finite.
+
+        Returns:
+            True when every measured coordinate is finite.
+        """
+        ...
+
+    @property
+    def vertices(self) -> int:
+        """Number of vertices in the measured garment mesh.
+
+        Returns:
+            Vertex count in the measured garment mesh.
+        """
+        ...
+
+    @property
+    def state(self) -> str:
+        """Existing mesh-state label from the upstream metric producer.
+
+        Returns:
+            Stable state label emitted by the metrics producer.
+        """
+        ...
+
+    @property
+    def vertical_span_ratio(self) -> float:
+        """Vertical extent relative to the target.
+
+        Returns:
+            Ratio of garment vertical extent to target vertical extent.
+        """
+        ...
+
+    @property
+    def lateral_span_ratio(self) -> float:
+        """Lateral extent relative to the target.
+
+        Returns:
+            Ratio of garment lateral extent to target lateral extent.
+        """
+        ...
+
+    @property
+    def target_vertex_clearance(self) -> float | None:
+        """Nearest target-vertex clearance, when measured.
+
+        Returns:
+            Nearest measured clearance, or None when no target vertex is available.
+        """
+        ...
 
 
 MIN_VERTICAL_SPAN_RATIO = 0.15
@@ -62,6 +109,7 @@ def classify_drape(
     Returns:
         Classification state and diagnostic reasons. A plausible state means only that the available
         metrics exposed no failure evidence.
+
     """
     finite = metrics.finite
     vertices = metrics.vertices
@@ -100,7 +148,9 @@ def classify_drape(
     return DrapeClassification(state, tuple(reasons))
 
 
-def summarize_classification(classification: DrapeClassification) -> Mapping[str, object]:
+def summarize_classification(
+    classification: DrapeClassification,
+) -> Mapping[str, str | list[str]]:
     """Convert the classification into stable JSON-ready values.
 
     Args:

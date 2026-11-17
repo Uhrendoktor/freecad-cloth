@@ -23,7 +23,8 @@ def pattern_pieces_for_2d(objects):
         objects: Document objects in their original presentation order.
 
     Returns:
-        PatternPiece objects selected for the sewing 2D view, preserving document order."""
+        PatternPiece objects selected for the sewing 2D view, preserving document order.
+    """
     return [obj for obj in objects if getattr(obj, "PatternType", "") == "PatternPiece"]
 
 
@@ -38,7 +39,8 @@ def seam_visual_markers(points_a, points_b):
         Mapping of paired correspondence lines and direction/notch marker vectors.
 
     Raises:
-        ValueError: If the two sides contain fewer than two or unequal sample counts."""
+        ValueError: If the two sides contain fewer than two or unequal sample counts.
+    """
     if len(points_a) != len(points_b) or len(points_a) < 2:
         msg = "seam marker inputs must have equal length >= 2"
         raise ValueError(msg)
@@ -80,7 +82,8 @@ def build_seam_visual_shape(piece_a, piece_b, seam, sample_count=5, world_space=
         Native Part shape containing paired seam lines and correspondence markers.
 
     Raises:
-        ValueError: If the seam references or sampled edge geometry cannot be resolved."""
+        ValueError: If the seam references or sampled edge geometry cannot be resolved.
+    """
     import FreeCAD as App
     import Part
 

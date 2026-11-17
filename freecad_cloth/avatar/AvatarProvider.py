@@ -6,6 +6,8 @@ a neutral collision surface, and semantic landmarks. It does not leak native
 FreeCAD document implementation or solver details to downstream callers.
 """
 
+from typing import override
+
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.avatar.AvatarModel import AvatarParameters, Landmark
@@ -91,6 +93,7 @@ class ParametricAvatarProvider(AvatarProvider):
         """
         self._service = AvatarService(parameters)
 
+    @override
     def parameters(self) -> AvatarParameters:
         """Return the current provider parameters.
 
@@ -99,6 +102,7 @@ class ParametricAvatarProvider(AvatarProvider):
         """
         return self._service.parameters()
 
+    @override
     def surface(self) -> AvatarSurface:
         """Return the current MakeHuman visual mesh.
 
@@ -107,6 +111,7 @@ class ParametricAvatarProvider(AvatarProvider):
         """
         return self._service.surface()
 
+    @override
     def collision_surface(self) -> CollisionSurface:
         """Return the neutral collision contract for the mannequin.
 
@@ -116,6 +121,7 @@ class ParametricAvatarProvider(AvatarProvider):
         vertices, triangles = self._service.collision_mesh()
         return surface_from_triangles(vertices, triangles, region="avatar")
 
+    @override
     def landmarks(self) -> tuple[Landmark, ...]:
         """Return stable mannequin landmarks.
 
@@ -163,14 +169,16 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
             msg = "thickness must be non-negative and finite"
             raise ValueError(msg)
 
+    @override
     def parameters(self) -> None:
         """Report that imported geometry has no mannequin parameter controls.
 
         Returns:
             None, because the source object's geometry is authoritative.
         """
-        return None
+        return
 
+    @override
     def surface(self) -> AvatarSurface:
         """Return the imported geometry as an immutable mesh.
 
@@ -183,6 +191,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         surface = surface_from_freecad(self.source, self.deflection, self.thickness)
         return surface.vertices, surface.triangles
 
+    @override
     def collision_surface(self) -> CollisionSurface:
         """Return collision tessellation through the shared FreeCAD adapter.
 
@@ -191,6 +200,7 @@ class FreeCADGeometryAvatarProvider(AvatarProvider):
         """
         return surface_from_freecad(self.source, self.deflection, self.thickness)
 
+    @override
     def landmarks(self) -> tuple[Landmark, ...]:
         """Return no semantic landmarks for arbitrary imported geometry.
 

@@ -1,11 +1,13 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Strict source contracts for the canonical tunic simulation audit."""
 
+from dataclasses import dataclass
 from importlib import import_module
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from freecad_cloth.shared.Collision import CollisionSurface
+from tests.support.freecad_arc_geometry import _native_curve_value
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -436,7 +438,7 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "expected_resolution = tuple(" in validator, (
         'Contract failed: "expected_resolution = tuple(" in valid...'
     )
-    assert "def _validate_realtime_metrics(data: dict)" in validator, (
+    assert "def _validate_realtime_metrics(data: JsonObject)" in validator, (
         'Contract failed: "def _validate_realtime_metrics(data: d...'
     )
     assert "_validate_realtime_metrics(data)" in validator, (
@@ -1028,3 +1030,46 @@ def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
     )
     missing = tuple(fragment for fragment in required if fragment not in benchmark)
     assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"
+
+
+@dataclass
+class _NativeArcPoint:
+    """Mutable native-point stand-in used to test the dynamic coordinate boundary."""
+
+    x: float
+    y: float
+
+
+class _NativeArcCurve:
+    """Expose one native-style parameter evaluator for the boundary regression."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        return _NativeArcPoint(parameter_value, parameter_value + 1.0)
+
+    def value(self, parameter_value: float) -> _NativeArcPoint:
+        return self.valueAt(parameter_value)
+
+
+class _MalformedNativeArcCurve:
+    """Expose malformed native coordinates without changing the declared method type."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)
+        point.x = "invalid"
+        return point
+
+    def value(self, parameter_value: float) -> _NativeArcPoint:
+        return self.valueAt(parameter_value)
+
+
+def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:
+    """Accept numeric FreeCAD point coordinates and reject malformed binding values."""
+    point = _native_curve_value(_NativeArcCurve(), 2.5)
+    assert (point.x, point.y) == (2.5, 3.5)
+
+    try:
+        _native_curve_value(_MalformedNativeArcCurve(), 2.5)
+    except TypeError as error:
+        assert "numeric x/y" in str(error)
+    else:
+        raise AssertionError("malformed native point coordinates must be rejected")

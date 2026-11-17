@@ -4,35 +4,36 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document members required by drape-target commands."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
-
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a document object by its internal name."""
         ...
 
-    def addObject(self, type_id: str, object_name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, type_id: str, object_name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native document object for the requested feature type."""
         ...
 
-    def recompute(self) -> None:
-        """Recompute the document after target links are assigned."""
-        ...
 
-
-class _SimulationScene(Protocol):
+class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Simulation-scene properties owned by the canonical target model."""
 
-    Document: _FreeCADDocument
+    @property
+    def Document(self) -> _FreeCADDocument:
+        """Return the owning native FreeCAD document."""
+        ...
+
     DrapeTarget: _DrapeTarget | None
 
 

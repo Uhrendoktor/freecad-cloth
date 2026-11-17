@@ -9,6 +9,7 @@ Standalone object creation remains valid when no Garment root is present.
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
@@ -40,24 +41,79 @@ _ROLE_TO_GROUP: dict[str, str] = {
 class FreeCADDocumentObjectProtocol(Protocol):
     """Native FreeCAD object identity and property capabilities used by the hierarchy adapter."""
 
-    Name: str
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal object name.
+
+        Returns:
+            Stable document-local name assigned by FreeCAD.
+        """
+        ...
+
     Label: str
-    TypeId: str
-    PropertiesList: list[str]
+
+    @property
+    def TypeId(self) -> str:
+        """Return the immutable native object type identifier.
+
+        Returns:
+            FreeCAD TypeId for this document object.
+        """
+        ...
+
+    @property
+    def PropertiesList(self) -> Sequence[str]:
+        """Return the names of properties registered on the native object.
+
+        Returns:
+            Read-only sequence of registered property identifiers.
+        """
+        ...
+
+
+class FreeCADDocumentProtocol(Protocol):
+    """Read-only identity and lifecycle operations shared by native FreeCAD documents."""
+
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name.
+
+        Returns:
+            Stable internal name assigned by the FreeCAD document manager.
+        """
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence.
+
+        Returns:
+            Read-only sequence of native document features.
+        """
+        ...
+
+    def recompute(self) -> int | None:
+        """Recompute document features and return the native host status code.
+
+        Returns:
+            Native recompute status code, or None when the host returns no status.
+        """
+        ...
 
 
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
-    Group: list[FreeCADDocumentObjectProtocol]
+    @property
+    def Group(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the current children of this native container."""
+        ...
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    Objects: list[FreeCADDocumentObjectProtocol]
-
-    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native FreeCAD object inside the document.
 
         Args:
@@ -67,10 +123,6 @@ class _FreeCADDocument(Protocol):
         Returns:
             The new document object exposing FreeCAD identity and properties.
         """
-        ...
-
-    def recompute(self) -> None:
-        """Recompute the document after hierarchy changes."""
         ...
 
 

@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from itertools import starmap
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast, override
 
+from freecad_cloth.avatar.avatar_protocols import (
+    AvatarParametersFeatureProtocol,
+    NativeAvatarMeshProtocol,
+)
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -35,7 +39,10 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 
 if TYPE_CHECKING:
@@ -72,24 +79,8 @@ class _AvatarViewObject(Protocol):
     Visibility: bool
 
 
-class _NativeVector(Protocol):
-    """Coordinate fields exposed by FreeCAD's native vector type."""
-
-    x: float
-    y: float
-    z: float
-
-
-class _NativeAvatarMesh(Protocol):
-    """Indexed native mesh operations required by the avatar builder."""
-
-    def addFacets(
-        self,
-        facets: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]],
-        check_manifold: bool = False,
-    ) -> None:
-        """Populate the mesh with shared vertices and indexed triangular faces."""
-        ...
+class _NativeAvatarMesh(NativeAvatarMeshProtocol, Protocol):
+    """Native FreeCAD mesh contract retained at the avatar command boundary."""
 
 
 class _AvatarFeatureView(Protocol):
@@ -102,20 +93,27 @@ class _AvatarFeatureView(Protocol):
     ViewObject: _AvatarViewObject
 
 
-class _FreeCADDocument(Protocol):
-    """Document members used by the persistent avatar command boundary."""
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
+    """Document operations used by the persistent avatar command boundary."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
-
-    def addObject(self, object_type: str, object_name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, object_name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native feature with the requested type and internal name."""
         ...
 
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a native document feature by its internal name."""
         ...
 
-    def recompute(self) -> None:
+    def removeObject(self, object_name: str, /) -> None:
+        """Remove the named object from this document.
+
+        Args:
+            object_name: Stable internal FreeCAD object name to remove.
+        """
+        ...
+
+    @override
+    def recompute(self, /) -> int | None:
         """Recompute the document after changing persistent avatar state."""
         ...
 
@@ -124,7 +122,12 @@ class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol
     """Dynamic FreeCAD avatar properties used by its command lifecycle."""
 
     Label: str
-    Document: _FreeCADDocument
+
+    @property
+    def Document(self) -> _FreeCADDocument:
+        """Return the owning document for this persistent avatar feature."""
+        ...
+
     Mesh: _NativeAvatarMesh
     PosePreset: str
     SkinOffset: float
@@ -147,7 +150,10 @@ class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol
 class _FreeCADApplication(Protocol):
     """Application operations dynamically exported by the FreeCAD module."""
 
-    ActiveDocument: _FreeCADDocument | None
+    @property
+    def ActiveDocument(self) -> _FreeCADDocument | None:
+        """Return the currently active document, when one is open."""
+        ...
 
     def newDocument(self, name: str) -> _FreeCADDocument:
         """Create a new document with its stable internal name."""
@@ -457,7 +463,7 @@ def _shape_float(value: JsonValue, *, name: str) -> float:
         raise ValueError(msg) from exc
 
 
-def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
+def _stored_pose(obj: AvatarParametersFeatureProtocol, preset: str, payload: str) -> Pose:
     """Reconstruct saved pose values and apply legacy-schema angle migration.
 
     Args:
@@ -498,7 +504,7 @@ def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
     )
 
 
-def _parameters(obj: _AvatarFeature) -> AvatarParameters:
+def _parameters(obj: AvatarParametersFeatureProtocol) -> AvatarParameters:
     """Reconstruct validated avatar parameters from persisted FreeCAD properties.
 
     Args:
@@ -573,7 +579,7 @@ def _mesh_data(
 
         mesh_module = Mesh
 
-    native = mesh_module.Mesh()
+    native = cast("_NativeAvatarMesh", mesh_module.Mesh())
     vectors = list(starmap(app_module.Vector, vertices))
     # Preserve the provider's shared vertex indices. Passing one vector triple
     # per face builds disconnected facet topology in FreeCAD Mesh, so the
@@ -637,7 +643,9 @@ def _provider_geometry(
         return vertices, triangles, landmarks, provider_id, source, "Apache-2.0 / CC0"
     if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
         source_obj = (
-            getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
+            getattr(obj, "ProviderSource", None)
+            if isinstance(provider_source, _MissingProviderSource)
+            else provider_source
         )
         if source_obj is None or source_obj is obj:
             msg = "select a FreeCAD body as the avatar provider source"
@@ -701,7 +709,7 @@ def _rebuild(
     params.validate()
     if provider_id is None:
         provider_id = str(obj.AvatarProviderId)
-    if provider_source is _MISSING:
+    if isinstance(provider_source, _MissingProviderSource):
         provider_source = obj.ProviderSource
 
     # All potentially fallible geometry/provider work happens before any

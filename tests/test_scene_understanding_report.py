@@ -37,7 +37,8 @@ def _expect_dict(value: JsonValue, *, message: str) -> JsonObject:
     normalized: JsonObject = {}
     for key, item in value.items():
         if not isinstance(key, str):
-            raise AssertionError(f"{message} Dictionary keys must be strings.")
+            msg = f"{message} Dictionary keys must be strings."
+            raise AssertionError(msg)
         normalized[key] = item
     return normalized
 

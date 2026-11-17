@@ -36,7 +36,7 @@ _PENDING_DOCUMENT = None
 _OVERLAY_ENABLED = False
 
 
-def _read_preference(name: str, default: bool) -> bool:
+def _read_preference(name: str, *, default: bool) -> bool:
     """Read a Boolean Cloth GUI preference, falling back when the host is unavailable.
 
     Args:
@@ -55,7 +55,7 @@ def _read_preference(name: str, default: bool) -> bool:
         return bool(default)
 
 
-def _write_preference(name: str, value: bool) -> None:
+def _write_preference(name: str, *, value: bool) -> None:
     """Persist a Boolean preference without making headless imports fail.
 
     Args:
@@ -71,8 +71,8 @@ def _write_preference(name: str, value: bool) -> None:
         pass
 
 
-_HIGHLIGHTS_ENABLED = _read_preference("ShowSeamColorHighlights", True)
-_RESPECT_DEPTH_OCCLUSION = _read_preference("SeamOverlayRespectDepth", True)
+_HIGHLIGHTS_ENABLED = _read_preference("ShowSeamColorHighlights", default=True)
+_RESPECT_DEPTH_OCCLUSION = _read_preference("SeamOverlayRespectDepth", default=True)
 set_seam_color_highlighting_enabled(_HIGHLIGHTS_ENABLED)
 
 
@@ -395,7 +395,7 @@ def _add_line_groups(
     parent.addChild(separator)
 
 
-def _depth_buffer(coin: ModuleType, respect_depth: bool) -> object:
+def _depth_buffer(coin: ModuleType, *, respect_depth: bool) -> object:
     """Configure depth testing without losing coplanar seam lines to z-fighting.
 
     Args:
@@ -423,6 +423,7 @@ def _add_label(
     point: object,
     label: str,
     rgb: tuple[float, float, float],
+    *,
     respect_depth: bool = True,
 ) -> None:
     """Add a label that either obeys scene occlusion or is explicitly foregrounded.
@@ -439,7 +440,7 @@ def _add_label(
         coin.SoSeparator if respect_depth else getattr(coin, "SoAnnotation", coin.SoSeparator)
     )
     annotation = annotation_type()
-    depth = _depth_buffer(coin, respect_depth)
+    depth = _depth_buffer(coin, respect_depth=respect_depth)
     color = coin.SoBaseColor()
     color.rgb = tuple(float(channel) for channel in rgb)
     transform = coin.SoTransform()
@@ -723,7 +724,7 @@ class SeamOverlayController:
 
         while self.root.getNumChildren():
             self.root.removeChild(0)
-        self.root.addChild(_depth_buffer(coin, _RESPECT_DEPTH_OCCLUSION))
+        self.root.addChild(_depth_buffer(coin, respect_depth=_RESPECT_DEPTH_OCCLUSION))
 
         seams = _canonical_seams(self.document)
         ids = [str(seam.SeamId).strip() for seam in seams]
@@ -748,7 +749,7 @@ class SeamOverlayController:
                 side_group = coin.SoSeparator()
                 # Respect occlusion by default; the UI can explicitly opt into
                 # always-on-top rendering for crowded editing/simulation views.
-                side_group.addChild(_depth_buffer(coin, _RESPECT_DEPTH_OCCLUSION))
+                side_group.addChild(_depth_buffer(coin, respect_depth=_RESPECT_DEPTH_OCCLUSION))
                 color = colors[identity]
                 _add_line_groups(side_group, coin, _side_segments(points_a), color, width)
                 _add_line_groups(side_group, coin, _side_segments(points_b), color, width)
@@ -895,7 +896,7 @@ def set_seam_highlights_enabled(enabled: bool) -> bool:
     """
     global _HIGHLIGHTS_ENABLED
     _HIGHLIGHTS_ENABLED = bool(enabled)
-    _write_preference("ShowSeamColorHighlights", _HIGHLIGHTS_ENABLED)
+    _write_preference("ShowSeamColorHighlights", value=_HIGHLIGHTS_ENABLED)
     set_seam_color_highlighting_enabled(_HIGHLIGHTS_ENABLED)
     try:
         import FreeCAD as App
@@ -933,7 +934,7 @@ def set_seam_overlay_respect_depth(enabled: bool) -> bool:
     """
     global _RESPECT_DEPTH_OCCLUSION
     _RESPECT_DEPTH_OCCLUSION = bool(enabled)
-    _write_preference("SeamOverlayRespectDepth", _RESPECT_DEPTH_OCCLUSION)
+    _write_preference("SeamOverlayRespectDepth", value=_RESPECT_DEPTH_OCCLUSION)
     if _OVERLAY_ENABLED and _HIGHLIGHTS_ENABLED:
         refresh_seam_overlay()
     return _RESPECT_DEPTH_OCCLUSION

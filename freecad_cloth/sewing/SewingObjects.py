@@ -8,9 +8,15 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-from freecad_cloth.common.JsonTypes import JsonObject
-from freecad_cloth.pattern.SeamReference import ChangedEdgeReference, MissingEdgeReference
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
+from freecad_cloth.pattern.SeamReference import (
+    ChangedEdgeReference,
+    EdgeRecord,
+    MissingEdgeReference,
+)
 from freecad_cloth.sewing.SewingCorrespondence import (
     analyze_correspondence,
     correspondence_status_label,
@@ -112,7 +118,7 @@ class _SewingProxy(Protocol):
         ...
 
 
-type _EdgeRecordReader = Callable[..., JsonObject | None]
+type _EdgeRecordReader = Callable[..., EdgeRecord | None]
 
 
 class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
@@ -147,12 +153,10 @@ class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
     def setEditorMode(self, name: str, _mode: int) -> None: ...
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Native document operation required to create a persistent sewing feature."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
-
-    def addObject(self, _type_id: str, name: str) -> _SewingFeature:
+    def addObject(self, _type_id: str, name: str, /) -> _SewingFeature:
         """Create a Python-backed sewing feature with the requested internal name."""
         ...
 
@@ -847,7 +851,8 @@ def add_sewing_operation(
         name: Stable internal name and initial label for the operation feature.
 
     Returns:
-        Created sewing-operation feature with seam, piece, tolerance, and stitch properties."""
+        Created sewing-operation feature with seam, piece, tolerance, and stitch properties.
+    """
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"

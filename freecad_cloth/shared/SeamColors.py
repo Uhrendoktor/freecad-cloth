@@ -53,6 +53,7 @@ def register_seam_refresh_callback(
 
     Args:
         callback: Optional document-refresh callback; None clears a prior callback.
+
     """
     _SEAM_COLOR_STATE.refresh_callback = callback
 
@@ -62,6 +63,7 @@ def set_seam_color_highlighting_enabled(enabled: bool) -> None:
 
     Args:
         enabled: Value converted to a boolean to select semantic or neutral colors.
+
     """
     _SEAM_COLOR_STATE.highlights_enabled = bool(enabled)
 
@@ -71,6 +73,7 @@ def seam_color_highlighting_enabled() -> bool:
 
     Returns:
         bool: Whether identity-specific colors are enabled.
+
     """
     return _SEAM_COLOR_STATE.highlights_enabled
 
@@ -86,6 +89,7 @@ def _seam_color_for_id(seam_id: str) -> tuple[float, float, float]:
 
     Raises:
         ValueError: If the supplied identity is empty after trimming whitespace.
+
     """
     identity = str(seam_id).strip()
     if not identity:
@@ -108,6 +112,7 @@ def seam_color_map(seam_ids: Iterable[str]) -> dict[str, tuple[float, float, flo
 
     Raises:
         ValueError: If any supplied identity is empty after trimming whitespace.
+
     """
     identities = [str(seam_id).strip() for seam_id in seam_ids]
     if any(not identity for identity in identities):
@@ -125,6 +130,7 @@ def apply_seam_colors(objects: Iterable[_SeamFeature]) -> dict[str, tuple[float,
 
     Returns:
         dict[str, tuple[float, float, float]]: Applied RGB colors keyed by seam identity.
+
     """
     seam_objects = [obj for obj in objects if str(getattr(obj, "SeamId", "")).strip()]
     colors = seam_color_map(getattr(obj, "SeamId", "") for obj in seam_objects)

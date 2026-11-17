@@ -240,7 +240,8 @@ class QualitySimulationProxy:
         """Recreate non-serializable solver state after FreeCAD reloads the proxy.
 
         Args:
-            obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""
+            obj: Persisted simulation-quality feature restored by the FreeCAD document loader.
+        """
         self._preview_mesh_publisher = None
         self._restore_base()
         self.seam_stitch_pairs = {}

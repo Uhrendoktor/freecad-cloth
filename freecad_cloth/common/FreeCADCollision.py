@@ -22,6 +22,7 @@ def surface_from_freecad(
     Raises:
         TypeError: If the object exposes neither usable mesh topology nor a shape.
         ValueError: If the deflection, source topology, or collision geometry is invalid.
+
     """
     deflection = validate_finite_number(deflection)
     thickness = validate_finite_number(thickness)

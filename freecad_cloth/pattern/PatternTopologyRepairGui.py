@@ -4,14 +4,31 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
-
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from types import ModuleType
 
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
+    from freecad_cloth.pattern.PatternTopologyRepair import (
+        DocumentTransactionProtocol,
+        SeamFeatureProtocol,
+    )
+
+
+class _ComboBoxProtocol(Protocol):
+    """Minimal Qt combo-box interface used by the topology repair panel."""
+
+    def addItem(self, text: str, userData: str | None = None) -> None: ...
+
+    def currentData(self) -> str | None: ...
+
+    def findData(self, value: str) -> int: ...
+
+    def setCurrentIndex(self, index: int) -> None: ...
+
+    def count(self) -> int: ...
 
 
 def _gui_modules() -> tuple[ModuleType, ModuleType]:
@@ -33,7 +50,7 @@ class _TopologyRepairViewportPicker:
     def __init__(
         self,
         panel: PatternTopologyRepairTaskPanel,
-        seam: FreeCADDocumentObjectProtocol,
+        seam: DocumentTransactionProtocol,
         side: str,
         combo: _QT_TYPE_QtWidgets.QComboBox,
     ) -> None:
@@ -194,7 +211,7 @@ class _TopologyRepairViewportPicker:
 class PatternTopologyRepairTaskPanel:
     """Show invalid seam sides and require an explicit current-edge mapping."""
 
-    def __init__(self, doc):
+    def __init__(self, doc: DocumentTransactionProtocol) -> None:
         Gui, QtWidgets = _gui_modules()
         from freecad_cloth.pattern.PatternTopologyRepair import (
             current_edge_candidates,
@@ -213,7 +230,9 @@ class PatternTopologyRepairTaskPanel:
                 "seam side. Nothing is remapped automatically."
             )
         )
-        self.rows = []
+        self.rows: list[
+            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]
+        ] = []
         grid_content = QtWidgets.QWidget()
         grid = QtWidgets.QVBoxLayout(grid_content)
         grid.setContentsMargins(0, 0, 0, 0)
@@ -278,7 +297,7 @@ class PatternTopologyRepairTaskPanel:
 
     def _begin_viewport_pick(
         self,
-        seam: FreeCADDocumentObjectProtocol,
+        seam: DocumentTransactionProtocol,
         side: str,
         combo: _QT_TYPE_QtWidgets.QComboBox,
     ) -> None:
@@ -333,13 +352,13 @@ class PatternTopologyRepairTaskPanel:
 
         set_status(self.status, message, state=state)
 
-    def accept(self):
+    def accept(self) -> bool:
         from freecad_cloth.pattern.PatternTopologyRepair import apply_repair_plan
 
         if self._active_picker is not None:
             self._cancel_viewport_pick()
-        repairs = [
-            (seam, side, combo.currentData())
+        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [
+            (seam, side, str(combo.currentData()))
             for seam, side, combo, _pick_button in self.rows
             if combo.currentData()
         ]
@@ -365,17 +384,17 @@ class PatternTopologyRepairTaskPanel:
         self.Gui.Control.closeDialog()
         return True
 
-    def reject(self):
+    def reject(self) -> bool:
         if self._active_picker is not None:
             self._cancel_viewport_pick()
         self.Gui.Control.closeDialog()
         return True
 
-    def getStandardButtons(self):
+    def getStandardButtons(self) -> int:
         return 0x00000400 | 0x00800000
 
 
-def show_topology_repair_task(doc):
+def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:
     Gui, _QtWidgets = _gui_modules()
     panel = PatternTopologyRepairTaskPanel(doc)
     Gui.Control.showDialog(panel)

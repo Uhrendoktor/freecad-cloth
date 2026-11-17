@@ -69,77 +69,300 @@ freecad_cloth = ["resources/**/*"]
 pythonpath = [".", "tests"]
 
 [tool.ruff]
+required-version = "==0.17.2"
 target-version = "py312"
 line-length = 100
 respect-gitignore = true
 force-exclude = false
 
 [tool.ruff.lint]
-# Broad, production-oriented static checks; only formatter conflicts and
-# FreeCAD-required host imports are excluded.
-select = [
-  "E",
-  "F",
-  "W",
-  "I",
-  "A",
-  "ANN401",
-  "B",
-  "BLE",
-  "C4",
-  "DTZ",
-  "FURB",
-  "G",
-  "LOG",
-  "PERF",
-  "PGH",
-  "PIE",
-  "RET",
-  "RUF",
-  "SIM",
-  "UP",
-  "YTT",
-]
+select = ["ALL"]
+preview = true
 ignore = [
-  "E402",
-  "E501",
+  # Conflicts with Ruff format or mutually exclusive pydocstyle conventions.
+  "COM812",
+  "COM819",
+  "D206",
+  "D300",
+  "E111",
+  "E114",
+  "E117",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "Q004",
+  "W191",
 
-  # Legacy printf interpolation remains useful in FreeCAD console/status diagnostics;
-  # replacing it wholesale with f-strings is not a semantics-preserving lint autofix.
+  # The project intentionally uses PascalCase module paths as stable FreeCAD APIs.
+  "N999",
+
+  # Lazy/local imports preserve runtime boundaries and avoid eager host imports/cycles.
+  "PLC0415",
+
+  # Preserve legacy printf formatting in FreeCAD console/status messages.
   "UP031",
 
-  # These rules encode local style preferences, not correctness or maintainability
-  # guarantees, and can obscure the intent of sequence and return contracts.
-  "RUF007",
-  "RUF046",
-  "RUF005",
-  "RET501",
-  "RET503",
-  "RET504",
-  "SIM105",
-  "C401",
-  "C408",
-  "C416",
-  "FURB162",
-  "FURB192",
-  "PIE810",
-  "RUF043",
-  "UP017",
-  "UP040",
+  # A documented exception may propagate from a called API without being explicitly raised here.
+  "DOC502",
+
+  # Instance binding can be part of a FreeCAD callback/plugin contract even when self is unused.
+  "PLR6301",
+
+  # Raise-inside-try is intentional for cleanup, rollback, and exception translation paths.
+  "TRY301",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.flake8-annotations]
+# Python, like Rust, has an implicit unit return; require annotations only for value returns.
+suppress-none-returning = true
+
+[tool.ruff.lint.pep8-naming]
+# Keep exact native FreeCAD/Qt/Pivy/pyPBD API names and module aliases at adapter boundaries.
+extend-ignore-names = [
+  "Activated",
+  "Initialize",
+  "GetResources",
+  "getStandardButtons",
+  "addObject",
+  "IsActive",
+  "getObject",
+  "isNull",
+  "addProperty",
+  "multVec",
+  "addSelection",
+  "addCommand",
+  "addFacets",
+  "setProperty",
+  "setText",
+  "setWordWrap",
+  "toShape",
+  "clearSelection",
+  "isInside",
+  "abortTransaction",
+  "newDocument",
+  "addWidget",
+  "transformShape",
+  "toMatrix",
+  "removeObject",
+  "isVisible",
+  "setVisible",
+  "findChildren",
+  "onDocumentRestored",
+  "BoundBox",
+  "setEnabled",
+  "getSelection",
+  "setMass",
+  "getCurrent",
+  "activeView",
+  "valueAt",
+  "fitAll",
+  "commitTransaction",
+  "currentText",
+  "isChecked",
+  "isActive",
+  "modifyStandardButtons",
+  "setContentsMargins",
+  "setSpacing",
+  "setStyleSheet",
+  "activeWorkbench",
+  "appendToolbar",
+  "appendMenu",
+  "appendContextMenu",
+  "setEditorMode",
+  "setObjectName",
+  "setToolTip",
+  "addLayout",
+  "activeDialog",
+  "closeDialog",
+  "activateWorkbench",
+  "getNumberOfParticles",
+  "getMass",
+  "getVelocity",
+  "setVelocity",
+  "setPosition",
+  "getVertices",
+  "setFrictionCoeff",
+  "setTolerance",
+  "getCollisionDetection",
+  "setValueUInt",
+  "addTriangleModel",
+  "getParticles",
+  "addClothConstraints",
+  "addBendingConstraints",
+  "getConstraints",
+  "addDistanceConstraint_XPBD",
+  "addRigidBody",
+  "getModel",
+  "initDefault",
+  "getTimeStep",
+  "setTime",
+  "setTimeStepSize",
+  "addVertex",
+  "initMesh",
+  "addFace",
+  "buildNeighbors",
+  "generateSDF",
+  "Document",
+  "CountPoints",
+  "CountFacets",
+  "setPoint",
+  "getPosition",
+  "getState",
+  "getButton",
+  "getEvent",
+  "setHandled",
+  "getObjectInfo",
+  "className",
+  "isEnabled",
+  "metaObject",
+  "objectName",
+  "parentWidget",
+  "mapToGlobal",
+  "setFocus",
+  "selectAll",
+  "hasFocus",
+  "activateWindow",
+  "winId",
+  "mapFromGlobal",
+  "getSize",
+  "getPointOnScreen",
+  "setCameraType",
+  "saveImage",
+  "processEvents",
+  "hashCode",
+  "Vertexes",
+  "Edges",
+  "Faces",
+  "Solids",
+  "getConstruction",
+  "addGeometry",
+  "SewingOutline",
+  "DraftingBoundary",
+  "openTransaction",
+  "PieceId",
+  "PatternA",
+  "PatternB",
+  "EdgeAId",
+  "EdgeASignature",
+  "EdgeA",
+  "EdgeBId",
+  "EdgeBSignature",
+  "EdgeB",
+  "currentData",
+  "Width",
+  "Height",
+  "SeamAllowance",
+  "GeometryMode",
+  "DraftingBoundary",
+  "SewingBoundary",
+  "SewingOutline",
+  "Shape",
+  "viewTop",
+  "QtWidgets",
+  "QtCore",
+  "Gui",
+  "_QtWidgets",
+  "_App",
+  "_QtGui",
+  "App",
+  "QtTest",
+  "_QtTest",
+  "_QtCore",
+  "QtGui",
+  "QtSvg",
+  "_Gui",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Standard unittest assertions are the native test oracle for this FreeCAD project.
-"tests/**/*.py" = ["S101"]
+# Test literals and test/acceptance output are intentional parts of the test oracle and CLI.
+# Unit-style test functions intentionally use Python's implicit None return, like Rust unit tests.
+"tests/**/*.py" = ["S101", "PLR2004", "T201"]
 
-# FreeCAD task callbacks must contain SWIG/Qt exceptions at the host boundary.
-# Broad exception handling is part of teardown, diagnostic reporting, and GUI resilience.
+# These tests assert public exception classes where message text is not a contract.
+"tests/test_avatar_provider.py" = ["PT011"]
+"tests/test_boundary_validation_expansion.py" = ["PT011"]
+"tests/test_pattern_geometry.py" = ["PT011"]
+"tests/test_seam_reference.py" = ["PT011"]
+"tests/test_validation_models.py" = ["PT011"]
+
+# Acceptance/CLI diagnostics deliberately use contextual built-in exception messages.
+"tests/freecad_screenshot_source.py" = ["TRY003", "E402"]
+"tests/freecad_simulation_quality_acceptance.py" = ["TRY003"]
+"tests/test_scene_understanding_report.py" = ["TRY003"]
+"tests/test_sewing_workbench.py" = ["TRY003"]
+"tools/ci/check_changed_python_types.py" = ["TRY003", "T201"]
+"tools/ci/check_docker_workspace_transfer.py" = ["TRY003", "T201"]
+"tools/ci/validate_ci_structure.py" = ["TRY003"]
+
+# These CI tools have stable stdout contracts consumed by Actions and developers.
+"tools/ci/check_explicit_any_annotations.py" = ["T201"]
+"tools/ci/check_pydantic_models.py" = ["T201"]
+
+# Native FreeCAD console diagnostics are intentionally visible to the user.
+"freecad_cloth/avatar/AnnyAvatarBackend.py" = ["T201"]
+
+# Executable adapters establish a checkout path before importing repository modules.
+"tools/ci/check_visual_assets_and_budget.py" = ["E402"]
+"tools/ci/validate_acceptance.py" = ["E402"]
+"tests/test_pattern_marks.py" = ["E402"]
+"tests/test_command_adapter.py" = ["E402"]
+"tests/test_meshpart_adapter.py" = ["E402"]
+"tests/test_sewing_repair.py" = ["E402"]
+"tests/test_simulation_gui.py" = ["E402"]
+"tests/freecad_meshpart_smoke.py" = ["E402"]
+"tests/freecad_workbench_benchmark.py" = ["E402"]
+"tests/freecad_tunic_audit_production.py" = ["E402"]
+"tests/test_core.py" = ["E402"]
+"tests/test_sewing_network_gui_contract.py" = ["E402"]
+"tests/test_sewing_gui_contract.py" = ["E402"]
+"tests/freecad_pattern_workbench_smoke.py" = ["E402"]
+"tests/freecad_avatar_smoke.py" = ["E402"]
+"tests/drape_backend_micro.py" = ["E402"]
+"tests/freecad_e2e.py" = ["E402"]
+"tests/test_sewing_network.py" = ["E402"]
+"tests/test_sewing_show2d.py" = ["E402"]
+"tests/test_pattern_ir.py" = ["E402"]
+"tests/freecad_drape_debug.py" = ["E402"]
+"tests/test_freecad_objects.py" = ["E402"]
+"tests/freecad_surface_pen_smoke.py" = ["E402"]
+"tests/freecad_avatar_acceptance.py" = ["E402"]
+"tests/freecad_pbd_cube_ladder.py" = ["E402"]
+"tests/freecad_pbd_ladder_bootstrap.py" = ["E402"]
+"tests/freecad_pbd_avatar_ladder.py" = ["E402"]
+"tests/freecad_sketcher_acceptance.py" = ["E402"]
+"tests/freecad_visual_examples.py" = ["E402"]
+"tests/test_sewing_network_gui.py" = ["E402"]
+"tests/freecad_avatar_screenshot.py" = ["E402"]
+"tests/freecad_smoke.py" = ["E402"]
+"tests/freecad_sewing_smoke.py" = ["E402"]
+
+# FreeCAD acceptance scripts bootstrap the checkout before importing FreeCAD or project modules.
+"tools/ci/check_visual_asset_contract.py" = ["E402"]
+"tools/ci/maintenance_cleanup.py" = ["E402"]
+"tools/ci/validate_realtime_benchmark.py" = ["E402"]
+"tools/ci/validate_workbench_benchmark.py" = ["E402"]
+"tests/freecad_pbd_contact_diagnostics.py" = ["E402"]
+"tests/freecad_realtime_benchmark.py" = ["E402"]
+"tests/freecad_garment_e2e_smoke.py" = ["E402"]
+"tests/freecad_pattern_export_smoke.py" = ["E402"]
+"tests/freecad_simulation_turntable.py" = ["E402"]
+"tests/freecad_sewing_creation_smoke.py" = ["E402"]
+"tests/freecad_avatar_pose_ui_acceptance.py" = ["E402"]
+"tests/freecad_interactive_arrange_acceptance.py" = ["E402"]
+"tests/freecad_avatar_shape_editor_acceptance.py" = ["E402"]
+
+# Keep the established positional boolean argument of this public shared helper.
+"freecad_cloth/shared/SeamColors.py" = ["FBT001"]
+
+# FreeCAD task and teardown callbacks must contain native SWIG/Qt exceptions.
 "freecad_cloth/pattern/PatternCommands.py" = ["BLE001"]
 "freecad_cloth/pattern/PatternTopologyRepairGui.py" = ["BLE001"]
 "freecad_cloth/simulation/RealtimePreview.py" = ["BLE001"]
 "freecad_cloth/simulation/SimulationQualityGui.py" = ["BLE001"]
-
-# These integration/teardown runners must close the native FreeCAD process after any failure.
 "tests/freecad_*.py" = ["BLE001"]
 "tests/support/pbd_contact_helpers.py" = ["BLE001"]
 "tools/benchmark_workbenches.py" = ["BLE001"]

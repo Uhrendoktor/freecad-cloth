@@ -341,7 +341,7 @@ def _cut_contour_with_notches(
     return tuple(result)
 
 
-def _sampled_sewing(pattern, curve_samples):
+def _sampled_sewing(pattern: ParametricPattern, curve_samples: int) -> list[Point]:
     """Sample the authoritative sewing outline and reject an empty boundary.
 
     Args:
@@ -486,7 +486,7 @@ def to_svg(
         msg = "pattern must have non-zero extent"
         raise ValueError(msg)
 
-    def xy(point):
+    def xy(point: Point) -> Point:
         """Translate a pattern coordinate into the SVG viewBox coordinate frame.
 
         Args:
@@ -497,7 +497,7 @@ def to_svg(
         """
         return (point[0] - min_x, height - (point[1] - min_y))
 
-    def path(points, closed=True):
+    def path(points: Iterable[Point], *, closed: bool = True) -> str:
         """Serialize an ordered point sequence as one SVG path command string.
 
         Args:
@@ -529,7 +529,7 @@ def to_svg(
         )
         cut_points = cut_contour or tuple(point for edge in cut_edges for point in edge.points)
         lines.append(
-            f'  <g id="cut-boundary"><path id="cut-perimeter" data-notch-ids="{notch_ids}" d="{path(cut_points, True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
+            f'  <g id="cut-boundary"><path id="cut-perimeter" data-notch-ids="{notch_ids}" d="{path(cut_points, closed=True)}" fill="none" stroke="#000000" stroke-width="0.3" stroke-linecap="round" stroke-linejoin="round"/></g>'
         )
     if derived is not None and derived.marks:
         lines.append('  <g id="construction-marks">')
@@ -583,9 +583,9 @@ def to_dxf(
     if derived is not None and derived.sewing_boundary is not pattern:
         msg = "derived pattern belongs to a different sewing boundary"
         raise ValueError(msg)
-    entities = []
+    entities: list[list[str]] = []
 
-    def polyline(points, layer, closed=True):
+    def polyline(points: Iterable[Point], layer: str, *, closed: bool = True) -> None:
         """Append one lightweight-polyline entity to the requested DXF layer.
 
         Args:
@@ -601,16 +601,16 @@ def to_dxf(
             values += ["10", _fmt(x), "20", _fmt(y)]
         entities.append(values)
 
-    polyline(sewing, "SEWING", True)
+    polyline(sewing, "SEWING", closed=True)
     if derived is not None:
         cut_contour = _cut_contour_with_notches(pattern, derived)
         if cut_contour:
-            polyline(cut_contour, "CUT", True)
+            polyline(cut_contour, "CUT", closed=True)
         for mark in derived.marks:
             x, y = mark_point(pattern, mark)
             angle = radians(mark.angle)
             dx, dy = cos(angle) * mark.length / 2, sin(angle) * mark.length / 2
-            polyline([(x - dx, y - dy), (x + dx, y + dy)], "MARK", False)
+            polyline([(x - dx, y - dy), (x + dx, y + dy)], "MARK", closed=False)
     metadata = json.dumps(
         _metadata(pattern, units, piece_id, seam_ids, derived, seam_allowance),
         sort_keys=True,

@@ -454,6 +454,7 @@ def make_disclosure(
     content: _VisibilityWidget,
     qt_core: ModuleType,
     qt_widgets: ModuleType,
+    *,
     expanded: bool = False,
 ) -> tuple[object, object]:
     """Wrap optional settings in a compact, keyboard-operable disclosure row.

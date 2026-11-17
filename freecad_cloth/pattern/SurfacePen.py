@@ -802,7 +802,8 @@ def extract_surface_draft_to_pattern(surface_draft, tolerance_mm=8.0, name=None)
 
     Raises:
         ValueError: If target provenance is stale, anchor data is malformed, no active
-            document exists, or the stroke cannot be flattened within tolerance."""
+            document exists, or the stroke cannot be flattened within tolerance.
+    """
     import FreeCAD as App
 
     target = getattr(surface_draft, "Target", None)
@@ -940,7 +941,8 @@ class SurfacePenController:
         """Switch between point placement, freehand trace, and reference-point modes.
 
         Args:
-            value: Visible mode label selected by the task-panel combo box."""
+            value: Visible mode label selected by the task-panel combo box.
+        """
         label = str(value).lower()
         if "freehand" in label:
             mode = "freehand"
@@ -957,7 +959,8 @@ class SurfacePenController:
         """Choose whether the next placed anchor is a corner or curve-through point.
 
         Args:
-            value: Visible label selecting either corner or curve-point semantics."""
+            value: Visible label selecting either corner or curve-point semantics.
+        """
         self.point_kind = "curve" if "curve" in str(value).lower() else "corner"
         self._status(self._stroke_status())
 
@@ -1280,7 +1283,8 @@ class SurfacePenController:
                 the requested planar representation.
 
         Returns:
-            Native Sketcher reference-point sketch or extracted PatternPiece feature."""
+            Native Sketcher reference-point sketch or extracted PatternPiece feature.
+        """
         if self._drawing:
             self._drawing = False
             self._last_screen = None
@@ -1454,7 +1458,8 @@ class SurfacePenTaskPanel:
         """Finish the selected Surface Pen mode using the task-panel planar tolerance.
 
         Returns:
-            True when extraction succeeds; False when a recoverable input error is shown."""
+            True when extraction succeeds; False when a recoverable input error is shown.
+        """
         try:
             result = self.controller.finish(float(self.tolerance.value()))
         except (RuntimeError, ValueError) as exc:
@@ -1475,7 +1480,8 @@ class SurfacePenTaskPanel:
         """Close the task panel after committing the current surface draft.
 
         Returns:
-            True after the preview controller is deactivated and the dialog closes."""
+            True after the preview controller is deactivated and the dialog closes.
+        """
         self.controller.deactivate()
         with contextlib.suppress(AttributeError, RuntimeError):
             self.controller.Gui.Control.closeDialog()
@@ -1485,7 +1491,8 @@ class SurfacePenTaskPanel:
         """Cancel surface drawing and close the task panel without extraction.
 
         Returns:
-            True after the unfinished stroke is cleared and the dialog closes."""
+            True after the unfinished stroke is cleared and the dialog closes.
+        """
         self.controller.clear()
         self.controller.deactivate()
         with contextlib.suppress(AttributeError, RuntimeError):

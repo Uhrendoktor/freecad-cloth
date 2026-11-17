@@ -189,14 +189,20 @@ def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None
     )
 
     panel._mode_changed("Rectangle")
-    assert width_enabled[-1] is True and height_enabled[-1] is True
-    assert width_visible[-1] is True and height_visible[-1] is True
-    assert width_label_text[-1] == "Width" and height_label_text[-1] == "Height"
+    assert width_enabled[-1] is True
+    assert height_enabled[-1] is True
+    assert width_visible[-1] is True
+    assert height_visible[-1] is True
+    assert width_label_text[-1] == "Width"
+    assert height_label_text[-1] == "Height"
 
     panel._mode_changed("Custom")
-    assert width_enabled[-1] is False and height_enabled[-1] is False
-    assert width_visible[-1] is True and height_visible[-1] is True
-    assert width_label_visible[-1] is True and height_label_visible[-1] is True
+    assert width_enabled[-1] is False
+    assert height_enabled[-1] is False
+    assert width_visible[-1] is True
+    assert height_visible[-1] is True
+    assert width_label_visible[-1] is True
+    assert height_label_visible[-1] is True
     assert width_label_text[-1] == "Width (from outline)"
     assert height_label_text[-1] == "Height (from outline)"
     assert "derived from the custom drafting outline" in width_tooltips[-1]

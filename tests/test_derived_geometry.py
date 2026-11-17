@@ -1,10 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-import sys
-from pathlib import Path
 
 from shapely.geometry import Polygon
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from freecad_cloth.pattern.PatternDerivedGeometry import (
     Notch,

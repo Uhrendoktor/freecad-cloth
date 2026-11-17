@@ -3,6 +3,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from tests.support.assertions import require
 from tools.ci.strict_quality import (
     CPU_TORCH_REQUIREMENT,
@@ -13,6 +15,8 @@ from tools.ci.strict_quality import (
     quality_commands,
     quality_install_command,
     ready_marker_is_current,
+    ruff_autofix_commands,
+    write_ruff_autofix_patch,
 )
 
 
@@ -94,10 +98,30 @@ def test_quality_install_command_uses_resilient_download_timeouts() -> None:
     )
 
 
+def test_ruff_autofix_uses_only_safe_fixes_for_all_tracked_files() -> None:
+    """Format all tracked files and request safe Ruff fixes without unsafe transformations."""
+    python = Path("/runner-cache/venvs/strict-quality/bin/python")
+    tracked_files = ("freecad_cloth/module.py", "tests/module.pyi")
+    commands = ruff_autofix_commands(python, tracked_files)
+    require(
+        condition=tuple(command.arguments for command in commands)
+        == (
+            (str(python), "-m", "ruff", "format", *tracked_files),
+            (str(python), "-m", "ruff", "check", "--fix", *tracked_files),
+        ),
+        message="The bulk autofix must format all tracked files and use safe lint fixes only.",
+    )
+    require(
+        condition=all("--unsafe-fixes" not in command.arguments for command in commands),
+        message="Unsafe Ruff transformations must never be enabled in repository-wide autofix.",
+    )
+
+
 def test_quality_command_inventory_includes_every_strict_gate() -> None:
     """Keep architecture, typing, documentation, workflow, and Ruff checks enabled."""
     python = Path("/runner-cache/venvs/strict-quality/bin/python")
-    commands = quality_commands(python, ("freecad_cloth/module.py", "tests/module.pyi"))
+    tracked_files = ("freecad_cloth/module.py", "tests/module.pyi")
+    commands = quality_commands(python, tracked_files)
     labels = {command.label for command in commands}
     arguments = tuple(command.arguments for command in commands)
     require(
@@ -110,8 +134,8 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
             "Source-rewriting policy",
             "Explicit Any policy",
             "Pydantic model policy",
-            "Pyright production inventory",
-            "Typed simulation core",
+            "Pyright all Python files",
+            "Typed all Python files",
             "Changed Python annotation ratchet",
             "AST-grep rule tests",
             "AST-grep repository contracts",
@@ -129,13 +153,17 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
     require(
         condition=("pyright", "-p", "pyrightconfig.json") in arguments,
-        message="The reviewed Pyright production inventory must remain enabled.",
+        message="Strict Pyright must cover the full repository and remain enabled.",
     )
     require(
         condition=any(
             command[:4] == ("ty", "check", "--output-format", "github") for command in arguments
         ),
-        message="The blocking ty simulation-core profile must remain enabled.",
+        message="The blocking ty profile must check every tracked Python source and stub.",
+    )
+    require(
+        condition=("ty", "check", "--output-format", "github", *tracked_files) in arguments,
+        message="The ty command must receive the entire tracked Python inventory.",
     )
     require(
         condition=any(
@@ -169,13 +197,10 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
         ),
         (
             "tests/test_ci_configuration.py::"
-            "test_pyright_uses_the_reviewed_staged_production_inventory"
+            "test_pyright_uses_strict_mode_for_entire_python_repository"
         ),
-        (
-            "tests/test_ci_configuration.py::"
-            "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
-        ),
-        ("tests/test_ci_configuration.py::test_ty_warning_diagnostics_remain_blocking"),
+        ("tests/test_ci_configuration.py::test_new_python_modules_are_covered_by_strict_pyright"),
+        ("tests/test_ci_configuration.py::test_ty_all_diagnostics_remain_blocking"),
         "tests/test_avatar_service_contract.py",
         "tests/test_changed_python_types.py",
         "tests/test_command_runner.py",
@@ -213,4 +238,34 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     require(
         condition=any("tests/module.pyi" in command for command in arguments),
         message="Python stubs must remain included in both Ruff commands.",
+    )
+
+
+def test_ruff_autofix_patch_requires_an_explicit_handoff_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse to write the container patch when the runner handoff is not configured."""
+    monkeypatch.delenv("RUFF_AUTOFIX_PATCH_PATH", raising=False)
+    with pytest.raises(RuntimeError, match="RUFF_AUTOFIX_PATCH_PATH"):
+        write_ruff_autofix_patch("diff --git a/file.py b/file.py\\n")
+
+
+def test_ruff_autofix_patch_uses_the_container_copy_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Write the safe-fix patch to the exact path copied back by the runner."""
+    patch_path = tmp_path / "ruff-autofix.patch"
+    monkeypatch.setenv("RUFF_AUTOFIX_PATCH_PATH", str(patch_path))
+    patch_text = "diff --git a/first.py b/first.py\\n"
+
+    written_path = write_ruff_autofix_patch(patch_text)
+
+    require(
+        condition=written_path == patch_path,
+        message="The container patch writer and docker cp source path must agree.",
+    )
+    require(
+        condition=written_path.read_text(encoding="utf-8") == patch_text,
+        message="The container patch file must retain the generated safe Ruff diff.",
     )

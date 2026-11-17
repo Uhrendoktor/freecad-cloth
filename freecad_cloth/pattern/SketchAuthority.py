@@ -73,7 +73,8 @@ class SketchAuthorityProxy:
             obj: Persistent pattern-piece feature with a linked Sketcher object.
 
         Raises:
-            ValueError: If the feature lacks a Sketcher-authoritative sketch or valid boundary."""
+            ValueError: If the feature lacks a Sketcher-authoritative sketch or valid boundary.
+        """
         sketch = getattr(obj, "Sketch", None)
         if sketch is None or str(getattr(obj, "GeometryAuthority", "")) != "Sketcher":
             msg = "SketchAuthorityProxy requires a linked Sketcher-authoritative Sketch"
@@ -120,7 +121,8 @@ def attach(obj: object, sketch: object) -> object:
         sketch: Native Sketcher feature that becomes the boundary authority.
 
     Returns:
-        The same pattern-piece feature after its persistent links and proxy are installed."""
+        The same pattern-piece feature after its persistent links and proxy are installed.
+    """
     if "Sketch" not in obj.PropertiesList:
         obj.addProperty("App::PropertyLink", "Sketch", "Cloth")
     if "GeometryAuthority" not in obj.PropertiesList:

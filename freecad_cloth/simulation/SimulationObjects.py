@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 class _SimulationDocument(SimulationDocument, Protocol):
     """Document API used by the simulation scene and its mesh outputs."""
 
-    def addObject(self, object_type: str, name: str) -> _SimulationFeature:
+    def addObject(self, object_type: str, name: str, /) -> _SimulationFeature:
         """Create a simulation feature in the owning document.
 
         Args:
@@ -32,7 +32,7 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """
         ...
 
-    def getObject(self, object_name: str) -> _SimulationFeature | None:
+    def getObject(self, object_name: str, /) -> _SimulationFeature | None:
         """Look up a simulation feature by internal name.
 
         Args:
@@ -43,7 +43,7 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the document after changing persistent simulation state."""
         ...
 
