@@ -358,22 +358,17 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
 def ruff_autofix_commands(
     python: Path, tracked_files: tuple[str, ...]
 ) -> tuple[QualityCommand, ...]:
-    """Build repository-wide safe fixes plus a narrow test-only assertion migration.
-
-    Production code receives formatting and safe Ruff fixes only. Three known
-    pytest-style migrations are allowed to use unsafe fixes, and only under
-    the tests/ tree: unittest assertions, assertions in except blocks, and
-    unittest-style assertRaises calls.
+    """Build safe, repository-wide Ruff formatting and lint-fix commands.
 
     Args:
         python: Python executable in the pinned FreeCAD-aware quality environment.
         tracked_files: Git-tracked Python sources and stubs.
 
     Returns:
-        The safe repository-wide commands and an optional scoped test migration.
+        Formatter and safe lint-fix commands; unsafe fixes are never requested.
     """
     executable = str(python)
-    commands = [
+    return (
         QualityCommand(
             "Apply Ruff formatting",
             (executable, "-m", "ruff", "format", *tracked_files),
@@ -384,29 +379,7 @@ def ruff_autofix_commands(
             (executable, "-m", "ruff", "check", "--fix", *tracked_files),
             timeout_seconds=600,
         ),
-    ]
-    test_files = tuple(
-        path for path in tracked_files if path.startswith("tests/") and path.endswith(".py")
     )
-    if test_files:
-        commands.append(
-            QualityCommand(
-                "Migrate test-only unittest assertions",
-                (
-                    executable,
-                    "-m",
-                    "ruff",
-                    "check",
-                    "--fix",
-                    "--unsafe-fixes",
-                    "--select",
-                    "PT009,PT017,PT027",
-                    *test_files,
-                ),
-                timeout_seconds=600,
-            )
-        )
-    return tuple(commands)
 
 
 def write_ruff_autofix_patch(patch_text: str) -> Path:

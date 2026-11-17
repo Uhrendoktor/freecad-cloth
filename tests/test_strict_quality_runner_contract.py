@@ -98,41 +98,22 @@ def test_quality_install_command_uses_resilient_download_timeouts() -> None:
     )
 
 
-def test_ruff_autofix_scopes_unsafe_assertion_fixes_to_pytest_sources() -> None:
-    """Keep repository-wide fixes safe and restrict selected unsafe transforms to tests/."""
+def test_ruff_autofix_uses_only_safe_fixes_for_all_tracked_files() -> None:
+    """Format all tracked files and request safe Ruff fixes without unsafe transformations."""
     python = Path("/runner-cache/venvs/strict-quality/bin/python")
-    tracked_files = (
-        "freecad_cloth/module.py",
-        "tests/module.pyi",
-        "tests/test_module.py",
-    )
+    tracked_files = ("freecad_cloth/module.py", "tests/module.pyi")
     commands = ruff_autofix_commands(python, tracked_files)
     require(
-        condition=tuple(command.arguments for command in commands[:2])
+        condition=tuple(command.arguments for command in commands)
         == (
             (str(python), "-m", "ruff", "format", *tracked_files),
             (str(python), "-m", "ruff", "check", "--fix", *tracked_files),
         ),
-        message="All tracked files must receive formatting and safe Ruff fixes.",
+        message="The bulk autofix must format all tracked files and use safe lint fixes only.",
     )
     require(
-        condition=all("--unsafe-fixes" not in command.arguments for command in commands[:2]),
-        message="Unsafe fixes must not be applied to production sources or stubs.",
-    )
-    require(
-        condition=commands[2].arguments
-        == (
-            str(python),
-            "-m",
-            "ruff",
-            "check",
-            "--fix",
-            "--unsafe-fixes",
-            "--select",
-            "PT009,PT017,PT027",
-            "tests/test_module.py",
-        ),
-        message="Only selected pytest assertion migrations may use unsafe fixes, and only in tests/*.py.",
+        condition=all("--unsafe-fixes" not in command.arguments for command in commands),
+        message="Unsafe Ruff transformations must never be enabled in repository-wide autofix.",
     )
 
 
