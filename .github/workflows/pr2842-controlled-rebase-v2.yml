@@ -183,13 +183,15 @@ jobs:
 
           replace_once("from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Protocol")
           replace_once(
-              "if TYPE_CHECKING:\\n    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n",
+              "if TYPE_CHECKING:\\n    from types import ModuleType\\n\\n    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n",
               "if TYPE_CHECKING:\\n"
+              "    from types import ModuleType\\n\\n"
               "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
               "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n",
           )
           insert_after = (
               "if TYPE_CHECKING:\\n"
+              "    from types import ModuleType\\n\\n"
               "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
               "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n"
           )
