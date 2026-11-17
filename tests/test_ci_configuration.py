@@ -107,12 +107,12 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
 def test_freecad_timeout_override_accepts_extended_validation_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The layered-outfit acceptance may use the action's 1800-second hard limit."""
-    monkeypatch.setenv("FREECAD_APPLICATION_TIMEOUT_SECONDS", "1800")
-    assert configured_timeout_seconds() == 1800.0
+    """The layered-outfit acceptance may use the action's 7200-second hard limit."""
+    monkeypatch.setenv("FREECAD_APPLICATION_TIMEOUT_SECONDS", "7200")
+    assert configured_timeout_seconds() == 7200.0
 
-    monkeypatch.setenv("FREECAD_APPLICATION_TIMEOUT_SECONDS", "1801")
-    with pytest.raises(RuntimeError, match="between 1 and 1800"):
+    monkeypatch.setenv("FREECAD_APPLICATION_TIMEOUT_SECONDS", "7201")
+    with pytest.raises(RuntimeError, match="between 1 and 7200"):
         configured_timeout_seconds()
 
 
@@ -211,10 +211,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action.'
     )
     assert 'default: "120"' in container_action, "Expected 'default: \"120\"' in container_action."
-    assert "maximum 1800 seconds" in container_action, (
-        'Expected "maximum 1800 seconds" in container_action.'
+    assert "maximum 7200 seconds" in container_action, (
+        'Expected "maximum 7200 seconds" in container_action.'
     )
-    assert 'if [ "$timeout_seconds" -gt 1800 ]; then' in container_action, (
+    assert 'if [ "$timeout_seconds" -gt 7200 ]; then' in container_action, (
         "Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action."
     )
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner, (
@@ -1136,14 +1136,14 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
     assert "needs.gui-tunic-visual" not in job
     assert "uses: ./.github/actions/publish-visual-evidence" in job
     layered_outfit = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
-    assert "timeout-minutes: 45" in layered_outfit
+    assert "timeout-minutes: 135" in layered_outfit
     assert (
         'timeout: "360"'
         in layered_outfit.split("case: simulation-quality", 1)[1].split("case: layered-outfit", 1)[
             0
         ]
     )
-    assert 'timeout: "1800"' in layered_outfit.split("case: layered-outfit", 1)[1]
+    assert 'timeout: "7200"' in layered_outfit.split("case: layered-outfit", 1)[1]
     assert 'timeout: "1800"' in layered_outfit
     assert "name: layered-outfit-acceptance" in action
     assert "path: layered-outfit" in action
