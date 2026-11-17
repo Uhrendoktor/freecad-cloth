@@ -56,42 +56,54 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                git show ":1:$path" > "$tmpdir/base"
+                git show ":2:$path" > "$tmpdir/main"
+                git show ":3:$path" > "$tmpdir/pr"
+                if git merge-file -p "$tmpdir/main" "$tmpdir/base" "$tmpdir/pr" > "$tmpdir/merged"; then
+                  cat "$tmpdir/merged" > "$path"
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 if [[ "$path" == "tools/ci/validate_ci_structure.py" ]]; then
-                  # This conflict is the staged Pyright inventory versus the PR's repository-root
-                  # strict policy. Preserve the PR policy only in that exact constants block while
-                  # retaining all non-conflicting mainline additions from the three-way merge.
-                  python3 - "$tmpdir/merged" "$tmpdir/pr" "$path" <<'PY'
+                  # Resolve only the known staged-vs-root Pyright policy hunk to the PR side.
+                  # All other non-overlapping mainline edits remain from the clean merge-file output.
+                  python3 - "$tmpdir/merged" "$path" <<'PY'
           import pathlib
           import sys
 
-          merged_path, pr_path, output_path = map(pathlib.Path, sys.argv[1:])
-          merged = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
-          pr_text = pr_path.read_text(encoding="utf-8")
+          merged_path, output_path = map(pathlib.Path, sys.argv[1:])
+          lines = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
           result = []
           index = 0
           resolved = 0
-          while index < len(merged):
-              if not merged[index].startswith("<<<<<<< "):
-                  result.append(merged[index])
+          while index < len(lines):
+              if not lines[index].startswith("<<<<<<< "):
+                  result.append(lines[index])
                   index += 1
                   continue
               index += 1
-              while index < len(merged) and not merged[index].startswith("======="):
+              ours = []
+              while index < len(lines) and not lines[index].startswith("======="):
+                  ours.append(lines[index])
                   index += 1
-              if index >= len(merged):
+              if index >= len(lines):
                   raise SystemExit("unterminated main side of conflict")
               index += 1
               theirs = []
-              while index < len(merged) and not merged[index].startswith(">>>>>>> "):
-                  theirs.append(merged[index])
+              while index < len(lines) and not lines[index].startswith(">>>>>>> "):
+                  theirs.append(lines[index])
                   index += 1
-              if index >= len(merged):
+              if index >= len(lines):
                   raise SystemExit("unterminated PR side of conflict")
-              block = "".join(theirs)
-              if 'PYRIGHT_EXPECTED_INCLUDE = (".",)' not in block:
-                  raise SystemExit("unexpected strict-Pyright conflict content")
-              if "PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()" not in block:
-                  raise SystemExit("unexpected Pyright exclusion contract")
+              ours_text = "".join(ours)
+              theirs_text = "".join(theirs)
+              if "PYRIGHT_EXPECTED_INCLUDE = (" not in ours_text:
+                  raise SystemExit("unexpected main-side conflict content")
+              if 'PYRIGHT_EXPECTED_INCLUDE = (".",)' not in theirs_text:
+                  raise SystemExit("unexpected PR strict-Pyright conflict content")
+              if "PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()" not in theirs_text:
+                  raise SystemExit("unexpected PR Pyright exclusion contract")
               result.extend(theirs)
               resolved += 1
               index += 1
@@ -103,21 +115,11 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
-                # Use a true three-way merge; only non-overlapping changes are accepted.
-                git show ":1:$path" > "$tmpdir/base"
-                git show ":2:$path" > "$tmpdir/main"
-                git show ":3:$path" > "$tmpdir/pr"
-                if ! git merge-file -p "$tmpdir/main" "$tmpdir/base" "$tmpdir/pr" > "$tmpdir/merged"; then
-                  printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
-                  grep -n -E '^(<<<<<<<|=======|>>>>>>>)' "$tmpdir/merged" || true
-                  awk 'BEGIN { emit=0; remaining=0 } /^<<<<<<< / { emit=1; remaining=80 } emit { print; remaining--; if (remaining <= 0) emit=0 }' "$tmpdir/merged"
-                  rm -rf "$tmpdir"
-                  git rebase --abort
-                  exit 1
-                fi
-                cat "$tmpdir/merged" > "$path"
+                printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
+                grep -n -E '^(<<<<<<<|=======|>>>>>>>)' "$tmpdir/merged" || true
                 rm -rf "$tmpdir"
-                git add -- "$path"
+                git rebase --abort
+                exit 1
               done
               if ! GIT_EDITOR=true git rebase --continue; then
                 if ! git diff --name-only --diff-filter=U | grep -q .; then
