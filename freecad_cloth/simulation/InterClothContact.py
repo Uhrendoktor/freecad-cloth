@@ -51,12 +51,16 @@ class _SurfaceIndex(NamedTuple):
     triangle_radii: PointArray
     triangle_minimums: PointArray
     triangle_maximums: PointArray
+    triangle_normals: PointArray
+    triangle_origins: PointArray
     triangle_tree: KDTree
     edges: EdgeArray
     edge_centers: PointArray
     edge_half_lengths: PointArray
     edge_minimums: PointArray
     edge_maximums: PointArray
+    edge_starts: PointArray
+    edge_ends: PointArray
     edge_tree: KDTree
 
 
@@ -585,6 +589,30 @@ def _candidate_edge_triangle_pairs(
     )
     source_edge_indices = source_edge_indices[plausible]
     target_triangle_indices = target_triangle_indices[plausible]
+
+    # A segment/triangle pair within clearance must also approach the target
+    # triangle's plane within clearance (or cross it). Reject the remaining
+    # parallel, separated pairs before the comparatively expensive exact
+    # segment/triangle closest-point calculation.
+    if source_edge_indices.size:
+        triangle_normals = target.triangle_normals[target_triangle_indices]
+        triangle_origins = target.triangle_origins[target_triangle_indices]
+        signed_start = np.einsum(
+            "ij,ij->i",
+            source.edge_starts[source_edge_indices] - triangle_origins,
+            triangle_normals,
+        )
+        signed_end = np.einsum(
+            "ij,ij->i",
+            source.edge_ends[source_edge_indices] - triangle_origins,
+            triangle_normals,
+        )
+        near_plane = (
+            (signed_start * signed_end <= 0.0)
+            | (np.minimum(np.abs(signed_start), np.abs(signed_end)) <= clearance_mm)
+        )
+        source_edge_indices = source_edge_indices[near_plane]
+        target_triangle_indices = target_triangle_indices[near_plane]
     filter_seconds = time.perf_counter() - filter_started
     return (
         source_edge_indices,
@@ -626,6 +654,8 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     ).max(axis=1)
     triangle_minimums = triangle_points.min(axis=1)
     triangle_maximums = triangle_points.max(axis=1)
+    triangle_normals = cross_products / np.linalg.norm(cross_products, axis=1)[:, None]
+    triangle_origins = triangle_points[:, 0]
     triangle_tree = KDTree(triangle_centers)
 
     directed_edges = np.concatenate(
@@ -638,6 +668,8 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     edge_half_lengths = np.linalg.norm(edge_points[:, 1] - edge_points[:, 0], axis=1) * 0.5
     edge_minimums = edge_points.min(axis=1)
     edge_maximums = edge_points.max(axis=1)
+    edge_starts = edge_points[:, 0]
+    edge_ends = edge_points[:, 1]
     edge_tree = KDTree(edge_centers)
     return _SurfaceIndex(
         triangles,
@@ -645,12 +677,16 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
         triangle_radii,
         triangle_minimums,
         triangle_maximums,
+        triangle_normals,
+        triangle_origins,
         triangle_tree,
         edges,
         edge_centers,
         edge_half_lengths,
         edge_minimums,
         edge_maximums,
+        edge_starts,
+        edge_ends,
         edge_tree,
     )
 
