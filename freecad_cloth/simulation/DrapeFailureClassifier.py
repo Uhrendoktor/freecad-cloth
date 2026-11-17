@@ -14,12 +14,35 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 class DrapeMetrics(Protocol):
     """Describe the metric attributes consumed by the evidence classifier."""
 
-    finite: bool
-    vertices: int
-    state: str
-    vertical_span_ratio: float
-    lateral_span_ratio: float
-    target_vertex_clearance: float | None
+    @property
+    def finite(self) -> bool:
+        """Whether all measured mesh coordinates are finite."""
+        ...
+
+    @property
+    def vertices(self) -> int:
+        """Number of vertices in the measured garment mesh."""
+        ...
+
+    @property
+    def state(self) -> str:
+        """Existing mesh-state label from the upstream metric producer."""
+        ...
+
+    @property
+    def vertical_span_ratio(self) -> float:
+        """Vertical extent relative to the target."""
+        ...
+
+    @property
+    def lateral_span_ratio(self) -> float:
+        """Lateral extent relative to the target."""
+        ...
+
+    @property
+    def target_vertex_clearance(self) -> float | None:
+        """Nearest target-vertex clearance, when measured."""
+        ...
 
 
 MIN_VERTICAL_SPAN_RATIO = 0.15

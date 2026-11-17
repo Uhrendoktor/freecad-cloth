@@ -150,7 +150,10 @@ class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
 class _FreeCADDocument(Protocol):
     """Native document operation required to create a persistent sewing feature."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the native objects owned by the sewing document."""
+        ...
 
     def addObject(self, _type_id: str, name: str) -> _SewingFeature:
         """Create a Python-backed sewing feature with the requested internal name."""

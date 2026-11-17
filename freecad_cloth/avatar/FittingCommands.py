@@ -212,8 +212,11 @@ class _BoundingVolumeRef(Protocol):
 class _FittingAnchorTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Native target fields needed to persist a surface-local arrangement anchor."""
 
-    Name: str
-    Document: _FittingDocument | None
+    @property
+    def Document(self) -> _FittingDocument | None:
+        """Return the owning document when the anchor target is attached."""
+        ...
+
     Placement: _NativePlacement
 
 
@@ -239,7 +242,6 @@ class _NativePropertyAdder(Protocol):
 class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Persistent FreeCAD feature fields owned by the canonical fitting-scene schema."""
 
-    Name: str
     Label: str
     Document: _FittingDocument
     FittingType: str
@@ -277,7 +279,6 @@ class _FittingVisualView(Protocol):
 class _FittingVisualFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, Protocol):
     """Native display object contract for generated fitting point/volume markers."""
 
-    Name: str
     Label: str
     FittingType: str
     ViewObject: _FittingVisualView
@@ -1290,10 +1291,7 @@ _FITTING_MARKER_GROUP_LABEL = "Fitting / Arrangement Markers (automatic)"
 class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
     """Small structural interface for the FreeCAD presentation group."""
 
-    TypeId: str
     Label: str
-    Name: str
-    Group: Sequence[FreeCADDocumentObjectProtocol]
 
     def addObject(self, obj: FreeCADDocumentObjectProtocol) -> None:
         """Add a generated marker to the document's presentation group.

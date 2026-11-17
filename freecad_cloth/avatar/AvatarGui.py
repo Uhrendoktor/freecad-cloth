@@ -9,7 +9,7 @@ for validation and AvatarService remains the solver-neutral downstream API.
 from __future__ import annotations
 
 import contextlib
-from typing import TYPE_CHECKING, ClassVar, Protocol
+from typing import TYPE_CHECKING, ClassVar, Protocol, TypedDict
 
 from freecad_cloth.avatar.AvatarProperties import PROPERTY_MAP as AVATAR_PROPERTY_MAP
 from freecad_cloth.avatar.AvatarProperties import (
@@ -32,6 +32,24 @@ class _WidgetLayout(Protocol):
     def addWidget(self, widget: _QT_TYPE_QtWidgets.QWidget) -> None:
         """Define the minimal layout protocol used by the measurement panel."""
         ...
+
+
+class _AdvancedGroup(TypedDict):
+    """Typed widgets and rows contained in one advanced-control category."""
+
+    widget: _QT_TYPE_QtWidgets.QGroupBox
+    layout: _QT_TYPE_QtWidgets.QVBoxLayout
+    rows: list[_QT_TYPE_QtWidgets.QWidget]
+
+
+class _AdvancedPage(TypedDict):
+    """Typed controls and category groups for one advanced-parameter tab."""
+
+    scroll: _QT_TYPE_QtWidgets.QScrollArea
+    contents: _QT_TYPE_QtWidgets.QWidget
+    layout: _QT_TYPE_QtWidgets.QVBoxLayout
+    groups: dict[str, _AdvancedGroup]
+    empty_label: _QT_TYPE_QtWidgets.QLabel
 
 
 def _modules():
@@ -423,7 +441,7 @@ class AvatarTaskPanel:
         advanced_layout.addLayout(search_row)
 
         self.advanced_tabs = QtWidgets.QTabWidget()
-        self._advanced_pages = {}
+        self._advanced_pages: dict[str, _AdvancedPage] = {}
         for page_key, page_title in (("phenotypes", "Phenotypes"), ("morphs", "Body morphs")):
             scroll = QtWidgets.QScrollArea()
             scroll.setWidgetResizable(True)

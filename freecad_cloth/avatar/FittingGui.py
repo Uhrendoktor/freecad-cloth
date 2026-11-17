@@ -752,7 +752,11 @@ class DirectArrangeController:
         Args:
             info: Coin location event mapping containing the current screen Position.
         """
-        if self.drag_piece is None or self.drag_start_screen is None:
+        if (
+            self.drag_piece is None
+            or self.drag_start_screen is None
+            or self.drag_start_base is None
+        ):
             return
         position = self._event_position(info)
         if position is None:

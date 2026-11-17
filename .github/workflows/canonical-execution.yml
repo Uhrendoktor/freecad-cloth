@@ -125,6 +125,15 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Run strict repository checks in the pinned FreeCAD runtime
+        if: ${{ !(github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[apply-safe-ruff]')) }}
+        shell: bash
+        env:
+          QUALITY_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+          GH_TOKEN: ${{ github.token }}
+          RUNNER_TOOL_CACHE: ${{ runner.tool_cache }}
+        run: bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"
+      - name: Apply safe Ruff batch and dispatch exact-head validation
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[apply-safe-ruff]') }}
         shell: bash
         env:
           QUALITY_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}

@@ -26,21 +26,32 @@ _COLLISION_DEFLECTION_MM = 1.0
 class _FreeCADDocument(Protocol):
     """Describe the document methods used by the fitting handoff."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence."""
+        ...
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Look up a native document feature by its internal name."""
         ...
 
-    def recompute(self) -> None:
-        """Recompute the active document."""
+    def recompute(self) -> int | None:
+        """Recompute the active document and return its host status code."""
         ...
 
 
 class _FreeCADApplication(Protocol):
     """Describe the application methods used to resolve FreeCAD documents."""
 
-    ActiveDocument: _FreeCADDocument | None
+    @property
+    def ActiveDocument(self) -> _FreeCADDocument | None:
+        """Return the active document when one is open."""
+        ...
 
     def newDocument(self, name: str) -> _FreeCADDocument:
         """Create a FreeCAD document with the supplied internal name."""
@@ -142,7 +153,7 @@ class _FittingScene(Protocol):
     PiecePlacements: Sequence[str]
 
 
-class _SimulationScene(Protocol):
+class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Describe the simulation fields consumed or updated by this bridge."""
 
     ClothPieces: Sequence[_PatternPiece]
