@@ -31,7 +31,6 @@ class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
     EndB: float
 
 
-
 class _CorrespondenceSeam(Protocol):
     """Read-only normalized range fields consumed by correspondence analysis."""
 

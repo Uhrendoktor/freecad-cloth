@@ -14,6 +14,7 @@ from typing import Protocol, TypedDict, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
+
 def _modules():
     """Load the FreeCAD and Qt modules supported by the host runtime.
 
@@ -448,7 +449,7 @@ class SewingNetworkTaskPanel:
         Returns:
             A native numeric editor constrained to the normalized edge interval.
         """
-        field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())
+        field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())
         field.setRange(0.0, 1.0)
         field.setDecimals(4)
         field.setSingleStep(0.01)

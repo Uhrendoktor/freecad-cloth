@@ -1,7 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-from collections.abc import Sequence
 import sys
 import unittest
+from collections.abc import Sequence
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

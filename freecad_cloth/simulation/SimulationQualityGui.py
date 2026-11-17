@@ -358,7 +358,9 @@ class SimulationQualityTaskPanel:
 
             fitting = open_arrange_fit_from_simulation(self.scene)
             open_interactive_arrange(fitting)
-            self._refresh("Interactive target snapping opened. Drag each piece to a saved surface anchor.")
+            self._refresh(
+                "Interactive target snapping opened. Drag each piece to a saved surface anchor."
+            )
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self._set_status(f"Target-aware arrangement unavailable — {exc}", state="error")
 
