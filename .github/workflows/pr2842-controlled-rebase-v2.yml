@@ -478,45 +478,25 @@ jobs:
           rebased_head="$(git rev-parse HEAD)"
           main_sha="$(git rev-parse origin/main)"
           main_tree="$(git rev-parse "origin/main^{tree}")"
-          tree_entries='[]'
-          while IFS= read -r -d '' path; do
-            [[ -n "$path" ]] || continue
-            if [[ -e "$path" || -L "$path" ]]; then
-              mode=100644
-              [[ -x "$path" ]] && mode=100755
-              if [[ -L "$path" ]]; then
-                mode=120000
-                encoded="$(readlink "$path" | base64 -w0)"
-              else
-                encoded="$(base64 -w0 < "$path")"
-              fi
-              blob_sha="$(gh api --method POST "repos/${repo}/git/blobs" -f content="$encoded" -f encoding=base64 --jq .sha)"
-              entry="$(jq -n --arg path "$path" --arg mode "$mode" --arg sha "$blob_sha" '{path:$path,mode:$mode,type:"blob",sha:$sha}')"
-            else
-              mode="$(git ls-tree origin/main -- "$path" | awk '{print $1}')"
-              [[ -n "$mode" ]] || mode=100644
-              entry="$(jq -n --arg path "$path" --arg mode "$mode" '{path:$path,mode:$mode,type:"blob",sha:null}')"
-            fi
-            tree_entries="$(jq --argjson entry "$entry" '. + [$entry]' <<< "$tree_entries")"
-          done < <(git diff --name-only -z --no-renames origin/main HEAD)
-          tree_payload="$RUNNER_TEMP/pr2842-tree.json"
-          jq -n --arg base_tree "$main_tree" --argjson tree "$tree_entries" '{base_tree:$base_tree,tree:$tree}' > "$tree_payload"
-          merged_tree="$(gh api --method POST "repos/${repo}/git/trees" --input "$tree_payload" --jq .sha)"
-          parents="$(jq -n --arg main "$main_sha" --arg original "$EXPECTED_HEAD" '[$main,$original]')"
-          commit_payload="$RUNNER_TEMP/pr2842-commit.json"
-          jq -n --arg message "Merge main into PR #2842 after reviewed rebase" --arg tree "$merged_tree" --argjson parents "$parents" '{message:$message,tree:$tree,parents:$parents}' > "$commit_payload"
-          merge_commit="$(gh api --method POST "repos/${repo}/git/commits" --input "$commit_payload" --jq .sha)"
+          # Keep the canonical workflow from main: it already has the strict-quality
+          # gate and uses the current runner_target policy. The PR's old workflow file only
+          # adds an optional safe-autofix job and hard-pins obsolete self-hosted runners.
+          git checkout origin/main -- .github/workflows/canonical-execution.yml
+          git add -- .github/workflows/canonical-execution.yml
+          tree_sha="$(git write-tree)"
+          main_sha="$(git rev-parse origin/main)"
+          merge_commit="$(printf '%s\\n' "Merge main into PR #2842 after reviewed rebase" | git commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD")"
+          git merge-base --is-ancestor "$EXPECTED_HEAD" "$merge_commit"
+          git merge-base --is-ancestor "$main_sha" "$merge_commit"
+          git push origin "$merge_commit:refs/heads/${target_branch}"
           echo "PR2842_MERGE_COMMIT_SHA=$merge_commit"
-          echo "PR2842_MERGED_TREE_SHA=$merged_tree"
-          echo "PR2842_REBASED_HEAD=$rebased_head"
+          echo "PR2842_MERGED_TREE_SHA=$tree_sha"
           echo "PR2842_MAIN_PARENT=$main_sha"
           echo "PR2842_ORIGINAL_PARENT=$EXPECTED_HEAD"
           {
-            echo "## PR #2842 branch update prepared"
+            echo "## PR #2842 branch updated"
             echo "- Merge commit: `$merge_commit`"
             echo "- Main parent: `$main_sha`"
             echo "- Original PR parent: `$EXPECTED_HEAD`"
-            echo "- Tree from successful reviewed rebase: `$merged_tree`"
-            echo "- Changed paths: $(git diff --name-only --no-renames origin/main HEAD | wc -l)"
-          } >> "$GITHUB_STEP_SUMMARY"
-          exit 1
+            echo "- The current mainline canonical workflow was retained."
+          } >> "$GITHUB_STEP_SUMMARY"          exit 1
