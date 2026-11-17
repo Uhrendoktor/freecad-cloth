@@ -257,6 +257,7 @@ class _FittingSceneFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder, 
     def Document(self) -> _FittingDocument:
         """Return the owning native FreeCAD document."""
         ...
+
     FittingType: str
     MeasurementData: str
     MeasurementUnit: str

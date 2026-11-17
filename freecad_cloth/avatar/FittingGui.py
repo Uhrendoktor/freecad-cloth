@@ -678,11 +678,7 @@ class DirectArrangeController:
             msg = "a fitting scene is required for Interactive Arrange"
             raise RuntimeError(msg)
         active_document = self.Gui.activeDocument()
-        self.view = (
-            cast("_FittingView", active_document.activeView())
-            if active_document
-            else None
-        )
+        self.view = cast("_FittingView", active_document.activeView()) if active_document else None
         if self.view is None:
             msg = "an active FreeCAD 3D view is required for Interactive Arrange"
             raise RuntimeError(msg)
