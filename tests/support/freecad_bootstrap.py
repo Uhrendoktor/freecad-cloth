@@ -15,7 +15,8 @@ def prepare_repository_root(script_file: str | Path) -> Path:
 
     Returns:
         The repository root inferred from the script location.
+
     """
     root = Path(script_file).resolve().parents[1]
-    sys.path[:] = [entry for entry in sys.path if entry not in ("", str(root))]
+    sys.path[:] = [entry for entry in sys.path if entry not in {"", str(root)}]
     return root

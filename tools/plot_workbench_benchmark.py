@@ -30,6 +30,7 @@ def plot_metric(
         title: Descriptive title displayed above the chart.
         ylabel: Label describing the vertical-axis values.
         out: Destination path for the generated PNG image.
+
     """
     fig, ax = plt.subplots(figsize=(8, 4.5))
     ax.bar(names, values)

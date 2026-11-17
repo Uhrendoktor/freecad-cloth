@@ -6,7 +6,7 @@ output-format = "github"
 error-on-warning = true
 
 [rules]
-all = "warn"
+all = "error"
 
 [analysis]
 allowed-unresolved-imports = [

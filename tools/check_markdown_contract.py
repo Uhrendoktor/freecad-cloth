@@ -19,6 +19,7 @@ def markdown_files() -> tuple[Path, ...]:
 
     Returns:
         Existing Markdown files that define the repository's documentation surface.
+
     """
     paths = [
         ROOT / "README.md",
@@ -39,6 +40,7 @@ def _local_target(source: Path, target: str) -> Path | None:
 
     Returns:
         Resolved local filesystem path, or None for external and fragment-only targets.
+
     """
     target = unquote(target.strip("<>"))
     parsed = urlsplit(target)
@@ -59,6 +61,7 @@ def check(source: Path) -> list[str]:
 
     Returns:
         Diagnostics describing local references that do not resolve to an existing path.
+
     """
     text = source.read_text(encoding="utf-8")
     references = [*MARKDOWN_LINK.findall(text), *HTML_REF.findall(text)]
@@ -75,6 +78,7 @@ def main() -> int:
 
     Returns:
         Process status: zero when all local references resolve, otherwise one.
+
     """
     errors = [error for path in markdown_files() for error in check(path)]
     if errors:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from tools.ci.check_explicit_any_annotations import explicit_any_violations
+from tools.ci.check_explicit_any_annotations import explicit_any_violations, python_files
 
 
 @pytest.mark.parametrize(
@@ -50,14 +50,17 @@ def test_concrete_types_and_protocols_are_accepted() -> None:
     source = """
 from typing import Protocol, TypeAlias
 
-JsonValue: TypeAlias = str | int | float | bool | None | list[object] | dict[str, object]
+JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 class Point(Protocol):
     x: float
     y: float
 
-def consume(value: object) -> bool:
-    return hasattr(value, "x") and hasattr(value, "y")
+def encode(value: JsonValue) -> JsonValue:
+    return value
+
+def point_length(value: Point) -> float:
+    return (value.x * value.x + value.y * value.y) ** 0.5
 """
     assert explicit_any_violations(source) == ()
 
@@ -66,3 +69,23 @@ def test_parse_errors_fail_closed() -> None:
     """Do not silently skip source when the AST parser cannot read it."""
     result = explicit_any_violations("value: Any =\n", "broken.py")
     assert result and result[0].startswith("broken.py:1: invalid Python syntax")
+
+
+def test_python_inventory_includes_stub_files(tmp_path: Path) -> None:
+    """Enumerate both Python implementation files and declaration stubs."""
+    package = tmp_path / "sample"
+    package.mkdir()
+    implementation = package / "module.py"
+    stub = package / "module.pyi"
+    unrelated = package / "notes.txt"
+    implementation.write_text("value = 1\n", encoding="utf-8")
+    stub.write_text("value: int\n", encoding="utf-8")
+    unrelated.write_text("not Python\n", encoding="utf-8")
+
+    assert set(python_files(tmp_path)) == {implementation, stub}
+
+
+def test_stub_annotations_reject_explicit_any() -> None:
+    """Apply the explicit-Any syntax policy to declaration-only stub files."""
+    source = "from typing import Any\ndef render(value: Any) -> str: ...\n"
+    assert explicit_any_violations(source, "sample.pyi")

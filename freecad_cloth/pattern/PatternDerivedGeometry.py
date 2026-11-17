@@ -145,8 +145,8 @@ def derive_cut_boundary(
         msg = "pattern outline must enclose a non-zero area"
         raise ValueError(msg)
     outward_sign = -1.0 if orientation > 0 else 1.0
-    cut_edges = []
-    effective_widths = []
+    cut_edges: list[OffsetEdge] = []
+    effective_widths: list[float] = []
     for segment, points in zip(pattern.segments, sampled, strict=False):
         allowance = edge_widths.get(segment.id, width)
         effective_widths.append(allowance)
@@ -316,7 +316,7 @@ def _sample_segments(segments: Iterable[Segment], curve_samples: int) -> list[li
     Raises:
         TypeError: If a segment implementation is not supported by the offsetter.
     """
-    result = []
+    result: list[list[Point]] = []
     for segment in segments:
         if isinstance(segment, LineSegment):
             result.append([segment.start, segment.end])

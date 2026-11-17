@@ -8,16 +8,17 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-if __package__:
-    from tools.ci.repository_paths import add_repository_root
-else:
-    from repository_paths import add_repository_root
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.ci.repository_paths import add_repository_root
 
 ROOT = add_repository_root(__file__)
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
@@ -276,13 +277,13 @@ def _validate_stage_timings(
         errors.append("stage_timings must be a JSON object")
         return
 
-    stages = cast("JsonObject", stage_value)
+    stages = stage_value
     for name in required_stages:
         stage_value_for_name = stages.get(name)
         if not isinstance(stage_value_for_name, dict):
             errors.append(f"stage_timings.{name} must be a JSON object")
             continue
-        stage = cast("JsonObject", stage_value_for_name)
+        stage = stage_value_for_name
         samples = _integer(stage.get("samples"))
         if frames is None:
             minimum_samples = MIN_FRAMES
@@ -320,7 +321,7 @@ def _validate_profile(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("profile must be a JSON object")
         return
 
-    profile = cast("JsonObject", profile_value)
+    profile = profile_value
     if profile.get("quality_preset") != "Fast":
         errors.append("profile.quality_preset must be Fast")
     spacing = _number(profile.get("particle_distance_mm"))
@@ -345,7 +346,7 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("runtime must be a JSON object")
         return
 
-    runtime = cast("JsonObject", runtime_value)
+    runtime = runtime_value
     for key in ("platform", "python_version", "freecad_version"):
         value = runtime.get(key)
         if not isinstance(value, str) or not value:
@@ -366,7 +367,7 @@ def validate_metrics(payload: JsonValue) -> list[str]:
     """
     if not isinstance(payload, dict):
         return ["metrics artifact must contain a JSON object"]
-    metrics = cast("JsonObject", payload)
+    metrics = payload
     errors: list[str] = []
     _validate_artifact_identity(metrics, errors)
     _validate_fixture_size(metrics, errors)

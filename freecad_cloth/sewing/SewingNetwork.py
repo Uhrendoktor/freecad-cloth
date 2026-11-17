@@ -31,7 +31,8 @@ class SewingMember:
         """Validate the directed edge member and its normalized range.
 
         Raises:
-            ValueError: If the piece ID, edge index, or parameter interval is invalid."""
+            ValueError: If the piece ID, edge index, or parameter interval is invalid.
+        """
         if not str(self.piece_id).strip():
             msg = "sewing member piece id must not be empty"
             raise ValueError(msg)
@@ -99,7 +100,8 @@ def build_mn_seams(
         Canonical seam segments covering every overlap of the two normalized sides.
 
     Raises:
-        ValueError: If IDs, members, lengths, or relationship alignment are invalid."""
+        ValueError: If IDs, members, lengths, or relationship alignment are invalid.
+    """
     relationship_id = str(relationship_id).strip()
     if not relationship_id:
         msg = "relationship id must not be empty"
@@ -191,7 +193,8 @@ def member_lengths_from_pattern(pieces, members: Iterable[SewingMember]):
         Mapping keyed by piece ID and edge index with lengths in model units.
 
     Raises:
-        ValueError: If any member references a missing pattern piece or invalid edge."""
+        ValueError: If any member references a missing pattern piece or invalid edge.
+    """
     from freecad_cloth.sewing.SewingObjects import _edge_length
 
     result = {}
@@ -237,7 +240,8 @@ def network_invalid_reason(seams):
         seams: Persisted seam objects participating in the relationship.
 
     Returns:
-        Empty text when every seam is valid, otherwise a joined list of invalid seam IDs."""
+        Empty text when every seam is valid, otherwise a joined list of invalid seam IDs.
+    """
     invalid = []
     for seam in seams:
         status = str(getattr(seam, "Status", "Valid"))
@@ -267,7 +271,8 @@ class SewingNetworkProxy:
         """Recompute the FreeCAD object from its current source properties.
 
         Args:
-            obj: Persisted sewing-network feature containing member seam links and tolerances."""
+            obj: Persisted sewing-network feature containing member seam links and tolerances.
+        """
         seams = tuple(getattr(obj, "Seams", ()) or ())
         if hasattr(obj, "InvalidReason"):
             obj.InvalidReason = ""
@@ -345,7 +350,8 @@ def add_sewing_network(doc, seams, relationship_id, name="SewingNetwork"):
         Created network feature after its properties and validation proxy are installed.
 
     Raises:
-        ValueError: If seams are empty or their stitch groups do not match the relationship ID."""
+        ValueError: If seams are empty or their stitch groups do not match the relationship ID.
+    """
     seams = tuple(seams)
     relationship_id = str(relationship_id).strip()
     if not seams or not relationship_id:

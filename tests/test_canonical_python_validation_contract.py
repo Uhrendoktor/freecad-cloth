@@ -2,6 +2,7 @@
 """Regression contracts for the canonical Python and visual-evidence CI path."""
 
 import ast
+import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -40,7 +41,7 @@ def _require_mapping(value: JsonValue, *, label: str) -> JsonObject:
     if not isinstance(value, dict):
         msg = f"{label} must be a dictionary"
         raise TypeError(msg)
-    return cast(JsonObject, value)
+    return cast("JsonObject", value)
 
 
 def test_collection_plugin_accepts_all_expected_modules() -> None:
@@ -165,6 +166,29 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     assert '"tools.ci.pytest_collection_contract"' in runner, "canonical CI contract"
     assert "CLOTH_EXPECTED_TEST_MODULES" in runner, "canonical CI contract"
     assert "collection_command" not in runner, "canonical CI contract"
+
+
+def test_manifest_reader_returns_recursive_json_and_rejects_non_object_roots(
+    tmp_path: Path,
+) -> None:
+    """Validate recursive JSON typing and reject a non-object manifest root.
+
+    Args:
+        tmp_path: Pytest-managed directory for valid and malformed JSON files.
+    """
+    valid_path = tmp_path / "valid-manifest.json"
+    valid_payload = {"cases": [{"finite": True, "images": ["frame.png"]}]}
+    valid_path.write_text(json.dumps(valid_payload), encoding="utf-8")
+
+    parsed = validate_manifests.read(valid_path)
+
+    assert parsed == valid_payload
+    assert isinstance(parsed["cases"], list)
+
+    invalid_path = tmp_path / "invalid-manifest.json"
+    invalid_path.write_text("[]", encoding="utf-8")
+    with pytest.raises(SystemExit, match="must be a JSON object"):
+        validate_manifests.read(invalid_path)
 
 
 def _valid_realtime_benchmark_metrics() -> JsonObject:

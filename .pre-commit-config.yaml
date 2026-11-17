@@ -58,7 +58,7 @@ repos:
         always_run: true
       - id: ci-structure
         name: Canonical CI structure
-        entry: python tools/ci/validate_ci_structure.py
+        entry: python -m tools.ci.validate_ci_structure
         language: system
         files: ^(?:\.github/(actions|workflows)/|tools/ci/)
       - id: ast-grep-tests

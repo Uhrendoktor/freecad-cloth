@@ -13,16 +13,25 @@ headless tests without importing the GUI runtime.
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Self
+from typing import Self, TypedDict
+
+from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.JsonTypes import JsonValue
 
 Point = tuple[float, float]
-type _ProvenanceValue = JsonValue | tuple["_ProvenanceValue", ...]
-type _EdgeRecordValue = JsonValue | tuple["_EdgeRecordValue", ...]
-type _EdgeRecord = Mapping[str, _EdgeRecordValue]
+type _ProvenanceValue = JsonValue | tuple[_ProvenanceValue, ...]
 
-from pydantic.dataclasses import dataclass as pydantic_dataclass
+
+class EdgeRecord(TypedDict):
+    """Native semantic edge data consumed by the sewing reference resolver."""
+
+    piece_id: str
+    id: str
+    points: tuple[Point, ...]
+    ordinal: int
+    provenance: _ProvenanceValue
+
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
 
@@ -62,7 +71,7 @@ class EdgeReference:
     edge_id: str
     signature: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not str(self.piece_id).strip():
             msg = "piece_id must not be empty"
             raise ValueError(msg)
@@ -73,11 +82,12 @@ class EdgeReference:
             msg = "signature must contain native Sketcher provenance"
             raise ValueError(msg)
 
-    def as_dict(self):
+    def as_dict(self) -> dict[str, str]:
         """Serialize this reference to a dictionary.
 
         Returns:
-            A JSON-compatible mapping of the semantic edge identity and signature."""
+            A JSON-compatible mapping of the semantic edge identity and signature.
+        """
         return {
             "piece_id": self.piece_id,
             "edge_id": self.edge_id,
@@ -95,7 +105,8 @@ class EdgeReference:
             Validated immutable edge reference.
 
         Raises:
-            ValueError: If any required identity field is absent or invalid."""
+            ValueError: If any required identity field is absent or invalid.
+        """
         try:
             return cls(
                 str(value["piece_id"]),
@@ -199,8 +210,8 @@ def capture_edge_reference(
 
 def resolve_edge_reference(
     reference: EdgeReference,
-    edges: Iterable[_EdgeRecord],
-) -> _EdgeRecord:
+    edges: Iterable[EdgeRecord],
+) -> EdgeRecord:
     """Resolve a reference against current edges without ordinal retargeting.
 
     Each edge mapping must contain ``id``, ``points``, and native ``provenance``.
@@ -217,7 +228,8 @@ def resolve_edge_reference(
 
     Raises:
         MissingEdgeReference: If the referenced semantic edge no longer exists.
-        ChangedEdgeReference: If current geometry or provenance differs from the saved signature."""
+        ChangedEdgeReference: If current geometry or provenance differs from the saved signature.
+    """
     candidates = [
         edge
         for edge in edges
@@ -254,7 +266,8 @@ def resolve_edge_reference_status(
         edges: Current edge records with IDs, sampled points, and provenance.
 
     Returns:
-        Boolean validity and a stable reason label: valid, missing, or changed."""
+        Boolean validity and a stable reason label: valid, missing, or changed.
+    """
     try:
         resolve_edge_reference(reference, edges)
     except MissingEdgeReference:

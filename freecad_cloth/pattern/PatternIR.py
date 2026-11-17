@@ -13,8 +13,8 @@ from math import hypot
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import NormalizedRange, validate_finite_number
-from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern
-from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
+from freecad_cloth.pattern.PatternGeometry import LineSegment, ParametricPattern, Segment
+from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 Point3 = tuple[float, float, float]
@@ -267,7 +267,7 @@ class PatternIR:
         graph.validate()
         geometries = geometries or {}
         materials = materials or {}
-        pieces = []
+        pieces: list[PieceIR] = []
         for piece in graph.pieces.values():
             geometry = geometries.get(piece.id) or _line_geometry(piece)
             boundaries = tuple(
@@ -282,7 +282,7 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        return _with_seams(cls, graph, pieces)
+        return _with_seams(graph, pieces)
 
     @classmethod
     def from_sketches(
@@ -311,14 +311,15 @@ class PatternIR:
 
         Raises:
             ValueError: If curve sampling is too small, a piece sketch is absent, or
-                any sketch has invalid or disconnected boundary geometry."""
+                any sketch has invalid or disconnected boundary geometry.
+        """
         if curve_samples < 2:
             msg = "curve_samples must be at least 2"
             raise ValueError(msg)
         graph.validate()
         materials = materials or {}
-        pieces = []
-        edge_index_maps = {}
+        pieces: list[PieceIR] = []
+        edge_index_maps: dict[str, Mapping[int, str]] = {}
         for piece in graph.pieces.values():
             sketch = sketches.get(piece.id)
             if sketch is None:
@@ -335,11 +336,10 @@ class PatternIR:
                     seam_allowance=float(piece.seam_allowance),
                 )
             )
-        return _with_seams(cls, graph, pieces, edge_index_maps)
+        return _with_seams(graph, pieces, edge_index_maps)
 
 
 def _with_seams(
-    cls,
     graph: SeamGraph,
     pieces: Sequence[PieceIR],
     edge_index_maps: Mapping[str, Mapping[int, str]] | None = None,
@@ -347,7 +347,6 @@ def _with_seams(
     """Resolve graph seam edges and build the final validated IR snapshot.
 
     Args:
-        cls: PatternIR class or compatible constructor used for the result.
         graph: Source sewing graph supplying seam IDs and parameter ranges.
         pieces: Converted solver-neutral panel records.
         edge_index_maps: Optional native geometry-index to semantic-edge maps.
@@ -358,7 +357,7 @@ def _with_seams(
     piece_tuple = tuple(pieces)
     piece_map = {piece.id: piece for piece in piece_tuple}
     edge_index_maps = edge_index_maps or {}
-    seams = []
+    seams: list[SeamIR] = []
     for pair in graph.seams.values():
         seam = pair.seam
         edge_a = _resolve_edge(
@@ -368,7 +367,7 @@ def _with_seams(
             seam.edge_b, piece_map[seam.piece_b], edge_index_maps.get(seam.piece_b)
         )
         seams.append(SeamIR.from_seam(seam, edge_a=edge_a, edge_b=edge_b))
-    result = cls(piece_tuple, tuple(seams))
+    result = PatternIR(piece_tuple, tuple(seams))
     result.validate()
     return result
 
@@ -382,14 +381,14 @@ def _line_geometry(piece: PatternPiece) -> ParametricPattern:
     Returns:
         Closed parametric boundary containing one stable line segment per outline edge.
     """
-    segments = []
+    segments: list[LineSegment] = []
     for index, start in enumerate(piece.outline):
         end = piece.outline[(index + 1) % len(piece.outline)]
         segments.append(LineSegment(f"edge:{index}", start, end))
     return ParametricPattern(segments)
 
 
-def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
+def _boundary_ir(segment: Segment, curve_samples: int) -> BoundaryIR:
     """Convert one parametric segment to a solver-neutral sampled boundary.
 
     Args:
@@ -409,7 +408,9 @@ def _boundary_ir(segment, curve_samples: int) -> BoundaryIR:
     return BoundaryIR(segment.id, "curve", samples)
 
 
-def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
+def _sketch_boundaries(
+    sketch: object, piece_id: str, curve_samples: int
+) -> tuple[tuple[BoundaryIR, ...], dict[int, str]]:
     """Extract non-construction Sketcher geometry with stable semantic edge IDs.
 
     Args:
@@ -429,8 +430,8 @@ def _sketch_boundaries(sketch, piece_id: str, curve_samples: int):
         raise ValueError(msg)
 
     semantic_ids = tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())
-    boundaries = []
-    edge_index_map = {}
+    boundaries: list[BoundaryIR] = []
+    edge_index_map: dict[int, str] = {}
     for index, native in enumerate(geometry):
         if _is_construction(sketch, index):
             continue
@@ -482,8 +483,8 @@ def _order_sketch_boundary(
         msg = f"Sketcher boundary is open: the single boundary does not close ({piece_id})"
         raise ValueError(msg)
 
-    vertices = []
-    edge_vertices = []
+    vertices: list[tuple[Point3, list[int]]] = []
+    edge_vertices: list[tuple[int, int]] = []
     for edge_index, boundary in enumerate(boundaries):
         start = boundary.samples[0]
         end = boundary.samples[-1]
@@ -494,10 +495,10 @@ def _order_sketch_boundary(
         end_vertex = _find_vertex(vertices, end)
         if start_vertex is None:
             start_vertex = len(vertices)
-            vertices.append([start, []])
+            vertices.append((start, []))
         if end_vertex is None:
             end_vertex = len(vertices)
-            vertices.append([end, []])
+            vertices.append((end, []))
         vertices[start_vertex][1].append(edge_index)
         vertices[end_vertex][1].append(edge_index)
         edge_vertices.append((start_vertex, end_vertex))
@@ -517,7 +518,9 @@ def _order_sketch_boundary(
             )
             raise ValueError(msg)
 
-    adjacency = {index: set() for index in range(len(boundaries))}
+    adjacency: dict[int, set[int]] = {
+        index: set() for index in range(len(boundaries))
+    }
     for incident in (set(vertex[1]) for vertex in vertices):
         first, second = tuple(incident)
         adjacency[first].add(second)
@@ -534,7 +537,7 @@ def _order_sketch_boundary(
         else (start_b, start_a)
     )
 
-    ordered = []
+    ordered: list[BoundaryIR] = []
     visited = {start_index}
     ordered.append(
         _orient_boundary(boundaries[start_index], edge_vertices[start_index], start_vertex)
@@ -580,7 +583,9 @@ def _order_sketch_boundary(
     return tuple(ordered)
 
 
-def _find_vertex(vertices, point):
+def _find_vertex(
+    vertices: Sequence[tuple[Point3, Sequence[int]]], point: Point3
+) -> int | None:
     """Find a previously registered endpoint within the topology merge tolerance.
 
     Args:
@@ -596,7 +601,12 @@ def _find_vertex(vertices, point):
     return None
 
 
-def _next_edge_at_vertex(vertex_index, current_edge, adjacency, edge_vertices):
+def _next_edge_at_vertex(
+    vertex_index: int,
+    current_edge: int,
+    adjacency: Mapping[int, set[int]],
+    edge_vertices: Sequence[tuple[int, int]],
+) -> int:
     """Find the neighboring boundary edge incident to a connected endpoint.
 
     Args:
@@ -632,7 +642,11 @@ def _point_sort_key(point: Point3) -> tuple[float, float, float]:
     return (round(point[0], 12), round(point[1], 12), round(point[2], 12))
 
 
-def _orient_boundary(boundary, edge_vertices, start_vertex):
+def _orient_boundary(
+    boundary: BoundaryIR,
+    edge_vertices: tuple[int, int],
+    start_vertex: int,
+) -> BoundaryIR:
     """Orient a boundary sample sequence so it begins at a selected graph vertex.
 
     Args:
@@ -655,7 +669,7 @@ def _orient_boundary(boundary, edge_vertices, start_vertex):
     raise ValueError(msg)
 
 
-def _is_construction(sketch, index: int) -> bool:
+def _is_construction(sketch: object, index: int) -> bool:
     """Check whether a native sketch geometry element is construction-only.
 
     Args:
@@ -674,7 +688,7 @@ def _is_construction(sketch, index: int) -> bool:
         return False
 
 
-def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
+def _native_boundary(native: object, edge_id: str, curve_samples: int) -> BoundaryIR:
     """Sample one native Sketcher geometry object into a typed boundary record.
 
     Args:
@@ -691,8 +705,8 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     """
     type_name = type(native).__name__.lower().lstrip("_")
     if type_name == "linesegment":
-        start = _point3(native.StartPoint)
-        end = _point3(native.EndPoint)
+        start = _point3(getattr(native, "StartPoint"))
+        end = _point3(getattr(native, "EndPoint"))
         return BoundaryIR(edge_id, "line", (start, end))
 
     kind = {
@@ -723,7 +737,7 @@ def _native_boundary(native, edge_id: str, curve_samples: int) -> BoundaryIR:
     return BoundaryIR(edge_id, kind, samples, (first, last))
 
 
-def _native_parameter(native, name: str, default: float) -> float:
+def _native_parameter(native: object, name: str, default: float) -> float:
     """Read a finite numeric native-curve parameter or use its fallback.
 
     Args:
@@ -738,7 +752,7 @@ def _native_parameter(native, name: str, default: float) -> float:
     return validate_finite_number(value() if callable(value) else value)
 
 
-def _native_value(native, parameter: float):
+def _native_value(native: object, parameter: float) -> object:
     """Evaluate one native curve through the host's supported value method.
 
     Args:
@@ -761,7 +775,7 @@ def _native_value(native, parameter: float):
     raise ValueError(msg)
 
 
-def _point3(point) -> Point3:
+def _point3(point: object) -> Point3:
     """Convert a native vector-like sketch point into a plain XYZ tuple.
 
     Args:
@@ -770,7 +784,11 @@ def _point3(point) -> Point3:
     Returns:
         Three floating-point coordinates, using zero for an absent Z component.
     """
-    return (float(point.x), float(point.y), float(getattr(point, "z", 0.0)))
+    return (
+        float(getattr(point, "x")),
+        float(getattr(point, "y")),
+        float(getattr(point, "z", 0.0)),
+    )
 
 
 def _distance3(a: Point3, b: Point3) -> float:
@@ -787,7 +805,7 @@ def _distance3(a: Point3, b: Point3) -> float:
 
 
 def _resolve_edge(
-    reference, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
+    reference: EdgeRef, piece: PieceIR, edge_index_map: Mapping[int, str] | None = None
 ) -> str:
     """Resolve an integer or semantic seam edge reference to a stable boundary ID.
 

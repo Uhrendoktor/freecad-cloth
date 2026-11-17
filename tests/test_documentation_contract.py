@@ -101,6 +101,35 @@ def parse(value: str, radix: int) -> int:
     _require(condition="missing descriptive Raises section" in errors, message=errors)
 
 
+def test_every_explicitly_raised_exception_needs_its_own_description() -> None:
+    """Reject a Raises section that omits one exception raised by the function."""
+    source = '''"""Documentation checker fixture module."""
+
+def parse(value: str) -> int:
+    """Parse an integer value.
+
+    Args:
+        value: Text that should contain an integer.
+
+    Returns:
+        Parsed integer value.
+
+    Raises:
+        ValueError: If the value is empty.
+    """
+    if not value:
+        raise ValueError("value is empty")
+    if not value.isdecimal():
+        raise TypeError("value must contain decimal digits")
+    return int(value)
+'''
+    errors = "\n".join(check_source(source))
+    _require(
+        condition="missing exception descriptions for TypeError" in errors,
+        message=errors,
+    )
+
+
 def test_placeholder_and_name_only_descriptions_are_rejected() -> None:
     """Reject placeholder prose even when all required docstring sections exist."""
     source = '''"""Documentation checker fixture module."""
@@ -320,8 +349,8 @@ def test_syntax_errors_fail_closed() -> None:
     )
 
 
-def test_ruff_uses_the_reviewed_rule_set_and_documented_exceptions() -> None:
-    """Protect the reviewed production-oriented Ruff rules and narrow callback exceptions."""
+def test_ruff_uses_all_preview_and_documented_exceptions() -> None:
+    """Protect repository-wide Ruff ALL/preview checks and narrow native callback exceptions."""
     project = Path(__file__).resolve().parents[1] / "pyproject.toml"
     assert_reviewed_ruff_policy(project)
 
@@ -371,3 +400,37 @@ def test_tool_inventory_has_unique_descriptions_and_existing_paths() -> None:
             condition="**Goal:**" in description and "**Why useful:**" in description,
             message=f"{inventory_path.name} has incomplete description for {relative_path}",
         )
+
+
+def test_documentation_inventory_modes_select_the_requested_surface() -> None:
+    """Limit API checks to public declarations and module-only checks to module prose."""
+    source = '''"""Documented module surface."""
+
+def visible_function() -> int:
+    return 1
+
+def _private_helper() -> int:
+    return 2
+
+class PublicSurface:
+    def visible_method(self) -> int:
+        return 3
+
+    def _private_method(self) -> int:
+        return 4
+
+class _PrivateType:
+    pass
+'''
+    public_errors = check_source(source, "sample.py", public_api_only=True)
+    public_text = "\n".join(public_errors)
+    _require(condition="visible_function: missing docstring" in public_text, message=public_text)
+    _require(condition="PublicSurface: missing class docstring" in public_text, message=public_text)
+    _require(condition="visible_method: missing docstring" in public_text, message=public_text)
+    _require(condition="_private_helper" not in public_text, message=public_text)
+    _require(condition="_private_method" not in public_text, message=public_text)
+    _require(condition="_PrivateType" not in public_text, message=public_text)
+    _require(
+        condition=check_source(source, "sample.py", module_only=True) == [],
+        message="module-only validation must skip declaration documentation checks",
+    )

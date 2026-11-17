@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-
 import numpy as np
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 _TOP_EDGE_TOLERANCE_MM = 1e-9
 _MIN_PIN_COUNT = 2

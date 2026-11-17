@@ -116,7 +116,8 @@ class MeshCollisionProjector:
             Corrected N-by-3 positions and N-by-3 outward contact normals.
 
         Raises:
-            ValueError: If the input is not a finite array with shape (N, 3)."""
+            ValueError: If the input is not a finite array with shape (N, 3).
+        """
         points = np.asarray(points_mm, dtype=np.float64)
         if points.ndim != 2 or points.shape[1] != 3:
             msg = "collision projection points must have shape (N, 3)"
@@ -272,7 +273,8 @@ def project_stitched_pairs(
         Corrected positions and contact normals with eligible stitch groups reconciled.
 
     Raises:
-        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
+        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices.
+    """
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
     if corrected.ndim != 2 or corrected.shape[1] != 3:

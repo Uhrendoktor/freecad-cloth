@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -37,6 +37,14 @@ class _NativeCurve(Protocol):
 
 
 _AxisPair = tuple[tuple[float, float], tuple[float, float]]
+
+
+@dataclass(frozen=True, slots=True)
+class _PlanarPoint:
+    """Store validated numeric coordinates extracted from a native FreeCAD point."""
+
+    x: float
+    y: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +137,7 @@ def _native_curve_value(curve: _NativeCurve, parameter_value: float) -> _Point2D
 
     Raises:
         TypeError: If the native curve provides no supported parameter evaluator.
+        ValueError: If the native point has non-finite x/y coordinates.
     """
     getter = getattr(curve, "valueAt", None)
     if not callable(getter):
@@ -136,7 +145,23 @@ def _native_curve_value(curve: _NativeCurve, parameter_value: float) -> _Point2D
     if not callable(getter):
         msg = "tunic armhole curve has no native parameter evaluator"
         raise TypeError(msg)
-    return cast("_Point2D", getter(float(parameter_value)))
+    native_point = getter(float(parameter_value))
+    x = getattr(native_point, "x", None)
+    y = getattr(native_point, "y", None)
+    if (
+        isinstance(x, bool)
+        or not isinstance(x, (int, float))
+        or isinstance(y, bool)
+        or not isinstance(y, (int, float))
+    ):
+        msg = "tunic armhole curve returned a point without numeric x/y coordinates"
+        raise TypeError(msg)
+    point_x = float(x)
+    point_y = float(y)
+    if not math.isfinite(point_x) or not math.isfinite(point_y):
+        msg = "tunic armhole curve returned non-finite point coordinates"
+        raise ValueError(msg)
+    return _PlanarPoint(point_x, point_y)
 
 
 def _circle_axes(circle: _NativeCurve, geometry: _CircleGeometry) -> _AxisPair:
@@ -247,8 +272,8 @@ def arc_through_midpoint(
         RuntimeError: If points are collinear, a consistent minor arc cannot be built,
             or the native arc loses geometric fidelity.
     """
-    part_api = cast("ModuleType", part_module)
-    app_api = cast("ModuleType", app_module)
+    part_api = part_module
+    app_api = app_module
     geometry = _circle_geometry(start, end, midpoint)
     selected = _select_circle_sweep(part_api, app_api, geometry, (start, end, midpoint))
     if selected is None:

@@ -22,6 +22,7 @@ def main() -> int:
 
     Raises:
         SystemExit: If Docker is unavailable or the container returns an empty provenance record.
+        RuntimeError: If the Docker command does not provide captured standard output.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("image")

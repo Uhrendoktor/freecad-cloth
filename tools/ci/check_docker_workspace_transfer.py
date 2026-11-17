@@ -1,24 +1,54 @@
+# Copyright (C) 2026 FreeCAD Cloth contributors
 """Verify Docker can transfer checked-out workspace files into and out of a container."""
 
 from __future__ import annotations
 
 import os
-import subprocess
 import tempfile
-from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
+
+from tools.ci.command_runner import CommandOptions, run_command
 
 IMAGE = "busybox:1.36.1"
-CommandRunner = Callable[[list[str], bool, int], int]
 
 
-def _run_command(command: list[str], check: bool, timeout: int) -> int:
-    """Execute one bounded Docker command and return its exit status."""
-    return subprocess.run(command, check=check, timeout=timeout).returncode
+class CommandRunner(Protocol):
+    """Callable process boundary with explicit keyword-only safety controls."""
+
+    def __call__(self, command: list[str], *, check: bool, timeout: int) -> int:
+        """Execute one Docker argument vector with an explicit status/timeout policy."""
+        ...
+
+
+def _run_command(command: list[str], *, check: bool, timeout: int) -> int:
+    """Execute one bounded Docker command and return its exit status.
+
+    Args:
+        command: Docker executable and discrete command-line arguments.
+        check: Whether a nonzero status should raise a command execution error.
+        timeout: Maximum command runtime in seconds.
+
+    Returns:
+        Exit status reported by the Docker process.
+    """
+    result = run_command(
+        command,
+        options=CommandOptions(check=check, timeout=timeout),
+    )
+    return result.returncode
 
 
 def should_run_probe(runner_mode: str, event_name: str) -> bool:
-    """Run the workspace probe only for events assigned to the local runner."""
+    """Run the workspace probe only for events assigned to the local runner.
+
+    Args:
+        runner_mode: Configured CI runner mode.
+        event_name: GitHub event that triggered the workflow.
+
+    Returns:
+        True when the current event should run the Docker workspace probe.
+    """
     return runner_mode == "local" and event_name in {
         "push",
         "pull_request",
@@ -44,10 +74,10 @@ def validate_workspace_transfer(
         FileNotFoundError: If the container does not return the expected marker.
         RuntimeError: If the returned marker differs from the host marker.
     """
-    run_command(["docker", "info"], True, 20)
-    image_status = run_command(["docker", "image", "inspect", IMAGE], False, 10)
+    run_command(["docker", "info"], check=True, timeout=20)
+    image_status = run_command(["docker", "image", "inspect", IMAGE], check=False, timeout=10)
     if image_status != 0:
-        run_command(["docker", "pull", IMAGE], True, 20)
+        run_command(["docker", "pull", IMAGE], check=True, timeout=20)
 
     container_name = f"cloth-workspace-transfer-{run_id}-{os.getpid()}"
     marker = f"runner-workspace-transfer-{run_id}"
@@ -75,17 +105,17 @@ def validate_workspace_transfer(
                 "sh",
                 marker,
             ],
-            True,
-            20,
+            check=True,
+            timeout=20,
         )
         created = True
         try:
             run_command(
                 ["docker", "cp", str(host_marker), f"{container_name}:/tmp/host-marker"],
-                True,
-                15,
+                check=True,
+                timeout=15,
             )
-            run_command(["docker", "start", "--attach", container_name], True, 15)
+            run_command(["docker", "start", "--attach", container_name], check=True, timeout=15)
             run_command(
                 [
                     "docker",
@@ -93,21 +123,26 @@ def validate_workspace_transfer(
                     f"{container_name}:/tmp/container-marker",
                     str(returned_marker),
                 ],
-                True,
-                15,
+                check=True,
+                timeout=15,
             )
             response = returned_marker.read_text(encoding="utf-8")
             if response != marker:
-                raise RuntimeError("Docker workspace transfer did not preserve marker contents")
+                msg = "Docker workspace transfer did not preserve marker contents"
+                raise RuntimeError(msg)
         finally:
             if created:
-                run_command(["docker", "rm", "--force", container_name], False, 10)
+                run_command(["docker", "rm", "--force", container_name], check=False, timeout=10)
 
     print("docker-workspace-transfer=ready")
 
 
 def main() -> int:
-    """Run the transfer check only for local-first trusted workflow executions."""
+    """Run the transfer check only for local-first trusted workflow executions.
+
+    Returns:
+        Zero after the probe passes or is intentionally skipped.
+    """
     runner_mode = os.environ.get("CLOTH_CI_RUNNER_MODE", "local")
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")
     if not should_run_probe(runner_mode, event_name):

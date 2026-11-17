@@ -127,9 +127,7 @@ The references are design inputs, not templates to copy wholesale. The useful pa
 - apply_panel_style(panel) styles one form and normalizes basic spacing. It must never call QApplication.setStyleSheet, change the global palette, or hard-code a light/dark theme.
 - mark_button(button, emphasis) gives a QPushButton a semantic role (primary, secondary, or danger).
 - set_status(label, text, state) sets text and the info, warning, error or success role. Callers are responsible for wording that communicates state independently of color.
-- make_disclosure(title, content, QtCore, QtWidgets, expanded=False) uses a checkable Qt tool button to hide/show a settings container while preserving contained widgets and values.
-- make_scroll_area(content, QtWidgets) wraps long content in a resize-aware QScrollArea that stays inside the current FreeCAD task panel.
-- configure_form_layout(layout, QtWidgets) uses long-row wrapping and AllNonFixedFieldsGrow so flexible controls use the available width in narrow task panels.
+- make_disclosure(title, content, QtCore, QtWidgets, *, expanded=False) uses a checkable Qt tool button to hide/show a settings container while preserving contained widgets and values.
 - Existing domain-specific viewport tokens remain in freecad_cloth/shared/viewport_gizmo_style.py; seam identity colors stay in freecad_cloth/shared/seam_colors.py. Do not introduce another palette source.
 - Styling lives on the supplied panel. The rest of FreeCAD remains the host's responsibility.
 

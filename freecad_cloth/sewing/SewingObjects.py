@@ -847,7 +847,8 @@ def add_sewing_operation(
         name: Stable internal name and initial label for the operation feature.
 
     Returns:
-        Created sewing-operation feature with seam, piece, tolerance, and stitch properties."""
+        Created sewing-operation feature with seam, piece, tolerance, and stitch properties.
+    """
     obj = doc.addObject("Part::FeaturePython", name)
     obj.Label = name
     obj.addProperty("App::PropertyString", "SewingType", "Sewing").SewingType = "SewingOperation"

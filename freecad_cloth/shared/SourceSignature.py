@@ -17,7 +17,7 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 POINT_COORDINATE_COUNT = 3
 
-type _SignatureValue = str | int | float | bool | tuple["_SignatureValue", ...] | None
+type _SignatureValue = str | int | float | bool | tuple[_SignatureValue, ...] | None
 TESSELLATION_COMPONENT_COUNT = 2
 
 

@@ -49,6 +49,18 @@ def _safe_error_body_preview(body: bytes) -> str:
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
 
 
+def _is_artifact_identifier(value: object) -> bool:
+    """Return whether a value is an integer artifact identifier, excluding booleans.
+
+    Args:
+        value: Candidate artifact identifier returned by the workflow API.
+
+    Returns:
+        True when the identifier is an integer and not a boolean.
+    """
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
 def latest_artifacts_by_name(
     artifacts: Iterable[Mapping[str, object]],
 ) -> list[Mapping[str, object]]:
@@ -61,7 +73,8 @@ def latest_artifacts_by_name(
         The latest upload for each artifact name, sorted by name.
 
     Raises:
-        ValueError: If duplicate uploads cannot be ordered deterministically.
+        ValueError: If duplicate uploads omit required ordering metadata.
+        TypeError: If creation timestamps or artifact identifiers have invalid types.
     """
     latest: dict[str, Mapping[str, object]] = {}
     for artifact in artifacts:
@@ -78,16 +91,17 @@ def latest_artifacts_by_name(
         previous_created = previous.get("created_at")
         current_id = artifact.get("id")
         previous_id = previous.get("id")
-        if (
-            not isinstance(current_created, str)
-            or not isinstance(previous_created, str)
-            or not isinstance(current_id, int)
-            or isinstance(current_id, bool)
-            or not isinstance(previous_id, int)
-            or isinstance(previous_id, bool)
+        if any(
+            value is None for value in (current_created, previous_created, current_id, previous_id)
         ):
             msg = f"duplicate artifact name {name!r} lacks creation time or artifact ID"
             raise ValueError(msg)
+        if not isinstance(current_created, str) or not isinstance(previous_created, str):
+            msg = f"duplicate artifact name {name!r} has a non-string creation time"
+            raise TypeError(msg)
+        if not _is_artifact_identifier(current_id) or not _is_artifact_identifier(previous_id):
+            msg = f"duplicate artifact name {name!r} has a non-integer artifact ID"
+            raise TypeError(msg)
         if (current_created, current_id) > (previous_created, previous_id):
             latest[name] = artifact
     return [latest[name] for name in sorted(latest)]

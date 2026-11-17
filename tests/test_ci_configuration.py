@@ -27,7 +27,7 @@ from tools.ci.validate_ci_structure import (
     missing_ruff_commands,
     missing_typecheck_commands,
     pyright_coverage_contract_violations,
-    ty_warnings_are_blocking,
+    ty_all_diagnostics_are_errors,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1014,50 +1014,60 @@ def test_ruff_covers_every_tracked_python_file_without_auto_fixing() -> None:
     assert_reviewed_ruff_policy(ROOT / "pyproject.toml")
 
 
-def test_pyright_uses_the_reviewed_staged_production_inventory() -> None:
-    """Keep standard analysis broad within reviewed core paths and strict on solver kernels."""
+def test_pyright_uses_strict_mode_for_entire_python_repository() -> None:
+    """Run blocking strict Pyright against production, tests, tools, and FreeCAD adapters."""
     config = json.loads((ROOT / "pyrightconfig.json").read_text(encoding="utf-8"))
     require(
         condition=config.get("include") == list(PYRIGHT_EXPECTED_INCLUDE),
-        message="Pyright include inventory differs from reviewed production modules.",
+        message="Pyright must include the repository root.",
     )
     require(
-        condition=config.get("exclude") == list(PYRIGHT_EXPECTED_EXCLUDE),
-        message="Pyright exclusions differ from documented dynamic host adapters.",
+        condition=config.get("exclude", []) == list(PYRIGHT_EXPECTED_EXCLUDE),
+        message="Pyright must not exclude repository source paths.",
     )
     require(
-        condition=config.get("strict") == list(PYRIGHT_EXPECTED_STRICT),
-        message="Only the three deterministic simulation kernels may remain globally strict.",
+        condition=config.get("strict", []) == list(PYRIGHT_EXPECTED_STRICT),
+        message="Pyright strict mode must not be limited to a path subset.",
     )
     require(
-        condition=config.get("typeCheckingMode") == "standard",
-        message="Pyright standard mode is the reviewed default outside the strict simulation core.",
+        condition=config.get("typeCheckingMode") == "strict",
+        message="Pyright strict mode must apply to every included Python file.",
     )
     require(
-        condition=config.get("reportMissingImports") == "none"
-        and config.get("reportMissingModuleSource") == "none",
-        message="Pyright import diagnostics must follow the reviewed host-boundary profile.",
+        condition=config.get("reportMissingImports", "error") == "error"
+        and config.get("reportMissingModuleSource", "error") == "error",
+        message="Unresolved imports and missing module sources must remain blocking.",
     )
-    quality_runner = (ROOT / "tools" / "ci" / "strict_quality.py").read_text(encoding="utf-8")
+    tracked_files = (
+        "freecad_cloth/common/JsonTypes.py",
+        "tests/test_ci_configuration.py",
+        "tools/ci/strict_quality.py",
+        "InitGui.py",
+    )
+    commands = quality_commands(Path("python"), tracked_files)
+    pyright = next(command for command in commands if command.label == "Pyright all Python files")
+    typed = next(command for command in commands if command.label == "Typed all Python files")
     require(
-        condition='QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json"))'
-        in quality_runner,
-        message="The canonical strict-quality runner must retain one blocking Pyright profile.",
+        condition=pyright.arguments == ("pyright", "-p", "pyrightconfig.json"),
+        message="The strict repository-wide Pyright gate must remain blocking.",
     )
     require(
-        condition='"Typed simulation core"' in quality_runner,
-        message="The ty core gate must remain independently blocking.",
+        condition=typed.arguments == ("ty", "check", "--output-format", "github", *tracked_files),
+        message="ty must check every tracked Python source and stub.",
     )
 
 
-def test_ty_warning_diagnostics_remain_blocking() -> None:
-    """Keep warning-level ty diagnostics fatal for the curated simulation core."""
+def test_ty_all_diagnostics_remain_blocking() -> None:
+    """Require every ty rule to produce errors for the complete tracked inventory."""
     config = TY_CONFIG.read_text(encoding="utf-8")
-    require(condition=ty_warnings_are_blocking(config), message="ty warnings must fail validation.")
-    tampered = config.replace("error-on-warning = true", "error-on-warning = false")
     require(
-        condition=not ty_warnings_are_blocking(tampered),
-        message="Disabling ty warning failures must be detected.",
+        condition=ty_all_diagnostics_are_errors(config),
+        message="All ty diagnostics must fail validation.",
+    )
+    tampered = config.replace('all = "error"', 'all = "warn"')
+    require(
+        condition=not ty_all_diagnostics_are_errors(tampered),
+        message="Downgrading all ty diagnostics to warnings must be detected.",
     )
 
 
@@ -1161,67 +1171,63 @@ def test_ruff_command_parser_rejects_and_chained_commands() -> None:
 
 
 def test_pyright_coverage_contract_rejects_narrowed_or_weakened_scope() -> None:
-    """Reject drift from the reviewed staged Pyright inventory and host-boundary policy."""
+    """Reject path exclusions, non-strict mode, and suppressed import diagnostics."""
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["include"] = ["freecad_cloth"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright include scope differs from the reviewed inventory>",),
-        message="The selected production inventory must not be narrowed or replaced.",
+        == ("<Pyright include scope must cover the entire repository root>",),
+        message="The complete repository root must remain in Pyright scope.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
     config["exclude"] = ["tests"]
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright exclude scope differs from the reviewed inventory>",),
-        message="Dynamic host exclusions must remain limited to the reviewed paths.",
+        == ("<Pyright must not exclude repository source paths>",),
+        message="Tests and tools must not be excluded from Pyright.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["typeCheckingMode"] = "strict"
+    config["typeCheckingMode"] = "standard"
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright default mode must remain standard outside the strict core>",),
-        message="Only the curated simulation core uses strict Pyright mode.",
+        == ("<Pyright typeCheckingMode must be strict>",),
+        message="All checked source must use strict Pyright mode.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["reportMissingImports"] = "warning"
+    config["reportMissingImports"] = "none"
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright missing-import policy differs from the reviewed host boundary>",),
-        message="The reviewed host boundary must retain blocking missing-import diagnostics.",
+        == ("<Pyright missing-import diagnostics must be blocking>",),
+        message="Missing imports must remain errors.",
     )
 
     config = json.loads(PYRIGHT_CONFIG.read_text(encoding="utf-8"))
-    config["reportMissingModuleSource"] = "warning"
+    config["reportMissingModuleSource"] = "none"
     require(
         condition=pyright_coverage_contract_violations(json.dumps(config))
-        == ("<Pyright missing-module-source policy differs from the reviewed host boundary>",),
-        message="The reviewed host boundary must retain its explicit missing-module policy.",
+        == ("<Pyright missing-module-source diagnostics must be blocking>",),
+        message="Missing module sources must remain errors.",
     )
 
 
-def test_new_python_modules_must_be_explicitly_reviewed_for_pyright() -> None:
-    """Require new production modules to enter the reviewed inventory or an explicit host exclusion."""
+def test_new_python_modules_are_covered_by_strict_pyright() -> None:
+    """Ensure new modules in every source area are already inside repository-wide scope."""
     config = PYRIGHT_CONFIG.read_text(encoding="utf-8")
-    included = (
-        "freecad_cloth/common/new_model.py",
-        "freecad_cloth/shared/new_contract.py",
-        "tools/ci/repository_paths.py",
+    added_modules = (
+        "freecad_cloth/avatar/NewFeature.py",
+        "freecad_cloth/pattern/new_feature.py",
+        "freecad_cloth/simulation/new_feature.py",
+        "tests/test_new_contract.py",
+        "tools/ci/new_validator.py",
+        "Init.py",
+        "freecad/freecad_cloth/new_adapter.py",
     )
     require(
-        condition=pyright_coverage_contract_violations(config, included) == (),
-        message="Existing reviewed directory coverage must include new modules inside its selected paths.",
-    )
-    uncovered = ("freecad_cloth/avatar/NewFeature.py",)
-    require(
-        condition=pyright_coverage_contract_violations(config, uncovered)
-        == (
-            "<new Python module is outside Pyright include/exclude scope: freecad_cloth/avatar/NewFeature.py>",
-        ),
-        message="New production modules outside the reviewed Pyright inventory require deliberate inclusion.",
+        condition=pyright_coverage_contract_violations(config, added_modules) == (),
+        message="Every new tracked Python module must be covered by strict Pyright without opt-in.",
     )
 
 
@@ -1248,6 +1254,7 @@ def test_typecheck_and_policy_commands_must_be_standalone() -> None:
     }
     assert commands["Source-rewriting policy"][-1] == "tools/ci/check_no_source_rewriting.py"
     assert commands["Python documentation contract"][-1] == "tools/check_documentation_contract.py"
-    assert commands["Pyright production inventory"] == ("pyright", "-p", "pyrightconfig.json")
+    assert commands["CI structure"] == ("python", "-m", "tools.ci.validate_ci_structure")
+    assert commands["Pyright all Python files"] == ("pyright", "-p", "pyrightconfig.json")
     assert commands["Ruff format"][1:5] == ("-m", "ruff", "format", "--check")
     assert commands["Ruff lint"][1:4] == ("-m", "ruff", "check")

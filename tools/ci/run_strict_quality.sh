@@ -2,8 +2,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 set -euo pipefail
 
-if [[ $# -ne 1 || -z "$1" ]]; then
-  echo "Usage: run_strict_quality.sh <immutable-pbd-image-tag>" >&2
+mode="${2:-}"
+if [[ $# -lt 1 || $# -gt 2 || -z "$1" || ( $# -eq 2 && "$mode" != "--ruff-autofix" ) ]]; then
+  echo "Usage: run_strict_quality.sh <immutable-pbd-image-tag> [--ruff-autofix]" >&2
   exit 2
 fi
 
@@ -39,7 +40,7 @@ cleanup() {
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
   git -C "$workspace" update-ref -d "$bundle_ref" >/dev/null 2>&1 || true
-  rm -f "$bundle_file"
+  rm -f "$bundle_file" "${temp_root:-/tmp}/freecad-cloth-ruff-autofix-${GITHUB_RUN_ID:-0}.patch"
 }
 trap cleanup EXIT
 
@@ -77,6 +78,7 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
   --env QUALITY_BASE_REF="$base_ref" \
   --env GITHUB_BASE_REF="$base_ref" \
   --env QUALITY_BASE_SHA="$base_sha" \
+  --env QUALITY_MODE="${mode#--}" \
   --env GITHUB_ACTIONS=true \
   "$image" bash -lc '
     set -euo pipefail
@@ -91,8 +93,58 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
     test -f tools/ci/strict_quality.py
     test "$(git rev-parse HEAD)" = "$QUALITY_HEAD_SHA"
     git rev-parse --verify "origin/$QUALITY_BASE_REF"
-    exec /opt/conda/envs/freecad/bin/python tools/ci/strict_quality.py
+    if [[ "$QUALITY_MODE" == "ruff-autofix" ]]; then
+      exec /opt/conda/envs/freecad/bin/python -m tools.ci.strict_quality --ruff-autofix
+    fi
+    exec /opt/conda/envs/freecad/bin/python -m tools.ci.strict_quality
   ')"
 
 docker cp "$bundle_file" "$container_id:/tmp/freecad-cloth-quality.bundle"
 docker start --attach "$container_id"
+
+if [[ "$mode" == "--ruff-autofix" ]]; then
+  : "${GH_TOKEN:?GH_TOKEN is required for the explicit autofix push}"
+  : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+  : "${GITHUB_HEAD_REF:?GITHUB_HEAD_REF is required}"
+  if [[ ! "$GITHUB_HEAD_REF" =~ ^[A-Za-z0-9._/-]+$ || "$GITHUB_HEAD_REF" == *".."* ]]; then
+    echo "::error::Unsafe pull-request branch name; refusing to push autofixes."
+    exit 2
+  fi
+
+  patch_file="$temp_root/freecad-cloth-ruff-autofix-${GITHUB_RUN_ID:-$$}.patch"
+  docker cp "$container_id:/tmp/ruff-autofix.patch" "$patch_file"
+  if [[ ! -s "$patch_file" ]]; then
+    echo "ruff-autofix=no-changes"
+    exit 0
+  fi
+
+  # The branch must still be the exact revision that was checked out for this run.
+  remote_sha="$(git -C "$workspace" ls-remote origin "refs/heads/$GITHUB_HEAD_REF" | awk 'NR == 1 { print $1 }')"
+  if [[ "$remote_sha" != "$head_sha" ]]; then
+    echo "::error::PR branch advanced during Ruff autofix; refusing to apply stale changes."
+    exit 1
+  fi
+
+  git -C "$workspace" apply --check "$patch_file"
+  git -C "$workspace" apply "$patch_file"
+  git -C "$workspace" add -u -- .
+  if git -C "$workspace" diff --cached --quiet; then
+    echo "ruff-autofix=no-staged-changes"
+    exit 0
+  fi
+
+  changed_paths="$(git -C "$workspace" diff --cached --name-only)"
+  while IFS= read -r path; do
+    [[ "$path" == *.py || "$path" == *.pyi ]] || {
+      echo "::error::Autofix patch changed a non-Python path: $path"
+      exit 1
+    }
+  done <<< "$changed_paths"
+  git -C "$workspace" diff --cached --check
+  git -C "$workspace" config user.name "github-actions[bot]"
+  git -C "$workspace" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+  auth="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+  git -C "$workspace" -c "http.extraheader=AUTHORIZATION: basic $auth" push \
+    "https://github.com/$GITHUB_REPOSITORY.git" "HEAD:refs/heads/$GITHUB_HEAD_REF"
+  echo "ruff-autofix=committed files=$(printf '%s\n' "$changed_paths" | wc -l | tr -d ' ')"
+fi

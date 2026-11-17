@@ -42,6 +42,7 @@ def _point_cloud(count: int, seed: int, offset: float) -> tuple[Point3, ...]:
 
     Returns:
         Immutable tuple of generated 3D points.
+
     """
     generator = np.random.default_rng(seed)
     return tuple(
@@ -62,6 +63,7 @@ def _simple_ring(count: int) -> tuple[Point, ...]:
 
     Returns:
         Immutable tuple of 2D vertices in counter-clockwise order.
+
     """
     return tuple(
         (100.0 * cos(tau * index / count), 100.0 * sin(tau * index / count))
@@ -78,6 +80,7 @@ def _reference_clearance(garment: Sequence[Point3], target: Sequence[Point3]) ->
 
     Returns:
         Minimum Euclidean distance between any garment and target point.
+
     """
     return min(dist(source, candidate) for source in garment for candidate in target)
 
@@ -90,6 +93,7 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
 
     Returns:
         True when non-adjacent segments intersect beyond the reference tolerance.
+
     """
 
     def cross(a: Point, b: Point, c: Point) -> float:
@@ -102,6 +106,7 @@ def _python_self_intersects_reference(points: Sequence[Point]) -> bool:
 
         Returns:
             Signed twice-triangle area, whose sign gives the orientation.
+
         """
         return ((b[0] - a[0]) * (c[1] - a[1])) - ((b[1] - a[1]) * (c[0] - a[0]))
 
@@ -128,6 +133,7 @@ def _time_clearance(count: int) -> None:
 
     Raises:
         AssertionError: If the optimized and reference clearances differ beyond tolerance.
+
     """
     garment = _point_cloud(count, 1729, 0.0)
     target = _point_cloud(count, 2718, 300.0)
@@ -159,6 +165,7 @@ def _time_outline(count: int) -> None:
 
     Raises:
         AssertionError: If the optimized and reference predicates return different results.
+
     """
     points = _simple_ring(count)
 
@@ -192,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     Raises:
         SystemExit: If a requested benchmark size is below the minimum benchmark size.
+
     """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sizes", type=int, nargs="+", default=(128, 512, 1024))

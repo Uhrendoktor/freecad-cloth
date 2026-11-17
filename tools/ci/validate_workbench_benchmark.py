@@ -8,16 +8,17 @@ import json
 import math
 import sys
 from pathlib import Path
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
-if __package__:
-    from tools.ci.repository_paths import add_repository_root
-else:
-    from repository_paths import add_repository_root
+if not __package__:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+from tools.ci.repository_paths import add_repository_root
 
 ROOT = add_repository_root(__file__)
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 WORKBENCH_NAMES = ("Pattern", "Sewing", "Simulation")
 BENCHMARK_SCHEMA_VERSION = 2
@@ -107,7 +108,7 @@ def _selected_benchmark(
         errors.append("workbenches must be a JSON object")
         return None
 
-    workbenches = cast("JsonObject", workbenches_value)
+    workbenches = workbenches_value
     if set(workbenches) != {expected_workbench}:
         errors.append(f"workbenches must contain only {expected_workbench!r}")
 
@@ -115,7 +116,7 @@ def _selected_benchmark(
     if not isinstance(benchmark_value, dict):
         errors.append(f"workbenches.{expected_workbench} must be a JSON object")
         return None
-    return cast("JsonObject", benchmark_value)
+    return benchmark_value
 
 
 def _validate_benchmark_inventory(benchmark: JsonObject, errors: list[str]) -> None:
@@ -193,7 +194,7 @@ def validate_metrics(payload: JsonValue, expected_workbench: str) -> list[str]:
     if not isinstance(payload, dict):
         return ["benchmark artifact must contain a JSON object"]
 
-    metrics = cast("JsonObject", payload)
+    metrics = payload
     errors: list[str] = []
     repeats = _validate_header_metrics(metrics, errors)
     benchmark = _selected_benchmark(metrics, expected_workbench, errors)

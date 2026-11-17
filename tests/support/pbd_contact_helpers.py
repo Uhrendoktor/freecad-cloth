@@ -14,18 +14,46 @@ import time
 from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path
-from typing import TYPE_CHECKING, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
-from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping, Sequence
     from types import ModuleType
 
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+    from freecad_cloth.shared.Collision import CollisionSurface
+
 Point3 = tuple[float, float, float]
 Triangle3 = tuple[int, int, int]
+type NativeBoundaryFlag = bool
+type GeometryConstructionFlag = bool
+type InsideOutside = Literal["inside", "outside", "mixed", "unknown"]
+
+NATIVE_BOUNDARY_INCLUSION: NativeBoundaryFlag = True
+SKETCH_GEOMETRY_IS_CONSTRUCTION: GeometryConstructionFlag = False
+MAX_INSIDE_OUTSIDE_SAMPLES = 64
+
+
+class _NativeSketchGeometry(Protocol):
+    """Line-segment geometry inserted into a native Sketcher profile."""
+
+    StartPoint: _NativeVector
+    EndPoint: _NativeVector
+
+
+class _NativeRotation(Protocol):
+    """Quaternion representation exposed by a FreeCAD placement rotation."""
+
+    Q: tuple[float, float, float, float]
+
+
+class _NativePlacement(Protocol):
+    """Location and orientation values exposed by a FreeCAD Placement."""
+
+    Base: _NativeVector
+    Rotation: _NativeRotation
 
 
 class _NativeVector(Protocol):
@@ -33,17 +61,17 @@ class _NativeVector(Protocol):
 
     @property
     def x(self) -> float:
-        """Return the horizontal model coordinate."""
+        """Horizontal coordinate in model space."""
         ...
 
     @property
     def y(self) -> float:
-        """Return the vertical model coordinate."""
+        """Vertical coordinate in model space."""
         ...
 
     @property
     def z(self) -> float:
-        """Return the depth model coordinate."""
+        """Depth coordinate in model space."""
         ...
 
 
@@ -54,7 +82,9 @@ class _NativeShape(Protocol):
         """Return whether the shape has no topological content."""
         ...
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+    def isInside(
+        self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag
+    ) -> bool:
         """Test whether a point lies inside the closed native shape."""
         ...
 
@@ -71,7 +101,9 @@ class _NativeMesh(Protocol):
 
     Topology: tuple[Sequence[_NativeVector], Sequence[Sequence[int]]]
 
-    def isInside(self, point: _NativeVector, tolerance: float, on_boundary: bool) -> bool:
+    def isInside(
+        self, point: _NativeVector, tolerance: float, on_boundary: NativeBoundaryFlag
+    ) -> bool:
         """Test whether a point lies inside the native triangle mesh."""
         ...
 
@@ -103,6 +135,9 @@ class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
 
     PieceId: str
     PatternType: str
+    Placement: _NativePlacement
+    Sketch: _Sketch
+    ViewObject: _ViewProvider
 
 
 class _PBDBackend(Protocol):
@@ -160,6 +195,33 @@ class _FreeCADDocument(Protocol):
 
     def recompute(self) -> None:
         """Recompute the persisted document after a solver step."""
+        ...
+
+
+class _Sketch(FreeCADDocumentObjectProtocol, Protocol):
+    """Native Sketcher profile created by the diagnostic ladder fixture."""
+
+    Document: _SketchDocument
+    ViewObject: _ViewProvider
+
+    def addGeometry(
+        self,
+        geometry: _NativeSketchGeometry,
+        construction: GeometryConstructionFlag,
+    ) -> int:
+        """Add one native geometry element and return its Sketcher index."""
+        ...
+
+
+class _SketchDocument(_FreeCADDocument, Protocol):
+    """Document operations required by the diagnostic rectangle-sketch factory."""
+
+    def addObject(self, object_type: str, name: str) -> _Sketch:
+        """Create and return one native Sketcher profile."""
+        ...
+
+    def recompute(self) -> None:
+        """Recompute document geometry after a sketch update."""
         ...
 
 
@@ -222,7 +284,14 @@ LADDER_CHECKPOINTS = (0, 1, 5, 15, 45, 90)
 
 
 def make_progress_logger(path: str | Path) -> Callable[[str], None]:
-    """Create a progress logger that appends to one file and mirrors stdout."""
+    """Create a progress logger that appends to one file and mirrors stdout.
+
+    Args:
+        path: Destination log file; parent directories are created as needed.
+
+    Returns:
+        Callback that appends each message to the file and writes it to stdout.
+    """
     output = Path(path)
     output.parent.mkdir(parents=True, exist_ok=True)
 
@@ -240,9 +309,17 @@ class _EventApplication(Protocol):
 
 
 def events(*, gui: ModuleType | None = None, application: _EventApplication | None = None) -> None:
-    """Process pending GUI events using the supplied host adapters when available."""
-    if gui is None:
-        import FreeCADGui as gui
+    """Process pending GUI events using the supplied host adapters when available.
+
+    Args:
+        gui: Optional FreeCADGui-compatible adapter; imported lazily when omitted.
+        application: Optional Qt application adapter; resolved from Qt when omitted.
+    """
+    resolved_gui = gui
+    if resolved_gui is None:
+        import FreeCADGui as Gui
+
+        resolved_gui = Gui
 
     if application is None:
         if TYPE_CHECKING:
@@ -253,7 +330,7 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
             except ImportError:
                 from PySide2 import QtWidgets
 
-    gui.updateGui()
+    resolved_gui.updateGui()
     if application is None:
         application = QtWidgets.QApplication.instance()
     if application is not None:
@@ -261,7 +338,11 @@ def events(*, gui: ModuleType | None = None, application: _EventApplication | No
 
 
 def ensure_gui_ready() -> None:
-    """Fail when the FreeCAD window is not visible and process one GUI event pass."""
+    """Fail when the FreeCAD window is not visible and process one GUI event pass.
+
+    Raises:
+        RuntimeError: If FreeCAD has no visible main window.
+    """
     import FreeCADGui as Gui
 
     window = Gui.getMainWindow()
@@ -272,8 +353,23 @@ def ensure_gui_ready() -> None:
     events()
 
 
-def add_rectangle_sketch(doc, name, width, height):
-    """Create a native rectangular Sketcher profile for diagnostic cloth panels."""
+def add_rectangle_sketch(
+    doc: _SketchDocument,
+    name: str,
+    width: float,
+    height: float,
+) -> _Sketch:
+    """Create a native rectangular Sketcher profile for diagnostic cloth panels.
+
+    Args:
+        doc: FreeCAD document that owns the new sketch.
+        name: Internal document name assigned to the Sketcher object.
+        width: Rectangle width in millimetres.
+        height: Rectangle height in millimetres.
+
+    Returns:
+        The recomputed native Sketcher profile.
+    """
     import FreeCAD as App
     import Part
 
@@ -288,14 +384,22 @@ def add_rectangle_sketch(doc, name, width, height):
         end = points[(index + 1) % 4]
         sketch.addGeometry(
             Part.LineSegment(App.Vector(start[0], start[1], 0.0), App.Vector(end[0], end[1], 0.0)),
-            False,
+            SKETCH_GEOMETRY_IS_CONSTRUCTION,
         )
     doc.recompute()
     return sketch
 
 
-def adopt_sketch(sketch, name):
-    """Adopt a diagnostic Sketcher profile through the production pattern command."""
+def adopt_sketch(sketch: _Sketch, name: str) -> _PatternPieceFeature:
+    """Adopt a diagnostic Sketcher profile through the production pattern command.
+
+    Args:
+        sketch: Native sketch selected by the production pattern command.
+        name: Persistent internal name requested for the PatternPiece.
+
+    Returns:
+        The PatternPiece created from the selected sketch.
+    """
     import FreeCADGui as Gui
 
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
@@ -309,8 +413,20 @@ def adopt_sketch(sketch, name):
     return piece
 
 
-def mesh_geometry(obj):
-    """Return stable point/triangle tuples from mesh topology or tessellated shape geometry."""
+def mesh_geometry(
+    obj: _SourceFeature,
+) -> tuple[tuple[Point3, ...], tuple[Triangle3, ...]]:
+    """Return stable point/triangle tuples from mesh topology or tessellated shape geometry.
+
+    Args:
+        obj: FreeCAD feature exposing either Mesh.Topology or Shape.tessellate.
+
+    Returns:
+        Immutable XYZ points and indexed triangles in the feature's local frame.
+
+    Raises:
+        RuntimeError: If the feature has neither a usable mesh nor a non-null shape.
+    """
     mesh = getattr(obj, "Mesh", None)
     if mesh is not None:
         topology = getattr(mesh, "Topology", None)
@@ -322,9 +438,8 @@ def mesh_geometry(obj):
             )
     shape = getattr(obj, "Shape", None)
     if shape is None or shape.isNull():
-        raise RuntimeError(
-            "missing mesh or shape geometry on {}".format(getattr(obj, "Name", "object"))
-        )
+        msg = f"missing mesh or shape geometry on {getattr(obj, 'Name', 'object')}"
+        raise RuntimeError(msg)
     vertices, triangles = shape.tessellate(1.0)
     return (
         tuple((float(v.x), float(v.y), float(v.z)) for v in vertices),
@@ -332,18 +447,39 @@ def mesh_geometry(obj):
     )
 
 
-def mesh_points(obj):
-    """Return the point array from mesh_geometry."""
+def mesh_points(obj: _SourceFeature) -> tuple[Point3, ...]:
+    """Return the point array from mesh_geometry.
+
+    Args:
+        obj: FreeCAD feature whose mesh or shape provides the point coordinates.
+
+    Returns:
+        Immutable XYZ coordinates in the feature's local frame.
+
+    Raises:
+        RuntimeError: If the feature has neither a usable mesh nor a non-null shape.
+    """
     return mesh_geometry(obj)[0]
 
 
-def connected_components(vertices, triangles):
-    """Count connected vertex components in a diagnostic triangle mesh."""
+def connected_components(
+    vertices: Sequence[Point3],
+    triangles: Sequence[Triangle3],
+) -> int:
+    """Count connected vertex components in a diagnostic triangle mesh.
+
+    Args:
+        vertices: XYZ mesh vertices in stable point order.
+        triangles: Triangular faces referencing indices in vertices.
+
+    Returns:
+        Number of disconnected vertex components.
+    """
     if not vertices:
         return 0
     parent = list(range(len(vertices)))
 
-    def find(index):
+    def find(index: int) -> int:
         """Resolve the representative vertex index for one union-find entry.
 
         Args:
@@ -357,7 +493,7 @@ def connected_components(vertices, triangles):
             index = parent[index]
         return index
 
-    def union(left, right):
+    def union(left: int, right: int) -> None:
         left_root = find(left)
         right_root = find(right)
         if left_root != right_root:
@@ -397,73 +533,42 @@ def nearest_surface_observation(
     return nearest_target_observation(garment_points, vertices)
 
 
-def inside_outside(points, source):
-    """Classify sampled points against a native shape or its closed triangle mesh."""
-    import FreeCAD as App
+def _native_inside_states(
+    points: Sequence[Point3],
+    contains: Callable[[_NativeVector, float, NativeBoundaryFlag], bool],
+    vector_factory: Callable[..., _NativeVector],
+) -> list[bool]:
+    """Sample a native FreeCAD containment function, failing closed on host API errors.
 
-    shape = getattr(source, "Shape", None)
-    if shape is not None and not getattr(shape, "isNull", lambda: True)():
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(shape.isInside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-    mesh = getattr(source, "Mesh", None)
-    mesh_is_inside = getattr(mesh, "isInside", None) if mesh is not None else None
-    if callable(mesh_is_inside):
-        states = []
-        for point in points[:64]:
-            try:
-                states.append(bool(mesh_is_inside(App.Vector(*point), 1e-6, True)))
-            except (AttributeError, TypeError, ValueError):
-                states = []
-                break
-        if states:
-            if all(states):
-                return "inside"
-            if not any(states):
-                return "outside"
-            return "mixed"
-    topology = getattr(mesh, "Topology", None) if mesh is not None else None
-    if topology is None:
-        return "unknown"
-    raw_vertices, raw_faces = topology
-    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
-    if not vertices or not raw_faces:
-        return "unknown"
-    try:
-        import numpy as np
-        import trimesh
+    Args:
+        points: XYZ positions tested against the native shape or mesh.
+        contains: Native isInside method supplied by the host object.
+        vector_factory: FreeCAD vector constructor used to adapt each XYZ point.
 
-        face_array = np.asarray(raw_faces, dtype=np.int64)
-        if face_array.ndim != 2 or face_array.shape[1] != 3:
-            return "unknown"
-        triangles: tuple[Triangle3, ...] = tuple(
-            (int(face[0]), int(face[1]), int(face[2])) for face in face_array
-        )
-        target_mesh = trimesh.Trimesh(
-            vertices=np.asarray(vertices, dtype=np.float64),
-            faces=face_array,
-            process=False,
-        )
-        if not target_mesh.is_watertight:
-            msg = "target mesh is not watertight"
-            raise RuntimeError(msg)
-        states = [
-            bool(value) for value in target_mesh.contains(np.asarray(points[:64], dtype=float))
-        ]
-    except (ImportError, RuntimeError, TypeError, ValueError):
-        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+    Returns:
+        Boolean containment states for at most the first 64 points, or an empty
+        list when the native API rejects any sampled point.
+    """
+    states: list[bool] = []
+    for point in points[:MAX_INSIDE_OUTSIDE_SAMPLES]:
+        try:
+            states.append(
+                bool(contains(vector_factory(*point), 1e-6, NATIVE_BOUNDARY_INCLUSION))
+            )
+        except (AttributeError, TypeError, ValueError):
+            return []
+    return states
 
-        states = [point_inside_closed_mesh(point, vertices, triangles) for point in points[:64]]
+
+def _classify_inside_states(states: Sequence[bool]) -> InsideOutside:
+    """Convert sampled containment states into the stable diagnostic labels.
+
+    Args:
+        states: Boolean inside/outside results from one geometry backend.
+
+    Returns:
+        inside, outside, mixed, or unknown when no usable states were produced.
+    """
     if not states:
         return "unknown"
     if all(states):
@@ -471,6 +576,101 @@ def inside_outside(points, source):
     if not any(states):
         return "outside"
     return "mixed"
+
+
+def _trimesh_inside_states(
+    points: Sequence[Point3],
+    vertices: Sequence[Point3],
+    raw_faces: Sequence[Sequence[int]],
+) -> list[bool] | None:
+    """Run the optional Trimesh containment query without owning fallback policy.
+
+    Args:
+        points: Sampled garment positions.
+        vertices: Target mesh vertices in local coordinates.
+        raw_faces: Target triangle index triples.
+
+    Returns:
+        Containment states, an empty list for malformed face-array shape, or None
+        when Trimesh is unavailable, the mesh is not watertight, or the query fails.
+    """
+    try:
+        import numpy as np
+        import trimesh
+
+        face_array = np.asarray(raw_faces, dtype=np.int64)
+        if face_array.ndim != 2 or face_array.shape[1] != 3:
+            return []
+        target_mesh = trimesh.Trimesh(
+            vertices=np.asarray(vertices, dtype=np.float64),
+            faces=face_array,
+            process=False,
+        )
+        if not target_mesh.is_watertight:
+            return None
+        return [
+            bool(value)
+            for value in target_mesh.contains(
+                np.asarray(points[:MAX_INSIDE_OUTSIDE_SAMPLES], dtype=float)
+            )
+        ]
+    except (ImportError, RuntimeError, TypeError, ValueError):
+        return None
+
+
+def inside_outside(
+    points: Sequence[Point3],
+    source: _SourceFeature,
+) -> InsideOutside:
+    """Classify sampled points against a native shape or its closed triangle mesh.
+
+    The query order is intentional: native shape, native mesh, optional Trimesh,
+    then the shared closed-mesh fallback. Each path is limited to 64 samples.
+
+    Args:
+        points: Garment points tested in the target's local coordinate frame.
+        source: FreeCAD source feature exposing an optional Shape or Mesh.
+
+    Returns:
+        inside, outside, mixed, or unknown when no geometry path can classify them.
+    """
+    import FreeCAD as App
+
+    shape = source.Shape
+    if shape is not None and not shape.isNull():
+        classification = _classify_inside_states(
+            _native_inside_states(points, shape.isInside, App.Vector)
+        )
+        if classification != "unknown":
+            return classification
+
+    mesh = source.Mesh
+    if mesh is not None:
+        classification = _classify_inside_states(
+            _native_inside_states(points, mesh.isInside, App.Vector)
+        )
+        if classification != "unknown":
+            return classification
+        raw_vertices, raw_faces = mesh.Topology
+    else:
+        return "unknown"
+
+    vertices = tuple((float(v.x), float(v.y), float(v.z)) for v in raw_vertices)
+    if not vertices or not raw_faces:
+        return "unknown"
+
+    states = _trimesh_inside_states(points, vertices, raw_faces)
+    if states is None:
+        from freecad_cloth.simulation.DrapeVisualSanity import point_inside_closed_mesh
+
+        triangles: tuple[Triangle3, ...] = tuple(
+            (int(face[0]), int(face[1]), int(face[2])) for face in raw_faces
+        )
+        states = [
+            point_inside_closed_mesh(point, vertices, triangles)
+            for point in points[:MAX_INSIDE_OUTSIDE_SAMPLES]
+        ]
+    return _classify_inside_states(states)
 
 
 def bounds(points: Sequence[Sequence[float]]) -> tuple[float, float, float, float, float, float]:
@@ -527,13 +727,23 @@ def centroid(points: Sequence[Sequence[float]]) -> tuple[float, float, float]:
 
 
 def nearest_surface_distance(
-    garment_points,
-    surface,
+    garment_points: Sequence[Point3],
+    surface: CollisionSurface | None,
     *,
     surface_clearance_fn: Callable[..., float] | None = None,
     target_clearance_fn: Callable[..., float] | None = None,
 ) -> float | None:
-    """Return exact surface distance when available, otherwise a bounded vertex estimate."""
+    """Return exact surface distance when available, otherwise a bounded vertex estimate.
+
+    Args:
+        garment_points: Garment coordinates in the target's model-space frame.
+        surface: Shared collision surface supplying target vertices and triangles.
+        surface_clearance_fn: Optional exact point-to-triangle query adapter.
+        target_clearance_fn: Optional accelerated nearest-target-vertex adapter.
+
+    Returns:
+        Minimum garment-to-target distance in millimetres, or None without target data.
+    """
     if not garment_points or surface is None:
         return None
     vertices = tuple(getattr(surface, "vertices", ()) or ())
@@ -573,7 +783,17 @@ def nearest_surface_distance(
 
 
 def target_signature(target: _DrapeTargetFeature) -> JsonObject:
-    """Return stable target/source identity and topology metrics for diagnostic evidence."""
+    """Return stable target/source identity and topology metrics for diagnostic evidence.
+
+    Args:
+        target: Persisted DrapeTarget feature linked to its source object.
+
+    Returns:
+        JSON-compatible target type, source identity, and source topology counts.
+
+    Raises:
+        RuntimeError: If the target has no source object.
+    """
     source = getattr(target, "SourceObject", None)
     if source is None:
         msg = "diagnostic target has no source"
@@ -841,13 +1061,31 @@ def build_piece(doc, name, placement, width=120.0, height=120.0):
     return piece
 
 
-def positions_tuple(backend):
-    """Return a stable tuple copy of backend particle positions."""
+def positions_tuple(backend: _PBDBackend) -> tuple[Point3, ...]:
+    """Return a stable tuple copy of backend particle positions.
+
+    Args:
+        backend: Simulation backend exposing its current XYZ particle coordinates.
+
+    Returns:
+        Immutable coordinate tuples detached from the mutable backend buffer.
+    """
     return tuple(tuple(float(c) for c in point) for point in backend.positions())
 
 
-def seam_geometry(backend, seam_stitch_pairs):
-    """Return deterministic per-seam stitch gap measurements in millimetres."""
+def seam_geometry(
+    backend: _PBDBackend,
+    seam_stitch_pairs: Mapping[str, Sequence[tuple[int, int]]],
+) -> list[JsonObject]:
+    """Return deterministic per-seam stitch gap measurements in millimetres.
+
+    Args:
+        backend: Simulation backend providing current particle positions.
+        seam_stitch_pairs: Seam identifiers mapped to paired particle indices.
+
+    Returns:
+        JSON-compatible seam records with per-pair and aggregate distance metrics.
+    """
     positions = positions_tuple(backend)
     result = []
     for seam_id, pairs in sorted(seam_stitch_pairs.items()):
@@ -1037,12 +1275,12 @@ def build_ladder_case_record(
     ]
     seam_pair_count = sum(len(pairs) for pairs in seam_pairs_by_id.values())
     case_record: JsonObject = {
-        "rung": int(cast(int, spec["rung"])),
+        "rung": int(cast("int", spec["rung"])),
         "id": case_id,
         "target": target,
-        "piece_count": int(cast(int, spec["piece_count"])),
-        "pin_mode": str(cast(str, spec["pin_mode"])),
-        "seam_mode": str(cast(str, spec["seam_mode"])),
+        "piece_count": int(cast("int", spec["piece_count"])),
+        "pin_mode": str(cast("str", spec["pin_mode"])),
+        "seam_mode": str(cast("str", spec["seam_mode"])),
     }
     signature = runtime.target_signature
     record: JsonObject = {
@@ -1059,12 +1297,12 @@ def build_ladder_case_record(
         },
         "collision": {
             "source_signature": signature,
-            "source_triangles": int(cast(int, signature["source_triangles"])),
+            "source_triangles": int(cast("int", signature["source_triangles"])),
             "solver_triangles": int(runtime.solver_triangles),
             "target_bounds": dict(target_bounds),
             "target_topology_summary": {
-                "vertices": int(cast(int, signature["source_vertices"])),
-                "triangles": int(cast(int, signature["source_triangles"])),
+                "vertices": int(cast("int", signature["source_vertices"])),
+                "triangles": int(cast("int", signature["source_triangles"])),
                 "solver_triangles": int(runtime.solver_triangles),
             },
         },
@@ -1077,8 +1315,8 @@ def build_ladder_case_record(
         },
         "checkpoints": list(checkpoints),
         "finite": all(bool(checkpoint["finite"]) for checkpoint in checkpoints),
-        "connected_components": int(cast(int, final["components"])),
-        "max_seam_gap_mm": float(cast(float, final["max_seam_gap_mm"])),
+        "connected_components": int(cast("int", final["components"])),
+        "max_seam_gap_mm": float(cast("float", final["max_seam_gap_mm"])),
         "final_clearance_mm": final["target_clearance_mm"],
         "max_penetration_mm": round(maximum_penetration, 6),
         "runtime_ms": round((time.perf_counter() - started) * 1000.0, 3),
@@ -1128,24 +1366,24 @@ def structural_ladder_checks(
     checks: list[JsonObject] = []
     for case_id, rung in ordered_cases:
         record = by_id[case_id]
-        case_data = cast(JsonObject, record["case"])
+        case_data = cast("JsonObject", record["case"])
         solver = cast("JsonObject", record["solver"])
         collision = cast("JsonObject", record["collision"])
         pre_step = cast("JsonObject", record["pre_step"])
         checkpoints = cast("Sequence[JsonObject]", record["checkpoints"])
         ok = (
             bool(record["finite"])
-            and int(cast(int, case_data["rung"])) == rung
+            and int(cast("int", case_data["rung"])) == rung
             and solver["backend"] == "pbd"
-            and int(cast(int, solver["iterations"])) == 1
-            and int(cast(int, solver["substeps"])) == 1
-            and abs(float(cast(float, solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
-            and float(cast(float, solver["gravity_z_mm_s2"])) == 0.0
-            and int(cast(int, collision["solver_triangles"])) > 0
+            and int(cast("int", solver["iterations"])) == 1
+            and int(cast("int", solver["substeps"])) == 1
+            and abs(float(cast("float", solver["timestep_s"])) - (1.0 / 120.0)) < 1e-12
+            and float(cast("float", solver["gravity_z_mm_s2"])) == 0.0
+            and int(cast("int", collision["solver_triangles"])) > 0
             and len(checkpoints) == len(LADDER_CHECKPOINTS)
-            and [int(cast(int, item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
+            and [int(cast("int", item["step"])) for item in checkpoints] == list(LADDER_CHECKPOINTS)
         )
-        piece_count = int(cast(int, case_data["piece_count"]))
+        piece_count = int(cast("int", case_data["piece_count"]))
         seams = cast("Sequence[JsonValue]", pre_step["seam_pairs"])
         seam_spans = cast("Sequence[JsonValue]", pre_step["seam_world_spans_mm"])
         if rung in single_piece_rungs:
@@ -1158,7 +1396,7 @@ def structural_ladder_checks(
         if not ok:
             break
     first_failure = next(
-        (int(cast(int, item["rung"])) for item in checks if not bool(item["passed"])),
+        (int(cast("int", item["rung"])) for item in checks if not bool(item["passed"])),
         None,
     )
     return {

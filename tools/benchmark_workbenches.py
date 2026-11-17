@@ -58,6 +58,7 @@ EXPECTED_WORKBENCH_ERRORS = (
 class _Workbench(Protocol):
     """Workbench lifecycle and command inventory measured by the benchmark."""
 
+    __Workbench__: BenchmarkWorkbenchBackend
     commands: Sequence[str]
 
     def Initialize(self) -> None:
@@ -351,11 +352,12 @@ def main(freecad: ModuleType, gui: ModuleType, qt_widgets: ModuleType) -> None:
     parser.add_argument(
         "--workbench", choices=tuple(WORKBENCHES), help="Measure only this workbench"
     )
-    if os.environ.get("CLOTH_BENCHMARK_WORKBENCH"):
+    workbench_override = os.environ.get("CLOTH_BENCHMARK_WORKBENCH")
+    if workbench_override:
         args = parser.parse_args(
             [
                 "--workbench",
-                os.environ["CLOTH_BENCHMARK_WORKBENCH"],
+                workbench_override,
                 "--output",
                 os.environ.get(
                     "CLOTH_BENCHMARK_OUTPUT", "artifacts/workbench-benchmark/benchmark.json"

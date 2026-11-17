@@ -22,6 +22,7 @@ def triangle_indices_are_valid(
     Returns:
         Whether indices are integral, in range, and distinct within each face.
         Malformed array-like input returns False.
+
     """
     try:
         faces = np.asarray(triangles)
@@ -60,6 +61,7 @@ def _edge_owners(
 
     Raises:
         ValueError: If a face has a degenerate edge or an edge lacks exactly two owners.
+
     """
     edge_owners: dict[tuple[int, int], list[tuple[int, int]]] = {}
     for face_index, (a, b, c) in enumerate(triangles):
@@ -89,6 +91,7 @@ def _face_adjacency(
 
     Returns:
         Per-face neighbors paired with whether their winding flips must differ.
+
     """
     adjacency: list[list[tuple[int, bool]]] = [[] for _ in range(face_count)]
     for owners in edge_owners.values():
@@ -112,6 +115,7 @@ def _face_flip_plan(
 
     Raises:
         ValueError: If the adjacent-face constraints are not orientable.
+
     """
     flip_state = [-1] * len(adjacency)
     components: list[list[int]] = []
@@ -148,6 +152,7 @@ def _corrected_face_winding(
 
     Returns:
         Triangles with coherent winding in their original face order.
+
     """
     corrected = [list(face) for face in triangles]
     for face_index, should_flip in enumerate(flip_state):
@@ -206,6 +211,7 @@ def orient_closed_triangle_winding(
     Raises:
         ValueError: If coordinates or triangle indices are invalid, or a component has
             no reliable enclosed volume.
+
     """
     points = np.asarray(vertices, dtype=np.float64)
     faces = np.asarray(triangles, dtype=np.int64)

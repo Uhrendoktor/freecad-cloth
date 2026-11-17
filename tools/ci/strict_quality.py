@@ -6,23 +6,16 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-if __package__:
-    from tools.ci.command_runner import (
-        CommandExecutionError,
-        CommandOptions,
-        CommandTimeoutError,
-        run_command,
-    )
-else:
-    from command_runner import (
-        CommandExecutionError,
-        CommandOptions,
-        CommandTimeoutError,
-        run_command,
-    )
+from tools.ci.command_runner import (
+    CommandExecutionError,
+    CommandOptions,
+    CommandTimeoutError,
+    run_command,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 ENVIRONMENT_VERSION = "freecad-quality-v1"
@@ -236,7 +229,9 @@ def collect_tracked_python_files(root: Path) -> tuple[str, ...]:
         ("git", "ls-files", "-z", "--", "*.py", "*.pyi"),
         options=CommandOptions(cwd=root, capture_output=True, timeout=30),
     )
-    return tuple(path for path in (result.stdout or "").split("\0") if path)
+    if result.stdout is None:
+        return ()
+    return tuple(path for path in result.stdout.split("\0") if path)
 
 
 def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[QualityCommand, ...]:
@@ -252,7 +247,14 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
     executable = str(python)
     return (
         QualityCommand(
-            "Python compilation", (executable, "-m", "compileall", "-q", "tests", "tools/ci")
+            "Python compilation",
+            (
+                executable,
+                "-m",
+                "compileall",
+                "-q",
+                *(path for path in tracked_files if path.endswith(".py")),
+            ),
         ),
         QualityCommand(
             "Focused migration regression tests",
@@ -268,13 +270,13 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
                 ),
                 (
                     "tests/test_ci_configuration.py::"
-                    "test_pyright_uses_the_reviewed_staged_production_inventory"
+                    "test_pyright_uses_strict_mode_for_entire_python_repository"
                 ),
                 (
                     "tests/test_ci_configuration.py::"
-                    "test_new_python_modules_must_be_explicitly_reviewed_for_pyright"
+                    "test_new_python_modules_are_covered_by_strict_pyright"
                 ),
-                ("tests/test_ci_configuration.py::test_ty_warning_diagnostics_remain_blocking"),
+                ("tests/test_ci_configuration.py::test_ty_all_diagnostics_remain_blocking"),
                 "tests/test_avatar_service_contract.py",
                 "tests/test_changed_python_types.py",
                 "tests/test_command_runner.py",
@@ -289,7 +291,7 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
             timeout_seconds=120,
         ),
         QualityCommand("Markdown contract", (executable, "tools/check_markdown_contract.py")),
-        QualityCommand("CI structure", (executable, "tools/ci/validate_ci_structure.py")),
+        QualityCommand("CI structure", (executable, "-m", "tools.ci.validate_ci_structure")),
         QualityCommand("Import architecture", ("lint-imports",)),
         QualityCommand(
             "Source-rewriting policy", (executable, "tools/ci/check_no_source_rewriting.py")
@@ -298,18 +300,10 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
             "Explicit Any policy", (executable, "tools/ci/check_explicit_any_annotations.py")
         ),
         QualityCommand("Pydantic model policy", (executable, "tools/ci/check_pydantic_models.py")),
-        QualityCommand("Pyright production inventory", ("pyright", "-p", "pyrightconfig.json")),
+        QualityCommand("Pyright all Python files", ("pyright", "-p", "pyrightconfig.json")),
         QualityCommand(
-            "Typed simulation core",
-            (
-                "ty",
-                "check",
-                "--output-format",
-                "github",
-                "freecad_cloth/simulation/DrapeFailureClassifier.py",
-                "freecad_cloth/simulation/cloth_backend.py",
-                "freecad_cloth/simulation/ClothSolver.py",
-            ),
+            "Typed all Python files",
+            ("ty", "check", "--output-format", "github", *tracked_files),
         ),
         QualityCommand(
             "Changed Python annotation ratchet",
@@ -360,6 +354,114 @@ def quality_commands(python: Path, tracked_files: tuple[str, ...]) -> tuple[Qual
         ),
         QualityCommand("Ruff lint", (executable, "-m", "ruff", "check", *tracked_files)),
     )
+
+
+def ruff_autofix_commands(
+    python: Path, tracked_files: tuple[str, ...]
+) -> tuple[QualityCommand, ...]:
+    """Build safe, repository-wide Ruff formatting and lint-fix commands.
+
+    Args:
+        python: Python executable in the pinned FreeCAD-aware quality environment.
+        tracked_files: Git-tracked Python sources and stubs.
+
+    Returns:
+        Formatter and safe lint-fix commands; unsafe fixes are never requested.
+    """
+    executable = str(python)
+    return (
+        QualityCommand(
+            "Apply Ruff formatting",
+            (executable, "-m", "ruff", "format", *tracked_files),
+            timeout_seconds=600,
+        ),
+        QualityCommand(
+            "Apply safe Ruff lint fixes",
+            (executable, "-m", "ruff", "check", "--fix", *tracked_files),
+            timeout_seconds=600,
+        ),
+    )
+
+
+def write_ruff_autofix_patch(patch_text: str) -> Path:
+    """Persist the generated Ruff patch in a uniquely created temporary file.
+
+    Args:
+        patch_text: Complete unified diff emitted by Git after safe Ruff fixes.
+
+    Returns:
+        Path to the temporary patch file, which remains available to the caller.
+
+    Raises:
+        OSError: If the temporary patch file cannot be created or written.
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        prefix="ruff-autofix-",
+        suffix=".patch",
+        dir=os.environ.get("RUNNER_TEMP"),
+        delete=False,
+    ) as patch_file:
+        patch_file.write(patch_text)
+    return Path(patch_file.name)
+
+
+def _run_repository_ruff_autofix() -> int:
+    """Apply safe Ruff fixes and export the resulting tracked-source patch.
+
+    Returns:
+        Zero when formatting and lint-fix commands ran and the patch was exported.
+
+    Raises:
+        RuntimeError: If Git reports no tracked Python sources or stubs.
+    """
+    cache_root = Path(os.environ["RUNNER_TOOL_CACHE"])
+    image_id = os.environ["QUALITY_IMAGE_ID"]
+    workspace_key = os.environ["WORKSPACE_CACHE_KEY"]
+    python = prepare_quality_environment(cache_root, image_id, workspace_key)
+    tracked_files = collect_tracked_python_files(ROOT)
+    if not tracked_files:
+        msg = "Git reported no tracked Python sources or stubs."
+        raise RuntimeError(msg)
+    _run_setup(
+        ("git", "config", "--global", "--add", "safe.directory", str(ROOT)),
+        timeout_seconds=10,
+    )
+
+    for command in ruff_autofix_commands(python, tracked_files):
+        sys.stdout.write(f"::group::Safe Ruff autofix: {command.label}\n")
+        sys.stdout.flush()
+        result = run_command(
+            command.arguments,
+            options=CommandOptions(
+                cwd=ROOT,
+                capture_output=True,
+                check=False,
+                timeout=command.timeout_seconds,
+            ),
+        )
+        if result.stdout:
+            sys.stdout.write(result.stdout)
+        if result.stderr:
+            sys.stderr.write(result.stderr)
+        sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\n")
+        sys.stdout.write("::endgroup::\n")
+        sys.stdout.flush()
+
+    diff = run_command(
+        ("git", "diff", "--binary"),
+        options=CommandOptions(cwd=ROOT, capture_output=True, timeout=60),
+    )
+    patch_path = write_ruff_autofix_patch(diff.stdout or "")
+    changed = run_command(
+        ("git", "diff", "--name-only"),
+        options=CommandOptions(cwd=ROOT, capture_output=True, timeout=30),
+    )
+    changed_paths = tuple(path for path in (changed.stdout or "").splitlines() if path)
+    sys.stdout.write(f"ruff-autofix-changed-files={len(changed_paths)} patch={patch_path}\n")
+    sys.stdout.flush()
+    return 0
 
 
 def run_quality_commands(commands: tuple[QualityCommand, ...]) -> int:
@@ -440,6 +542,11 @@ def main() -> int:
         Zero only when environment setup and every required check succeeds.
     """
     try:
+        if sys.argv[1:] == ["--ruff-autofix"]:
+            return _run_repository_ruff_autofix()
+        if sys.argv[1:]:
+            sys.stderr.write("Usage: python -m tools.ci.strict_quality [--ruff-autofix]\n")
+            return 2
         return _run_repository_quality()
     except (KeyError, OSError, RuntimeError) as error:
         sys.stderr.write(f"::error::Strict quality environment failed: {error}\n")

@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
+import sys
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Never, NoReturn, cast
 
@@ -13,6 +14,7 @@ from tests.support.pbd_contact_helpers import (
     append_optional_ladder_piece,
     configure_ladder_scene,
     events,
+    inside_outside,
     nearest_surface_distance,
     position_bounds,
 )
@@ -22,7 +24,7 @@ PBD_COLLISION_MIN_CELLS = 16
 PBD_COLLISION_MAX_CELLS = 256
 
 if TYPE_CHECKING:
-    from tests.support.pbd_contact_helpers import _EventApplication
+    from tests.support.pbd_contact_helpers import _EventApplication, _SourceFeature
 
 
 def test_surface_distance_fallback_uses_spatial_index() -> None:
@@ -129,3 +131,31 @@ def test_position_bounds_uses_vectorized_axis_reductions() -> None:
     }, "axis bounds must match the full particle coordinate set"
     with pytest.raises(ValueError, match="empty PBD position set"):
         position_bounds(())
+
+
+
+def test_inside_outside_prefers_native_shape_before_mesh_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Use the native Shape.isInside path before consulting a mesh representation."""
+    calls: list[tuple[tuple[float, float, float], float, bool]] = []
+    freecad = ModuleType("FreeCAD")
+    freecad.__dict__["Vector"] = lambda x, y, z: (x, y, z)
+    monkeypatch.setitem(sys.modules, "FreeCAD", freecad)
+
+    shape = SimpleNamespace(
+        isNull=lambda: False,
+        isInside=lambda point, tolerance, on_boundary: (
+            calls.append((point, tolerance, on_boundary)) or True
+        ),
+    )
+    mesh = SimpleNamespace(
+        isInside=lambda *_args: (_ for _ in ()).throw(
+            AssertionError("native shape containment must run before mesh containment")
+        ),
+        Topology=((), ()),
+    )
+    source = cast("_SourceFeature", SimpleNamespace(Shape=shape, Mesh=mesh))
+
+    assert inside_outside(((1.0, 2.0, 3.0),), source) == "inside"
+    assert calls == [((1.0, 2.0, 3.0), 1e-6, True)]

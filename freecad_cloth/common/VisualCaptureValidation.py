@@ -33,6 +33,7 @@ def _capture_metrics(
 
     Raises:
         ValueError: If image decoding fails or the PNG format or dimensions are invalid.
+
     """
     with warnings.catch_warnings():
         warnings.simplefilter("error", Image.DecompressionBombWarning)
@@ -123,6 +124,7 @@ def png_has_visible_content(
 
     Returns:
         Whether at least the configured number of visible pixels passes the threshold.
+
     """
     options = PngCaptureOptions(
         expected_width=expected_width,
@@ -162,6 +164,7 @@ def validate_png_capture(
 
     Raises:
         ValueError: If the image is unreadable, blank, transparent, uniform, or mis-sized.
+
     """
     options = PngCaptureOptions(
         expected_width=expected_width,
@@ -186,4 +189,10 @@ def validate_png_capture(
             "PNG content is effectively uniform: distinct_rgb=%d minimum=%d"
             % (metrics.distinct_rgb, options.min_distinct_rgb)
         )
-    return metrics.model_dump()
+    return {
+        "width": metrics.width,
+        "height": metrics.height,
+        "opaque_pixels": metrics.opaque_pixels,
+        "nonwhite_pixels": metrics.nonwhite_pixels,
+        "distinct_rgb": metrics.distinct_rgb,
+    }

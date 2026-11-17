@@ -187,3 +187,23 @@ def test_duplicate_artifact_name_requires_creation_metadata() -> None:
     ]
     with pytest.raises(ValueError, match="lacks creation time or artifact ID"):
         latest_artifacts_by_name(artifacts)
+
+
+def test_duplicate_artifact_name_rejects_wrong_metadata_types() -> None:
+    """Reject timestamps and identifiers whose supplied values have invalid types."""
+    artifacts = [
+        {
+            "id": 1,
+            "name": "evidence",
+            "size_in_bytes": 100,
+            "created_at": "2026-11-14T12:00:00Z",
+        },
+        {
+            "id": "2",
+            "name": "evidence",
+            "size_in_bytes": 200,
+            "created_at": "2026-11-14T12:01:00Z",
+        },
+    ]
+    with pytest.raises(TypeError, match="non-integer artifact ID"):
+        latest_artifacts_by_name(artifacts)

@@ -5,6 +5,7 @@ from typing import cast
 from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
+    EdgeRecord,
     MissingEdgeReference,
     capture_edge_reference,
 )
@@ -248,7 +249,7 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
         [f"piece:edge:{index}" for index in range(8)],
     )
     piece = _Piece("piece", sketch)
-    reordered = []
+    reordered: list[EdgeRecord] = []
     for edge_id in (
         "piece:edge:0",
         "piece:edge:7",
@@ -263,8 +264,10 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
         points = ((float(index), 0.0), (float(index) + 1.0, 0.0))
         reordered.append(
             {
+                "piece_id": "piece",
                 "id": edge_id,
                 "points": points,
+                "ordinal": index,
                 "provenance": (
                     "PatternIR",
                     "Sketcher",
@@ -275,7 +278,8 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
             }
         )
 
-    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+
+    def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return reordered
 
     edge_id, signature = pattern_objects._seam_edge_id(
@@ -299,11 +303,17 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     )
     piece = _Piece("piece", sketch)
     provenance = ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0)))
-    records = [
-        {"id": "piece:edge:2", "points": ((0.0, 0.0), (10.0, 0.0)), "provenance": provenance}
+    records: list[EdgeRecord] = [
+        {
+            "piece_id": "piece",
+            "id": "piece:edge:2",
+            "points": ((0.0, 0.0), (10.0, 0.0)),
+            "ordinal": 2,
+            "provenance": provenance,
+        }
     ]
 
-    def native_edge_records(_piece: object) -> list[dict[str, object]]:
+    def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return records
 
     edge_id, signature = pattern_objects._seam_edge_id(

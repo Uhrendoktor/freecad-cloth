@@ -23,6 +23,7 @@ class CollisionSurface:
 
         Returns:
             CollisionSurface: The same surface after its values pass validation.
+
         """
         CollisionSurfaceInput.model_validate(
             {
@@ -40,6 +41,7 @@ class CollisionSurface:
 
         Returns:
             tuple[float, float, float]: Mean x, y, and z coordinates of the vertices.
+
         """
         count = len(self.vertices)
         if not count:
@@ -55,6 +57,7 @@ class CollisionSurface:
 
         Returns:
             CollisionSurface: Validated copy with the requested thickness.
+
         """
         return CollisionSurface(
             self.vertices, self.triangles, self.region, float(thickness)
@@ -77,6 +80,7 @@ def surface_from_triangles(
 
     Returns:
         CollisionSurface: Immutable surface normalized by the validation model.
+
     """
     validated = CollisionSurfaceInput.model_validate(
         {

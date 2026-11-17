@@ -29,6 +29,7 @@ def allowed(path: Path) -> bool:
 
     Returns:
         Whether the resolved path belongs to an eligible core directory and file type.
+
     """
     try:
         resolved = path.resolve()
@@ -48,6 +49,7 @@ def _run_vulture(paths: tuple[str, ...]) -> int:
 
     Returns:
         The same integer exit status Vulture would return to the calling shell.
+
     """
     previous_argv = sys.argv
     try:
@@ -68,6 +70,7 @@ def main() -> int:
 
     Returns:
         Vulture's exit status, or zero when no eligible paths remain.
+
     """
     candidates = [Path(value) for value in sys.argv[1:]]
     if not candidates:

@@ -837,7 +837,6 @@ def _is_default_measurement_shape(parameters: AvatarParametersProtocol) -> bool:
     Returns:
         Whether all named body measurements match the default mannequin dimensions.
     """
-
     return all(
         math.isclose(parameters.measurement(name), value, rel_tol=0.0, abs_tol=1e-9)
         for name, value in DEFAULT_MEASUREMENTS.items()
@@ -853,7 +852,6 @@ def _measurement_profile(parameters: AvatarParametersProtocol) -> list[tuple[flo
     Returns:
         Ordered normalized-height and scale-factor pairs for torso fitting.
     """
-
     bands = (
         ("hip", 0.50),
         ("high_hip", 0.54),
@@ -1313,7 +1311,6 @@ def _make_source_fitted_mapper(
     Returns:
         A callable mapping one source coordinate to its fitted 3D coordinate.
     """
-
     body = tuple(source_vertices[:MAKEHUMAN_BODY_VERTEX_COUNT])
     body_coordinates = np.asarray(body, dtype=np.float64).reshape((-1, 3))
     body_minimums = np.min(body_coordinates, axis=0)

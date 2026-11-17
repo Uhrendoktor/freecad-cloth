@@ -15,7 +15,7 @@ def test_probe_copies_workspace_files_into_and_out_of_container(
     commands: list[list[str]] = []
     container_files: dict[str, str] = {}
 
-    def fake_run(command: list[str], check: bool, timeout: int) -> int:
+    def fake_run(command: list[str], *, check: bool, timeout: int) -> int:
         commands.append(command)
         assert timeout > 0
         if command[1] == "info":
@@ -62,7 +62,7 @@ def test_probe_copies_workspace_files_into_and_out_of_container(
 
 
 def test_probe_fails_when_container_does_not_return_the_marker(tmp_path: Path) -> None:
-    def successful_without_response(command: list[str], check: bool, timeout: int) -> int:
+    def successful_without_response(command: list[str], *, check: bool, timeout: int) -> int:
         assert timeout > 0
         return 0
 
