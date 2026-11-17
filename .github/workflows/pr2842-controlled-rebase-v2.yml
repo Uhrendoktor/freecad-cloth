@@ -163,6 +163,53 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                if [[ "$path" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]; then
+                  # Keep the PR's lazy FreeCAD boundary import; main's top-level _write_mesh
+                  # import would eagerly load SimulationObjects in this module.
+                  python3 - "$tmpdir/merged" "$tmpdir/pr" "$path" <<'PY'
+          import pathlib
+          import sys
+
+          merged_path, pr_path, output_path = map(pathlib.Path, sys.argv[1:])
+          pr_text = pr_path.read_text(encoding="utf-8")
+          if "from freecad_cloth.simulation.SimulationObjects import _write_mesh" not in pr_text:
+              raise SystemExit("PR lazy _write_mesh import is missing")
+          lines = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          result = []
+          index = 0
+          resolved = 0
+          while index < len(lines):
+              if not lines[index].startswith("<<<<<<< "):
+                  result.append(lines[index])
+                  index += 1
+                  continue
+              index += 1
+              ours = []
+              while index < len(lines) and not lines[index].startswith("======="):
+                  ours.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated main import conflict")
+              index += 1
+              theirs = []
+              while index < len(lines) and not lines[index].startswith(">>>>>>> "):
+                  theirs.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated PR import conflict")
+              if "_write_mesh," not in "".join(ours):
+                  raise SystemExit("unexpected main-side eager import conflict")
+              result.extend(theirs)
+              resolved += 1
+              index += 1
+          if resolved != 1:
+              raise SystemExit(f"expected one lazy-import conflict, found {resolved}")
+          output_path.write_text("".join(result), encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 if [[ "$path" == "tests/test_simulation_gui.py" ]]; then
                   # Main added simulation GUI regression coverage; the PR commit only removes
                   # the now-redundant sys.path bootstrap. Keep main's tests and apply that removal.
