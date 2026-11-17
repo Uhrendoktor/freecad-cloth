@@ -197,10 +197,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action.'
     )
     assert 'default: "120"' in container_action, "Expected 'default: \"120\"' in container_action."
-    assert "maximum 360 seconds" in container_action, (
-        'Expected "maximum 360 seconds" in container_action.'
+    assert "maximum 1800 seconds" in container_action, (
+        'Expected "maximum 1800 seconds" in container_action.'
     )
-    assert 'if [ "$timeout_seconds" -gt 360 ]; then' in container_action, (
+    assert 'if [ "$timeout_seconds" -gt 1800 ]; then' in container_action, (
         "Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action."
     )
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner, (
@@ -1121,6 +1121,9 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
     assert "needs.gui-simple.result == 'success'" in job
     assert "needs.gui-tunic-visual" not in job
     assert "uses: ./.github/actions/publish-visual-evidence" in job
+    layered_outfit = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+    assert "timeout-minutes: 45" in layered_outfit
+    assert 'timeout: "1800"' in layered_outfit
     assert "name: layered-outfit-acceptance" in action
     assert "path: layered-outfit" in action
     assert 'review_root = Path("layered-outfit")' in publisher
