@@ -143,6 +143,26 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
 
 
+def test_visual_asset_contract_follows_nested_local_producer_actions() -> None:
+    """Visual producer discovery must follow reusable local composite actions transitively."""
+    from tools.ci.check_visual_asset_contract import _local_action_sources
+
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    action_sources = _local_action_sources(workflow)
+
+    expected_artifact_name = (
+        "artifact-name: ${{ inputs.collect-evidence == 'true' && 'tunic-visual-audit' || '' }}"
+    )
+    assert any(
+        "test-script: tests/freecad_tunic_audit_production.py" in source
+        and expected_artifact_name in source
+        for source in action_sources
+    )
+    assert any("name: FreeCAD container" in source for source in action_sources)
+
+
 def test_hosted_fallback_visual_publication_is_a_release_gate():
     contract = (ROOT / "tools" / "ci" / "check_visual_asset_contract.py").read_text(
         encoding="utf-8"

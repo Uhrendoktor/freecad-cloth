@@ -1,0 +1,155 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -82,16 +82,26 @@
+ add_subdirectory(PositionBasedDynamics)
+ add_subdirectory(Simulation)
+ add_subdirectory(Utils)
++option(PBD_PYTHON_ONLY "Build only the Python binding and its native solver dependencies" OFF)
++
+ if (NOT PBD_LIBS_ONLY)
+-	include(DataCopyTargets)
+-	add_subdirectory(extern/glfw)
+-	add_subdirectory(extern/imgui)
+-	add_subdirectory(extern/md5)
+-	add_subdirectory(Demos)
+-	if (USE_PYTHON_BINDINGS)
++	if (PBD_PYTHON_ONLY)
++		if (NOT USE_PYTHON_BINDINGS)
++			message(FATAL_ERROR "PBD_PYTHON_ONLY requires USE_PYTHON_BINDINGS")
++		endif ()
+ 		add_subdirectory(extern/pybind)
+ 		add_subdirectory(pyPBD)
+-	endif ()
++	else()
++		include(DataCopyTargets)
++		add_subdirectory(extern/glfw)
++		add_subdirectory(extern/imgui)
++		add_subdirectory(extern/md5)
++		add_subdirectory(Demos)
++		if (USE_PYTHON_BINDINGS)
++			add_subdirectory(extern/pybind)
++			add_subdirectory(pyPBD)
++		endif ()
++	endif()
+ endif()
+ 
+ 
+diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.cpp
+--- a/Simulation/TimeStepController.cpp
++++ b/Simulation/TimeStepController.cpp
+@@ -3,6 +3,8 @@
+ #include "PositionBasedDynamics/PositionBasedRigidBodyDynamics.h"
+ #include "PositionBasedDynamics/TimeIntegration.h"
+ #include <iostream>
++#include <cstdlib>
++#include <cstring>
+ #include "PositionBasedDynamics/PositionBasedDynamics.h"
+ #include "Utils/Timing.h"
+ 
+@@ -267,34 +269,91 @@
+ 		constraint->initConstraintBeforeProjection(model);
+ 	}
+ 
+-	while (m_iterations < m_maxIterations)
++	const char *teamReuseSetting = std::getenv("CLOTH_PBD_OPENMP_TEAM_REUSE");
++	const bool reuseOpenMPTeam = teamReuseSetting != nullptr && std::strcmp(teamReuseSetting, "1") == 0;
++
++	// Keep the upstream per-group regions as the default path. The alternative is
++	// selected only by the paired CI experiment, never by the production image.
++	if (!reuseOpenMPTeam)
+ 	{
+-		for (unsigned int group = 0; group < groups.size(); group++)
++		while (m_iterations < m_maxIterations)
+ 		{
+-			const int groupSize = (int)groups[group].size();
+-			#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
++			for (unsigned int group = 0; group < groups.size(); group++)
+ 			{
+-				#pragma omp for schedule(static) 
+-				for (int i = 0; i < groupSize; i++)
++				const int groupSize = (int)groups[group].size();
++				#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
+ 				{
+-					const unsigned int constraintIndex = groups[group][i];
++					#pragma omp for schedule(static)
++					for (int i = 0; i < groupSize; i++)
++					{
++						const unsigned int constraintIndex = groups[group][i];
+ 
+-					constraints[constraintIndex]->updateConstraint(model);
+-					constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++						constraints[constraintIndex]->updateConstraint(model);
++						constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++					}
+ 				}
+ 			}
++
++			for (unsigned int i = 0; i < particleTetContacts.size(); i++)
++			{
++				particleTetContacts[i].solvePositionConstraint(model, m_iterations);
++			}
++
++			m_iterations++;
+ 		}
++		return;
++	}
+ 
+-		for (unsigned int i = 0; i < particleTetContacts.size(); i++)
++	// Reuse one team for all ordered groups and solver iterations. Every large
++	// group keeps the upstream static work split and an end-of-group barrier.
++	// Small groups and particle-solid contacts remain serial on the master thread.
++	#pragma omp parallel default(shared)
++	{
++		while (m_iterations < m_maxIterations)
+ 		{
+-			particleTetContacts[i].solvePositionConstraint(model, m_iterations);
+-		}
++			for (unsigned int group = 0; group < groups.size(); group++)
++			{
++				const int groupSize = (int)groups[group].size();
++				if (groupSize > MIN_PARALLEL_SIZE)
++				{
++					#pragma omp for schedule(static)
++					for (int i = 0; i < groupSize; i++)
++					{
++						const unsigned int constraintIndex = groups[group][i];
+ 
+-		m_iterations++;
++						constraints[constraintIndex]->updateConstraint(model);
++						constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++					}
++				}
++				else
++				{
++					#pragma omp master
++					{
++						for (int i = 0; i < groupSize; i++)
++						{
++							const unsigned int constraintIndex = groups[group][i];
++
++							constraints[constraintIndex]->updateConstraint(model);
++							constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++						}
++					}
++					#pragma omp barrier
++				}
++			}
++
++			#pragma omp master
++			{
++				for (unsigned int i = 0; i < particleTetContacts.size(); i++)
++				{
++					particleTetContacts[i].solvePositionConstraint(model, m_iterations);
++				}
++				m_iterations++;
++			}
++			#pragma omp barrier
++		}
+ 	}
+ }
+ 
+-
+ void TimeStepController::velocityConstraintProjection(SimulationModel &model)
+ {
+ 	m_iterationsV = 0;

@@ -1,0 +1,52 @@
+name: PBD production tunic audit
+description: Run one fail-closed native PBD production audit for the OpenMP A/B experiment.
+inputs:
+  image:
+    description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
+    required: true
+  mode:
+    description: Native execution mode, 0 for upstream baseline or 1 for persistent team reuse.
+    required: true
+  profile-name:
+    description: Stable profile name (baseline-1, candidate-1, baseline-2, candidate-2).
+    required: true
+  collect-evidence:
+    description: Preserve final render evidence and publish the observation bundle.
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/freecad-test
+      with:
+        image: ${{ inputs.image }}
+        checkout: "false"
+        timeout-seconds: "360"
+        test-script: tests/freecad_tunic_audit_production.py
+        pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-openmp-team-reuse
+        stage-workbench: "true"
+        clean-user: "true"
+        log-file: artifacts/tunic-audit/${{ inputs.profile-name }}.log
+        validate-command: >-
+          python3 tools/ci/validate_manifests.py tunic-production &&
+          cp artifacts/tunic-audit/production-pbd-profile.json
+          artifacts/pbd-openmp-team-reuse/${{ inputs.profile-name }}.json
+        artifact-name: ${{ inputs.collect-evidence == 'true' && 'tunic-visual-audit' || '' }}
+        artifact-path: |
+          docs/images/generated/**
+          artifacts/garment-e2e.log
+          artifacts/tunic-audit/**
+          artifacts/pbd-openmp-team-reuse/**
+          artifacts/freecad-realtime/**
+        scene-report-command: ${{ inputs.collect-evidence == 'true' && 'python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated' || '' }}
+        observation-root: docs/images/generated
+        observation-label: Paired native PBD OpenMP team-reuse tunic audit
+        observation-files: ${{ inputs.collect-evidence == 'true' && 'summary=scene-understanding.json;visual=scene-understanding.svg' || '' }}
+        environment: |
+          PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
+          CLOTH_PBD_OPENMP_TEAM_REUSE=${{ inputs.mode }}
+          FREECAD_CLOTH_ANNY_FIT_STEPS=18
+          CLOTH_PBD_SUBSTEPS=16
+          CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+          CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated

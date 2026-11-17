@@ -143,7 +143,9 @@ runs:
         echo "freecad-container-compute=$cuda_mode reason=$cuda_reason"
 
         {
-          printf '%s\n' "PYTHONPATH=/workspace"
+          if ! grep -q '^PYTHONPATH=' <<<"$EXTRA_ENV"; then
+            printf '%s\n' "PYTHONPATH=/workspace"
+          fi
           printf '%s\n' "CLOTH_CI_CUDA_AVAILABLE=$cuda_available"
           printf '%s\n' "CLOTH_CI_CUDA_MODE=$cuda_mode"
           printf '%s\n' "CLOTH_CI_CUDA_REASON=$cuda_reason"

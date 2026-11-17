@@ -2265,6 +2265,7 @@ def _run_production_tunic_drape(
             "OMP_MAX_ACTIVE_LEVELS",
             "OMP_THREAD_LIMIT",
             "OMP_WAIT_POLICY",
+            "CLOTH_PBD_OPENMP_TEAM_REUSE",
             "GOMP_SPINCOUNT",
             "OPENBLAS_NUM_THREADS",
             "MKL_NUM_THREADS",
@@ -2407,8 +2408,20 @@ def _run_production_tunic_drape(
             "batch_history": list(batch_history),
             "runtime_limits": runtime_limits(),
             "pypbd_provenance": (
-                pathlib.Path("/opt/pypbd-provenance.txt").read_text(encoding="utf-8")
-                if pathlib.Path("/opt/pypbd-provenance.txt").is_file()
+                pathlib.Path(
+                    "/opt/pypbd-openmp-experiment/provenance.txt"
+                    if str(
+                        getattr(getattr(active_backend, "_pbd", None), "__file__", "")
+                    ).startswith("/opt/pypbd-openmp-experiment/")
+                    else "/opt/pypbd-provenance.txt"
+                ).read_text(encoding="utf-8")
+                if pathlib.Path(
+                    "/opt/pypbd-openmp-experiment/provenance.txt"
+                    if str(
+                        getattr(getattr(active_backend, "_pbd", None), "__file__", "")
+                    ).startswith("/opt/pypbd-openmp-experiment/")
+                    else "/opt/pypbd-provenance.txt"
+                ).is_file()
                 else None
             ),
             "preview_metrics": {

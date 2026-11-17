@@ -1,8 +1,57 @@
+FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3 AS pypbd-openmp-build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        build-essential \
+        cmake \
+        git \
+        libeigen3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG PBD_SOURCE_SHA=10a70bc146a97873dc3c8fef372f5217e010542e
+RUN git init /opt/PositionBasedDynamics \
+    && git -C /opt/PositionBasedDynamics remote add origin https://github.com/InteractiveComputerGraphics/PositionBasedDynamics.git \
+    && git -C /opt/PositionBasedDynamics fetch --depth=1 origin "${PBD_SOURCE_SHA}" \
+    && git -C /opt/PositionBasedDynamics checkout --detach FETCH_HEAD
+
+COPY docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch /tmp/pypbd-openmp-team-reuse.patch
+
+RUN git -C /opt/PositionBasedDynamics apply /tmp/pypbd-openmp-team-reuse.patch \
+    && mkdir -p /opt/pypbd-openmp-experiment \
+    && cmake -S /opt/PositionBasedDynamics -B /opt/pypbd-openmp-build \
+        -DPYTHON_EXECUTABLE=/opt/conda/envs/freecad/bin/python \
+        -DPBD_PYTHON_ONLY=ON \
+        -DUSE_PYTHON_BINDINGS=ON \
+        -DUSE_OpenMP=ON \
+        -DCI_BUILD=ON \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/opt/pypbd-openmp-experiment \
+        -DCMAKE_CXX_FLAGS=-fPIC \
+        -DCMAKE_C_FLAGS=-fPIC \
+        -DCMAKE_INSTALL_RPATH='$ORIGIN' \
+        -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
+        -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF \
+    && grep -Eq '^OpenMP_CXX_FLAGS(:STRING)?=.*-fopenmp' /opt/pypbd-openmp-build/CMakeCache.txt \
+    && cmake --build /opt/pypbd-openmp-build --target pypbd --parallel 4 \
+    && PYTHONPATH=/opt/pypbd-openmp-experiment /opt/conda/envs/freecad/bin/python \
+        -c "import pypbd; print('pypbd-openmp-experiment=' + pypbd.__file__)"
+
+RUN printf 'PBD source: %s\n' "${PBD_SOURCE_SHA}" > /opt/pypbd-openmp-experiment/provenance.txt \
+    && printf 'Patch SHA256: ' >> /opt/pypbd-openmp-experiment/provenance.txt \
+    && sha256sum /tmp/pypbd-openmp-team-reuse.patch | cut -d' ' -f1 >> /opt/pypbd-openmp-experiment/provenance.txt \
+    && printf 'Binary SHA256: ' >> /opt/pypbd-openmp-experiment/provenance.txt \
+    && sha256sum /opt/pypbd-openmp-experiment/pypbd*.so | cut -d' ' -f1 >> /opt/pypbd-openmp-experiment/provenance.txt \
+    && printf 'Build: Release, CI_BUILD=ON, USE_DOUBLE_PRECISION=ON, OpenMP=ON, Python=3.12\n' >> /opt/pypbd-openmp-experiment/provenance.txt
+
 # Keep the Pivy extension on the same SWIG-era runtime as the FreeCAD 1.1.0
 # conda build. The unpinned r3 image can resolve a newer Pivy build that is
 # incompatible with FreeCAD's embedded SWIG runtime and breaks Coin scene-graph
 # conversion with "No SWIG wrapped library loaded".
 FROM ghcr.io/uhrendoktor/freecad-cloth/freecad-ci:freecad-1.1.0-py312-r3
+
+COPY --from=pypbd-openmp-build /opt/pypbd-openmp-experiment /opt/pypbd-openmp-experiment
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

@@ -5,11 +5,16 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from typing import cast
 
-from repository_paths import add_repository_root
-from visual_evidence import documented_assets
+if __package__:
+    from tools.ci.repository_paths import add_repository_root
+    from tools.ci.visual_evidence import documented_assets
+else:
+    from repository_paths import add_repository_root
+    from visual_evidence import documented_assets
 
 ROOT = add_repository_root(__file__)
 
@@ -39,6 +44,35 @@ def _manifest_assets() -> tuple[JsonObject | None, list[str]]:
     return cast("JsonObject", assets), []
 
 
+def _local_action_sources(workflow_text: str) -> list[str]:
+    """Collect local composite-action sources referenced directly or transitively.
+
+    Args:
+        workflow_text: Canonical workflow source containing local action references.
+
+    Returns:
+        The contents of every reachable local composite action, in deterministic
+        breadth-first discovery order. Missing action files are not silently
+        substituted; the workflow/action validator owns that diagnostic.
+    """
+    pattern = re.compile(r"uses:\s*\./\.github/actions/([A-Za-z0-9_-]+)")
+    pending = pattern.findall(workflow_text)
+    visited: set[str] = set()
+    sources: list[str] = []
+    while pending:
+        action_name = pending.pop(0)
+        if action_name in visited:
+            continue
+        visited.add(action_name)
+        action_path = ROOT / ".github" / "actions" / action_name / "action.yml"
+        if not action_path.is_file():
+            continue
+        action_text = action_path.read_text(encoding="utf-8")
+        sources.append(action_text)
+        pending.extend(pattern.findall(action_text))
+    return sources
+
+
 def _production_configuration(
     workflow_text: str,
     publisher_text: str,
@@ -55,7 +89,12 @@ def _production_configuration(
         Combined source text used to verify asset production and upload wiring.
     """
     gif_builder = PUBLISHER_SCRIPT.with_name("build_visual_gifs.py")
-    production_sources = [workflow_text, publisher_text, publisher_script_text]
+    production_sources = [
+        workflow_text,
+        publisher_text,
+        publisher_script_text,
+        *_local_action_sources(workflow_text),
+    ]
     wired_gif_builder = (
         'with_name("build_visual_gifs.py")' in publisher_script_text and gif_builder.is_file()
     )

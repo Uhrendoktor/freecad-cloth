@@ -141,14 +141,19 @@ def test_canonical_gui_jobs_use_shared_freecad_test_boundaries():
     )
     gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "uses: ./.github/actions/freecad-test" in gui
-    assert "uses: ./.github/actions/freecad-test" in tunic
-    assert "scene-report-command: python3 tools/ci/scene_understanding_report.py" in tunic
-    assert "summary=scene-understanding.json;visual=scene-understanding.svg" in tunic
+    assert "uses: ./.github/actions/pbd-tunic-audit" in tunic
+    assert "uses: ./.github/actions/freecad-test" in tunic_action
+    assert "scene-report-command:" in tunic_action
+    assert "python3 tools/ci/scene_understanding_report.py" in tunic_action
+    assert "summary=scene-understanding.json;visual=scene-understanding.svg" in tunic_action
     assert "case: sketcher, script: tests/freecad_sketcher_acceptance.py" in gui
     assert "case: pattern-export, script: tests/freecad_pattern_export_smoke.py" in gui
     assert "test-script: ${{ matrix.script }}" in gui
-    assert "test-script: tests/freecad_tunic_audit_production.py" in tunic
+    assert "test-script: tests/freecad_tunic_audit_production.py" in tunic_action
     assert "freecad_ci_bootstrap.FCMacro" not in workflow
     assert "/opt/freecad/AppRun" not in workflow
     assert "docker run" not in workflow

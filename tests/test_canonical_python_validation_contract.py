@@ -325,9 +325,10 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
-    assert "validate_realtime_benchmark.py" in (
-        ROOT / ".github" / "workflows" / "canonical-execution.yml"
-    ).read_text(encoding="utf-8"), "canonical CI contract"
+    realtime_action = (
+        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "validate_realtime_benchmark.py" in realtime_action, "canonical CI contract"
 
 
 def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
@@ -477,9 +478,12 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     assert "validate_realtime_benchmark.py artifacts/benchmark.json" not in benchmark_job, (
         "canonical CI contract"
     )
+    realtime_action = (
+        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
+    ).read_text(encoding="utf-8")
     assert (
         "python3 tools/ci/validate_realtime_benchmark.py "
-        "artifacts/freecad-realtime/metrics.json" in workflow
+        "artifacts/freecad-realtime/metrics.json" in realtime_action
     ), "canonical CI contract"
 
 

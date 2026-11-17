@@ -371,17 +371,19 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow, (
         'Contract failed: "CLOTH_PBD_COLLISION_MODE: mesh" in wor...'
     )
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in workflow, (
-        'Contract failed: "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in w...'
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in tunic_action, (
+        "The reusable production audit action must pin the 8 mm collision voxel."
     )
     assert "voxel_mm - 8.0" in source, 'Contract failed: "voxel_mm - 8.0" in source'
     assert "(span + 200.0) / 8.0" in source, 'Contract failed: "(span + 200.0) / 8.0" in source'
     assert "configured 8 mm voxel resolution" in source, (
         'Contract failed: "configured 8 mm voxel resolution" in s...'
     )
-    tunic_workflow = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    assert "CLOTH_PBD_SUBSTEPS=16" in tunic_workflow, (
-        'Contract failed: "CLOTH_PBD_SUBSTEPS=16" in tunic_workflow'
+    assert "CLOTH_PBD_SUBSTEPS=16" in tunic_action, (
+        "Every paired production audit must retain 16 native PBD substeps."
     )
     assert 'os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source, (
         "Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_VOXEL_..."
@@ -420,11 +422,11 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "realtime-preview=passed backend=position-based-dynamics" in source, (
         'Contract failed: "realtime-preview=passed backend=positi...'
     )
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
         encoding="utf-8"
     )
-    assert "tools/ci/validate_manifests.py tunic-production" in workflow, (
-        'Contract failed: "tools/ci/validate_manifests.py tunic-p...'
+    assert "tools/ci/validate_manifests.py tunic-production" in tunic_action, (
+        "The reusable production audit action must run the strict physical-evidence validator."
     )
     validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
     assert "def validate_tunic_production()" in validator, (
@@ -594,58 +596,66 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     assert "image: ${{ env.FREECAD_PBD_IMAGE }}" in gui, (
         'Contract failed: "image: ${{ env.FREECAD_PBD_IMAGE }}" i...'
     )
-    assert "capture_pypbd_provenance.py" in gui, (
-        'Contract failed: "capture_pypbd_provenance.py" in gui'
+    assert "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile, (
+        'Contract failed: "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile'
     )
-    assert "artifacts/pypbd-provenance.txt" in gui, (
-        'Contract failed: "artifacts/pypbd-provenance.txt" in gui'
+    assert "artifacts/pbd-openmp-team-reuse/**" in gui, (
+        'Contract failed: "artifacts/pbd-openmp-team-reuse/**" in gui'
     )
 
 
 def test_production_tunic_audit_is_a_blocking_gate() -> None:
-    """Require the complete production tunic audit to block when acceptance fails."""
+    """Require four complete matched production audits while keeping preview diagnostic."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
+    preview_action = (
+        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
+    ).read_text(encoding="utf-8")
+    production_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    benchmark_index = gui.index("test-script: tests/freecad_realtime_benchmark.py")
-    benchmark_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, benchmark_index)
-    metric_validator_index = gui.index(
-        "      - name: Validate realtime preview metrics (diagnostic)"
-    )
-    metric_gate_index = gui.index(
-        "tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json"
-    )
-    audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
-    audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
-    report_index = gui.index(
-        "      - name: Report production tunic audit outcome", audit_action_index
-    )
-    audit_action = gui[audit_action_index:report_index]
-    assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_action_index:metric_validator_index]
-    assert (
-        benchmark_action_index
-        < benchmark_index
-        < metric_validator_index
-        < metric_gate_index
-        < audit_action_index
-        < audit_index
-    )
-    assert "continue-on-error: true" in gui[benchmark_action_index:metric_validator_index]
-    assert "continue-on-error: true" in gui[metric_validator_index:audit_action_index]
-    assert "if: always()" in audit_action, (
-        "The production tunic audit must still execute after preview diagnostics."
-    )
-    assert "id: production-tunic-audit" in audit_action
-    assert "continue-on-error:" not in audit_action
-    assert 'timeout-seconds: "360"' in audit_action
+    preview_index = gui.index("./.github/actions/pbd-realtime-diagnostic")
+    audit_index = gui.index("./.github/actions/pbd-tunic-audit")
+    report_index = gui.index("      - name: Report paired native production audit outcome")
+    assert preview_index < audit_index < report_index
+    assert "CLOTH_REALTIME_FRAMES=120" in preview_action
+    assert preview_action.count("continue-on-error: true") == 2
+    assert "tools/ci/validate_realtime_benchmark.py" in preview_action
+    assert gui.count("./.github/actions/pbd-tunic-audit") == 4
+    for step_id in (
+        "baseline_1_audit",
+        "candidate_1_audit",
+        "baseline_2_audit",
+        "candidate_2_audit",
+    ):
+        assert f"id: {step_id}" in gui
+    assert "profile-name: baseline-1" in gui
+    assert "profile-name: candidate-1" in gui
+    assert "profile-name: baseline-2" in gui
+    assert "profile-name: candidate-2" in gui
+    assert 'collect-evidence: "true"' in gui
+    assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
+    assert 'timeout-seconds: "360"' in production_action
+    assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
+    assert "inputs.mode" in production_action
+    assert "CLOTH_PBD_SUBSTEPS=16" in production_action
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
+    assert "if: always()" not in production_action
+    assert "compare_pbd_openmp_team_reuse.py" in gui
+    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in gui
     report = gui[report_index:]
-    assert "steps.production-tunic-audit.outcome" in report
-    assert "The complete 90-step production tunic audit passed" in report
-    assert "::error title=Production tunic audit failed" in report
-    assert "is blocking" in report
-    assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
-    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
+    for step_id in (
+        "baseline_1_audit",
+        "candidate_1_audit",
+        "baseline_2_audit",
+        "candidate_2_audit",
+    ):
+        assert f"steps.{step_id}.outcome" in report
+    assert "::error title=Paired production audit failed" in report
+    assert "5% projection" in report
+    assert "non-regressing wall-time gates" in report
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
@@ -661,6 +671,18 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     assert "main()" in wrapper, 'Contract failed: "main()" in wrapper'
     assert 'if __name__ == "__main__"' not in wrapper, (
         "Contract failed: 'if __name__ == \"__main__\"' not in wrapper"
+    )
+
+
+def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fixture() -> None:
+    """Prevent an A/B run from silently importing the installed wheel in both modes."""
+    wrapper = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "def _load_openmp_experiment_binding() -> None:" in wrapper
+    assert 'spec_from_file_location("pypbd", module_path)' in wrapper
+    assert 'sys.modules["pypbd"] = module' in wrapper
+    assert 'mode = os.environ.get("CLOTH_PBD_OPENMP_TEAM_REUSE")' in wrapper
+    assert wrapper.index("_load_openmp_experiment_binding()") < wrapper.index(
+        'runpy.run_path(str(SOURCE), run_name="__main__")'
     )
 
 

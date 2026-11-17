@@ -1,0 +1,30 @@
+name: PBD realtime preview diagnostic
+description: Capture independent Fast-preview timing diagnostics without blocking production PBD acceptance.
+inputs:
+  image:
+    description: Immutable FreeCAD/PBD validation image.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/freecad-test
+      continue-on-error: true
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        test-script: tests/freecad_realtime_benchmark.py
+        pre-command: mkdir -p artifacts
+        log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
+        environment: |
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          CLOTH_PBD_SUBSTEPS=1
+          CLOTH_REALTIME_FRAMES=120
+          CLOTH_REALTIME_WARMUP_FRAMES=30
+          OMP_NUM_THREADS=1
+        artifact-name: realtime-preview-performance
+        artifact-path: artifacts/freecad-realtime/**
+    - name: Validate realtime preview metrics (diagnostic)
+      if: always()
+      continue-on-error: true
+      shell: bash
+      run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json

@@ -564,16 +564,30 @@ def stale_unprotected_branches(
     return [branch for _, branch in stale]
 
 
-def pbd_validation_tag(dockerfile_contents: bytes) -> str:
-    """Return the immutable image tag used by the canonical workflow.
+def pbd_validation_tag(
+    dockerfile_contents: bytes,
+    experiment_patch_contents: bytes | None = None,
+) -> str:
+    """Return the canonical image tag for its Dockerfile and optional native patch.
 
     Args:
         dockerfile_contents: Exact Dockerfile bytes used to build the image.
+        experiment_patch_contents: Optional pyPBD source patch bytes. When absent,
+            preserve the historical Dockerfile-only tag.
 
     Returns:
-        Stable hexadecimal tag derived from the Dockerfile contents.
+        Stable hexadecimal tag matching the canonical workflow's sha256sum pipeline.
     """
-    return hashlib.sha256(dockerfile_contents).hexdigest()[:32]
+    if experiment_patch_contents is None:
+        return hashlib.sha256(dockerfile_contents).hexdigest()[:32]
+
+    dockerfile_hash = hashlib.sha256(dockerfile_contents).hexdigest()
+    patch_hash = hashlib.sha256(experiment_patch_contents).hexdigest()
+    manifest = (
+        f"{dockerfile_hash}  docker/freecad-ci/Dockerfile\n"
+        f"{patch_hash}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
+    )
+    return hashlib.sha256(manifest.encode("utf-8")).hexdigest()[:32]
 
 
 def package_version_tags(version: ApiJsonObject) -> set[str] | None:
@@ -660,10 +674,15 @@ def _dockerfile_tag_batch(
             msg = f"invalid protected commit SHA: {sha!r}"
             raise RuntimeError(msg)
         alias = f"file{index}"
+        patch_alias = f"patch{index}"
         aliases[alias] = sha
-        fields.append(
-            f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
-            "{ ... on Blob { text } }"
+        fields.extend(
+            (
+                f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
+                "{ ... on Blob { text } }",
+                f'{patch_alias}: object(expression: "{sha}:docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch") '
+                "{ ... on Blob { text } }",
+            )
         )
 
     query = (
@@ -691,7 +710,20 @@ def _dockerfile_tag_batch(
         if not isinstance(dockerfile_text, str):
             msg = f"Dockerfile content missing for protected ref {sha}"
             raise TypeError(msg)
-        tags.add(pbd_validation_tag(dockerfile_text.encode("utf-8")))
+
+        patch_alias = alias.replace("file", "patch", 1)
+        patch_blob = repository_data.get(patch_alias)
+        patch_text = patch_blob.get("text") if isinstance(patch_blob, dict) else None
+        if patch_blob is not None and not isinstance(patch_text, str):
+            msg = f"native experiment patch content is invalid for protected ref {sha}"
+            raise TypeError(msg)
+        patch_contents = patch_text.encode("utf-8") if isinstance(patch_text, str) else None
+        tags.add(
+            pbd_validation_tag(
+                dockerfile_text.encode("utf-8"),
+                patch_contents,
+            )
+        )
     return tags
 
 
