@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import math
 from collections.abc import Sequence, Sized
 from typing import Protocol, TypedDict
 
@@ -47,7 +46,9 @@ class ConstraintGroupProfile(TypedDict):
 
 def _nearest_rank(ordered_values: Sequence[int], percentile: float) -> int:
     """Return the nearest-rank percentile from an ascending non-empty sequence."""
-    index = max(0, min(len(ordered_values) - 1, math.ceil(percentile * len(ordered_values)) - 1))
+    numerator, denominator = percentile.as_integer_ratio()
+    nearest_rank = (numerator * len(ordered_values) + denominator - 1) // denominator
+    index = max(0, min(len(ordered_values) - 1, nearest_rank - 1))
     return ordered_values[index]
 
 

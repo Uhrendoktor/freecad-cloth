@@ -99,7 +99,7 @@ def test_group_profile_rejects_invalid_native_partitions(
 
 
 @pytest.mark.parametrize("threshold", [-1, True, 1.5])
-def test_group_profile_rejects_invalid_openmp_threshold(threshold: object) -> None:
+def test_group_profile_rejects_invalid_openmp_threshold(threshold: int | float | bool) -> None:
     """Threshold metadata must be a non-negative integer."""
     with pytest.raises(ValueError, match="parallel_threshold"):
         summarize_constraint_groups([[0]], 1, parallel_threshold=cast(int, threshold))
