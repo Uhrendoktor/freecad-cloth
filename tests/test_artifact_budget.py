@@ -189,6 +189,26 @@ def test_duplicate_artifact_name_requires_creation_metadata() -> None:
         latest_artifacts_by_name(artifacts)
 
 
+def test_duplicate_artifact_name_rejects_boolean_ids() -> None:
+    """Reject booleans as identifiers even though bool subclasses int."""
+    artifacts = [
+        {
+            "id": 1,
+            "name": "evidence",
+            "size_in_bytes": 100,
+            "created_at": "2026-11-14T12:00:00Z",
+        },
+        {
+            "id": True,
+            "name": "evidence",
+            "size_in_bytes": 200,
+            "created_at": "2026-11-14T12:01:00Z",
+        },
+    ]
+    with pytest.raises(TypeError, match="non-integer artifact ID"):
+        latest_artifacts_by_name(artifacts)
+
+
 def test_duplicate_artifact_name_rejects_wrong_metadata_types() -> None:
     """Reject timestamps and identifiers whose supplied values have invalid types."""
     artifacts = [

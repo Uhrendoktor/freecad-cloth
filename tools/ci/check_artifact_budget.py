@@ -8,8 +8,10 @@ import json
 import os
 import re
 import sys
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, TypeGuard
 from urllib.parse import urlencode
+
+from freecad_cloth.common.JsonTypes import as_json_value
 
 if TYPE_CHECKING:
     from collections.abc import Iterable, Mapping
@@ -49,7 +51,7 @@ def _safe_error_body_preview(body: bytes) -> str:
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
 
 
-def _is_artifact_identifier(value: JSONValue) -> bool:
+def _is_artifact_identifier(value: JSONValue) -> TypeGuard[int]:
     """Return whether a value is an integer artifact identifier, excluding booleans.
 
     Args:
@@ -139,8 +141,8 @@ def _github_error_detail(error_body: bytes) -> str | None:
         A trimmed GitHub error message, or None when the body has no usable message.
     """
     try:
-        payload = json.loads(error_body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = as_json_value(json.loads(error_body))
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError):
         return None
     if not isinstance(payload, dict):
         return None
@@ -238,7 +240,7 @@ def request_artifact_payload(
         error_body = response.read(API_ERROR_BODY_BYTES)
         msg = _artifact_response_error_message(response, error_body)
         raise RuntimeError(msg)
-    return cast("JSONValue", json.loads(response.read()))
+    return as_json_value(json.loads(response.read()))
 
 
 def fetch_artifact_page(

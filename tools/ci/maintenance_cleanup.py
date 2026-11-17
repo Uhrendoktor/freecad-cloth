@@ -19,6 +19,8 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import quote
 
+from freecad_cloth.common.JsonTypes import as_json_value
+
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
 
@@ -122,6 +124,26 @@ class PackageCleanupProgress:
     phase: str = "resolve_protected_tags"
 
 
+def _api_json_truthy(value: ApiJsonValue) -> bool:
+    """Return Python-style truthiness for a recursive JSON value.
+
+    Args:
+        value: JSON scalar, list, dictionary, or null value being tested.
+
+    Returns:
+        Whether the value is truthy under Python's JSON-compatible container semantics.
+    """
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value != ""
+    return len(value) > 0
+
+
 def _decode_github_response(connection: http.client.HTTPSConnection) -> ApiJsonValue:
     """Validate an HTTP response and decode its optional JSON payload.
 
@@ -145,8 +167,9 @@ def _decode_github_response(connection: http.client.HTTPSConnection) -> ApiJsonV
     if not payload:
         return None
     try:
-        return json.loads(payload)
-    except json.JSONDecodeError as exc:
+        decoded: object = json.loads(payload)
+        return as_json_value(decoded)
+    except (json.JSONDecodeError, TypeError) as exc:
         msg = "GitHub API returned invalid JSON"
         raise GitHubApiError(msg) from exc
 
@@ -167,8 +190,10 @@ def _request_github_api(
     Raises:
         GitHubApiError: If authentication, transport, HTTP status, or JSON decoding fails.
     """
-    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
-    if not token:
+    token = os.environ.get("GH_TOKEN")
+    if token is None or token == "":
+        token = os.environ.get("GITHUB_TOKEN")
+    if token is None or token == "":
         msg = "GitHub API token is missing from GH_TOKEN and GITHUB_TOKEN"
         raise GitHubApiError(msg)
     headers = {
@@ -393,7 +418,7 @@ def _branch_activity_batch(
     if not isinstance(payload, dict):
         msg = "GitHub GraphQL returned a non-object branch activity response"
         raise TypeError(msg)
-    if payload.get("errors"):
+    if _api_json_truthy(payload.get("errors")):
         msg = "GitHub GraphQL could not verify branch activity"
         raise RuntimeError(msg)
     data = payload.get("data")
@@ -588,9 +613,14 @@ def package_version_tags(version: ApiJsonObject) -> set[str] | None:
     metadata = version.get("metadata")
     container = metadata.get("container") if isinstance(metadata, dict) else None
     tags = container.get("tags") if isinstance(container, dict) else None
-    if not isinstance(tags, list) or any(not isinstance(tag, str) for tag in tags):
+    if not isinstance(tags, list):
         return None
-    return set(tags)
+    string_tags: set[str] = set()
+    for tag in tags:
+        if not isinstance(tag, str):
+            return None
+        string_tags.add(tag)
+    return string_tags
 
 
 def package_version_activity_epoch(version: ApiJsonObject) -> float | None:
@@ -602,7 +632,8 @@ def package_version_activity_epoch(version: ApiJsonObject) -> float | None:
     Returns:
         Unix timestamp for the version's latest activity, or None.
     """
-    activity = version.get("updated_at") or version.get("created_at")
+    updated_at = version.get("updated_at")
+    activity = updated_at if _api_json_truthy(updated_at) else version.get("created_at")
     return epoch(activity) if isinstance(activity, str) else None
 
 
@@ -675,7 +706,7 @@ def _dockerfile_tag_batch(
     if not isinstance(payload, dict):
         msg = "GitHub GraphQL returned a non-object response"
         raise TypeError(msg)
-    if payload.get("errors"):
+    if _api_json_truthy(payload.get("errors")):
         msg = "GitHub GraphQL could not verify protected Dockerfile contents"
         raise RuntimeError(msg)
     data = payload.get("data")
@@ -1238,7 +1269,7 @@ def main() -> int:
         f"removed_package_versions={package_result['deleted']} "
         f"stale_package_versions_pending={package_result['pending']}\n"
     )
-    if package_result.get("error"):
+    if _api_json_truthy(package_result.get("error")):
         sys.stdout.write(f"package_cleanup_note={package_result['error']}\n")
     return 0
 

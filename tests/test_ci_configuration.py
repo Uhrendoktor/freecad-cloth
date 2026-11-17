@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
 
-from freecad_cloth.common.JsonTypes import JsonObject
+from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from tests.support.assertions import require
 from tests.support.ruff_contract import assert_reviewed_ruff_policy
 from tools.ci import maintenance_cleanup
@@ -498,6 +498,14 @@ def test_stale_package_versions_keep_protected_recent_and_unverifiable_versions(
     assert [version["id"] for version in stale] == [1], (
         'Expected [version["id"] for version in stale] == [1].'
     )
+
+
+def test_package_version_tags_rejects_non_string_values() -> None:
+    """Fail closed when registry tag metadata contains a non-string value."""
+    tags: list[JsonValue] = ["valid-tag", 17, True]
+    version: JsonObject = {"metadata": {"container": {"tags": tags}}}
+
+    assert maintenance_cleanup.package_version_tags(version) is None
 
 
 def test_package_cleanup_queries_configured_pbd_versions_without_namespace_listing() -> None:
