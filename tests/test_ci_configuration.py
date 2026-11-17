@@ -278,10 +278,11 @@ def test_pbd_validation_tag_hashes_the_native_experiment_patch() -> None:
     expected_manifest = (
         f"{sha256(dockerfile).hexdigest()}  docker/freecad-ci/Dockerfile\n"
         f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
-    ).encode("utf-8")
+    ).encode()
 
-    assert maintenance_cleanup.pbd_validation_tag(dockerfile, patch) == (
-        sha256(expected_manifest).hexdigest()[:32]
+    assert (
+        maintenance_cleanup.pbd_validation_tag(dockerfile, patch)
+        == (sha256(expected_manifest).hexdigest()[:32])
     )
 
 
@@ -295,7 +296,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         "5" * 40: b"FROM freecad:five\n",
     }
     patch_contents_by_sha = {
-        sha: f"native patch for {sha}\n".encode("utf-8") for sha in contents_by_sha
+        sha: f"native patch for {sha}\n".encode() for sha in contents_by_sha
     }
     queries = []
 
