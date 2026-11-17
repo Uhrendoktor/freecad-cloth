@@ -31,6 +31,36 @@ class _SeamFeature(FreeCADDocumentObjectProtocol, Protocol):
     EndB: float
 
 
+
+class _CorrespondenceSeam(Protocol):
+    """Read-only normalized range fields consumed by correspondence analysis."""
+
+    @property
+    def StartA(self) -> float:
+        """Return the normalized start parameter on side A."""
+        ...
+
+    @property
+    def EndA(self) -> float:
+        """Return the normalized end parameter on side A."""
+        ...
+
+    @property
+    def StartB(self) -> float:
+        """Return the normalized start parameter on side B."""
+        ...
+
+    @property
+    def EndB(self) -> float:
+        """Return the normalized end parameter on side B."""
+        ...
+
+    @property
+    def ReversedB(self) -> bool:
+        """Return whether side B is traversed in reverse."""
+        ...
+
+
 def _gui_modules() -> tuple[ModuleType, ModuleType, ModuleType, ModuleType]:
     """Load FreeCAD and Qt modules lazily for the task panel.
 
@@ -88,7 +118,7 @@ def validate_seam_for_accept(seam: _SeamFeature | None) -> bool:
 
 
 def correspondence_report(
-    seam: _SeamFeature | None,
+    seam: _CorrespondenceSeam | None,
     length_a: float,
     length_b: float,
     tolerance: float = 0.05,

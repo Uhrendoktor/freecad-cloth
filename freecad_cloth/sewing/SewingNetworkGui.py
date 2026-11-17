@@ -60,10 +60,60 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     Seams: Sequence[_SeamFeature]
 
 
+class _SeamReferenceStatus(Protocol):
+    """Read-only seam identity and status used by reference validators."""
+
+    @property
+    def Status(self) -> str:
+        """Return the canonical seam-reference status."""
+        ...
+
+    @property
+    def SeamId(self) -> str:
+        """Return the stable seam identifier."""
+        ...
+
+
 class _NetworkReferenceCollection(Protocol):
     """Ordered seam collection required by reference-status validators."""
 
-    Seams: Sequence[object]
+    @property
+    def Seams(self) -> Sequence[_SeamReferenceStatus]:
+        """Return the ordered canonical seam members."""
+        ...
+
+
+class _NetworkStatusFeature(Protocol):
+    """Read-only status consumed as a fallback by seam captions."""
+
+    @property
+    def Status(self) -> str:
+        """Return the aggregate network status."""
+        ...
+
+
+class _SeamSearchFeature(_SeamReferenceStatus, Protocol):
+    """Read-only seam fields used to build searchable row text."""
+
+    @property
+    def PieceA(self) -> str:
+        """Return the first connected pattern-piece identifier."""
+        ...
+
+    @property
+    def EdgeA(self) -> str:
+        """Return the first connected pattern-edge identifier."""
+        ...
+
+    @property
+    def PieceB(self) -> str:
+        """Return the second connected pattern-piece identifier."""
+        ...
+
+    @property
+    def EdgeB(self) -> str:
+        """Return the second connected pattern-edge identifier."""
+        ...
 
 
 class _RangeEditor(Protocol):
@@ -383,7 +433,7 @@ class SewingNetworkTaskPanel:
         return field
 
     @staticmethod
-    def _seam_search_text(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+    def _seam_search_text(seam: _SeamSearchFeature, network: _NetworkStatusFeature) -> str:
         """Build searchable text from both seam sides and validation state.
 
         Args:
@@ -406,7 +456,7 @@ class SewingNetworkTaskPanel:
         ).casefold()
 
     @staticmethod
-    def _seam_caption(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+    def _seam_caption(seam: _SeamSearchFeature, network: _NetworkStatusFeature) -> str:
         """Create a compact row caption identifying both connected edges.
 
         Args:

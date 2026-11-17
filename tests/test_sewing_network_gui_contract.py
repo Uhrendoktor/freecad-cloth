@@ -23,10 +23,12 @@ class _Seam:
 
 
 class _Network:
-    Seams: Sequence[_Seam]
-
     def __init__(self, seams: Sequence[_Seam]) -> None:
-        self.Seams = seams
+        self._seams = seams
+
+    @property
+    def Seams(self) -> Sequence[_Seam]:
+        return self._seams
 
 
 class SewingNetworkGuiContractTests(unittest.TestCase):

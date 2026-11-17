@@ -55,6 +55,9 @@ class _TaskPanelLabel:
 class _ReferenceSeam:
     """Model the identity and validation status of one network seam."""
 
+    SeamId: str
+    Status: str
+
     def __init__(self, seam_id: str, status: str = "Valid") -> None:
         """Initialize the seam identity and reference status.
 
@@ -69,13 +72,14 @@ class _ReferenceSeam:
 class _NetworkFixture(Protocol):
     """Seam collection consumed by a headless network document fixture."""
 
-    Seams: Sequence[_ReferenceSeam]
+    @property
+    def Seams(self) -> Sequence[_ReferenceSeam]:
+        """Return the ordered seam fixtures in the network."""
+        ...
 
 
 class _ReferenceNetwork:
     """Provide the seam collection consumed by sewing-network validators."""
-
-    Seams: Sequence[_ReferenceSeam]
 
     def __init__(self, seams: Sequence[_ReferenceSeam]) -> None:
         """Initialize a network with the supplied seam collection.
@@ -83,7 +87,12 @@ class _ReferenceNetwork:
         Args:
             seams: Seam fixture collection exposed to validation helpers.
         """
-        self.Seams = seams
+        self._seams = seams
+
+    @property
+    def Seams(self) -> Sequence[_ReferenceSeam]:
+        """Return the ordered seam fixtures in the network."""
+        return self._seams
 
 
 def test_sewing_network_gui_contract_is_headless_importable() -> None:
@@ -232,9 +241,9 @@ def test_network_task_panel_invalid_recompute_restores_and_aborts() -> None:
     class Seam:
         """Represent seam parameters and identity used by a panel test."""
 
-        SeamId = "s1"
-        Status = "Valid"
-        StartA = 0.2
+        SeamId: str = "s1"
+        Status: str = "Valid"
+        StartA: float = 0.2
         EndA = 0.8
         StartB = 0.1
         EndB = 0.9
@@ -844,19 +853,23 @@ def test_network_editor_search_covers_both_sides_and_status() -> None:
     """Keep seam identity, both edge references, and validation searchable."""
     from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
 
-    seam = type(
-        "Seam",
-        (),
-        {
-            "SeamId": "seam-17",
-            "PieceA": "FrontPanel",
-            "EdgeA": "Edge4",
-            "PieceB": "SleeveLeft",
-            "EdgeB": "Edge2",
-            "Status": "Valid",
-        },
-    )()
-    network = type("Network", (), {"Status": "Ready"})()
+    class Seam:
+        """Provide the typed seam fields used by the row-search helpers."""
+
+        SeamId: str = "seam-17"
+        PieceA: str = "FrontPanel"
+        EdgeA: str = "Edge4"
+        PieceB: str = "SleeveLeft"
+        EdgeB: str = "Edge2"
+        Status: str = "Valid"
+
+    class Network:
+        """Provide the network status used by the row-search helpers."""
+
+        Status: str = "Ready"
+
+    seam = Seam()
+    network = Network()
 
     searchable = SewingNetworkTaskPanel._seam_search_text(seam, network)
     caption = SewingNetworkTaskPanel._seam_caption(seam, network)
