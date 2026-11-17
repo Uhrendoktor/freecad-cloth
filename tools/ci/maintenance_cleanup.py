@@ -7,13 +7,13 @@ type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, Ap
 type ApiJsonObject = dict[str, ApiJsonValue]
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 import http.client
 import json
 import os
 import string
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -985,7 +985,6 @@ def _cleanup_stale_branches(
     return len(branches), removed_branches, len(stale_branches) - len(selected_branches)
 
 
-
 def stale_completed_workflow_runs(
     repo: str,
     cutoff_epoch: float,
@@ -1089,7 +1088,7 @@ def cleanup_workflow_runs_to_cap(
             try:
                 future.result()
                 deleted += 1
-            except Exception as exc:
+            except GitHubApiError as exc:
                 failures.append((run_id, str(exc)[:200]))
     if failures:
         sample = "; ".join(f"{run_id}: {error}" for run_id, error in failures[:5])
@@ -1207,9 +1206,7 @@ def main() -> int:
         )
         # The active cleanup workflow becomes completed when this job exits.
         # Reserve one slot for it so the post-run completed inventory still has ten.
-        run_result = cleanup_workflow_runs_to_cap(
-            repo, keep=MAX_RETAINED_WORKFLOW_RUNS - 1
-        )
+        run_result = cleanup_workflow_runs_to_cap(repo, keep=MAX_RETAINED_WORKFLOW_RUNS - 1)
         sys.stdout.write(
             "maintenance-cleanup=passed mode=branches-and-runs-only "
             f"branches_seen={branches_seen} removed_branches={removed_branches} "
