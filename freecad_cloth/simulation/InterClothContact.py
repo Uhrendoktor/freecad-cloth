@@ -777,7 +777,8 @@ def project_inter_cloth_contacts(
                         source_start = current[int(edge[0])]
                         source_end = current[int(edge[1])]
                         center_distances = np.linalg.norm(
-                            target.triangle_centers[candidate_indices] - source.edge_centers[edge_index],
+                            target.triangle_centers[candidate_indices]
+                            - source.edge_centers[edge_index],
                             axis=1,
                         )
                         lower_bounds = np.maximum(
