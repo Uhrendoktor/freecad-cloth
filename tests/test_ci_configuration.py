@@ -1102,6 +1102,31 @@ def test_readme_gallery_uses_bounded_fit_steps_without_raising_freecad_timeout()
     )
 
 
+def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> None:
+    """PR review evidence must come from the validated layered outfit, not the tunic demo."""
+    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
+        encoding="utf-8"
+    )
+    action = (ROOT / ".github" / "actions" / "publish-visual-evidence" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    publisher = (ROOT / "tools" / "ci" / "publish_pr_simulation_evidence.py").read_text(
+        encoding="utf-8"
+    )
+    job = workflow.split("  publish-pr-simulation-evidence:\\n", maxsplit=1)[1].split(
+        "\\n  find-validation-artifacts:", maxsplit=1
+    )[0]
+
+    assert "needs: [agent-quality, gui-simple]" in job
+    assert "needs.gui-simple.result == 'success'" in job
+    assert "needs.gui-tunic-visual" not in job
+    assert "uses: ./.github/actions/publish-visual-evidence" in job
+    assert "name: layered-outfit-acceptance" in action
+    assert "path: layered-outfit" in action
+    assert 'review_root = Path("layered-outfit")' in publisher
+    assert 'review_root = Path("tunic")' not in publisher
+
+
 def test_main_publication_checks_out_source_before_local_publisher_action() -> None:
     """The runner must have the local composite action before it can resolve the action."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
