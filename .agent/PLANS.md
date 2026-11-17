@@ -52,6 +52,20 @@ Matched comparison (two repetitions per mode):
 
 The earlier valid run #44145460639 also passed (9.73% projection improvement and 7.55% lower production wall time). The initial invalid run #44137908584 was rejected because it loaded the stock wheel in both modes; the explicit absolute-path loader corrected that provenance failure. No solver identity, production settings, physical acceptance thresholds, geometry or collision settings were changed.
 
+## Latest exact-head revalidation
+
+The plan-record update itself was validated on PR #2866 head `7c480b13281ba79d886cc89e43d59ed17e65ee3a` by [full-validation run #44161584093](https://github.com/uhrendoktor/freecad-cloth/actions/runs/44161584093). The run reached terminal success: all 30 jobs completed, 21 required jobs passed and 9 conditional jobs were skipped; no job failed.
+
+The fresh `pbd-openmp-team-reuse-comparison` artifact (ID `14363419604`) independently confirms:
+- All four runs loaded the source-built experiment module and identical pinned source/patch/binary provenance listed above.
+- Each run completed 90/90 scene steps and 360/360 backend steps; all seven physical/visual gates passed.
+- Runtime context matched: AMD EPYC 9V45, four-CPU affinity (0–3), GCC `libgomp`, CPU fallback, and unchanged non-experiment thread settings.
+- Median native position projection: 9,489.84 ms baseline vs 8,723.48 ms candidate (**8.08% improvement**).
+- Median full production wall time: 16,410.44 ms baseline vs 15,881.06 ms candidate (**3.23% reduction**).
+- Comparator: `acceptance=passed`, no rejection reasons.
+
+The run also published the fresh final visual audit bundle (artifact ID `14365560623`) and independent preview diagnostic (artifact ID `14365195236`). Production solver/geometry/collision settings and the acceptance gates remained unchanged.
+
 ## Current status and handoff
 
 The implementation and exact-head validation for this experiment are complete. PR #2866 intentionally remains draft and stacked on PR #2862; do not merge or promote it independently of that base. PR #2862 is the read-only constraint-group profile on `main`. Maintainer review and the base-PR integration sequence remain outstanding. After #2862 is integrated, retarget/revalidate #2866 against the resulting base before merging. This experiment does not replace the installed pyPBD wheel or change normal production runtime behavior; any product-runtime rollout requires a separately reviewed packaging and compatibility decision.
