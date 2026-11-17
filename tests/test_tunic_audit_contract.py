@@ -659,6 +659,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     )
     assert "p95_frame_interval_ms exceeds the 60 FPS budget" in validator
 
+
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     """Verify production tunic wrapper dispatches in freecad macro host contract."""
     wrapper = (ROOT / "tests" / "freecad_tunic_audit_production.py").read_text(encoding="utf-8")
