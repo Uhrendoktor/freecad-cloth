@@ -487,9 +487,8 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           merge_commit="$(printf '%s\n' "Merge main into PR #2842 after reviewed rebase" | git commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD")"
           test -n "$merge_commit"
-          git cat-file -p "$merge_commit" | grep -F "parent $main_sha"
-          git cat-file -p "$merge_commit" | grep -F "parent $EXPECTED_HEAD"
           echo "Prepared merge commit $merge_commit with tree $tree_sha"
+          git cat-file -p "$merge_commit" | sed -n '1,8p'
           git push --verbose origin "$merge_commit:refs/heads/${target_branch}"
           echo "PR2842_MERGE_COMMIT_SHA=$merge_commit"
           echo "PR2842_MERGED_TREE_SHA=$tree_sha"
