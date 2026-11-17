@@ -61,7 +61,6 @@ class _SurfaceIndex(NamedTuple):
     edge_maximums: PointArray
     edge_starts: PointArray
     edge_ends: PointArray
-    edge_tree: KDTree
 
 
 def _closest_point_on_triangle(
@@ -553,7 +552,7 @@ def _candidate_edge_triangle_pairs(
     neighbors = target.triangle_tree.query_ball_point(
         source.edge_centers,
         radii,
-        return_sorted=True,
+        return_sorted=False,
     )
     query_seconds = time.perf_counter() - query_started
     counts = np.fromiter(
@@ -670,7 +669,6 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     edge_maximums = edge_points.max(axis=1)
     edge_starts = edge_points[:, 0]
     edge_ends = edge_points[:, 1]
-    edge_tree = KDTree(edge_centers)
     return _SurfaceIndex(
         triangles,
         triangle_centers,
@@ -687,7 +685,6 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
         edge_maximums,
         edge_starts,
         edge_ends,
-        edge_tree,
     )
 
 
