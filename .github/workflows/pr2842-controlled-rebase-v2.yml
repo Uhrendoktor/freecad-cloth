@@ -163,6 +163,55 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                if [[ "$path" == "tests/test_tunic_audit_contract.py" ]]; then
+                  # Both branches append independent contract tests: retain the mainline production
+                  # profiling tests and the PR's native-arc boundary regression.
+                  python3 - "$tmpdir/merged" "$path" <<'PY'
+          import pathlib
+          import sys
+
+          merged_path, output_path = map(pathlib.Path, sys.argv[1:])
+          lines = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          result = []
+          index = 0
+          resolved = 0
+          while index < len(lines):
+              if not lines[index].startswith("<<<<<<< "):
+                  result.append(lines[index])
+                  index += 1
+                  continue
+              index += 1
+              main_side = []
+              while index < len(lines) and not lines[index].startswith("======="):
+                  main_side.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated main test side")
+              index += 1
+              pr_side = []
+              while index < len(lines) and not lines[index].startswith(">>>>>>> "):
+                  pr_side.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated PR test side")
+              main_text = "".join(main_side)
+              pr_text = "".join(pr_side)
+              if "test_production_tunic_profile_records_native_python_and_gui_stages" not in main_text:
+                  raise SystemExit("main production-profile tests are missing")
+              if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in pr_text:
+                  raise SystemExit("PR native-arc regression is missing")
+              result.extend(main_side)
+              result.extend(pr_side)
+              resolved += 1
+              index += 1
+          if resolved != 1:
+              raise SystemExit(f"expected one independent appended-test conflict, found {resolved}")
+          output_path.write_text("".join(result), encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
                 grep -n -E '^(<<<<<<<|=======|>>>>>>>)' "$tmpdir/merged" || true
                 rm -rf "$tmpdir"
