@@ -654,7 +654,7 @@ def _provider_geometry(
         return vertices, triangles, landmarks, provider_id, source, "Apache-2.0 / CC0"
     if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
         source_obj = (
-            getattr(obj, "ProviderSource", None) if provider_source is _MISSING else provider_source
+            getattr(obj, "ProviderSource", None) if isinstance(provider_source, _MissingProviderSource) else provider_source
         )
         if source_obj is None or source_obj is obj:
             msg = "select a FreeCAD body as the avatar provider source"
@@ -718,7 +718,7 @@ def _rebuild(
     params.validate()
     if provider_id is None:
         provider_id = str(obj.AvatarProviderId)
-    if provider_source is _MISSING:
+    if isinstance(provider_source, _MissingProviderSource):
         provider_source = obj.ProviderSource
 
     # All potentially fallible geometry/provider work happens before any

@@ -483,7 +483,7 @@ class SkeletonPoseController:
         """Enable the X-ray skeleton and selected-joint rotation gizmo.
 
         Raises:
-            RuntimeError: If pose mode starts without an avatar feature.
+            RuntimeError: If no avatar feature, GUI document, or active 3D view is available.
         """
         if self.view is not None:
             return
@@ -497,7 +497,15 @@ class SkeletonPoseController:
             self.panel._set_status("Pose Mode is available for the MakeHuman HM08 avatar provider.")
             return
 
-        self.view = self.Gui.activeDocument().activeView()
+        gui_document = self.Gui.activeDocument()
+        if gui_document is None:
+            msg = "open a FreeCAD GUI document before starting Pose Mode"
+            raise RuntimeError(msg)
+        view = gui_document.activeView()
+        if view is None:
+            msg = "Pose Mode requires an active 3D view"
+            raise RuntimeError(msg)
+        self.view = view
         try:
             # Import Pivy before requesting FreeCAD's Coin proxy. FreeCAD's
             # embedded SWIG dispatcher discovers the registered Pivy runtime
