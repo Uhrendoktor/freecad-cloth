@@ -9,6 +9,7 @@ import pytest
 from freecad_cloth.shared.SourceSignature import _SignatureValue
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 
 
 def _scene() -> SimpleNamespace:
@@ -23,6 +24,7 @@ def _scene() -> SimpleNamespace:
         SolverIterations=8,
         SolverSubsteps=1,
         PinMode="Automatic",
+        **inter_cloth_quality_defaults(),
         FabricDensity=150.0,
         FabricThickness=0.5,
         FabricStretch=0.02,
@@ -128,6 +130,8 @@ def test_signature_changes_for_every_derived_simulation_control(
         ("ParticleDistance", 2.0),
         ("SolverIterations", 16),
         ("SolverSubsteps", 2),
+        ("GarmentGroups", ["shirt|front", "skirt|front"]),
+        ("InterClothClearance", 2.0),
         ("FabricDensity", 300.0),
         ("FabricThickness", 0.8),
         ("FabricStretch", 0.04),
