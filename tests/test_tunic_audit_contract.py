@@ -371,17 +371,19 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow, (
         'Contract failed: "CLOTH_PBD_COLLISION_MODE: mesh" in wor...'
     )
-    assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in workflow, (
-        'Contract failed: "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in w...'
+    tunic_action = (
+        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in tunic_action, (
+        "The reusable production audit action must pin the 8 mm collision voxel."
     )
     assert "voxel_mm - 8.0" in source, 'Contract failed: "voxel_mm - 8.0" in source'
     assert "(span + 200.0) / 8.0" in source, 'Contract failed: "(span + 200.0) / 8.0" in source'
     assert "configured 8 mm voxel resolution" in source, (
         'Contract failed: "configured 8 mm voxel resolution" in s...'
     )
-    tunic_workflow = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    assert "CLOTH_PBD_SUBSTEPS=16" in tunic_workflow, (
-        'Contract failed: "CLOTH_PBD_SUBSTEPS=16" in tunic_workflow'
+    assert "CLOTH_PBD_SUBSTEPS=16" in tunic_action, (
+        "Every paired production audit must retain 16 native PBD substeps."
     )
     assert 'os.environ["CLOTH_PBD_COLLISION_VOXEL_MM"]' not in source, (
         "Contract failed: 'os.environ[\"CLOTH_PBD_COLLISION_VOXEL_..."
@@ -420,11 +422,11 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "realtime-preview=passed backend=position-based-dynamics" in source, (
         'Contract failed: "realtime-preview=passed backend=positi...'
     )
-    workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
-        encoding="utf-8"
-    )
-    assert "tools/ci/validate_manifests.py tunic-production" in workflow, (
-        'Contract failed: "tools/ci/validate_manifests.py tunic-p...'
+    tunic_action = (
+        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "tools/ci/validate_manifests.py tunic-production" in tunic_action, (
+        "The reusable production audit action must run the strict physical-evidence validator."
     )
     validator = (ROOT / "tools" / "ci" / "validate_manifests.py").read_text(encoding="utf-8")
     assert "def validate_tunic_production()" in validator, (
