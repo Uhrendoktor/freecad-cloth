@@ -312,6 +312,20 @@ def test_pbd_validation_tag_matches_workflow_dockerfile_hash() -> None:
     )
 
 
+def test_pbd_validation_tag_hashes_the_native_experiment_patch() -> None:
+    """The native C++ patch is part of the immutable image identity."""
+    dockerfile = b"FROM freecad:experiment\n"
+    patch = b"void TimeStepController::positionConstraintProjection() {}\n"
+    expected_manifest = (
+        f"{sha256(dockerfile).hexdigest()}  docker/freecad-ci/Dockerfile\n"
+        f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
+    ).encode("utf-8")
+
+    assert maintenance_cleanup.pbd_validation_tag(dockerfile, patch) == (
+        sha256(expected_manifest).hexdigest()[:32]
+    )
+
+
 def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
     """Verify protected Dockerfile tags are resolved in bounded GraphQL batches."""
     contents_by_sha = {
@@ -320,6 +334,9 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         "3" * 40: b"FROM freecad:three\n",
         "4" * 40: b"FROM freecad:four\n",
         "5" * 40: b"FROM freecad:five\n",
+    }
+    patch_contents_by_sha = {
+        sha: f"native patch for {sha}\n".encode("utf-8") for sha in contents_by_sha
     }
     queries = []
 
@@ -342,24 +359,34 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
             r'(file\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/Dockerfile"\)',
             query,
         )
+        patch_aliases = re.findall(
+            r'(patch\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/patches/pypbd-openmp-team-reuse\.patch"\)',
+            query,
+        )
         assert bool(aliases), "Expected bool(aliases)."
+        assert len(aliases) == len(patch_aliases), (
+            "Every protected Dockerfile must be paired with its experiment-patch lookup."
+        )
         queries.append(query)
-        return {
-            "data": {
-                "repository": {
-                    alias: {"text": contents_by_sha[sha].decode("utf-8")} for alias, sha in aliases
-                }
-            }
+        repository = {
+            alias: {"text": contents_by_sha[sha].decode("utf-8")} for alias, sha in aliases
         }
+        repository.update(
+            {
+                alias: {"text": patch_contents_by_sha[sha].decode("utf-8")}
+                for alias, sha in patch_aliases
+            }
+        )
+        return {"data": {"repository": repository}}
 
     tags = maintenance_cleanup.dockerfile_tags_for_shas(
         "owner/repo", set(contents_by_sha), batch_size=2, fetch_json=fake_gh_json
     )
 
-    assert tags == {sha256(contents).hexdigest()[:32] for contents in contents_by_sha.values()}, (
-        "Expected ( tags == {sha256(contents).hexdigest()[:32] for contents in "
-        "contents_by_sha.values()} )."
-    )
+    assert tags == {
+        maintenance_cleanup.pbd_validation_tag(contents_by_sha[sha], patch_contents_by_sha[sha])
+        for sha in contents_by_sha
+    }, "Protected image tags must include the matching native experiment patch."
     assert len(queries) == _EXPECTED_GRAPHQL_BATCH_COUNT, (
         "Expected len(queries) == _EXPECTED_GRAPHQL_BATCH_COUNT."
     )
