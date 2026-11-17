@@ -241,6 +241,15 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
 
 
+def test_ruff_autofix_patch_requires_an_explicit_handoff_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Refuse to write the container patch when the runner handoff is not configured."""
+    monkeypatch.delenv("RUFF_AUTOFIX_PATCH_PATH", raising=False)
+    with pytest.raises(RuntimeError, match="RUFF_AUTOFIX_PATCH_PATH"):
+        write_ruff_autofix_patch("diff --git a/file.py b/file.py\\n")
+
+
 def test_ruff_autofix_patch_uses_the_container_copy_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

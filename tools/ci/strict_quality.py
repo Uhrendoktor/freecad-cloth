@@ -392,9 +392,15 @@ def write_ruff_autofix_patch(patch_text: str) -> Path:
         Path to the temporary patch file, which remains available to the caller.
 
     Raises:
-        OSError: If the temporary patch file cannot be created or written.
+        RuntimeError: If the runner did not configure the handoff destination.
+        OSError: If the patch file cannot be created or written.
     """
-    patch_path = Path(os.environ.get("RUFF_AUTOFIX_PATCH_PATH", "/tmp/ruff-autofix.patch"))
+    configured_path = os.environ.get("RUFF_AUTOFIX_PATCH_PATH")
+    if not configured_path:
+        msg = "RUFF_AUTOFIX_PATCH_PATH must identify the container-to-host patch handoff."
+        raise RuntimeError(msg)
+    patch_path = Path(configured_path)
+    patch_path.parent.mkdir(parents=True, exist_ok=True)
     patch_path.write_text(patch_text, encoding="utf-8")
     return patch_path
 

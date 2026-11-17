@@ -129,50 +129,8 @@ jobs:
         env:
           QUALITY_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
           GH_TOKEN: ${{ github.token }}
-          GITHUB_ACTOR: ${{ github.actor }}
           RUNNER_TOOL_CACHE: ${{ runner.tool_cache }}
-          PR_TITLE: ${{ github.event.pull_request.title || '' }}
-          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number || '' }}
-          PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || '' }}
-        run: |
-          set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" \
-            && "$PR_HEAD_REPOSITORY" == "$GITHUB_REPOSITORY" \
-            && "$PR_TITLE" == *"[apply-safe-ruff]"* ]]; then
-            original_head="$(git rev-parse HEAD)"
-            bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE" --ruff-autofix
-
-            git fetch --quiet origin "refs/heads/$GITHUB_HEAD_REF"
-            updated_head="$(git rev-parse FETCH_HEAD)"
-            if [[ "$updated_head" != "$original_head" ]]; then
-              parent="$(git rev-list --parents -n 1 "$updated_head" | awk '{print $2}')"
-              if [[ "$parent" != "$original_head" ]]; then
-                echo "::error::Safe Ruff batch did not produce one direct child of the inspected PR head."
-                exit 1
-              fi
-            fi
-            if [[ -z "$PR_NUMBER" ]]; then
-              echo "::error::PR number is missing; refusing to dispatch validation."
-              exit 1
-            fi
-
-            gh workflow run commit-validation.yml --repo "$GITHUB_REPOSITORY" \
-              --ref "$GITHUB_HEAD_REF" -f execution_mode=full -f pr_number="$PR_NUMBER"
-            for _ in $(seq 1 30); do
-              run_json="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow "Commit validation" \
-                --branch "$GITHUB_HEAD_REF" --event workflow_dispatch --limit 20 \
-                --json databaseId,headSha,status,url \
-                | jq -c --arg sha "$updated_head" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
-              if [[ -n "$run_json" ]]; then
-                echo "exact-head-full-validation=$run_json"
-                exit 0
-              fi
-              sleep 2
-            done
-            echo "::error::No full-validation run was observed for exact head $updated_head."
-            exit 1
-          fi
-          bash tools/ci/run_strict_quality.sh "$QUALITY_IMAGE"
+        run: bash tools/ci/run_safe_ruff_batch.sh "$QUALITY_IMAGE"
       - name: Add persistent user binary directory to PATH
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
