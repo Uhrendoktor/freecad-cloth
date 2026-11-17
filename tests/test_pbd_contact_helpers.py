@@ -9,8 +9,8 @@ import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import (
-    _closest_segment_triangle,
     _candidate_edge_triangle_pairs,
+    _closest_segment_triangle,
     _closest_segment_triangles_batch,
     _surface_index,
     measure_inter_cloth_contacts,
