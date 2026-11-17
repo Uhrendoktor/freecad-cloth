@@ -364,20 +364,20 @@ jobs:
           environment: ${{ matrix.env }}
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
-    if: ${{ inputs.execution_mode == 'full' }}
+    if: $@@{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 15
+    runs-on: $@@{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 30
     env:
-      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+      FREECAD_PBD_IMAGE: $@@{ needs.pbd_validation_image.outputs.image }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+        with: {ref: "$@@{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
       - uses: ./.github/actions/freecad-test
         continue-on-error: true
         with:
           checkout: "false"
-          image: ${{ env.FREECAD_PBD_IMAGE }}
+          image: $@@{ env.FREECAD_PBD_IMAGE }}
           test-script: tests/freecad_realtime_benchmark.py
           pre-command: mkdir -p artifacts
           log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
@@ -393,49 +393,130 @@ jobs:
         if: always()
         continue-on-error: true
         run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
+
       - uses: ./.github/actions/freecad-test
-        id: production-tunic-audit
-        if: always()
+        id: baseline_1_audit
         with:
-          image: ${{ env.FREECAD_PBD_IMAGE }}
+          image: $@@{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
           timeout-seconds: "360"
           test-script: tests/freecad_tunic_audit_production.py
+          pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-openmp-team-reuse
           stage-workbench: "true"
           clean-user: "true"
-          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
-          validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic-production'
-          artifact-name: tunic-visual-audit
-          artifact-path: |
-            docs/images/generated/**
-            artifacts/garment-e2e.log
-            artifacts/tunic-audit/**
-            artifacts/freecad-realtime/**
-            artifacts/pypbd-provenance.txt
-          scene-report-command: python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated
-          observation-root: docs/images/generated
-          observation-label: Tunic pattern-to-fitting scene diagnostics
-          observation-files: >-
-            summary=scene-understanding.json;visual=scene-understanding.svg
-          # 8 mm bounds native SDF cost; 5 mm target thickness still controls clearance, and exact mesh projection retains the zero-penetration gate.
+          log-file: artifacts/tunic-audit/baseline-1.log
+          validate-command: >-
+            python3 tools/ci/validate_manifests.py tunic-production &&
+            cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-team-reuse/baseline-1.json
           environment: |
+            PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
+            CLOTH_PBD_OPENMP_TEAM_REUSE=0
             FREECAD_CLOTH_ANNY_FIT_STEPS=18
             CLOTH_PBD_SUBSTEPS=16
             CLOTH_PBD_COLLISION_VOXEL_MM=8.0
             CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
             CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-      - name: Report production tunic audit outcome
+      - uses: ./.github/actions/freecad-test
+        id: candidate_1_audit
+        with:
+          image: $@@{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          timeout-seconds: "360"
+          test-script: tests/freecad_tunic_audit_production.py
+          pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log
+          stage-workbench: "true"
+          clean-user: "true"
+          log-file: artifacts/tunic-audit/candidate-1.log
+          validate-command: >-
+            python3 tools/ci/validate_manifests.py tunic-production &&
+            cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-team-reuse/candidate-1.json
+          environment: |
+            PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
+            CLOTH_PBD_OPENMP_TEAM_REUSE=1
+            FREECAD_CLOTH_ANNY_FIT_STEPS=18
+            CLOTH_PBD_SUBSTEPS=16
+            CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+      - uses: ./.github/actions/freecad-test
+        id: baseline_2_audit
+        with:
+          image: $@@{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          timeout-seconds: "360"
+          test-script: tests/freecad_tunic_audit_production.py
+          pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log
+          stage-workbench: "true"
+          clean-user: "true"
+          log-file: artifacts/tunic-audit/baseline-2.log
+          validate-command: >-
+            python3 tools/ci/validate_manifests.py tunic-production &&
+            cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-team-reuse/baseline-2.json
+          environment: |
+            PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
+            CLOTH_PBD_OPENMP_TEAM_REUSE=0
+            FREECAD_CLOTH_ANNY_FIT_STEPS=18
+            CLOTH_PBD_SUBSTEPS=16
+            CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+      - uses: ./.github/actions/freecad-test
+        id: candidate_2_audit
+        with:
+          image: $@@{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          timeout-seconds: "360"
+          test-script: tests/freecad_tunic_audit_production.py
+          pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log
+          stage-workbench: "true"
+          clean-user: "true"
+          log-file: artifacts/tunic-audit/candidate-2.log
+          validate-command: >-
+            python3 tools/ci/validate_manifests.py tunic-production &&
+            cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-team-reuse/candidate-2.json &&
+            python3 tools/ci/compare_pbd_openmp_team_reuse.py
+            --baseline-1 artifacts/pbd-openmp-team-reuse/baseline-1.json
+            --baseline-2 artifacts/pbd-openmp-team-reuse/baseline-2.json
+            --candidate-1 artifacts/pbd-openmp-team-reuse/candidate-1.json
+            --candidate-2 artifacts/pbd-openmp-team-reuse/candidate-2.json
+            --output artifacts/pbd-openmp-team-reuse/comparison.json
+          artifact-name: tunic-visual-audit
+          artifact-path: |
+            docs/images/generated/**
+            artifacts/garment-e2e.log
+            artifacts/tunic-audit/**
+            artifacts/pbd-openmp-team-reuse/**
+            artifacts/freecad-realtime/**
+          scene-report-command: python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated
+          observation-root: docs/images/generated
+          observation-label: Paired native PBD OpenMP team-reuse tunic audit
+          observation-files: >-
+            summary=scene-understanding.json;visual=scene-understanding.svg
+          environment: |
+            PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
+            CLOTH_PBD_OPENMP_TEAM_REUSE=1
+            FREECAD_CLOTH_ANNY_FIT_STEPS=18
+            CLOTH_PBD_SUBSTEPS=16
+            CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+            CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+      - name: Report paired native production audit outcome
         if: always()
         env:
-          AUDIT_OUTCOME: ${{ steps.production-tunic-audit.outcome }}
+          BASELINE_1_OUTCOME: $@@{ steps.baseline_1_audit.outcome }}
+          CANDIDATE_1_OUTCOME: $@@{ steps.candidate_1_audit.outcome }}
+          BASELINE_2_OUTCOME: $@@{ steps.baseline_2_audit.outcome }}
+          CANDIDATE_2_OUTCOME: $@@{ steps.candidate_2_audit.outcome }}
         shell: bash
         run: |
-          if [ "$AUDIT_OUTCOME" = "success" ]; then
-            echo "::notice title=Production tunic audit::The complete 90-step production tunic audit passed on this exact source head."
-          else
-            echo "::error title=Production tunic audit failed::The full 90-step production tunic audit did not complete and is blocking."
-            exit 1
-          fi
+          set -euo pipefail
+          for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME"; do
+            if [[ "$outcome" != "success" ]]; then
+              echo "::error title=Paired production audit failed::All four complete 90-step audits and the matched timing comparison are blocking."
+              exit 1
+            fi
+          done
+          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
