@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import cast
 
+from freecad_cloth.common.JsonTypes import as_json_value
+
 SCHEMA = "freecad-cloth.scene-understanding"
 SCHEMA_VERSION = 1
 type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
@@ -131,6 +133,23 @@ class _ScreenshotPresence:
     drape: bool
 
 
+def _diagnostic_value(value: object) -> DiagnosticValue:
+    """Validate one nested diagnostic literal while retaining tuple structure.
+
+    Args:
+        value: Value returned by Python's safe literal parser.
+
+    Returns:
+        JSON-compatible scalar/container, or a recursively validated tuple.
+
+    Raises:
+        TypeError: If a nested diagnostic value is not a supported literal.
+    """
+    if isinstance(value, tuple):
+        return tuple(_diagnostic_value(item) for item in value)
+    return as_json_value(value)
+
+
 def _literal_tuple(value: str) -> tuple[DiagnosticValue, ...]:
     """Safely parse a tuple-like value written by Python's diagnostic repr.
 
@@ -143,11 +162,11 @@ def _literal_tuple(value: str) -> tuple[DiagnosticValue, ...]:
     Raises:
         TypeError: If the parsed diagnostic value is not a tuple.
     """
-    parsed = ast.literal_eval(value)
+    parsed: object = ast.literal_eval(value)
     if not isinstance(parsed, tuple):
         msg = "expected a tuple in the workflow diagnostic"
         raise TypeError(msg)
-    return cast("tuple[DiagnosticValue, ...]", parsed)
+    return tuple(_diagnostic_value(item) for item in parsed)
 
 
 def _float_value(value: DiagnosticValue) -> float:
@@ -201,7 +220,7 @@ def _point(value: DiagnosticValue) -> list[float]:
     if not isinstance(value, (tuple, list)) or len(value) < TWO_DIMENSIONAL_COORDINATE_COUNT:
         msg = "invalid 2D point in topology diagnostics"
         raise ValueError(msg)
-    result = [float(value[0]), float(value[1])]
+    result = [_float_value(value[0]), _float_value(value[1])]
     if not all(math.isfinite(item) for item in result):
         msg = "non-finite point in topology diagnostics"
         raise ValueError(msg)
@@ -606,11 +625,13 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             }
         if line.startswith("drape-metrics="):
             try:
-                parsed_metrics = json.loads(line.removeprefix("drape-metrics="))
-            except json.JSONDecodeError:
+                parsed_metrics = as_json_value(
+                    json.loads(line.removeprefix("drape-metrics="))
+                )
+            except (json.JSONDecodeError, TypeError):
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
-                parsed.drape_records.append(cast("JsonObject", parsed_metrics))
+                parsed.drape_records.append(parsed_metrics)
         if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
             parsed.has_scenario_pass = True
         if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
@@ -790,7 +811,7 @@ def _build_issues(
     for topology in invalid_geometry:
         native_invalid = not bool(topology["ir_valid"])
         reason = str(topology["ir_reason"] if native_invalid else topology["draft_reason"])
-        nearby = cast("list[JsonObject]", topology["near_crossing"])
+        nearby = _json_object_list(topology.get("near_crossing"))
         touching = list(
             dict.fromkeys(
                 str(item["edge_id"])
@@ -848,7 +869,7 @@ def _crossing_summary(
             "point_local_mm": record["crossing_local_mm"],
             "edge_ids": [
                 item["edge_id"]
-                for item in cast("list[JsonObject]", record["near_crossing"])
+                for item in _json_object_list(record.get("near_crossing"))
                 if _float_value(item["distance_mm"]) <= CROSSING_DISTANCE_TOLERANCE_MM
             ],
         }
@@ -897,8 +918,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
     metrics_payload: JsonValue = None
     if metrics_path.is_file():
         try:
-            metrics_payload = json.loads(metrics_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
+            metrics_payload = as_json_value(
+                json.loads(metrics_path.read_text(encoding="utf-8"))
+            )
+        except (json.JSONDecodeError, TypeError):
             metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
     result = assessment.result
     next_action = assessment.next_action
@@ -992,7 +1015,7 @@ def _as_dict(value: JsonValue) -> JsonObject:
     Returns:
         Dictionary representation, or an empty mapping for non-dictionaries.
     """
-    return cast("JsonObject", value) if isinstance(value, dict) else {}
+    return value if isinstance(value, dict) else {}
 
 
 def _as_list(value: JsonValue) -> list[JsonValue]:
@@ -1004,7 +1027,54 @@ def _as_list(value: JsonValue) -> list[JsonValue]:
     Returns:
         List representation, or an empty list for non-lists.
     """
-    return cast("list[JsonValue]", value) if isinstance(value, list) else []
+    return value if isinstance(value, list) else []
+
+
+def _sampled_points(value: JsonValue | None) -> list[list[float]]:
+    """Validate a JSON array of sampled points before using it as geometry.
+
+    Args:
+        value: Optional JSON value containing an ordered array of two-dimensional points.
+
+    Returns:
+        Ordered finite coordinates, or an empty list when no samples were supplied.
+
+    Raises:
+        ValueError: If a supplied sample does not contain two finite numeric coordinates.
+        TypeError: If the sample collection is not a JSON array.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        msg = "sampled boundary points must be a JSON array"
+        raise TypeError(msg)
+    return [_point(point) for point in value]
+
+
+def _json_object_list(value: JsonValue | None) -> list[JsonObject]:
+    """Validate a JSON array whose every entry must be an object.
+
+    Args:
+        value: Optional JSON value expected to contain object records.
+
+    Returns:
+        Validated object records in their original order, or an empty list when absent.
+
+    Raises:
+        TypeError: If the supplied collection or any entry is not an object.
+    """
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        msg = "expected an array of JSON objects"
+        raise TypeError(msg)
+    result: list[JsonObject] = []
+    for item in value:
+        if not isinstance(item, dict):
+            msg = "expected every array entry to be a JSON object"
+            raise TypeError(msg)
+        result.append(item)
+    return result
 
 
 def _boundary_edge_shape(
@@ -1025,14 +1095,14 @@ def _boundary_edge_shape(
     start = _point(boundary.get("start_mm"))
     end = _point(boundary.get("end_mm"))
     local_points = [start, end]
-    sampled_boundary = cast("list[list[float]]", boundary.get("samples_local_mm", []))
+    sampled_boundary = _sampled_points(boundary.get("samples_local_mm"))
     armhole = armholes.get(edge_index) if edge_index is not None else None
     if len(sampled_boundary) >= MINIMUM_CURVE_SAMPLE_COUNT:
         local_points = sampled_boundary
     elif str(boundary.get("kind")) in {"arc", "bspline", "bezier", "curve"} and isinstance(
         armhole, dict
     ):
-        samples = cast("list[list[float]]", armhole.get("samples_local_mm", []))
+        samples = _sampled_points(armhole.get("samples_local_mm"))
         if len(samples) >= MINIMUM_CURVE_SAMPLE_COUNT:
             distance_forward = math.dist(samples[0], start)
             distance_reverse = math.dist(samples[-1], start)

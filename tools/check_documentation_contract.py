@@ -355,7 +355,7 @@ def _function_type_comment_annotations(
         node: Function declaration carrying the parsed type comment.
         annotations: Mutable annotation inventory receiving each type expression.
     """
-    if not node.type_comment:
+    if node.type_comment is None or node.type_comment == "":
         return
     try:
         function_type = ast.parse(node.type_comment, mode="func_type")
@@ -618,7 +618,7 @@ def _docstring_sections(docstring: str) -> dict[str, list[str]]:
             section_name = match.group(1)
             if section_name is None:
                 continue
-            active = section_name
+            active = str(section_name)
             sections.setdefault(active, [])
         elif active is not None:
             sections[active].append(line)

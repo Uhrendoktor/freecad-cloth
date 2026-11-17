@@ -441,9 +441,9 @@ def _run_repository_ruff_autofix() -> int:
                 timeout=command.timeout_seconds,
             ),
         )
-        if result.stdout:
+        if result.stdout is not None and result.stdout != "":
             sys.stdout.write(result.stdout)
-        if result.stderr:
+        if result.stderr is not None and result.stderr != "":
             sys.stderr.write(result.stderr)
         sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\n")
         sys.stdout.write("::endgroup::\n")
