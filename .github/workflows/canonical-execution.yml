@@ -373,27 +373,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
-      - uses: ./.github/actions/freecad-test
+      - uses: ./.github/actions/pbd-realtime-diagnostic
         continue-on-error: true
         with:
-          checkout: "false"
           image: ${{ env.FREECAD_PBD_IMAGE }}
-          test-script: tests/freecad_realtime_benchmark.py
-          pre-command: mkdir -p artifacts
-          log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
-          environment: |
-            CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
-            CLOTH_PBD_SUBSTEPS=1
-            CLOTH_REALTIME_FRAMES=120
-            CLOTH_REALTIME_WARMUP_FRAMES=30
-            OMP_NUM_THREADS=1
-          artifact-name: realtime-preview-performance
-          artifact-path: artifacts/freecad-realtime/**
-      - name: Validate realtime preview metrics (diagnostic)
-        if: always()
-        continue-on-error: true
-        run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
-
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_1_audit
         with:
