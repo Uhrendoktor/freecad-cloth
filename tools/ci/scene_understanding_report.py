@@ -162,7 +162,7 @@ def _literal_tuple(value: str) -> tuple[DiagnosticValue, ...]:
     Raises:
         TypeError: If the parsed diagnostic value is not a tuple.
     """
-    parsed: DiagnosticValue = cast(DiagnosticValue, ast.literal_eval(value))
+    parsed: DiagnosticValue = cast("DiagnosticValue", ast.literal_eval(value))
     if not isinstance(parsed, tuple):
         msg = "expected a tuple in the workflow diagnostic"
         raise TypeError(msg)

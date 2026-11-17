@@ -22,10 +22,10 @@ def test_as_json_value_preserves_nested_json_data() -> None:
 def test_as_json_value_rejects_python_only_container_values() -> None:
     """Reject tuples rather than silently widening the JSON data contract."""
     with pytest.raises(TypeError, match="unsupported JSON value type"):
-        as_json_value(cast(JsonValue, {"items": (1, 2)}))
+        as_json_value(cast("JsonValue", {"items": (1, 2)}))
 
 
 def test_as_json_value_rejects_non_string_object_keys() -> None:
     """Reject mappings whose keys cannot be represented as JSON object names."""
     with pytest.raises(TypeError, match="keys must be strings"):
-        as_json_value(cast(JsonValue, {1: "not a JSON object key"}))
+        as_json_value(cast("JsonValue", {1: "not a JSON object key"}))
