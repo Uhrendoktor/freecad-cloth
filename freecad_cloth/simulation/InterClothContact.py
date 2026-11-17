@@ -846,7 +846,7 @@ def _measure_contacts(
                 (
                     source_edge_indices,
                     target_triangle_indices,
-                    raw_candidate_count,
+                    _raw_candidate_count,
                     query_elapsed,
                     filter_elapsed,
                 ) = _candidate_edge_triangle_pairs(source, target, clearance_mm)
@@ -867,7 +867,6 @@ def _measure_contacts(
                 candidate_count = len(source_edge_indices)
                 measured_candidates += candidate_count
                 exact_tests += candidate_count
-                difference = edge_points - face_points
                 # Use the batch distance returned by the exact solver to keep the
                 # same nearest-geometry result used by position projection.
                 penetration = clearance_mm - np.sqrt(distances_squared)
