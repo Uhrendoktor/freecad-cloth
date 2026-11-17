@@ -32,7 +32,7 @@ inputs:
     required: false
     default: ""
   timeout-seconds:
-    description: Hard FreeCAD/container command timeout in seconds (maximum 360); defaults to 120.
+    description: Hard FreeCAD/container command timeout in seconds (maximum 1800); defaults to 120.
     required: false
     default: "120"
   environment:
@@ -165,7 +165,6 @@ runs:
         OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
         OBSERVATION_COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         OBSERVATION_TEST_SCRIPT: ${{ inputs.test-script }}
-        OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
         OBSERVATION_IMAGE: ${{ inputs.image }}
       run: python3 tools/ci/create_agent_observation_bundle.py
 
