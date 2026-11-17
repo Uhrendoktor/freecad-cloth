@@ -54,6 +54,52 @@ jobs:
                   git add -- "$path"
                   continue
                 fi
+                if [[ "$path" == "tools/ci/validate_ci_structure.py" ]]; then
+                  # This conflict is the staged Pyright inventory versus the PR's repository-root
+                  # strict policy. Preserve the PR policy only in that exact constants block while
+                  # retaining all non-conflicting mainline additions from the three-way merge.
+                  python3 - "$tmpdir/merged" "$tmpdir/pr" "$path" <<'PY'
+          import pathlib
+          import sys
+
+          merged_path, pr_path, output_path = map(pathlib.Path, sys.argv[1:])
+          merged = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          pr_text = pr_path.read_text(encoding="utf-8")
+          result = []
+          index = 0
+          resolved = 0
+          while index < len(merged):
+              if not merged[index].startswith("<<<<<<< "):
+                  result.append(merged[index])
+                  index += 1
+                  continue
+              index += 1
+              while index < len(merged) and not merged[index].startswith("======="):
+                  index += 1
+              if index >= len(merged):
+                  raise SystemExit("unterminated main side of conflict")
+              index += 1
+              theirs = []
+              while index < len(merged) and not merged[index].startswith(">>>>>>> "):
+                  theirs.append(merged[index])
+                  index += 1
+              if index >= len(merged):
+                  raise SystemExit("unterminated PR side of conflict")
+              block = "".join(theirs)
+              if 'PYRIGHT_EXPECTED_INCLUDE = (".",)' not in block:
+                  raise SystemExit("unexpected strict-Pyright conflict content")
+              if "PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()" not in block:
+                  raise SystemExit("unexpected Pyright exclusion contract")
+              result.extend(theirs)
+              resolved += 1
+              index += 1
+          if resolved != 1:
+              raise SystemExit(f"expected one reviewed conflict block, found {resolved}")
+          output_path.write_text("".join(result), encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  continue
+                fi
                 # Use a true three-way merge; only non-overlapping changes are accepted.
                 tmpdir="$(mktemp -d)"
                 git show ":1:$path" > "$tmpdir/base"
