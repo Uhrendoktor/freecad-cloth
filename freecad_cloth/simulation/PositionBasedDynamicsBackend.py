@@ -711,6 +711,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             raise ValueError(msg)
         self._inter_cloth_metrics: InterClothContactMetrics | None = None
         self._inter_cloth_metrics_before_body_projection: InterClothContactMetrics | None = None
+        self._inter_cloth_inverse_masses = np.ones(self._particle_count, dtype=np.float64)
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
@@ -889,6 +890,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if invalid_pins:
             msg = f"pin index outside system: {invalid_pins!r}"
             raise ValueError(msg)
+        self._inter_cloth_inverse_masses.fill(1.0)
+        if pin_indices:
+            self._inter_cloth_inverse_masses[np.fromiter(pin_indices, dtype=np.int64)] = 0.0
         for index in range(self._particle_count):
             particles.setMass(index, 0.0 if index in pin_indices else 1.0)
 
@@ -1047,15 +1051,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._inter_cloth_metrics = None
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-        inverse_masses = np.asarray(
-            [
-                0.0
-                if index in self._pin_indices
-                else 1.0 / max(float(particles.getMass(index)), 1e-12)
-                for index in range(self._particle_count)
-            ],
-            dtype=np.float64,
-        )
+        # _build sets every movable particle mass to 1 and every pin to 0.
+        # Cache the equivalent inverse masses instead of crossing the pyPBD
+        # binding once per particle on every interactive frame.
+        inverse_masses = self._inter_cloth_inverse_masses
         if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
             _emit_diagnostic(
                 "cloth-pbd-inter-cloth-start "
