@@ -550,8 +550,7 @@ def _measure_contacts(
                     if candidate_indices.size == 0:
                         continue
                     center_delta = (
-                        target.triangle_centers[candidate_indices]
-                        - source.edge_centers[edge_index]
+                        target.triangle_centers[candidate_indices] - source.edge_centers[edge_index]
                     )
                     maximum_reach = (
                         clearance_mm
@@ -790,7 +789,10 @@ def project_inter_cloth_contacts(
                                 best_distance_squared = distance_squared
                                 best_geometry = geometry
                                 best_triangle_index = int(triangle_index)
-                        if best_geometry is not None and best_distance_squared < clearance * clearance:
+                        if (
+                            best_geometry is not None
+                            and best_distance_squared < clearance * clearance
+                        ):
                             triangle_values = target.triangles[best_triangle_index]
                             triangle: tuple[int, int, int] = (
                                 int(triangle_values[0]),
