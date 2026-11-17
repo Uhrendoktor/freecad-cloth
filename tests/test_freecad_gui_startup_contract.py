@@ -167,7 +167,7 @@ def test_canonical_concurrency_preserves_main_runs_and_checks_artifact_budget():
     shared_header = workflow.split("\nenv:", 1)[0]
     assert "concurrency:" not in shared_header
     assert "canonical-pr-{0}" not in workflow
-    assert "commit-validation-pr-{0}" in commit_workflow
+    assert "commit-validation-pr-v2-{0}" in commit_workflow
     assert "merge-validation-{0}" in merge_workflow
     assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in commit_workflow
     assert "cancel-in-progress: true" in merge_workflow

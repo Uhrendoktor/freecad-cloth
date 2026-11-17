@@ -93,6 +93,8 @@ GROUPS = {
         "tests/test_avatar_runtime_api_adapter.py",
         "tests/test_drape_target_commands.py",
         "tests/test_fitting_handoff_command_registration.py",
+        "tests/test_fitting_gui_status.py",
+        "tests/test_diagnostics_gui_contract.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",
@@ -104,6 +106,7 @@ GROUPS = {
         "tests/test_simulation_scene.py",
         "tests/test_realtime_mesh_preview.py",
         "tests/test_realtime_preview_timing.py",
+        "tests/test_pbd_openmp_sweep.py",
         "tests/test_simulation_quality_runtime.py",
         "tests/test_simulation_quality_gui_contract.py",
         "tests/test_project_structure.py",

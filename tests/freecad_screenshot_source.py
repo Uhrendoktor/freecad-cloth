@@ -1773,7 +1773,7 @@ def capture_tunic_sewing_view(
         show_task(
             panel,
             "Sewing Workbench",
-            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
+            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Valid"),
         )
         # As with the pattern view, close the task panel so neither canonical
         # profile is obscured in the generated evidence.
