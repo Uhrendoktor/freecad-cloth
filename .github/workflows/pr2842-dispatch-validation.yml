@@ -26,7 +26,7 @@ jobs:
           repo="${GITHUB_REPOSITORY}"
           pr_number=2842
           branch="agents/strict-python-all-files"
-          expected="b3304c871ed5a24bb3e42f5ade88c44db636542e"
+          expected="f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e"
           pr_json="$(gh api "repos/${repo}/pulls/${pr_number}")"
           test "$(jq -r '.state' <<< "$pr_json")" = "open"
           test "$(jq -r '.head.ref' <<< "$pr_json")" = "$branch"
