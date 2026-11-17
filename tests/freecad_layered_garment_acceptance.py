@@ -909,7 +909,10 @@ def run_acceptance() -> None:
                     view.viewAxonometric,
                     "layered outfit body-penetration diagnostic at step %d" % step,
                 )
-                _log("body-clearance-checkpoint=%d metrics=%s" % (step, json.dumps(body_metrics, sort_keys=True)))
+                _log(
+                    "body-clearance-checkpoint=%d metrics=%s"
+                    % (step, json.dumps(body_metrics, sort_keys=True))
+                )
                 raise RuntimeError(
                     "draped garment penetrated the mannequin at step %d: %d particles"
                     % (step, int(body_metrics["inside_particle_count"]))
