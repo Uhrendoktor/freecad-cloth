@@ -131,11 +131,14 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
-    assert workflow.count("timeout-seconds:") == 6, (
-        'Expected workflow.count("timeout-seconds:") == 6.'
+    assert workflow.count("timeout-seconds:") == 7, (
+        'Expected seven workflow timeout consumers, including targeted UI validation.'
+    )
+    assert workflow.count('timeout-seconds: "240"') == 1, (
+        "Targeted UI validation must retain its bounded 240-second command timeout."
     )
     assert workflow.count('timeout-seconds: "360"') == 4, (
-        "Expected workflow.count('timeout-seconds: \"360\"') == 3."
+        "Expected four bounded 360-second FreeCAD command timeouts."
     )
     assert (
         workflow.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"") == 1
