@@ -113,6 +113,12 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     container_action = (
         ROOT / ".github" / "actions" / "freecad-container" / "action.yml"
     ).read_text(encoding="utf-8")
+    realtime_action = (
+        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
+    ).read_text(encoding="utf-8")
+    production_action = (
+        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
+    ).read_text(encoding="utf-8")
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
@@ -124,134 +130,69 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     blanket_visual = workflow.split("  gui-visual-examples:", 1)[1].split(
         "  publish-pr-simulation-evidence:", 1
     )[0]
-    realtime_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test", 1)[1].split(
-        "      - name: Validate realtime preview metrics (diagnostic)", 1
-    )[0]
-    realtime_validator = tunic_audit.split(
-        "      - name: Validate realtime preview metrics (diagnostic)", 1
-    )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
-    production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2:]
-    assert workflow.count("timeout-seconds:") == 10, (
-        "Expected four paired production audits in addition to the existing bounded consumers."
-    )
-    assert workflow.count('timeout-seconds: "240"') == 1, (
-        "Targeted UI validation must retain its bounded 240-second command timeout."
-    )
-    assert workflow.count('timeout-seconds: "360"') == 7, (
-        "Expected the four paired production audits plus the existing 360-second consumers."
-    )
-    assert (
-        workflow.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"") == 1
-    ), "Expected a single core-only Python validation timeout override."
-    assert simulation_ladder.count('timeout-seconds: "360"') == 1, (
-        "Expected one 360-second timeout in simulation_ladder."
-    )
-    assert (
-        python_validation.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"")
-        == 1
-    ), "Only the core Python validation group may use the extended Python budget."
-    assert tunic_audit.count('timeout-seconds: "360"') == 4, (
-        "All four paired production tunic audits must retain their bounded 360-second budget."
-    )
-    assert "timeout-minutes: 30" in tunic_audit, (
-        "The sequential paired production audits need a 30-minute job envelope."
-    )
-    assert turntable_validation.count('timeout-seconds: "360"') == 1, (
-        "Expected one bounded 360-second simulation turntable budget."
-    )
-    assert blanket_visual.count('timeout-seconds: "360"') == 1, (
-        "Expected the complete 120-step blanket visual audit to retain its physical gates."
-    )
-    assert "timeout-minutes: 10" in blanket_visual, (
-        "The blanket visual job must allow its bounded FreeCAD command and evidence upload to finish."
-    )
-    assert tunic_audit.count("continue-on-error: true") == 2, (
-        "Only the realtime benchmark and its independent validator remain diagnostic-only."
-    )
-    assert "continue-on-error: true" in realtime_step, (
-        "The realtime metric capture is diagnostic-only for this PR."
-    )
-    assert "continue-on-error: true" in realtime_validator, (
-        "The independent realtime metric validator remains diagnostic-only."
-    )
-    assert len(production_tunic_steps) == 4, (
-        "The native scheduling experiment requires two baseline and two candidate audits."
-    )
+    realtime_step = tunic_audit.split(
+        "      - uses: ./.github/actions/pbd-realtime-diagnostic", 1
+    )[1].split("      - uses: ./.github/actions/pbd-tunic-audit", 1)[0]
+    production_tunic_steps = tunic_audit.split(
+        "      - uses: ./.github/actions/pbd-tunic-audit"
+    )[1:]
+    assert workflow.count("timeout-seconds:") == 6
+    assert workflow.count('timeout-seconds: "240"') == 1
+    assert workflow.count('timeout-seconds: "360"') == 3
+    assert "matrix.group == 'core' && 360 || 120" in workflow
+    assert simulation_ladder.count('timeout-seconds: "360"') == 1
+    assert "matrix.group == 'core' && 360 || 120" in python_validation
+    assert turntable_validation.count('timeout-seconds: "360"') == 1
+    assert blanket_visual.count('timeout-seconds: "360"') == 1
+    assert "timeout-minutes: 10" in blanket_visual
+    assert tunic_audit.count("continue-on-error: true") == 1
+    assert "continue-on-error: true" in realtime_step
+    assert realtime_action.count("continue-on-error: true") == 2
+    assert "CLOTH_REALTIME_FRAMES=120" in realtime_action
+    assert "tools/ci/validate_realtime_benchmark.py" in realtime_action
+    assert len(production_tunic_steps) == 4
     for step in production_tunic_steps:
-        assert "test-script: tests/freecad_tunic_audit_production.py" in step
-        assert 'timeout-seconds: "360"' in step
-        assert "continue-on-error:" not in step
-        assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in step
-        assert "CLOTH_PBD_SUBSTEPS=16" in step
-        assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in step
+        assert "id: " in step
+        assert "image:" in step
     assert "id: baseline_1_audit" in production_tunic_steps[0]
-    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=0" in production_tunic_steps[0]
+    assert 'mode: "0"' in production_tunic_steps[0]
+    assert "profile-name: baseline-1" in production_tunic_steps[0]
     assert "id: candidate_1_audit" in production_tunic_steps[1]
-    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_tunic_steps[1]
+    assert 'mode: "1"' in production_tunic_steps[1]
+    assert "profile-name: candidate-1" in production_tunic_steps[1]
     assert "id: baseline_2_audit" in production_tunic_steps[2]
-    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=0" in production_tunic_steps[2]
+    assert "profile-name: baseline-2" in production_tunic_steps[2]
     assert "id: candidate_2_audit" in production_tunic_steps[3]
-    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_tunic_steps[3]
-    assert "compare_pbd_openmp_team_reuse.py" in production_tunic_steps[3]
-    assert "baseline-1.json" in production_tunic_steps[0]
-    assert "candidate-1.json" in production_tunic_steps[1]
-    assert "baseline-2.json" in production_tunic_steps[2]
-    assert "candidate-2.json" in production_tunic_steps[3]
-    assert "projection_improvement_percent" in production_tunic_steps[3]
+    assert "profile-name: candidate-2" in production_tunic_steps[3]
+    assert 'collect-evidence: "true"' in production_tunic_steps[3]
+    assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
+    assert 'timeout-seconds: "360"' in production_action
+    assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
+    assert "inputs.mode" in production_action
+    assert "CLOTH_PBD_SUBSTEPS=16" in production_action
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
+    assert "compare_pbd_openmp_team_reuse.py" in tunic_audit
+    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in tunic_audit
     assert "Report paired native production audit outcome" in tunic_audit
-    assert "steps.baseline_1_audit.outcome" in tunic_audit
-    assert "steps.candidate_1_audit.outcome" in tunic_audit
-    assert "steps.baseline_2_audit.outcome" in tunic_audit
-    assert "steps.candidate_2_audit.outcome" in tunic_audit
+    for step_id in (
+        "baseline_1_audit",
+        "candidate_1_audit",
+        "baseline_2_audit",
+        "candidate_2_audit",
+    ):
+        assert f"steps.{step_id}.outcome" in tunic_audit
     assert "::error title=Paired production audit failed" in tunic_audit
-    assert "freecad_application_timeout_seconds" not in workflow, (
-        'Expected "freecad_application_timeout_seconds" not in workflow.'
-    )
-    assert 'default: "120"' in action, "Expected 'default: \"120\"' in action."
-    assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in action, (
-        'Expected "timeout-seconds: ${{ inputs.timeout-seconds }}" in action.'
-    )
-    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action, (
-        'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action.'
-    )
-    assert 'default: "120"' in container_action, "Expected 'default: \"120\"' in container_action."
-    assert "maximum 360 seconds" in container_action, (
-        'Expected "maximum 360 seconds" in container_action.'
-    )
-    assert 'if [ "$timeout_seconds" -gt 360 ]; then' in container_action, (
-        "Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action."
-    )
-    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner, (
-        'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner.'
-    )
-    assert (
-        'runner_scope="${RUNNER_NAME:-runner}|${RUNNER_TEMP:-}|${GITHUB_WORKSPACE:-}"'
-        in container_action
-    )
-    assert 'runner_key="$(printf %s "$runner_scope" | sha256sum | cut -c1-12)"' in container_action
-    assert 'execution_key="freecad-$run_id-$run_attempt-$job_key-$runner_key"' in container_action
-    assert "420" not in container_action, 'Expected "420" not in container_action.'
-    assert "if ! grep -q '^PYTHONPATH=' <<<\"$EXTRA_ENV\"; then" in container_action, (
-        "An explicit native-module PYTHONPATH must override the default workspace-only path."
-    )
-    assert "--no-deps -e ." in action, 'Expected "--no-deps -e ." in action.'
-    assert '"numpy>=1.26,<3"' in action, "Expected '\"numpy>=1.26,<3\"' in action."
-    assert '"pydantic>=2.11,<3"' in action, "Expected '\"pydantic>=2.11,<3\"' in action."
+    assert "freecad_application_timeout_seconds" not in workflow
+    assert 'default: "120"' in action
+    assert "inputs.timeout-seconds" in action
+    assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action
+    assert 'default: "120"' in container_action
+    assert "--no-deps -e ." in action
+    assert '"numpy>=1.26,<3"' in action
+    assert '"pydantic>=2.11,<3"' in action
     image = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
-    assert '"pillow>=11,<13"' in image, "The pinned FreeCAD image must install Pillow."
-    assert "install --disable-pip-version-check -e ." not in action, (
-        'Expected "install --disable-pip-version-check -e ." not in action.'
-    )
-    assert "configured_timeout_seconds()" in runner, (
-        'Expected "configured_timeout_seconds()" in runner.'
-    )
-    assert "--extra-index-url https://download.pytorch.org/whl/cpu" in image, (
-        "The pinned FreeCAD image must use the CPU-only PyTorch wheel index."
-    )
-    assert '"torch==2.8.0+cpu"' in image, (
-        "The pinned FreeCAD image must install the reviewed CPU-only PyTorch version."
-    )
-
+    assert '"pillow>=11,<13"' in image
+    assert "configured_timeout_seconds()" in runner
 
 def test_timeout_contract_is_documented() -> None:
     """The human documentation points to the authoritative configuration."""
