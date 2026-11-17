@@ -1,7 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize native pyPBD constraint-group sizes without changing solver state."""
 
-from typing import Protocol, Sequence, TypedDict
+from collections.abc import Sequence
+from typing import Protocol, TypedDict
 
 
 DEFAULT_OPENMP_PARALLEL_THRESHOLD = 64
