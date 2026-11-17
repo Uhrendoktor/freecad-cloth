@@ -511,9 +511,66 @@ def _body_clearance(
     surface = base.collision_surface
     positions = tuple(backend.positions())
     inside = points_inside_closed_mesh(positions, surface.vertices, surface.triangles)
+    inside_indices = tuple(index for index, value in enumerate(inside) if value)
     clearance = nearest_surface_clearance(positions, surface.vertices, surface.triangles)
+    if inside_indices:
+        panel_for_particle = {
+            int(particle_index): str(base.panel_piece_names.get(panel_name, panel_name))
+            for panel_name, particle_indices in base.panel_indices.items()
+            for particle_index in particle_indices
+        }
+        sample_records = [
+            {
+                "particle": int(index),
+                "piece": panel_for_particle.get(index, "unknown"),
+                "position_mm": [float(value) for value in positions[index]],
+            }
+            for index in inside_indices[:24]
+        ]
+        _log(
+            "body-penetration-diagnostic count=%d particles=%s"
+            % (len(inside_indices), json.dumps(sample_records, sort_keys=True))
+        )
+
+        projector = getattr(backend, "_collision_projector", None)
+        if projector is not None:
+            from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+
+            inside_points = tuple(positions[index] for index in inside_indices)
+            candidate_counts = tuple(
+                dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32))
+            )
+            for candidate_count in candidate_counts:
+                probe = MeshCollisionProjector(
+                    surface,
+                    clearance_mm=float(projector.clearance_mm),
+                    candidate_count=candidate_count,
+                )
+                projected, _normals = probe.project(inside_points)
+                projected_points = tuple(
+                    tuple(float(value) for value in point) for point in projected
+                )
+                still_inside = points_inside_closed_mesh(
+                    projected_points,
+                    surface.vertices,
+                    surface.triangles,
+                )
+                moved = tuple(
+                    math.dist(original, corrected)
+                    for original, corrected in zip(inside_points, projected_points, strict=True)
+                )
+                _log(
+                    "body-projection-candidate-probe candidates=%d corrected=%d still_inside=%d "
+                    "maximum_move_mm=%.4f"
+                    % (
+                        candidate_count,
+                        sum(distance > 1e-7 for distance in moved),
+                        sum(still_inside),
+                        max(moved, default=0.0),
+                    )
+                )
     return {
-        "inside_particle_count": int(sum(bool(value) for value in inside)),
+        "inside_particle_count": int(len(inside_indices)),
         "minimum_unsigned_clearance_mm": float(clearance),
     }
 
@@ -846,7 +903,17 @@ def run_acceptance() -> None:
                 )
             body_metrics = _body_clearance(scene, backend)
             if int(body_metrics["inside_particle_count"]) > 0:
-                raise RuntimeError("draped garment penetrated the mannequin at step %d" % step)
+                _save_png(
+                    view,
+                    OUTPUT / ("step-%03d-body-penetration.png" % step),
+                    view.viewAxonometric,
+                    "layered outfit body-penetration diagnostic at step %d" % step,
+                )
+                _log("body-clearance-checkpoint=%d metrics=%s" % (step, json.dumps(body_metrics, sort_keys=True)))
+                raise RuntimeError(
+                    "draped garment penetrated the mannequin at step %d: %d particles"
+                    % (step, int(body_metrics["inside_particle_count"]))
+                )
             if float(body_metrics["minimum_unsigned_clearance_mm"]) < MINIMUM_BODY_CLEARANCE_MM:
                 raise RuntimeError(
                     "mannequin clearance %.3f mm is below %.3f mm at step %d"
