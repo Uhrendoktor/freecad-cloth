@@ -713,7 +713,7 @@ def _dockerfile_tag_batch(
             msg = f"Dockerfile content missing for protected ref {sha}"
             raise TypeError(msg)
 
-        patch_alias = next(name for name, patch_sha in patch_aliases.items() if patch_sha == sha)
+        patch_alias = alias.replace("file", "patch", 1)
         patch_blob = repository_data.get(patch_alias)
         patch_text = patch_blob.get("text") if isinstance(patch_blob, dict) else None
         if patch_blob is not None and not isinstance(patch_text, str):
