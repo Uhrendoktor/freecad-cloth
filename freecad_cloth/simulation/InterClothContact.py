@@ -566,7 +566,9 @@ def _candidate_edge_triangle_pairs(
         [np.asarray(indices, dtype=np.int64) for indices in neighbors if len(indices)]
     )
     filter_started = time.perf_counter()
-    center_delta = target.triangle_centers[target_triangle_indices] - source.edge_centers[source_edge_indices]
+    center_delta = (
+        target.triangle_centers[target_triangle_indices] - source.edge_centers[source_edge_indices]
+    )
     maximum_reach = (
         clearance_mm
         + source.edge_half_lengths[source_edge_indices]
@@ -1076,9 +1078,7 @@ def project_inter_cloth_contacts(
                             source_edge_indices,
                             distances_squared,
                         )
-                        is_nearest = distances_squared == best_distance_by_edge[
-                            source_edge_indices
-                        ]
+                        is_nearest = distances_squared == best_distance_by_edge[source_edge_indices]
                         best_triangle_by_edge = np.full(
                             len(source.edges),
                             np.iinfo(np.int64).max,
