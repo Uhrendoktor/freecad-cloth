@@ -131,7 +131,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
-    assert workflow.count("timeout-seconds:") == 6, (
+    assert workflow.count("timeout-seconds:") == 7, (
         'Expected workflow.count("timeout-seconds:") == 6.'
     )
     assert workflow.count('timeout-seconds: "360"') == 4, (

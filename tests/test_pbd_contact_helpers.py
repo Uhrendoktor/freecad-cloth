@@ -178,6 +178,28 @@ def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> Non
     assert all(corrected[index][2] > 0.25 for index in range(4, 8))
 
 
+def test_inter_cloth_projection_uses_one_nearest_contact_per_source_edge() -> None:
+    """Duplicate target faces must not multiply one edge's correction weight."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    duplicated_groups = {
+        "shirt": groups["shirt"],
+        "skirt": groups["skirt"] * 8,
+    }
+    corrected, _directions, metrics = project_inter_cloth_contacts(
+        positions,
+        duplicated_groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=8,
+    )
+
+    assert metrics.contact_count <= 5
+    assert metrics.corrected_particle_count > 0
+    assert metrics.remaining_contact_count == 0
+    assert metrics.max_penetration_after_mm <= 1e-7
+    assert not np.allclose(corrected, np.asarray(positions))
+
+
 def test_inter_cloth_projection_separates_exactly_coincident_parallel_groups() -> None:
     """Coincident sheets need deterministic opposite corrections when centroids overlap."""
     positions, groups = _parallel_cloth_groups(offset_mm=0.0)

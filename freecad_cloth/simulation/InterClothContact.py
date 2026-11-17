@@ -29,7 +29,7 @@ _CONTACT_MEASUREMENT_EPSILON_MM = 0.002
 def _emit_contact_diagnostic(message: str) -> None:
     """Emit opt-in flushed contact-stage diagnostics for native acceptance runs."""
     if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
-        sys.stdout.write(f"{message}\\n")
+        sys.stdout.write(f"{message}\n")
         sys.stdout.flush()
 
 
@@ -412,15 +412,18 @@ def _accumulate_edge_triangle(
     fallback_sign: float,
     correction_sum: PointArray,
     correction_count: npt.NDArray[np.int64],
+    closest_geometry: tuple[PointArray, PointArray, float, PointArray, PointArray] | None = None,
 ) -> tuple[bool, float]:
     """Accumulate one two-sided edge/triangle separation constraint."""
     source_ids = np.asarray(source_edge, dtype=np.int64)
     target_ids = np.asarray(target_triangle, dtype=np.int64)
-    edge_point, face_point, factor, face_weights, normal = _closest_segment_triangle(
-        positions[source_ids[0]],
-        positions[source_ids[1]],
-        positions[target_ids],
-    )
+    if closest_geometry is None:
+        closest_geometry = _closest_segment_triangle(
+            positions[source_ids[0]],
+            positions[source_ids[1]],
+            positions[target_ids],
+        )
+    edge_point, face_point, factor, face_weights, normal = closest_geometry
     difference = edge_point - face_point
     distance = float(np.linalg.norm(difference))
     penetration = clearance_mm - distance
@@ -543,7 +546,22 @@ def _measure_contacts(
                         source.edge_centers[edge_index],
                         radius,
                     )
-                    for triangle_index in candidates:
+                    candidate_indices = np.asarray(candidates, dtype=np.int64)
+                    if candidate_indices.size == 0:
+                        continue
+                    center_delta = (
+                        target.triangle_centers[candidate_indices]
+                        - source.edge_centers[edge_index]
+                    )
+                    maximum_reach = (
+                        clearance_mm
+                        + float(source.edge_half_lengths[edge_index])
+                        + target.triangle_radii[candidate_indices]
+                    )
+                    plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (
+                        maximum_reach * maximum_reach
+                    )
+                    for triangle_index in candidate_indices[plausible]:
                         triangle = target.triangles[int(triangle_index)]
                         edge_point, face_point, _factor, _weights, _normal = (
                             _closest_segment_triangle(
@@ -708,6 +726,7 @@ def project_inter_cloth_contacts(
                 ):
                     direction_started = time.perf_counter()
                     candidate_count = 0
+                    plausible_candidate_count = 0
                     _emit_contact_diagnostic(
                         f"inter-cloth-direction-start iteration={iteration + 1} "
                         f"source_edges={len(source.edges)} target_triangles={len(target.triangles)} "
@@ -726,17 +745,57 @@ def project_inter_cloth_contacts(
                             query_radius,
                         )
                         candidate_count += len(candidates)
+                        candidate_indices = np.asarray(candidates, dtype=np.int64)
+                        if candidate_indices.size:
+                            center_delta = (
+                                target.triangle_centers[candidate_indices]
+                                - source.edge_centers[edge_index]
+                            )
+                            maximum_reach = (
+                                clearance
+                                + float(source.edge_half_lengths[edge_index])
+                                + target.triangle_radii[candidate_indices]
+                            )
+                            plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (
+                                maximum_reach * maximum_reach
+                            )
+                            candidate_indices = candidate_indices[plausible]
+                        plausible_candidate_count += len(candidate_indices)
                         if edge_index > 0 and edge_index % 5000 == 0:
                             _emit_contact_diagnostic(
                                 f"inter-cloth-direction-progress iteration={iteration + 1} "
                                 f"direction={direction_index} edges={edge_index}/{len(source.edges)} "
-                                f"candidates={candidate_count} elapsed_s={time.perf_counter() - direction_started:.1f}"
+                                f"candidates={candidate_count} plausible={plausible_candidate_count} "
+                                f"elapsed_s={time.perf_counter() - direction_started:.1f}"
                             )
-                        for triangle_index in candidates:
+                        # One edge needs one active nearest-face constraint. Applying
+                        # every nearby triangle pair overweights dense/overlapping
+                        # triangulations and makes corrections cancel when adjacent
+                        # faces request slightly different directions.
+                        best_geometry = None
+                        best_triangle_index = -1
+                        best_distance_squared = float("inf")
+                        source_start = current[int(edge[0])]
+                        source_end = current[int(edge[1])]
+                        for triangle_index in candidate_indices:
+                            triangle_ids = target.triangles[int(triangle_index)]
+                            geometry = _closest_segment_triangle(
+                                source_start,
+                                source_end,
+                                current[triangle_ids],
+                            )
+                            difference = geometry[0] - geometry[1]
+                            distance_squared = float(np.dot(difference, difference))
+                            if distance_squared < best_distance_squared:
+                                best_distance_squared = distance_squared
+                                best_geometry = geometry
+                                best_triangle_index = int(triangle_index)
+                        if best_geometry is not None and best_distance_squared < clearance * clearance:
+                            triangle_values = target.triangles[best_triangle_index]
                             triangle: tuple[int, int, int] = (
-                                int(target.triangles[int(triangle_index), 0]),
-                                int(target.triangles[int(triangle_index), 1]),
-                                int(target.triangles[int(triangle_index), 2]),
+                                int(triangle_values[0]),
+                                int(triangle_values[1]),
+                                int(triangle_values[2]),
                             )
                             contact, penetration = _accumulate_edge_triangle(
                                 current,
@@ -749,6 +808,7 @@ def project_inter_cloth_contacts(
                                 fallback_sign,
                                 correction_sum,
                                 correction_count,
+                                closest_geometry=best_geometry,
                             )
                             contacts_this_pass += int(contact)
                             maximum_this_pass = max(
@@ -758,6 +818,7 @@ def project_inter_cloth_contacts(
                     _emit_contact_diagnostic(
                         f"inter-cloth-direction-finish iteration={iteration + 1} "
                         f"direction={direction_index} candidates={candidate_count} "
+                        f"plausible={plausible_candidate_count} "
                         f"elapsed_s={time.perf_counter() - direction_started:.1f}"
                     )
 
