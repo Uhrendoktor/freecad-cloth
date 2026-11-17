@@ -1,7 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize native pyPBD constraint-group sizes without changing solver state."""
 
-from collections.abc import Sequence
 from typing import Protocol, TypedDict
 
 
@@ -19,7 +18,7 @@ class NativeConstraintCollection(Protocol):
 class ConstraintGroupModel(Protocol):
     """Native model methods needed for read-only constraint-group profiling."""
 
-    def getConstraintGroups(self) -> Sequence[Sequence[int]]:
+    def getConstraintGroups(self) -> list[list[int]]:
         """Return the native solver's conflict-free constraint groups."""
         ...
 
@@ -51,7 +50,7 @@ class ConstraintGroupProfile(TypedDict):
 
 
 def _nearest_rank(
-    ordered_values: Sequence[int], percentile_numerator: int, percentile_denominator: int
+    ordered_values: list[int], percentile_numerator: int, percentile_denominator: int
 ) -> int:
     """Return an exact rational nearest-rank percentile from ascending values."""
     count = len(ordered_values)
@@ -63,7 +62,7 @@ def _nearest_rank(
 
 
 def summarize_constraint_groups(
-    groups: Sequence[Sequence[int]],
+    groups: list[list[int]],
     constraint_count: int,
     *,
     parallel_threshold: int = DEFAULT_OPENMP_PARALLEL_THRESHOLD,
