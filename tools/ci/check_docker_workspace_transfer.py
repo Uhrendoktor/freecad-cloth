@@ -8,7 +8,10 @@ import tempfile
 from pathlib import Path
 from typing import Protocol
 
-from tools.ci.command_runner import CommandOptions, run_command
+if __package__:
+    from tools.ci.command_runner import CommandOptions, run_command
+else:
+    from command_runner import CommandOptions, run_command
 
 IMAGE = "busybox:1.36.1"
 
