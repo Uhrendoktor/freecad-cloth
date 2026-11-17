@@ -1069,6 +1069,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
         if native_vertices.size == 0:
             self._inter_cloth_metrics = None
+            self._inter_cloth_residual_constraints = ()
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
         # _build sets every movable particle mass to 1 and every pin to 0.
@@ -1104,6 +1105,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Refresh residual garment contact after the final avatar projection."""
         if len(self._inter_cloth_groups) < 2:
             self._inter_cloth_metrics = None
+            self._inter_cloth_residual_constraints = ()
             return
         from freecad_cloth.simulation.InterClothContact import (
             measure_inter_cloth_contacts_with_constraints,
@@ -1137,6 +1139,43 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 max_penetration_after_mm=maximum_deficit,
             )
 
+    def _project_inter_cloth_residual_constraints(self):
+        """Correct only the exact residual contacts from the latest measurement."""
+        constraints = getattr(self, "_inter_cloth_residual_constraints", ())
+        if not constraints:
+            return None
+
+        from freecad_cloth.simulation.InterClothContact import (
+            project_measured_inter_cloth_contacts,
+        )
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            return None
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        corrected_mm, contact_directions, metrics = project_measured_inter_cloth_contacts(
+            positions_mm,
+            self._inter_cloth_inverse_masses,
+            constraints,
+            clearance_mm=self._inter_cloth_clearance_mm,
+            stitches=self._stitches,
+            relaxation=1.0,
+        )
+        self._apply_position_corrections(
+            particles,
+            positions_mm,
+            corrected_mm,
+            contact_directions,
+            skip_zero_directions=True,
+        )
+        self._inter_cloth_metrics = metrics
+        _emit_diagnostic(
+            f"cloth-pbd-targeted-contact-repair constraints={len(constraints)} "
+            f"contacts={metrics.contact_count} corrected={metrics.corrected_particle_count}"
+        )
+        return metrics
+
     def _resolve_inter_cloth_body_contacts(self) -> None:
         """Reconcile bounded cloth/body contact corrections until both remain clear.
 
@@ -1150,41 +1189,22 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             return
 
         for pass_index in range(_MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES):
-            constraints = getattr(self, "_inter_cloth_residual_constraints", ())
-            if aggregate.remaining_contact_count <= 0 or not constraints:
+            if aggregate.remaining_contact_count <= 0:
                 break
 
-            from freecad_cloth.simulation.InterClothContact import (
-                project_measured_inter_cloth_contacts,
-            )
-
-            particles = self._model.getParticles()
-            native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
-            positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-            corrected_mm, contact_directions, correction = project_measured_inter_cloth_contacts(
-                positions_mm,
-                self._inter_cloth_inverse_masses,
-                constraints,
-                clearance_mm=self._inter_cloth_clearance_mm,
-                stitches=self._stitches,
-            )
-            self._apply_position_corrections(
-                particles,
-                positions_mm,
-                corrected_mm,
-                contact_directions,
-                skip_zero_directions=True,
-            )
-            _emit_diagnostic(
-                f"cloth-pbd-targeted-contact-repair pass={pass_index + 1} "
-                f"constraints={len(constraints)} contacts={correction.contact_count} "
-                f"corrected={correction.corrected_particle_count}"
-            )
+            correction = self._project_inter_cloth_residual_constraints()
+            if correction is None:
+                break
             self._project_collision_positions()
             self._measure_inter_cloth_residual()
             measured = self._inter_cloth_metrics
             if measured is None:
                 break
+            _emit_diagnostic(
+                f"cloth-pbd-contact-reconcile-pass={pass_index + 1} "
+                f"residual={measured.remaining_contact_count} "
+                f"maximum_mm={measured.max_penetration_after_mm:.4f}"
+            )
 
             self._inter_cloth_metrics = measured._replace(
                 contact_count=aggregate.contact_count + correction.contact_count,
