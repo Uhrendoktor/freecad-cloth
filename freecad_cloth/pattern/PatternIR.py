@@ -518,9 +518,7 @@ def _order_sketch_boundary(
             )
             raise ValueError(msg)
 
-    adjacency: dict[int, set[int]] = {
-        index: set() for index in range(len(boundaries))
-    }
+    adjacency: dict[int, set[int]] = {index: set() for index in range(len(boundaries))}
     for incident in (set(vertex[1]) for vertex in vertices):
         first, second = tuple(incident)
         adjacency[first].add(second)
@@ -583,9 +581,7 @@ def _order_sketch_boundary(
     return tuple(ordered)
 
 
-def _find_vertex(
-    vertices: Sequence[tuple[Point3, Sequence[int]]], point: Point3
-) -> int | None:
+def _find_vertex(vertices: Sequence[tuple[Point3, Sequence[int]]], point: Point3) -> int | None:
     """Find a previously registered endpoint within the topology merge tolerance.
 
     Args:
@@ -705,8 +701,8 @@ def _native_boundary(native: object, edge_id: str, curve_samples: int) -> Bounda
     """
     type_name = type(native).__name__.lower().lstrip("_")
     if type_name == "linesegment":
-        start = _point3(getattr(native, "StartPoint"))
-        end = _point3(getattr(native, "EndPoint"))
+        start = _point3(native.StartPoint)
+        end = _point3(native.EndPoint)
         return BoundaryIR(edge_id, "line", (start, end))
 
     kind = {
@@ -785,8 +781,8 @@ def _point3(point: object) -> Point3:
         Three floating-point coordinates, using zero for an absent Z component.
     """
     return (
-        float(getattr(point, "x")),
-        float(getattr(point, "y")),
+        float(point.x),
+        float(point.y),
         float(getattr(point, "z", 0.0)),
     )
 

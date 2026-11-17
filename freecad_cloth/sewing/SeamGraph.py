@@ -419,9 +419,7 @@ class SeamGraph:
         return cast("tuple[int, ...]", values)
 
 
-def _sample_indices(
-    values: Sequence[int], start: float, end: float, count: int
-) -> list[int]:
+def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:
     span = end - start
     if count < 2 or span <= 0.0:
         msg = "seam range must contain at least two samples"

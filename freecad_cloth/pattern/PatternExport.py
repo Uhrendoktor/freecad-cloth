@@ -585,9 +585,7 @@ def to_dxf(
         raise ValueError(msg)
     entities: list[list[str]] = []
 
-    def polyline(
-        points: Iterable[Point], layer: str, *, closed: bool = True
-    ) -> None:
+    def polyline(points: Iterable[Point], layer: str, *, closed: bool = True) -> None:
         """Append one lightweight-polyline entity to the requested DXF layer.
 
         Args:

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from types import ModuleType
 
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
     from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol
 
 
@@ -228,7 +229,9 @@ class PatternTopologyRepairTaskPanel:
                 "seam side. Nothing is remapped automatically."
             )
         )
-        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]] = []
+        self.rows: list[
+            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]
+        ] = []
         grid_content = QtWidgets.QWidget()
         grid = QtWidgets.QVBoxLayout(grid_content)
         grid.setContentsMargins(0, 0, 0, 0)

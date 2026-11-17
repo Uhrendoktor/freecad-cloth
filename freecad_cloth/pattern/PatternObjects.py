@@ -17,7 +17,6 @@ from freecad_cloth.pattern.SeamReference import (
 )
 from freecad_cloth.shared.SeamColors import apply_seam_colors
 
-
 type Point2D = tuple[float, float]
 
 
@@ -38,7 +37,7 @@ def _parse_points(value: object) -> list[Point2D]:
     if not value:
         return []
     try:
-        points = cast(Sequence[Sequence[object]], ast.literal_eval(str(value)))
+        points = cast("Sequence[Sequence[object]]", ast.literal_eval(str(value)))
         return [(float(point[0]), float(point[1])) for point in points]
     except (ValueError, SyntaxError, TypeError, IndexError) as exc:
         msg = "invalid pattern boundary"
@@ -152,7 +151,7 @@ def _native_edge_record_for_sketch_index(
         str(value).strip() for value in (getattr(sketch, "SemanticEdgeIds", ()) or ())
     )
     if edge < 0 or edge >= len(semantic_ids):
-        msg = f"native Sketcher seam edge {edge} is outside pattern piece {str(getattr(piece, 'PieceId'))}"
+        msg = f"native Sketcher seam edge {edge} is outside pattern piece {piece.PieceId!s}"
         raise MissingEdgeReference(msg)
     semantic_id = semantic_ids[edge]
     if not semantic_id:

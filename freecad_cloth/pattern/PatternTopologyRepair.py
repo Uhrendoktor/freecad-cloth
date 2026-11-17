@@ -4,7 +4,6 @@
 from collections.abc import Iterable, Sequence
 from typing import Protocol, TypeVar, cast
 
-from freecad_cloth.pattern.PatternObjects import _edge_records
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.JsonTypes import JsonObject
 from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index
@@ -111,7 +110,7 @@ def invalid_seam_sides(
         Tuples containing each invalid seam feature, side selector, and failure reason.
     """
     result: list[tuple[SeamFeatureProtocol, str, str]] = []
-    objects = cast(Sequence[object], getattr(doc, "Objects", ()))
+    objects = cast("Sequence[object]", getattr(doc, "Objects", ()))
     for obj in objects:
         if getattr(obj, "SeamId", None) is None:
             continue
@@ -119,7 +118,7 @@ def invalid_seam_sides(
             valid, reason = seam_reference_status(obj, side)
             if not valid:
                 # SeamId marks a native seam feature with the properties in this protocol.
-                result.append((cast(SeamFeatureProtocol, obj), side, reason))
+                result.append((cast("SeamFeatureProtocol", obj), side, reason))
     return result
 
 
@@ -268,7 +267,7 @@ def apply_repair_plan(
         InvalidRepairTarget: If a selected replacement edge cannot be resolved.
     """
     plan = build_repair_plan(repairs)
-    document = cast(DocumentTransactionProtocol, doc)
+    document = cast("DocumentTransactionProtocol", doc)
     document.openTransaction("Repair Cloth pattern topology")
     try:
         for seam, side, record in plan:

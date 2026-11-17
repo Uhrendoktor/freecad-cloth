@@ -133,7 +133,6 @@ def test_position_bounds_uses_vectorized_axis_reductions() -> None:
         position_bounds(())
 
 
-
 def test_inside_outside_prefers_native_shape_before_mesh_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

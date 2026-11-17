@@ -1,8 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Regression checks for strict-quality cache identity and command coverage."""
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 from tests.support.assertions import require
 from tools.ci.strict_quality import (

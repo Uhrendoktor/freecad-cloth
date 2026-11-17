@@ -552,9 +552,7 @@ def _native_inside_states(
     states: list[bool] = []
     for point in points[:MAX_INSIDE_OUTSIDE_SAMPLES]:
         try:
-            states.append(
-                bool(contains(vector_factory(*point), 1e-6, NATIVE_BOUNDARY_INCLUSION))
-            )
+            states.append(bool(contains(vector_factory(*point), 1e-6, NATIVE_BOUNDARY_INCLUSION)))
         except (AttributeError, TypeError, ValueError):
             return []
     return states

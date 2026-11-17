@@ -1030,6 +1030,8 @@ def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
     )
     missing = tuple(fragment for fragment in required if fragment not in benchmark)
     assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"
+
+
 @dataclass
 class _NativeArcPoint:
     """Mutable native-point stand-in used to test the dynamic coordinate boundary."""

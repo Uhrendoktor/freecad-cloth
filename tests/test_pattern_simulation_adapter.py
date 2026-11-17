@@ -278,7 +278,6 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
             }
         )
 
-
     def native_edge_records(_piece: object) -> list[EdgeRecord]:
         return reordered
 

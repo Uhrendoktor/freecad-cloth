@@ -252,9 +252,7 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         "Height",
         "SeamAllowance",
         "GeometryMode",
-        "DraftingBoundary",
         "SewingBoundary",
-        "SewingOutline",
         "Shape",
         "viewTop",
     }
@@ -287,7 +285,8 @@ def assert_reviewed_ruff_policy(project_file: Path) -> None:
         message="Ruff preview rules must remain enabled repository-wide.",
     )
     require(
-        condition=project["tool"]["ruff"]["lint"]["flake8-annotations"]["suppress-none-returning"] is True,
+        condition=project["tool"]["ruff"]["lint"]["flake8-annotations"]["suppress-none-returning"]
+        is True,
         message="Functions returning only None may omit a return annotation; value returns must remain annotated.",
     )
     require(

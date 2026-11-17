@@ -68,7 +68,8 @@ def point_length(value: Point) -> float:
 def test_parse_errors_fail_closed() -> None:
     """Do not silently skip source when the AST parser cannot read it."""
     result = explicit_any_violations("value: Any =\n", "broken.py")
-    assert result and result[0].startswith("broken.py:1: invalid Python syntax")
+    assert result
+    assert result[0].startswith("broken.py:1: invalid Python syntax")
 
 
 def test_python_inventory_includes_stub_files(tmp_path: Path) -> None:
