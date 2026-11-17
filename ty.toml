@@ -1,5 +1,5 @@
 [environment]
-root = [".", "./tools/ci"]
+root = [".", "./tools/ci", "./tests", "./tests/support"]
 
 [terminal]
 output-format = "github"
@@ -16,4 +16,5 @@ allowed-unresolved-imports = [
   "FreeCADGui.*",
   "pivy",
   "pivy.*",
+  "pypbd",
 ]

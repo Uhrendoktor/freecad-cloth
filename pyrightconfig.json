@@ -4,6 +4,11 @@
   ],
   "typeCheckingMode": "strict",
   "pythonVersion": "3.12",
+  "extraPaths": [
+    "./tools/ci",
+    "./tests",
+    "./tests/support"
+  ],
   "reportMissingImports": "error",
   "reportMissingModuleSource": "error"
 }

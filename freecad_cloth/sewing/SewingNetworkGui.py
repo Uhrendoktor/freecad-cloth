@@ -7,15 +7,12 @@ silently edit a network whose canonical seam references are invalid.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from itertools import starmap
 from types import ModuleType
-from typing import TYPE_CHECKING, Protocol
+from typing import Protocol, TypedDict, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
-
 
 def _modules():
     """Load the FreeCAD and Qt modules supported by the host runtime.
@@ -57,6 +54,7 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persistent network identity and its ordered canonical seam members."""
 
     RelationshipId: str
+    Status: str
     Seams: Sequence[_SeamFeature]
 
 
@@ -116,8 +114,26 @@ class _SeamSearchFeature(_SeamReferenceStatus, Protocol):
         ...
 
 
+class _FloatChangedSignal(Protocol):
+    """Qt signal that emits the updated floating-point endpoint."""
+
+    def connect(self, _slot: Callable[[float], None]) -> None:
+        """Connect one callback for numeric endpoint changes."""
+        ...
+
+
+class _NetworkEditorSnapshot(TypedDict):
+    """Original network editor values saved for abort/rollback."""
+
+    ranges: tuple[tuple[float, float, float, float], ...]
+    alignment: tuple[str, ...]
+    reversed_b: tuple[bool, ...]
+
+
 class _RangeEditor(Protocol):
     """Numeric Qt control used for one normalized seam-range endpoint."""
+
+    valueChanged: _FloatChangedSignal
 
     def setRange(self, _minimum: float, _maximum: float) -> None:
         """Limit the editor to a normalized parameter interval."""
@@ -250,8 +266,8 @@ class SewingNetworkTaskPanel:
         self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
         layout.addWidget(self.correspondence)
 
-        self._seams = seam_values
-        self._range_values = [
+        self._seams: tuple[_SeamFeature, ...] = seam_values
+        self._range_values: list[tuple[float, float, float, float]] = [
             (
                 float(getattr(seam, "StartA", 0.0)),
                 float(getattr(seam, "EndA", 1.0)),
@@ -292,10 +308,16 @@ class SewingNetworkTaskPanel:
         detail_layout.addWidget(self.selected_seam_label)
         range_form = QtWidgets.QFormLayout()
         configure_form_layout(range_form, QtWidgets)
-        self.start_a, self.end_a, self.start_b, self.end_b = (
-            self._range_spin(QtWidgets) for _ in range(4)
+        self.start_a = self._range_spin(QtWidgets)
+        self.end_a = self._range_spin(QtWidgets)
+        self.start_b = self._range_spin(QtWidgets)
+        self.end_b = self._range_spin(QtWidgets)
+        self._range_fields: tuple[_RangeEditor, ...] = (
+            self.start_a,
+            self.end_a,
+            self.start_b,
+            self.end_b,
         )
-        self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
         for label, field in (
             ("Side A start (0-1)", self.start_a),
             ("Side A end (0-1)", self.end_a),
@@ -339,7 +361,7 @@ class SewingNetworkTaskPanel:
         root.addWidget(make_scroll_area(content, QtWidgets), 1)
         root.addWidget(self.status)
 
-        self._original = {
+        self._original: _NetworkEditorSnapshot = {
             "ranges": tuple(
                 (
                     float(getattr(seam, "StartA", 0.0)),
@@ -400,7 +422,7 @@ class SewingNetworkTaskPanel:
     def _restore_original(self) -> None:
         """Restore the saved seam ranges, alignment, and correspondence direction."""
         if hasattr(self, "_range_values"):
-            self._range_values = [tuple(values) for values in self._original["ranges"]]
+            self._range_values = list(self._original["ranges"])
             current_row = getattr(self, "_current_row", -1)
             if hasattr(self, "_range_fields") and 0 <= current_row < len(self._range_values):
                 self._current_row = -1
@@ -426,7 +448,7 @@ class SewingNetworkTaskPanel:
         Returns:
             A native numeric editor constrained to the normalized edge interval.
         """
-        field = qt_widgets.QDoubleSpinBox()
+        field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())
         field.setRange(0.0, 1.0)
         field.setDecimals(4)
         field.setSingleStep(0.01)
@@ -487,11 +509,16 @@ class SewingNetworkTaskPanel:
     def _store_selected_range(self) -> None:
         """Copy the current four spin-box values into the staged seam record."""
         row = int(getattr(self, "_current_row", -1))
-        ranges = getattr(self, "_range_values", ())
-        fields = getattr(self, "_range_fields", ())
-        if getattr(self, "_loading_range", False) or not 0 <= row < len(ranges) or len(fields) != 4:
+        if self._loading_range or not 0 <= row < len(self._range_values):
             return
-        self._range_values[row] = tuple(float(field.value()) for field in fields)
+        if len(self._range_fields) != 4:
+            return
+        self._range_values[row] = (
+            float(self._range_fields[0].value()),
+            float(self._range_fields[1].value()),
+            float(self._range_fields[2].value()),
+            float(self._range_fields[3].value()),
+        )
 
     def _select_seam_row(self, row: int) -> None:
         """Load a selected seam's staged range values into the detail editor.
@@ -610,12 +637,8 @@ class SewingNetworkTaskPanel:
             raise ValueError(msg)
         self._store_selected_range()
         try:
-            ranges = getattr(self, "_range_values", None)
-            if ranges is None:
-                value = float(self.table.item(row, column).text())
-            else:
-                value = float(ranges[row][column_index])
-        except (AttributeError, IndexError, TypeError, ValueError) as exc:
+            value = float(self._range_values[row][column_index])
+        except (IndexError, TypeError, ValueError) as exc:
             msg = "range values must be numeric"
             raise ValueError(msg) from exc
         if not 0.0 <= value <= 1.0:

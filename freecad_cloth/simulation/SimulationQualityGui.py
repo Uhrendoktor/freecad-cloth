@@ -115,7 +115,7 @@ class SimulationQualityTaskPanel:
             "Open the existing fitting stage with the current simulation garment pieces."
         )
         self.snap_to_target_button.setToolTip(
-            "Apply the production bounded target-aware placement to the current fitting pieces."
+            "Open interactive target-aware placement. Drag each piece toward a saved surface anchor to snap it."
         )
         self.reset_arrangement_button = QtWidgets.QPushButton("Reset arrangement")
         self.reset_arrangement_button.setObjectName("ClothSimulationResetArrangementButton")
@@ -353,12 +353,12 @@ class SimulationQualityTaskPanel:
             )
             return
         try:
-            from freecad_cloth.avatar.FittingCommands import snap_pattern_pieces_to_target
+            from freecad_cloth.avatar.FittingCommands import open_interactive_arrange
             from freecad_cloth.simulation.FittingHandoff import open_arrange_fit_from_simulation
 
             fitting = open_arrange_fit_from_simulation(self.scene)
-            snap_pattern_pieces_to_target(tuple(getattr(fitting, "PatternPieces", ()) or ()))
-            self._refresh("Garment pieces arranged on the persistent DrapeTarget.")
+            open_interactive_arrange(fitting)
+            self._refresh("Interactive target snapping opened. Drag each piece to a saved surface anchor.")
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self._set_status(f"Target-aware arrangement unavailable — {exc}", state="error")
 
@@ -410,9 +410,7 @@ class SimulationQualityTaskPanel:
 
     def _ensure_scene(self):
         if self.scene is None:
-            from freecad_cloth.simulation.SimulationQualityRuntime import (
-                create_quality_simulation_scene,
-            )
+            from freecad_cloth.simulation.SimulationCommands import create_quality_simulation_scene
 
             self.scene = create_quality_simulation_scene(
                 self.App.ActiveDocument or self.App.newDocument("ClothDrape")
