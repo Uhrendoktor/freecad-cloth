@@ -531,6 +531,12 @@ def _measure_contacts(
     group_ids = tuple(sorted(surfaces))
     contact_count = 0
     maximum = 0.0
+    measurement_started = time.perf_counter()
+    measured_candidates = 0
+    exact_tests = 0
+    query_seconds = 0.0
+    filter_seconds = 0.0
+    closest_seconds = 0.0
     for left_index, left_id in enumerate(group_ids):
         left = surfaces[left_id]
         for right_id in group_ids[left_index + 1 :]:
@@ -542,12 +548,16 @@ def _measure_contacts(
                         + float(source.edge_half_lengths[edge_index])
                         + float(target.triangle_radii.max())
                     )
+                    query_started = time.perf_counter()
                     candidates = target.triangle_tree.query_ball_point(
                         source.edge_centers[edge_index],
                         radius,
                     )
+                    query_seconds += time.perf_counter() - query_started
                     candidate_indices = np.asarray(candidates, dtype=np.int64)
+                    filter_started = time.perf_counter()
                     if candidate_indices.size == 0:
+                        filter_seconds += time.perf_counter() - filter_started
                         continue
                     center_delta = (
                         target.triangle_centers[candidate_indices] - source.edge_centers[edge_index]
@@ -560,7 +570,11 @@ def _measure_contacts(
                     plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (
                         maximum_reach * maximum_reach
                     )
-                    for triangle_index in candidate_indices[plausible]:
+                    candidate_indices = candidate_indices[plausible]
+                    filter_seconds += time.perf_counter() - filter_started
+                    measured_candidates += len(candidate_indices)
+                    closest_started = time.perf_counter()
+                    for triangle_index in candidate_indices:
                         triangle = target.triangles[int(triangle_index)]
                         edge_point, face_point, _factor, _weights, _normal = (
                             _closest_segment_triangle(
@@ -569,10 +583,18 @@ def _measure_contacts(
                                 positions[triangle],
                             )
                         )
+                        exact_tests += 1
                         penetration = clearance_mm - float(np.linalg.norm(edge_point - face_point))
                         if penetration > _CONTACT_MEASUREMENT_EPSILON_MM:
                             contact_count += 1
                             maximum = max(maximum, penetration)
+                    closest_seconds += time.perf_counter() - closest_started
+    _emit_contact_diagnostic(
+        f"inter-cloth-measure-finish candidates={measured_candidates} exact_tests={exact_tests} "
+        f"residual_pairs={contact_count} query_s={query_seconds:.2f} "
+        f"filter_s={filter_seconds:.2f} closest_s={closest_seconds:.2f} "
+        f"elapsed_s={time.perf_counter() - measurement_started:.2f}"
+    )
     return contact_count, maximum
 
 
@@ -704,10 +726,12 @@ def project_inter_cloth_contacts(
     for iteration in range(pass_count):
         pass_started = time.perf_counter()
         _emit_contact_diagnostic(f"inter-cloth-pass-start iteration={iteration + 1}")
+        index_started = time.perf_counter()
         surfaces = {
             group_id: _surface_index(current, surface.triangles)
             for group_id, surface in surfaces.items()
         }
+        index_elapsed = time.perf_counter() - index_started
         correction_sum = np.zeros_like(current)
         correction_count = np.zeros(len(current), dtype=np.int64)
         contacts_this_pass = 0
@@ -726,6 +750,13 @@ def project_inter_cloth_contacts(
                     direction_started = time.perf_counter()
                     candidate_count = 0
                     plausible_candidate_count = 0
+                    query_seconds = 0.0
+                    filter_seconds = 0.0
+                    ordering_seconds = 0.0
+                    closest_seconds = 0.0
+                    correction_seconds = 0.0
+                    exact_tests = 0
+                    active_constraints = 0
                     _emit_contact_diagnostic(
                         f"inter-cloth-direction-start iteration={iteration + 1} "
                         f"source_edges={len(source.edges)} target_triangles={len(target.triangles)} "
@@ -739,12 +770,15 @@ def project_inter_cloth_contacts(
                             + float(source.edge_half_lengths[edge_index])
                             + float(target.triangle_radii.max())
                         )
+                        query_started = time.perf_counter()
                         candidates = target.triangle_tree.query_ball_point(
                             source.edge_centers[edge_index],
                             query_radius,
                         )
+                        query_seconds += time.perf_counter() - query_started
                         candidate_count += len(candidates)
                         candidate_indices = np.asarray(candidates, dtype=np.int64)
+                        filter_started = time.perf_counter()
                         if candidate_indices.size:
                             center_delta = (
                                 target.triangle_centers[candidate_indices]
@@ -759,6 +793,7 @@ def project_inter_cloth_contacts(
                                 maximum_reach * maximum_reach
                             )
                             candidate_indices = candidate_indices[plausible]
+                        filter_seconds += time.perf_counter() - filter_started
                         plausible_candidate_count += len(candidate_indices)
                         if edge_index > 0 and edge_index % 5000 == 0:
                             _emit_contact_diagnostic(
@@ -776,6 +811,7 @@ def project_inter_cloth_contacts(
                         best_distance_squared = float("inf")
                         source_start = current[int(edge[0])]
                         source_end = current[int(edge[1])]
+                        ordering_started = time.perf_counter()
                         center_distances = np.linalg.norm(
                             target.triangle_centers[candidate_indices]
                             - source.edge_centers[edge_index],
@@ -788,6 +824,8 @@ def project_inter_cloth_contacts(
                             - target.triangle_radii[candidate_indices],
                         )
                         candidate_order = np.argsort(lower_bounds)
+                        ordering_seconds += time.perf_counter() - ordering_started
+                        closest_started = time.perf_counter()
                         for candidate_position in candidate_order:
                             lower_bound = float(lower_bounds[candidate_position])
                             if (
@@ -802,6 +840,7 @@ def project_inter_cloth_contacts(
                                 source_end,
                                 current[triangle_ids],
                             )
+                            exact_tests += 1
                             difference = geometry[0] - geometry[1]
                             distance_squared = float(np.dot(difference, difference))
                             if distance_squared < best_distance_squared:
@@ -818,6 +857,7 @@ def project_inter_cloth_contacts(
                                 int(triangle_values[1]),
                                 int(triangle_values[2]),
                             )
+                            correction_started = time.perf_counter()
                             contact, penetration = _accumulate_edge_triangle(
                                 current,
                                 (int(edge[0]), int(edge[1])),
@@ -831,15 +871,21 @@ def project_inter_cloth_contacts(
                                 correction_count,
                                 closest_geometry=best_geometry,
                             )
+                            correction_seconds += time.perf_counter() - correction_started
+                            active_constraints += int(contact)
                             contacts_this_pass += int(contact)
                             maximum_this_pass = max(
                                 maximum_this_pass,
                                 penetration if contact else 0.0,
                             )
+                    closest_seconds += time.perf_counter() - closest_started
                     _emit_contact_diagnostic(
                         f"inter-cloth-direction-finish iteration={iteration + 1} "
                         f"direction={direction_index} candidates={candidate_count} "
-                        f"plausible={plausible_candidate_count} "
+                        f"plausible={plausible_candidate_count} exact_tests={exact_tests} "
+                        f"active_constraints={active_constraints} query_s={query_seconds:.2f} "
+                        f"filter_s={filter_seconds:.2f} ordering_s={ordering_seconds:.2f} "
+                        f"closest_s={closest_seconds:.2f} correction_s={correction_seconds:.2f} "
                         f"elapsed_s={time.perf_counter() - direction_started:.1f}"
                     )
 
@@ -865,7 +911,7 @@ def project_inter_cloth_contacts(
         _emit_contact_diagnostic(
             f"inter-cloth-pass-finish iteration={iteration + 1} "
             f"contacts={contacts_this_pass} moved={int(np.count_nonzero(moved))} "
-            f"elapsed_s={time.perf_counter() - pass_started:.1f}"
+            f"index_s={index_elapsed:.2f} elapsed_s={time.perf_counter() - pass_started:.1f}"
         )
         if not bool(np.any(moved)):
             break

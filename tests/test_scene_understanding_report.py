@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -16,9 +16,6 @@ from tools.ci.scene_understanding_report import (
     render_markdown,
     write_report,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _expect_dict(value: JsonValue, *, message: str) -> JsonObject:
@@ -236,6 +233,32 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
     assert "627.926" in svg, "The SVG must annotate the measured topology crossing."
     assert "INVALID" in svg, "The SVG must label invalid pattern geometry."
     assert 'stroke="#cc3333"' in svg, "The SVG must use the invalid-geometry diagnostic color."
+
+
+def test_scene_report_uses_the_selected_artifact_name(monkeypatch, tmp_path: Path) -> None:
+    """Attribute a scene dossier to the exact artifact that produced its evidence."""
+    monkeypatch.setenv("OBSERVATION_ARTIFACT_NAME", "layered-outfit-acceptance")
+    output_root = tmp_path / "layered-outfit"
+    report = write_report(tmp_path / "missing-progress.log", output_root, tmp_path)
+
+    provenance = _expect_dict(
+        report["provenance"],
+        message="Scene report provenance must be a dictionary.",
+    )
+    assert provenance["artifact_name"] == "layered-outfit-acceptance", (
+        "Layered-outfit scene provenance must not be mislabeled as the tunic audit."
+    )
+    action = (
+        Path(__file__).resolve().parents[1]
+        / ".github"
+        / "actions"
+        / "freecad-test"
+        / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}" in action, (
+        "The FreeCAD test action must pass the artifact name to the scene reporter."
+    )
+
 
 
 def test_missing_progress_log_emits_explicit_incomplete_dossier(tmp_path: Path) -> None:

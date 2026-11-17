@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import time
 from copy import deepcopy
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -1182,33 +1183,48 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             int(iterations),
         )
         diagnostics = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1"
+        stage_started = time.perf_counter()
         if diagnostics:
             _emit_diagnostic(
                 f"cloth-pbd-native-step-start particles={self._particle_count} dt={float(dt):.6f}"
             )
         timestep.step(self._model)
         if diagnostics:
-            _emit_diagnostic("cloth-pbd-native-step-finish")
+            _emit_diagnostic(
+                f"cloth-pbd-native-step-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
         self._inter_cloth_metrics_before_body_projection = None
+        stage_started = time.perf_counter()
         if diagnostics:
             _emit_diagnostic("cloth-pbd-first-body-projection-start")
         self._project_collision_positions()
         if diagnostics:
-            _emit_diagnostic("cloth-pbd-first-body-projection-finish")
+            _emit_diagnostic(
+                f"cloth-pbd-first-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        stage_started = time.perf_counter()
         self._project_inter_cloth_positions()
         self._inter_cloth_metrics_before_body_projection = self._inter_cloth_metrics
         if diagnostics:
-            _emit_diagnostic("cloth-pbd-inter-cloth-projection-finish")
+            _emit_diagnostic(
+                f"cloth-pbd-inter-cloth-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
         # Cross-cloth response can push fabric back toward the avatar, so preserve
         # the authoritative body shell after the garment-group projection.
+        stage_started = time.perf_counter()
         if diagnostics:
             _emit_diagnostic("cloth-pbd-final-body-projection-start")
         self._project_collision_positions()
         if diagnostics:
-            _emit_diagnostic("cloth-pbd-final-body-projection-finish")
+            _emit_diagnostic(
+                f"cloth-pbd-final-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        stage_started = time.perf_counter()
         self._measure_inter_cloth_residual()
         if diagnostics:
-            _emit_diagnostic("cloth-pbd-residual-measure-finish")
+            _emit_diagnostic(
+                f"cloth-pbd-residual-measure-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
         self._time += float(dt)
 
     def reset(self) -> None:

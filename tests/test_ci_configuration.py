@@ -1113,8 +1113,8 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
     publisher = (ROOT / "tools" / "ci" / "publish_pr_simulation_evidence.py").read_text(
         encoding="utf-8"
     )
-    job = workflow.split("  publish-pr-simulation-evidence:\\n", maxsplit=1)[1].split(
-        "\\n  find-validation-artifacts:", maxsplit=1
+    job = workflow.split("  publish-pr-simulation-evidence:\n", maxsplit=1)[1].split(
+        "\n  find-validation-artifacts:", maxsplit=1
     )[0]
 
     assert "needs: [agent-quality, gui-simple]" in job

@@ -123,7 +123,7 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head() -> 
     match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    assert "publish-visual-evidence@" in publisher, "simulation evidence contract"
+    assert "uses: ./.github/actions/publish-visual-evidence" in publisher, "simulation evidence contract"
     assert "evidence-head:" in publisher, "simulation evidence contract"
     assert "source-sha:" in publisher, "simulation evidence contract"
     assert "mode: pr" in publisher, "simulation evidence contract"

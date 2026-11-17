@@ -975,7 +975,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "test_script": os.environ.get("OBSERVATION_TEST_SCRIPT"),
             "container_image": os.environ.get("OBSERVATION_IMAGE"),
-            "artifact_name": "tunic-visual-audit",
+            "artifact_name": os.environ.get("OBSERVATION_ARTIFACT_NAME") or "tunic-visual-audit",
         },
         "status": {
             "result": result,
