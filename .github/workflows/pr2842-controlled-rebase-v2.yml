@@ -6,6 +6,7 @@ on:
 permissions:
   actions: write
   contents: write
+  workflows: write
   pull-requests: read
 jobs:
   rebase-and-validate:
