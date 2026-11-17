@@ -235,7 +235,9 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
     assert 'stroke="#cc3333"' in svg, "The SVG must use the invalid-geometry diagnostic color."
 
 
-def test_scene_report_uses_the_selected_artifact_name(monkeypatch, tmp_path: Path) -> None:
+def test_scene_report_uses_the_selected_artifact_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Attribute a scene dossier to the exact artifact that produced its evidence."""
     monkeypatch.setenv("OBSERVATION_ARTIFACT_NAME", "layered-outfit-acceptance")
     output_root = tmp_path / "layered-outfit"
@@ -249,11 +251,7 @@ def test_scene_report_uses_the_selected_artifact_name(monkeypatch, tmp_path: Pat
         "Layered-outfit scene provenance must not be mislabeled as the tunic audit."
     )
     action = (
-        Path(__file__).resolve().parents[1]
-        / ".github"
-        / "actions"
-        / "freecad-test"
-        / "action.yml"
+        Path(__file__).resolve().parents[1] / ".github" / "actions" / "freecad-test" / "action.yml"
     ).read_text(encoding="utf-8")
     assert "OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}" in action, (
         "The FreeCAD test action must pass the artifact name to the scene reporter."

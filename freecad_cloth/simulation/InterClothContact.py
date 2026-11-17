@@ -847,6 +847,7 @@ def project_inter_cloth_contacts(
                                 best_distance_squared = distance_squared
                                 best_geometry = geometry
                                 best_triangle_index = triangle_index
+                        closest_seconds += time.perf_counter() - closest_started
                         if (
                             best_geometry is not None
                             and best_distance_squared < clearance * clearance
@@ -878,7 +879,6 @@ def project_inter_cloth_contacts(
                                 maximum_this_pass,
                                 penetration if contact else 0.0,
                             )
-                    closest_seconds += time.perf_counter() - closest_started
                     _emit_contact_diagnostic(
                         f"inter-cloth-direction-finish iteration={iteration + 1} "
                         f"direction={direction_index} candidates={candidate_count} "
