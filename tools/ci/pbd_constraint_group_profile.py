@@ -1,7 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize native pyPBD constraint-group sizes without changing solver state."""
 
-import math
 from collections.abc import Sequence, Sized
 from typing import Protocol, TypedDict
 
@@ -43,9 +42,12 @@ class ConstraintGroupProfile(TypedDict):
     group_size_histogram: dict[str, int]
 
 
-def _nearest_rank(ordered_values: Sequence[int], percentile: float) -> int:
-    """Return the nearest-rank percentile from an ascending non-empty sequence."""
-    nearest_rank = math.ceil(percentile * len(ordered_values))
+def _nearest_rank(
+    ordered_values: Sequence[int], percentile_numerator: int, percentile_denominator: int
+) -> int:
+    """Return an exact rational nearest-rank percentile from ascending values."""
+    count = len(ordered_values)
+    nearest_rank = (percentile_numerator * count + percentile_denominator - 1) // percentile_denominator
     index = max(0, min(len(ordered_values) - 1, nearest_rank - 1))
     return ordered_values[index]
 
@@ -134,8 +136,8 @@ def summarize_constraint_groups(
         "max_group_size": ordered_sizes[-1],
         "mean_group_size": sum(group_sizes) / group_count,
         "median_group_size": median_size,
-        "p90_group_size": _nearest_rank(ordered_sizes, 0.90),
-        "p95_group_size": _nearest_rank(ordered_sizes, 0.95),
+        "p90_group_size": _nearest_rank(ordered_sizes, 9, 10),
+        "p95_group_size": _nearest_rank(ordered_sizes, 19, 20),
         "openmp_parallel_threshold": parallel_threshold,
         "parallel_eligible_group_count": len(parallel_group_sizes),
         "parallel_eligible_group_fraction": len(parallel_group_sizes) / group_count,
