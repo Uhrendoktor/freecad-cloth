@@ -215,7 +215,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         'Expected "maximum 7200 seconds" in container_action.'
     )
     assert 'if [ "$timeout_seconds" -gt 7200 ]; then' in container_action, (
-        "Expected 'if [ \"$timeout_seconds\" -gt 360 ]; then' in container_action."
+        "Expected 'if [ \"$timeout_seconds\" -gt 7200 ]; then' in container_action."
     )
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner, (
         'Expected "FREECAD_APPLICATION_TIMEOUT_SECONDS" in runner.'
@@ -1144,7 +1144,7 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
         ]
     )
     assert 'timeout: "7200"' in layered_outfit.split("case: layered-outfit", 1)[1]
-    assert 'timeout: "1800"' in layered_outfit
+    assert 'timeout: "7200"' in layered_outfit
     assert "name: layered-outfit-acceptance" in action
     assert "path: layered-outfit" in action
     assert 'review_root = Path("layered-outfit")' in publisher
