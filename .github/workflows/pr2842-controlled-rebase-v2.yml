@@ -481,10 +481,16 @@ jobs:
           # Keep the canonical workflow from main: it already has the strict-quality
           # gate and uses the current runner_target policy. The PR's old workflow file only
           # adds an optional safe-autofix job and hard-pins obsolete self-hosted runners.
+          echo "MERGE_PREP_START"
+          git status --short
           git checkout origin/main -- .github/workflows/canonical-execution.yml
+          echo "MERGE_WORKFLOW_RESET_DONE"
           git add -- .github/workflows/canonical-execution.yml
+          echo "MERGE_STAGE_DONE"
           tree_sha="$(git write-tree)"
+          echo "MERGE_TREE_READY=$tree_sha"
           main_sha="$(git rev-parse origin/main)"
+          echo "MERGE_MAIN_READY=$main_sha"
           set +e
           commit_output="$(printf '%s\\n' "Merge main into PR #2842 after reviewed rebase" | git -c commit.gpgsign=false commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD" 2>&1)"
           commit_status=$?
