@@ -824,12 +824,19 @@ def project_inter_cloth_contacts(
                         f"elapsed_s={time.perf_counter() - direction_started:.1f}"
                     )
 
-        corrections = np.divide(
-            correction_sum,
-            correction_count[:, None],
-            out=np.zeros_like(correction_sum),
-            where=correction_count[:, None] > 0,
+        # Jacobi accumulation can produce several compatible corrections for
+        # one particle. Averaging all of them by contact count over-damps dense
+        # cloth regions and leaves visible clearance deficits after the bounded
+        # pass budget. Sum the independent corrections, but cap each particle's
+        # displacement to one requested clearance to prevent a dense contact
+        # fan from producing an unbounded jump.
+        corrections = correction_sum.copy()
+        correction_lengths = np.linalg.norm(corrections, axis=1)
+        correction_scales = np.minimum(
+            1.0,
+            clearance / np.maximum(correction_lengths, 1e-12),
         )
+        corrections *= correction_scales[:, None]
         _share_sewn_corrections(corrections, masses, clusters)
         moved = np.linalg.norm(corrections, axis=1) > 1e-10
         current += alpha * corrections
