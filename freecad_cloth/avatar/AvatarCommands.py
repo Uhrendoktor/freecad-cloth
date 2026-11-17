@@ -30,6 +30,7 @@ from freecad_cloth.avatar.AvatarProvider import (
     PROVIDER_IDS,
     FreeCADGeometryAvatarProvider,
 )
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,
@@ -40,7 +41,6 @@ from freecad_cloth.common.garment_document import (
     FreeCADDocumentProtocol,
 )
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol

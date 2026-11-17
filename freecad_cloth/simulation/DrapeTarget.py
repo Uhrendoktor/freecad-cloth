@@ -157,7 +157,7 @@ def _existing_target_prerequisite_status(target: _DrapeTargetFeature) -> _Target
     return None
 
 
-def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
+def target_status(target: object | None) -> _TargetStatus:
     """Summarize whether the persisted collision cache is current.
 
     Args:
@@ -173,10 +173,11 @@ def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
             "stale": True,
             "reason": "target missing",
         }
-    prerequisite_status = _existing_target_prerequisite_status(target)
+    typed_target = cast("_DrapeTargetFeature", target)
+    prerequisite_status = _existing_target_prerequisite_status(typed_target)
     if prerequisite_status is not None:
         return prerequisite_status
-    source = target.SourceObject
+    source = typed_target.SourceObject
     if source is None:
         return {
             "state": "unassigned",
@@ -188,8 +189,8 @@ def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
         current = repr(
             source_signature(
                 source,
-                float(getattr(target, "CollisionDeflection", 1.0)),
-                float(getattr(target, "CollisionThickness", 0.0)),
+                float(getattr(typed_target, "CollisionDeflection", 1.0)),
+                float(getattr(typed_target, "CollisionThickness", 0.0)),
             )
         )
     except (AttributeError, TypeError, ValueError) as exc:
@@ -199,7 +200,7 @@ def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
             "stale": True,
             "reason": "signature failed",
         }
-    authored = str(getattr(target, "SourceSignature", ""))
+    authored = str(getattr(typed_target, "SourceSignature", ""))
     if current != authored:
         return {
             "state": "stale",
@@ -217,7 +218,7 @@ def target_status(target: _DrapeTargetFeature | None) -> _TargetStatus:
     }
 
 
-def refresh_drape_target(target: _DrapeTargetFeature) -> _DrapeTargetFeature:
+def refresh_drape_target(target: FreeCADDocumentObjectProtocol) -> _DrapeTargetFeature:
     """Rebuild the persistent target's collision cache from its current source.
 
     Args:
@@ -299,7 +300,7 @@ def create_drape_target(
 
 
 def assign_drape_target(
-    target: _DrapeTargetFeature,
+    target: FreeCADDocumentObjectProtocol,
     source: FreeCADDocumentObjectProtocol | None,
     target_type: str | None = None,
 ) -> _DrapeTargetFeature:

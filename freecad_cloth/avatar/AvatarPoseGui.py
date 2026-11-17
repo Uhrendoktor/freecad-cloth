@@ -64,14 +64,17 @@ if TYPE_CHECKING:
         CoinDynamicDragger,
         CoinEventCallback,
         CoinModule,
+        CoinRotatorGeometry,
         CoinSeparator,
         CoinTransform,
         CoinType,
-        CoinRotatorGeometry,
     )
     from freecad_cloth.avatar.SkeletonPose import AffineTransform, JointRotation
     from freecad_cloth.avatar.SkeletonTypes import SkeletonData
-    from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+    from freecad_cloth.common.garment_document import (
+        FreeCADDocumentObjectProtocol,
+        FreeCADDocumentProtocol,
+    )
 
 type PosePoint = tuple[float, float, float]
 type PoseSegment = tuple[PosePoint, PosePoint]
@@ -109,18 +112,14 @@ class _PoseRotation(Protocol):
 
     def setEulerAngles(self, mode: int, x: float, y: float, z: float) -> None:
         """Set the rotation using the selected FreeCAD Euler convention."""
-
         ...
 
     def multiply(self, other: _PoseRotation) -> _PoseRotation:
         """Compose this rotation with another native rotation."""
-
         ...
 
     def getEulerAngles(self, mode: int) -> Sequence[float]:
         """Return Euler components in the requested FreeCAD convention."""
-
-
         ...
 
 
@@ -131,29 +130,14 @@ class _PoseRotationFactory(Protocol):
 
     def __call__(self, *args: object) -> _PoseRotation:
         """Construct a native FreeCAD rotation."""
-
-
         ...
 
 
-class _PoseDocument(Protocol):
-    """Minimal document operations used to remove a fallback gizmo object."""
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the current native document objects."""
-
-        ...
+class _PoseDocument(FreeCADDocumentProtocol, Protocol):
+    """Document lifecycle operation used to remove a fallback gizmo object."""
 
     def removeObject(self, name: str) -> None:
         """Remove a native object by its internal document name."""
-
-        ...
-
-    def recompute(self) -> int | None:
-        """Recompute document features after removing the fallback object."""
-
-
         ...
 
 
@@ -175,7 +159,6 @@ class _PoseApplication(Protocol):
     @property
     def ActiveDocument(self) -> _PoseDocument | None:
         """Return the active document when one is open."""
-
         ...
 
     Vector: Callable[..., _PoseVector]
@@ -187,30 +170,24 @@ class _PoseView(Protocol):
 
     def getSceneGraph(self) -> CoinSeparator:
         """Return the native Coin scene root."""
-
         ...
 
     def getPointOnScreen(self, point: _PoseVector) -> Sequence[float]:
         """Project a world-space point into viewport pixel coordinates."""
-
         ...
 
     def getSize(self) -> tuple[int, int]:
         """Return viewport dimensions in pixels."""
-
         ...
 
     def addEventCallbackPivy(
         self, event_type: object, callback: Callable[[CoinEventCallback], None]
     ) -> int:
         """Register a callback for one Pivy event type."""
-
         ...
 
     def removeEventCallbackPivy(self, event_type: object, callback_id: int) -> None:
         """Remove a Pivy callback previously registered on this view."""
-
-
         ...
 
 
@@ -219,8 +196,6 @@ class _PoseGuiDocument(Protocol):
 
     def activeView(self) -> _PoseView | None:
         """Return the active 3D view when one is available."""
-
-
         ...
 
 
@@ -229,8 +204,6 @@ class _PoseGuiControl(Protocol):
 
     def showDialog(self, panel: AvatarPoseTaskPanel) -> None:
         """Display a native FreeCAD task panel."""
-
-
         ...
 
 
