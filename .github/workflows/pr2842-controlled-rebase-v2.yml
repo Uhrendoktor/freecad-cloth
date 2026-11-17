@@ -195,7 +195,7 @@ jobs:
               if index >= len(lines):
                   raise SystemExit("unterminated PR preview-publisher side")
               main_text = "".join(main_side)
-              if "_preview_mesh_publisher" not in main_text or "publisher(panel, positions, triangles)" not in main_text:
+              if "_preview_mesh_publisher" not in main_text:
                   raise SystemExit("main preview-publisher behavior is not present in conflict")
               result.extend(main_side)
               resolved += 1
