@@ -81,6 +81,12 @@ class PatternExportTaskPanel:
             )
         )
         self.status.setWordWrap(True)
+        self.focus_source = QtWidgets.QPushButton("Focus source in 3D")
+        self.focus_source.setToolTip(
+            "Select this pattern piece and fit it in the viewport without changing camera orientation."
+        )
+        self.focus_source.clicked.connect(self.focus_source_in_3d)
+        layout.addRow("Viewport", self.focus_source)
         layout.addRow("Format", self.format)
         layout.addRow("PDF paper size", self.pdf_paper_size)
         layout.addRow("PDF tile overlap", self.pdf_overlap)
@@ -93,9 +99,24 @@ class PatternExportTaskPanel:
         self.format.currentTextChanged.connect(self._format_changed)
         self._format_changed(self.format.currentText())
 
-        from freecad_cloth.common.UiDesign import apply_panel_style
+        from freecad_cloth.common.UiDesign import apply_panel_style, configure_form_layout
 
+        configure_form_layout(layout, QtWidgets)
+        mark_button(self.focus_source, "secondary")
         apply_panel_style(self.form)
+
+    def focus_source_in_3d(self) -> bool:
+        """Select and frame the export source without changing camera orientation."""
+        if self.piece is None:
+            return False
+        active = self.Gui.activeDocument()
+        if active is None or self.App.ActiveDocument is None:
+            return False
+        selection = self.Gui.Selection
+        selection.clearSelection()
+        selection.addSelection(self.piece)
+        active.activeView().fitAll()
+        return True
 
     def _format_changed(self, value):
         is_pdf = str(value).lower() == "pdf"

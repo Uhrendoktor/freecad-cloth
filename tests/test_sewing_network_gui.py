@@ -390,6 +390,29 @@ def test_network_task_panel_update_refreshes_invalid_reference_warning() -> None
     assert "s2 (Missing reference)" in panel.warning.text
 
 
+def test_sewing_network_no_filter_results_use_warning_status() -> None:
+    """Make an empty filtered list explicit and disable the detail editor."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._current_row = 0
+    panel._seams = ()
+    panel._range_values = []
+    panel._range_fields = ()
+    panel._loading_range = False
+    panel.network = _ReferenceNetwork(())
+    panel.selected_seam_label = _TaskPanelLabel()
+    enabled: list[bool] = []
+    panel._set_range_editor_enabled = enabled.append
+    panel._store_selected_range = lambda: None
+
+    panel._select_seam_row(-1)
+
+    assert panel.selected_seam_label.text == "No seams match the current filter."
+    assert panel.selected_seam_label.properties["clothState"] == "warning"
+    assert enabled == [False]
+
+
 def test_sewing_network_commands_expose_free_sewing_and_editor() -> None:
     """Verify public commands expose free sewing and network editing."""
     from freecad_cloth.sewing import SewingNetworkCommands
@@ -767,7 +790,6 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     panel.status = _TaskPanelLabel()
     panel.lengths = _TaskPanelLabel()
     panel.correspondence = _TaskPanelLabel()
-    panel.reverse_button = Button()
     panel.reset_ranges_button = Button()
     panel._transaction_active = True
 
@@ -778,7 +800,98 @@ def test_sewing_task_panel_accept_persists_relative_tolerance() -> None:
     assert app_doc.calls == ["recompute", "commit"]
 
 
+def test_network_editor_can_focus_the_selected_seam_and_both_pieces_in_3d() -> None:
+    """Frame the active master/detail seam using the existing native focus command."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    seams = (_ReferenceSeam("seam-1"), _ReferenceSeam("seam-2"))
+    selection_calls: list[tuple[str] | tuple[str, _ReferenceSeam]] = []
+    selection = SimpleNamespace(
+        clearSelection=lambda: selection_calls.append(("clear",)),
+        addSelection=lambda obj: selection_calls.append(("select", obj)),
+    )
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._seams = seams
+    panel._current_row = 1
+    panel.Gui = SimpleNamespace(Selection=selection)
+    panel.status = _TaskPanelLabel()
+    focus_calls: list[str] = []
+
+    with patch(
+        "freecad_cloth.sewing.SewingCommands.focus_selected_seam_3d",
+        side_effect=lambda: focus_calls.append("focus"),
+    ):
+        assert panel._focus_selected_seam_in_viewport() is True
+
+    assert selection_calls == [("clear",), ("select", seams[1])]
+    assert focus_calls == ["focus"]
+    assert "seam-2" in panel.status.text
+    assert panel.status.properties["clothState"] == "info"
+
+
 if __name__ == "__main__":
     test_sewing_task_panel_accept_cannot_broaden_mismatch_with_legacy_tolerance()
     test_sewing_task_panel_reject_preserves_persisted_relative_tolerance()
     print("sewing GUI relative-tolerance regression passed")
+
+
+def test_network_editor_search_covers_both_sides_and_status() -> None:
+    """Keep seam identity, both edge references, and validation searchable."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    seam = type(
+        "Seam",
+        (),
+        {
+            "SeamId": "seam-17",
+            "PieceA": "FrontPanel",
+            "EdgeA": "Edge4",
+            "PieceB": "SleeveLeft",
+            "EdgeB": "Edge2",
+            "Status": "Valid",
+        },
+    )()
+    network = type("Network", (), {"Status": "Ready"})()
+
+    searchable = SewingNetworkTaskPanel._seam_search_text(seam, network)
+    caption = SewingNetworkTaskPanel._seam_caption(seam, network)
+
+    assert "frontpanel" in searchable
+    assert "edge2" in searchable
+    assert "sleeveleft" in searchable
+    assert "seam-17" in searchable
+    assert "valid" in searchable
+    assert "FrontPanel" in caption
+    assert "SleeveLeft" in caption
+
+
+def test_network_editor_stores_selected_detail_values_before_acceptance() -> None:
+    """Preserve focused seam edits when the user changes selection or accepts."""
+    from freecad_cloth.sewing.SewingNetworkGui import SewingNetworkTaskPanel
+
+    class Field:
+        """Expose the numeric value needed by the staged detail editor."""
+
+        def __init__(self, value: float) -> None:
+            """Store a deterministic spin-box value."""
+            self.current = value
+
+        def value(self) -> float:
+            """Return the current numeric value."""
+            return self.current
+
+    panel = SewingNetworkTaskPanel.__new__(SewingNetworkTaskPanel)
+    panel._current_row = 1
+    panel._loading_range = False
+    panel._range_values = [(0.0, 1.0, 0.0, 1.0), (0.1, 0.9, 0.2, 0.8)]
+    panel._range_fields = (Field(0.25), Field(0.75), Field(0.3), Field(0.7))
+
+    panel._store_selected_range()
+
+    assert panel._range_values == [
+        (0.0, 1.0, 0.0, 1.0),
+        (0.25, 0.75, 0.3, 0.7),
+    ]

@@ -1,7 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Explicit repair/remap helpers for invalid Cloth semantic seam edges."""
 
-from freecad_cloth.pattern.PatternObjects import _edge_records
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.JsonTypes import JsonObject
+from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeReference,
@@ -95,6 +97,51 @@ def current_edge_candidates(seam, side):
     if piece is None:
         return []
     return list(_edge_records(piece))
+
+
+def current_edge_candidate_for_sketch_index(
+    seam: FreeCADDocumentObjectProtocol, side: str, edge_index: int
+) -> JsonObject:
+    """Resolve a viewport-picked native Sketcher edge to its current semantic record.
+
+    Args:
+        seam: Persistent seam whose selected side supplies the authoritative pattern piece.
+        side: Seam side selector, either A or B.
+        edge_index: Zero-based native Sketcher geometry index from the viewport EdgeN hit.
+
+    Returns:
+        Current semantic edge record for the exact native Sketcher edge that was picked.
+
+    Raises:
+        ValueError: If the side is invalid.
+        InvalidRepairTarget: If the picked Sketcher geometry is not a current semantic boundary edge.
+    """
+    side = str(side).upper()
+    if side not in ("A", "B"):
+        msg = "seam side must be A or B"
+        raise ValueError(msg)
+    piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
+    if piece is None:
+        raise InvalidRepairTarget(f"seam side {side} has no source PatternPiece")
+    try:
+        record = _native_edge_record_for_sketch_index(piece, int(edge_index))
+    except (IndexError, KeyError, TypeError, ValueError, RuntimeError) as exc:
+        raise InvalidRepairTarget(
+            f"selected native edge is not a current Sketcher boundary on seam side {side}"
+        ) from exc
+    if record is None:
+        raise InvalidRepairTarget(
+            f"selected native edge is not a current Sketcher boundary on seam side {side}"
+        )
+    edge_id = str(record.get("id", "")).strip()
+    if not edge_id or not any(
+        str(candidate.get("id", "")).strip() == edge_id
+        for candidate in current_edge_candidates(seam, side)
+    ):
+        raise InvalidRepairTarget(
+            f"selected native edge is not an available semantic edge on seam side {side}"
+        )
+    return record
 
 
 def validate_repair_target(seam, side, edge_id):

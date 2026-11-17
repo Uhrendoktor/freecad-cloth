@@ -269,9 +269,12 @@ class DiagnosticsTaskPanel:
         self.scene = scene
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
+        metric_group = QtWidgets.QGroupBox("Diagnostic metric")
+        metric_layout = QtWidgets.QVBoxLayout(metric_group)
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
-        layout.addWidget(self.metric)
+        metric_layout.addWidget(self.metric)
+        layout.addWidget(metric_group)
         self.definition = QtWidgets.QLabel()
         self.definition.setWordWrap(True)
         layout.addWidget(self.definition)
@@ -280,18 +283,30 @@ class DiagnosticsTaskPanel:
         layout.addWidget(self.status)
         self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
         self.map_button = QtWidgets.QPushButton("Create diagnostic map")
+        self.focus_button = QtWidgets.QPushButton("Focus cloth panels in 3D")
+        self.focus_button.setToolTip(
+            "Select source cloth panels and frame them without changing camera orientation."
+        )
         self.export_button = QtWidgets.QPushButton("Export analysis data…")
         from freecad_cloth.common.UiDesign import mark_button
 
         mark_button(self.refresh_button, "secondary")
         mark_button(self.map_button, "primary")
+        mark_button(self.focus_button, "secondary")
         mark_button(self.export_button, "secondary")
+        self.map_button.setEnabled(False)
+        self.focus_button.setEnabled(False)
+        self.export_button.setEnabled(False)
         layout.addWidget(self.refresh_button)
         layout.addWidget(self.map_button)
+        layout.addWidget(self.focus_button)
         layout.addWidget(self.export_button)
         self.refresh_button.clicked.connect(self.refresh)
+        self.metric.currentTextChanged.connect(self._metric_changed)
         self.map_button.clicked.connect(self.create_map)
+        self.focus_button.clicked.connect(self.focus_panels_in_3d)
         self.export_button.clicked.connect(self.export_data)
+        self._source_panels = ()
         layout.addStretch(1)
         self.refresh()
 
@@ -307,6 +322,7 @@ class DiagnosticsTaskPanel:
             from freecad_cloth.simulation.ClothDiagnostics import metric_definition, summarize
 
             panels = _simulation_data(self.scene)
+            self._source_panels = tuple(panel for panel, _triangles, _result in panels)
             summaries = [summarize(result) for _panel, _triangles, result in panels]
             metric = str(self.metric.currentText())
             values = [
@@ -319,6 +335,17 @@ class DiagnosticsTaskPanel:
                     definition["formula"], definition["units"]
                 )
             )
+            available = bool(panels and values)
+            self.map_button.setEnabled(available)
+            self.focus_button.setEnabled(bool(self._source_panels))
+            self.export_button.setEnabled(available)
+            if not available:
+                set_status(
+                    self.status,
+                    "No diagnostic faces are available for this metric.",
+                    state="warning",
+                )
+                return summaries
             set_status(
                 self.status,
                 "%s map: %d faces | range %.5g … %.5g | panels %d"
@@ -327,8 +354,49 @@ class DiagnosticsTaskPanel:
             )
             return summaries
         except RuntimeError as exc:
+            self.map_button.setEnabled(False)
+            self.focus_button.setEnabled(False)
+            self._source_panels = ()
+            self.export_button.setEnabled(False)
             set_status(self.status, str(exc), state="error")
             return []
+
+    def _metric_changed(self, _value: str) -> None:
+        """Refresh the metric description and availability after selection changes."""
+        self.refresh()
+
+    def focus_panels_in_3d(self) -> bool:
+        """Select and frame source cloth panels without changing camera orientation."""
+        from freecad_cloth.common.UiDesign import set_status
+
+        if not self._source_panels:
+            set_status(
+                self.status,
+                "No source cloth panels are available to focus.",
+                state="warning",
+            )
+            return False
+        _App, Gui, _QtWidgets = _qt()
+        active = Gui.activeDocument()
+        if active is None:
+            set_status(
+                self.status,
+                "Open the simulation document to focus its cloth panels.",
+                state="error",
+            )
+            return False
+        selection = Gui.Selection
+        selection.clearSelection()
+        for panel in self._source_panels:
+            selection.addSelection(panel)
+        active.activeView().fitAll()
+        set_status(
+            self.status,
+            "Selected and framed %d source cloth panel(s); camera orientation was preserved."
+            % len(self._source_panels),
+            state="success",
+        )
+        return True
 
     def export_data(self):
         """Export aggregated diagnostic metrics to a user-selected JSON file."""

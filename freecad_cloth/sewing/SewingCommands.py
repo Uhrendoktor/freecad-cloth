@@ -4,7 +4,6 @@
 import contextlib
 from collections.abc import Callable
 from types import ModuleType
-from typing import TYPE_CHECKING
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
 
@@ -669,79 +668,11 @@ def show_sewing_2d(
     refresh_overlay_fn(document)
 
 
-def _build_seam_overlay_options_dialog():
-    """Build the real overlay options dialog and return its setting controls."""
-    if TYPE_CHECKING:
-        from PySide2 import QtWidgets
-    else:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
-
-    from freecad_cloth.sewing.SeamOverlay import (
-        seam_highlights_enabled,
-        seam_overlay_respects_depth,
-    )
-
-    dialog = QtWidgets.QDialog()
-    dialog.setWindowTitle("Seam Overlay Options")
-    dialog.setMinimumWidth(360)
-    layout = QtWidgets.QVBoxLayout(dialog)
-
-    highlights = QtWidgets.QCheckBox("Show seam color highlights")
-    highlights.setChecked(seam_highlights_enabled())
-    highlights.setToolTip(
-        "Use identity colors, direction marks, and hover labels; "
-        "disable them to leave neutral seam linework."
-    )
-    layout.addWidget(highlights)
-
-    respect_depth = QtWidgets.QCheckBox("Respect depth and occlusion")
-    respect_depth.setChecked(seam_overlay_respects_depth())
-    respect_depth.setToolTip(
-        "When checked, seam lines and labels are hidden by foreground geometry."
-    )
-    layout.addWidget(respect_depth)
-
-    explanation = QtWidgets.QLabel(
-        "Seam labels appear only while the pointer is over a sewn pattern edge."
-    )
-    explanation.setWordWrap(True)
-    layout.addWidget(explanation)
-
-    buttons = QtWidgets.QDialogButtonBox(
-        QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-    )
-    buttons.accepted.connect(dialog.accept)
-    buttons.rejected.connect(dialog.reject)
-    layout.addWidget(buttons)
-    return dialog, highlights, respect_depth
-
-
 def show_seam_overlay_options():
-    """Present persistent controls for seam highlight visibility and occlusion."""
-    if TYPE_CHECKING:
-        from PySide2 import QtWidgets
-    else:
-        try:
-            from PySide import QtWidgets
-        except ImportError:
-            from PySide2 import QtWidgets
+    """Open seam overlay preferences in the existing FreeCAD task-panel host."""
+    from freecad_cloth.sewing.SeamOverlayOptionsGui import show_seam_overlay_options_task
 
-    from freecad_cloth.sewing.SeamOverlay import (
-        set_seam_highlights_enabled,
-        set_seam_overlay_respect_depth,
-    )
-
-    dialog, highlights, respect_depth = _build_seam_overlay_options_dialog()
-    execute = getattr(dialog, "exec_", None) or dialog.exec
-    if execute() != QtWidgets.QDialog.Accepted:
-        return False
-
-    set_seam_highlights_enabled(highlights.isChecked())
-    set_seam_overlay_respect_depth(respect_depth.isChecked())
-    return True
+    return show_seam_overlay_options_task()
 
 
 COMMANDS = [
@@ -790,14 +721,20 @@ _MENU_TEXT = {
     "ClothSewing_SeamOverlayOptions": "Seam Overlay Options",
 }
 _TOOLTIPS = {
-    "ClothSewing_CreateSeam": "Preview, validate, and commit a seam from two selected pattern edges",
-    "ClothSewing_CreateMNSewing": "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship",
+    "ClothSewing_CreateSeam": (
+        "Preview, validate, and commit a seam from two selected pattern edges"
+    ),
+    "ClothSewing_CreateMNSewing": (
+        "Preview, validate, and commit a deterministic 1:N, M:1, or M:N sewing relationship"
+    ),
     "ClothSewing_CreateOperation": "Create a sewing operation from the selected seam",
     "ClothSewing_EditOperation": "Edit seam alignment, orientation, tolerance, and stitch samples",
     "ClothSewing_ReverseSeam": "Reverse the B-side stitch correspondence",
     "ClothSewing_ToggleAlignment": "Toggle endpoint and uniform seam correspondence",
     "ClothSewing_Validate": "Validate sewing operations and report seam length mismatches",
-    "ClothSewing_RepairSeam": "Repair reversible or invalid-range seam correspondence without hiding length mismatch",
+    "ClothSewing_RepairSeam": (
+        "Repair reversible or invalid-range seam correspondence without hiding length mismatch"
+    ),
     "ClothSewing_FocusSeam3D": "Show the selected semantic seam in 3D and fit the view to it",
     "ClothSewing_EditSeamSideA": "Open the seam A edge in its authoritative native Sketcher source",
     "ClothSewing_EditSeamSideB": "Open the seam B edge in its authoritative native Sketcher source",

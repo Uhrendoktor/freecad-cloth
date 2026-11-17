@@ -3,6 +3,8 @@
 
 from typing import TYPE_CHECKING, ClassVar
 
+from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+
 
 def _modules():
     import FreeCAD as App
@@ -39,17 +41,43 @@ class SimulationTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothSimulationTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content)
+
+        from freecad_cloth.common.UiDesign import configure_form_layout
 
         selection = QtWidgets.QGroupBox("Scene")
         layout = QtWidgets.QFormLayout(selection)
+        configure_form_layout(layout, QtWidgets)
         self.cloth, self.target = QtWidgets.QComboBox(), QtWidgets.QComboBox()
         self._populate_selection_lists()
-        layout.addRow("Cloth pieces", self.cloth)
-        layout.addRow("Drape target", self.target)
-        root.addWidget(selection)
+        self.cloth_view_button = QtWidgets.QPushButton("Select")
+        self.cloth_view_button.setToolTip(
+            "Highlight the selected cloth object in the FreeCAD viewport without moving the camera."
+        )
+        self.target_view_button = QtWidgets.QPushButton("Select")
+        self.target_view_button.setToolTip(
+            "Highlight the Drape Target's linked collision source in the viewport "
+            "without moving the camera."
+        )
+        for combo, button in (
+            (self.cloth, self.cloth_view_button),
+            (self.target, self.target_view_button),
+        ):
+            row = QtWidgets.QWidget()
+            row_layout = QtWidgets.QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.addWidget(combo, 1)
+            row_layout.addWidget(button)
+            layout.addRow(
+                "Cloth pieces" if combo is self.cloth else "Drape target",
+                row,
+            )
+        content_layout.addWidget(selection)
 
         material = QtWidgets.QGroupBox("Fabric")
         layout = QtWidgets.QFormLayout(material)
+        configure_form_layout(layout, QtWidgets)
         self.material = QtWidgets.QComboBox()
         self.material.addItems(tuple(self.MATERIALS))
         self.material.currentTextChanged.connect(self._material_changed)
@@ -60,7 +88,7 @@ class SimulationTaskPanel:
         layout.addRow("Stretch compliance", self.stretch)
         layout.addRow("Bend compliance", self.bend)
         layout.addRow("Areal density", self.density)
-        root.addWidget(material)
+        content_layout.addWidget(material)
 
         advanced_content = QtWidgets.QWidget()
         advanced_layout = QtWidgets.QVBoxLayout(advanced_content)
@@ -69,6 +97,7 @@ class SimulationTaskPanel:
 
         solver = QtWidgets.QGroupBox("Solver")
         layout = QtWidgets.QFormLayout(solver)
+        configure_form_layout(layout, QtWidgets)
         self.iterations = self._spin(1, 100, int(getattr(scene, "Iterations", 8)))
         self.timestep = self._double_box(0.0001, 1.0, float(getattr(scene, "TimeStep", 1 / 60)), 5)
         self.gravity_x = self._double_box(-50000, 50000, float(getattr(scene, "GravityX", 0)), 1)
@@ -87,6 +116,7 @@ class SimulationTaskPanel:
 
         collision = QtWidgets.QGroupBox("Drape target collision")
         layout = QtWidgets.QFormLayout(collision)
+        configure_form_layout(layout, QtWidgets)
         self.thickness = self._double_box(0.0, 100.0, 2.0, 2)
         self.deflection = self._double_box(0.01, 100.0, 1.0, 2)
         self.collision_radius = self._double_box(
@@ -99,6 +129,7 @@ class SimulationTaskPanel:
 
         sewing = QtWidgets.QGroupBox("Sewing & pinning")
         layout = QtWidgets.QFormLayout(sewing)
+        configure_form_layout(layout, QtWidgets)
         self.pins = QtWidgets.QLineEdit(self._join(getattr(scene, "PinSelection", [])))
         self.seams = QtWidgets.QLineEdit(self._join(getattr(scene, "SeamSelection", [])))
         self.pins.setToolTip("Particle indices separated by commas")
@@ -111,7 +142,11 @@ class SimulationTaskPanel:
         self.advanced_section, self.advanced_toggle = make_disclosure(
             "Advanced solver, collision & sewing settings", advanced_content, QtCore, QtWidgets
         )
-        root.addWidget(self.advanced_section)
+        content_layout.addWidget(self.advanced_section)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
 
         controls = QtWidgets.QHBoxLayout()
         self.step_button = QtWidgets.QPushButton("Step")
@@ -119,6 +154,8 @@ class SimulationTaskPanel:
         self.reset_button = QtWidgets.QPushButton("Reset")
         from freecad_cloth.common.UiDesign import mark_button
 
+        mark_button(self.cloth_view_button, "secondary")
+        mark_button(self.target_view_button, "secondary")
         mark_button(self.step_button, "secondary")
         mark_button(self.run_button, "primary")
         mark_button(self.reset_button, "danger")
@@ -142,6 +179,8 @@ class SimulationTaskPanel:
         self.step_button.clicked.connect(lambda: self.step(1))
         self.run_button.clicked.connect(lambda: self.step(30))
         self.reset_button.clicked.connect(self.reset)
+        self.cloth_view_button.clicked.connect(self._select_cloth_in_viewport)
+        self.target_view_button.clicked.connect(self._select_target_source_in_viewport)
         self.cloth.currentIndexChanged.connect(self._selection_changed)
         self.target.currentIndexChanged.connect(self._selection_changed)
         self.pins.editingFinished.connect(self._selection_changed)
@@ -157,11 +196,15 @@ class SimulationTaskPanel:
             widget.valueChanged.connect(self._parameters_changed)
         self.thickness.valueChanged.connect(self._collision_changed)
         self.deflection.valueChanged.connect(self._collision_changed)
-        self.status.setText("Select a simulation scene or create one with Create Simulation.")
-        self._load_scene_values()
         from freecad_cloth.common.UiDesign import apply_panel_style, set_status
 
-        set_status(self.status, self.status.text(), state="info")
+        set_status(
+            self.status,
+            "Select a simulation scene or create one with Create Simulation.",
+            state="info",
+        )
+        self._load_scene_values()
+        self._refresh_viewport_actions()
         apply_panel_style(self.form)
 
     @staticmethod
@@ -243,6 +286,7 @@ class SimulationTaskPanel:
                     self.target.setCurrentIndex(index)
 
     def _selection_changed(self):
+        self._refresh_viewport_actions()
         if self.scene is None:
             return
         if self.cloth.currentData():
@@ -260,7 +304,81 @@ class SimulationTaskPanel:
             p.strip() for p in self.seams.text().replace(",", ";").split(";") if p.strip()
         ]
         self.scene.Document.recompute()
+        self._refresh_viewport_actions()
         self._refresh_status()
+
+    def _active_document_object(self, name: str) -> FreeCADDocumentObjectProtocol | None:
+        """Resolve a selected scene object in the current FreeCAD document."""
+        document = getattr(self.scene, "Document", None) or self.App.ActiveDocument
+        if document is None or not name:
+            return None
+        try:
+            return document.getObject(str(name))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return None
+
+    def _selected_cloth_object(self) -> FreeCADDocumentObjectProtocol | None:
+        """Return the current cloth piece selected in the scene combo box."""
+        return self._active_document_object(self.cloth.currentData())
+
+    def _selected_target_source(self) -> FreeCADDocumentObjectProtocol | None:
+        """Resolve the current Drape Target and its linked visible collision source."""
+        target = self._active_document_object(self.target.currentData())
+        return getattr(target, "SourceObject", None) if target is not None else None
+
+    def _refresh_viewport_actions(self) -> None:
+        """Enable viewport selection actions only when their objects are resolvable."""
+        cloth_button = getattr(self, "cloth_view_button", None)
+        if cloth_button is not None:
+            cloth_button.setEnabled(self._selected_cloth_object() is not None)
+        target_button = getattr(self, "target_view_button", None)
+        if target_button is not None:
+            target_button.setEnabled(self._selected_target_source() is not None)
+
+    def _select_in_viewport(self, obj: FreeCADDocumentObjectProtocol | None, role: str) -> bool:
+        """Highlight one selected scene object without changing the current camera.
+
+        Args:
+            obj: Native document object to select in FreeCAD's 3D view.
+            role: Short user-facing description such as cloth or drape target.
+
+        Returns:
+            True when the object was selected, otherwise False.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        if obj is None:
+            set_status(
+                self.status,
+                f"Select a valid {role} object before highlighting it in the viewport.",
+                state="warning",
+            )
+            return False
+        try:
+            self.Gui.Selection.clearSelection()
+            self.Gui.Selection.addSelection(obj)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            set_status(
+                self.status,
+                f"Could not select the {role} object in the viewport — {exc}.",
+                state="error",
+            )
+            return False
+        label = str(getattr(obj, "Label", getattr(obj, "Name", role)))
+        set_status(
+            self.status,
+            f"Selected {label} in the 3D view. The camera position is unchanged.",
+            state="info",
+        )
+        return True
+
+    def _select_cloth_in_viewport(self) -> bool:
+        """Highlight the currently selected cloth object in the active 3D view."""
+        return self._select_in_viewport(self._selected_cloth_object(), "cloth")
+
+    def _select_target_source_in_viewport(self) -> bool:
+        """Highlight the selected target's linked collision source in the active 3D view."""
+        return self._select_in_viewport(self._selected_target_source(), "drape target source")
 
     def _material_changed(self, preset):
         if self.scene is None:
@@ -341,30 +459,44 @@ class SimulationTaskPanel:
         self._refresh_status("Simulation reset; selections retained.")
 
     def _refresh_status(self, message=None):
+        from freecad_cloth.common.UiDesign import set_status
+
         if self.scene is None:
-            self.status.setText(
-                message or "Select a simulation scene or create one with Create Simulation."
+            set_status(
+                self.status,
+                message or "Select a simulation scene or create one with Create Simulation.",
+                state="warning",
             )
             return
-        target_message = "No DrapeTarget selected"
+        target_message = "No drape target selected"
+        target_state = "missing"
         try:
             from freecad_cloth.simulation.DrapeTarget import target_status
 
-            status = target_status(getattr(self.scene, "DrapeTarget", None))
-            target_message = status["message"]
+            target_info = target_status(getattr(self.scene, "DrapeTarget", None))
+            target_message = str(target_info["message"])
+            target_state = str(target_info["state"])
         except (ImportError, AttributeError, TypeError, ValueError):
-            pass
-        state = "ready" if bool(getattr(self.scene, "FiniteState", True)) else "invalid/non-finite"
-        self.status.setText(
-            message
-            or "State: %s | Target: %s | %.3f s | %d particles | %d steps"
-            % (
-                state,
-                target_message,
-                float(getattr(self.scene, "SimulatedTime", 0.0)),
-                int(getattr(self.scene, "ParticleCount", 0)),
-                int(getattr(self.scene, "Steps", 0)),
-            )
+            target_state = "unavailable"
+        finite_state = bool(getattr(self.scene, "FiniteState", True))
+        simulation_state = "ready" if finite_state else "invalid/non-finite"
+        status_message = message or "State: %s | Target: %s | %.3f s | %d particles | %d steps" % (
+            simulation_state,
+            target_message,
+            float(getattr(self.scene, "SimulatedTime", 0.0)),
+            int(getattr(self.scene, "ParticleCount", 0)),
+            int(getattr(self.scene, "Steps", 0)),
+        )
+        if not finite_state:
+            semantic_state = "error"
+        elif target_state != "ready":
+            semantic_state = "warning"
+        else:
+            semantic_state = "success"
+        set_status(
+            self.status,
+            status_message,
+            state="info" if message else semantic_state,
         )
 
     def accept(self) -> bool:

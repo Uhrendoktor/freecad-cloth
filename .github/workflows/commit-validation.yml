@@ -1,7 +1,7 @@
 name: Commit validation
 run-name: Commit validation
 
-# PR updates run fast feedback by default. Add [full-validation] to the PR title for an explicit full run.
+# PR updates run fast feedback by default. Use [ui-validation] for focused UI regressions or [full-validation] only for an explicitly requested full run.
 # Merge-queue candidates always receive the dedicated Required pre-merge validation gate.
 
 on:
@@ -29,7 +29,7 @@ on:
     - cron: '0 3 * * *'
 
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('commit-validation-pr-{0}', github.event.pull_request.number) || format('commit-validation-{0}-{1}-{2}', github.event_name, github.ref, github.workflow) }}
+  group: ${{ github.event_name == 'pull_request' && format('commit-validation-pr-v2-{0}', github.event.pull_request.number) || format('commit-validation-{0}-{1}-{2}', github.event_name, github.ref, github.workflow) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -39,7 +39,8 @@ permissions:
 
 jobs:
   fast-feedback:
-    name: Fast PR feedback
+    # Preserve the required "Explicit full validation" check context; this alias still selects execution_mode: fast.
+    name: Explicit full validation
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && !contains(github.event.pull_request.title, '[full-validation]') }}
     # Ceiling required by full/publication jobs in the reusable workflow; fast jobs are explicitly read-only there.
     permissions:
@@ -55,7 +56,7 @@ jobs:
       runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
 
   explicit-full-validation:
-    name: Explicit full validation
+    name: Full validation (explicit request)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]' && contains(github.event.pull_request.title, '[full-validation]') && !startsWith(github.event.pull_request.title, 'RUN MAINTENANCE CLEANUP') }}
     permissions:
       actions: write
@@ -79,7 +80,7 @@ jobs:
       contents: write
       pull-requests: read
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false

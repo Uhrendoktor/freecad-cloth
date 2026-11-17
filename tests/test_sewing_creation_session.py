@@ -312,6 +312,31 @@ class _ErrorFeedbackPanel(SewingCreationTaskPanel):
         """Skip selection rendering because the headless fixture has no Qt widgets."""
 
 
+def test_picking_guidance_uses_shared_information_status_style(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Render viewport-picking instructions with the shared informational status role."""
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.feedback = Mock()
+    updates: list[tuple[Mock, str, str]] = []
+
+    def set_status(label: Mock, message: str, *, state: str = "info") -> None:
+        updates.append((label, message, state))
+
+    from freecad_cloth.common import UiDesign
+
+    monkeypatch.setattr(UiDesign, "set_status", set_status)
+    panel._show_info("Click the counterpart edge on another PatternPiece.")
+
+    assert updates == [
+        (
+            panel.feedback,
+            "Click the counterpart edge on another PatternPiece.",
+            "info",
+        )
+    ]
+
+
 def test_preview_error_feedback_is_actionable_and_disables_commit() -> None:
     """Show a useful validation message and keep Commit disabled after preview rejection."""
     panel = _ErrorFeedbackPanel.__new__(_ErrorFeedbackPanel)
@@ -409,3 +434,33 @@ def test_task_panel_preserves_a_new_selection_outside_the_initial_edges(
     panel._restore_initial_pattern_selection()
 
     assert selection.entries == [(selected_piece, "Edge5")]
+
+
+def test_focus_selected_edges_frames_staged_viewport_picks_without_reorienting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Frame staged edge picks and preserve the current camera orientation."""
+    from freecad_cloth.common import UiDesign
+
+    first = _PatternPiece(Name="Front")
+    second = _PatternPiece(Name="Back")
+    calls: list[tuple[str, ...]] = []
+    selection = _SubelementSelection()
+    view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
+    active = SimpleNamespace(activeView=lambda: view)
+    panel = SewingCreationTaskPanel.__new__(SewingCreationTaskPanel)
+    panel.Gui = SimpleNamespace(activeDocument=lambda: active, Selection=selection)
+    panel._viewport_picks = [(first, "Edge2"), (second, "Edge4")]
+    panel._initial_selection = ()
+    panel.feedback = Mock()
+    monkeypatch.setattr(
+        UiDesign,
+        "set_status",
+        lambda label, message, state="info": calls.append(("status", message, state)),
+    )
+
+    assert panel.focus_selected_edges_in_3d() is True
+    assert selection.entries == [(first, "Edge2"), (second, "Edge4")]
+    assert calls[0] == ("fit",)
+    assert calls[1][0] == "status"
+    assert "camera orientation was preserved" in calls[1][1]

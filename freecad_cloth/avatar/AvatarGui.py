@@ -145,7 +145,8 @@ class AvatarTaskPanel:
         action_row.addWidget(self.dimension_gizmo_toggle)
         self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
         self.pose_mode_button.setToolTip(
-            "Open the focused mannequin posing editor. Use the 3D rotation gizmo instead of typing joint angles."
+            "Open the focused mannequin posing editor. Use the 3D rotation gizmo "
+            "instead of typing joint angles."
         )
         action_row.addWidget(self.pose_mode_button)
         action_row.addStretch(1)
@@ -201,6 +202,9 @@ class AvatarTaskPanel:
 
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(display_layout, QtWidgets)
         self.skin_offset = QtWidgets.QDoubleSpinBox()
         self.skin_offset.setRange(0.0, 50.0)
         self.skin_offset.setDecimals(1)
@@ -301,6 +305,9 @@ class AvatarTaskPanel:
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox(title)
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
         for key, label in fields:
             box = QtWidgets.QDoubleSpinBox()
             box.setRange(1.0, 3000.0)
@@ -331,6 +338,9 @@ class AvatarTaskPanel:
         _, _, QtWidgets = _modules()
         group = QtWidgets.QGroupBox("Body composition")
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
         self.mass_target_enabled = QtWidgets.QCheckBox("Fit target body mass")
         self.mass_target_enabled.setToolTip(
             "Optionally constrain clad-body's differentiable mass_kg measurement. "
@@ -380,8 +390,10 @@ class AvatarTaskPanel:
         self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
         self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextBesideIcon)
         self.advanced_toggle.setToolTip(
-            "Reveal every normalized Anny phenotype and every paired local-morph target in the installed model. "
-            "These overrides are applied after anthropometric fitting and may change resulting measurements."
+            "Reveal every normalized Anny phenotype and every paired local-morph target "
+            "in the installed model. "
+            "These overrides are applied after anthropometric fitting and may change "
+            "resulting measurements."
         )
         parent.addWidget(self.advanced_toggle)
 
@@ -391,7 +403,8 @@ class AvatarTaskPanel:
         self.advanced_content.setVisible(False)
 
         help_text = QtWidgets.QLabel(
-            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; body morphs use -1 to 1. "
+            "Advanced values override the fitted shape. Phenotypes use range 0 to 1; "
+            "body morphs use -1 to 1. "
             "Primary Gender blend and Breast fullness remain in Body shape."
         )
         help_text.setWordWrap(True)
@@ -419,6 +432,11 @@ class AvatarTaskPanel:
             page_layout = QtWidgets.QVBoxLayout(contents)
             page_layout.setContentsMargins(4, 4, 4, 4)
             page_layout.setSpacing(6)
+            empty_label = QtWidgets.QLabel("No parameters match this filter.")
+            empty_label.setWordWrap(True)
+            empty_label.setProperty("clothRole", "hint")
+            empty_label.setVisible(False)
+            page_layout.addWidget(empty_label)
             scroll.setWidget(contents)
             self.advanced_tabs.addTab(scroll, page_title)
             self._advanced_pages[page_key] = {
@@ -426,6 +444,7 @@ class AvatarTaskPanel:
                 "contents": contents,
                 "layout": page_layout,
                 "groups": {},
+                "empty_label": empty_label,
             }
         advanced_layout.addWidget(self.advanced_tabs)
         parent.addWidget(self.advanced_content)
@@ -511,8 +530,6 @@ class AvatarTaskPanel:
         row_layout = QtWidgets.QHBoxLayout(row)
         row_layout.setContentsMargins(2, 1, 2, 1)
         label = QtWidgets.QLabel(self._display_parameter_name(name))
-        label.setMinimumWidth(100)
-        label.setMaximumWidth(170)
         label.setWordWrap(True)
         box = QtWidgets.QDoubleSpinBox()
         box.setDecimals(3)
@@ -610,9 +627,10 @@ class AvatarTaskPanel:
                 self._advanced_controls_built = True
                 self._filter_advanced_parameters(self.advanced_search.text())
             except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
-                self.status.setText(
+                self._set_status(
                     "Advanced Anny parameters could not be loaded. "
-                    f"The standard measurement controls remain available: {exc}"
+                    f"The standard measurement controls remain available: {exc}",
+                    state="warning",
                 )
                 self.advanced_content.setVisible(False)
                 self.advanced_toggle.setChecked(False)
@@ -634,6 +652,8 @@ class AvatarTaskPanel:
             item["row"].setVisible(matches)
             visible_by_group[item["group"]] = visible_by_group.get(item["group"], False) or matches
             visible_by_page[item["page"]] = visible_by_page[item["page"]] or matches
+        for page_key, page in self._advanced_pages.items():
+            page["empty_label"].setVisible(bool(query) and not visible_by_page[page_key])
         for group in self._advanced_groups:
             group.setVisible(visible_by_group.get(group, False))
         if query and not visible_by_page.get(
@@ -694,6 +714,9 @@ class AvatarTaskPanel:
 
         group = QtWidgets.QGroupBox("Body shape")
         layout = QtWidgets.QFormLayout(group)
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
+        configure_form_layout(layout, QtWidgets)
 
         gender_row = QtWidgets.QHBoxLayout()
         gender_row.addWidget(QtWidgets.QLabel("Feminine"))
@@ -746,7 +769,7 @@ class AvatarTaskPanel:
     def _load(self):
         """Populate the task-panel controls from the persisted avatar parameters."""
         if self.avatar is None:
-            self.status.setText("Create a Cloth Human Mannequin first.")
+            self._set_status("Create a Cloth Human Mannequin first.", state="warning")
             self.apply_button.setEnabled(False)
             self.fit_button.setEnabled(False)
             for button in self.provider_buttons.values():
@@ -909,13 +932,17 @@ class AvatarTaskPanel:
 
                 self._dimension_controller = AvatarDimensionController(self)
             except (ImportError, RuntimeError, TypeError, ValueError):
-                self.status.setText(
-                    "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+                self._set_status(
+                    "3D dimensions are unavailable in this FreeCAD build; use the numeric "
+                    "measurements.",
+                    state="warning",
                 )
                 return
         if not self._dimension_controller.activate():
-            self.status.setText(
-                "3D dimensions are unavailable in this FreeCAD build; use the numeric measurements."
+            self._set_status(
+                "3D dimensions are unavailable in this FreeCAD build; use the numeric "
+                "measurements.",
+                state="warning",
             )
 
     def _staged_changed(self):
@@ -967,7 +994,8 @@ class AvatarTaskPanel:
             provider_source is None or provider_source is self.avatar
         ):
             self._refresh_status(
-                "A FreeCAD body or mesh must be selected before switching to the FreeCAD geometry provider."
+                "A FreeCAD body or mesh must be selected before switching to the FreeCAD "
+                "geometry provider."
             )
             return False
         try:
@@ -1027,6 +1055,17 @@ class AvatarTaskPanel:
     def _landmarks_visibility_changed(self, _checked):
         """Refresh the measurement overlay after its visibility checkbox changes."""
         self._update_landmarks()
+
+    def _set_status(self, message: str, *, state: str = "info") -> None:
+        """Update the avatar editor's status using shared palette-aware semantics.
+
+        Args:
+            message: User-facing state or recovery instruction.
+            state: Semantic information, warning, error, or success status.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.status, message, state=state)
 
     def _refresh_status(self, message=None):
         """Display the latest avatar operation status in the task panel."""

@@ -66,6 +66,8 @@ class SimulationQualityTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothSimulationQualityTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        content_layout = QtWidgets.QVBoxLayout(content)
 
         workflow = QtWidgets.QGroupBox("Workflow readiness")
         workflow_layout = QtWidgets.QVBoxLayout(workflow)
@@ -82,10 +84,13 @@ class SimulationQualityTaskPanel:
             label.setWordWrap(True)
             self.workflow_labels[key] = label
             workflow_layout.addWidget(label)
-        root.addWidget(workflow)
+        content_layout.addWidget(workflow)
+
+        from freecad_cloth.common.UiDesign import configure_form_layout
 
         context = QtWidgets.QGroupBox("Context")
         cform = QtWidgets.QFormLayout(context)
+        configure_form_layout(cform, QtWidgets)
         self.target_context = QtWidgets.QLabel()
         self.target_context.setWordWrap(True)
         self.refresh_target_button = QtWidgets.QPushButton("Refresh target")
@@ -95,7 +100,7 @@ class SimulationQualityTaskPanel:
         )
         cform.addRow("Target", self.target_context)
         cform.addRow("", self.refresh_target_button)
-        root.addWidget(context)
+        content_layout.addWidget(context)
 
         fitting = QtWidgets.QGroupBox("Arrange / Fit")
         flayout = QtWidgets.QVBoxLayout(fitting)
@@ -124,7 +129,7 @@ class SimulationQualityTaskPanel:
         fit_buttons.addWidget(self.snap_to_target_button)
         fit_buttons.addWidget(self.reset_arrangement_button)
         flayout.addLayout(fit_buttons)
-        root.addWidget(fitting)
+        content_layout.addWidget(fitting)
 
         self.advanced_toggle = QtWidgets.QToolButton()
         self.advanced_toggle.setText("Expert physics settings")
@@ -133,18 +138,21 @@ class SimulationQualityTaskPanel:
         self.advanced_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         self.advanced_toggle.setArrowType(QtCore.Qt.RightArrow)
         self.advanced_toggle.setToolTip(
-            "Normal fitting uses presets. Expand this section only when precise solver or collision values are needed."
+            "Normal fitting uses presets. Expand this section only when precise solver "
+            "or collision values are needed."
         )
-        root.addWidget(self.advanced_toggle)
+        content_layout.addWidget(self.advanced_toggle)
 
         quality = QtWidgets.QGroupBox("Simulation quality")
         qform = QtWidgets.QFormLayout(quality)
+        configure_form_layout(qform, QtWidgets)
         self.quality = QtWidgets.QComboBox()
         self.quality.addItems(self.QUALITY_NAMES)
         self.pin_mode = QtWidgets.QComboBox()
         self.pin_mode.addItems(PIN_MODE_NAMES)
         self.pin_mode.setToolTip(
-            "Automatic preserves legacy behavior; Explicit uses only PinSelection; None creates the simulation with zero solver pins."
+            "Automatic preserves legacy behavior; Explicit uses only PinSelection; None "
+            "creates the simulation with zero solver pins."
         )
         self.particle_distance = self._double(0.25, 100.0, 4.0, 2)
         self.iterations = self._spin(1, 200, 8)
@@ -154,15 +162,19 @@ class SimulationQualityTaskPanel:
         qform.addRow("Particle distance (mm)", self.particle_distance)
         qform.addRow("Solver iterations", self.iterations)
         qform.addRow("Solver substeps", self.substeps)
-        root.addWidget(quality)
+        content_layout.addWidget(quality)
+        self._expert_quality_widgets = []
         for widget in (self.particle_distance, self.iterations, self.substeps):
             label = qform.labelForField(widget)
             if label is not None:
                 label.setVisible(False)
+                self._expert_quality_widgets.append(label)
             widget.setVisible(False)
+            self._expert_quality_widgets.append(widget)
 
         fabric = QtWidgets.QGroupBox("Fabric")
         fform = QtWidgets.QFormLayout(fabric)
+        configure_form_layout(fform, QtWidgets)
         self.density = self._double(1.0, 2000.0, 150.0, 1)
         self.thickness = self._double(0.01, 10.0, 0.5, 2)
         self.stretch = self._double(0.0, 1.0, 0.02, 4)
@@ -186,7 +198,7 @@ class SimulationQualityTaskPanel:
             ("Transparency (%)", self.transparency),
         ):
             fform.addRow(label, widget)
-        root.addWidget(fabric)
+        content_layout.addWidget(fabric)
         for widget in (
             self.density,
             self.thickness,
@@ -205,16 +217,22 @@ class SimulationQualityTaskPanel:
 
         collision = QtWidgets.QGroupBox("Collision")
         cform = QtWidgets.QFormLayout(collision)
+        configure_form_layout(cform, QtWidgets)
         self.skin_offset = self._double(0.0, 100.0, 0.0, 2)
         self.collision_radius = self._double(0.0, 10000.0, 38.0, 2)
         cform.addRow("Avatar skin offset (mm)", self.skin_offset)
         cform.addRow("Fallback sphere radius (mm)", self.collision_radius)
-        root.addWidget(collision)
+        content_layout.addWidget(collision)
         solver = QtWidgets.QGroupBox("Run")
         sform = QtWidgets.QFormLayout(solver)
+        configure_form_layout(sform, QtWidgets)
         self.steps = self._spin(0, 1000000, 0)
         sform.addRow("Simulation steps", self.steps)
-        root.addWidget(solver)
+        content_layout.addWidget(solver)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
 
         self._expert_widgets = (fabric, collision, solver)
         buttons = QtWidgets.QHBoxLayout()
@@ -287,6 +305,8 @@ class SimulationQualityTaskPanel:
         )
         for widget in getattr(self, "_expert_widgets", ()):
             widget.setVisible(bool(enabled))
+        for widget in getattr(self, "_expert_quality_widgets", ()):
+            widget.setVisible(bool(enabled))
         if enabled:
             self._set_status(
                 "Expert controls enabled. Presets remain the recommended starting point."
@@ -296,7 +316,9 @@ class SimulationQualityTaskPanel:
         from freecad_cloth.simulation.FittingHandoff import fitting_stage_status
 
         message, can_reset = fitting_stage_status(self.scene)
-        self.fitting_status.setText(message)
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(self.fitting_status, message, state="info")
         self.reset_arrangement_button.setEnabled(bool(can_reset))
         target_ready = False
         if self.scene is not None:
@@ -582,7 +604,13 @@ class SimulationQualityTaskPanel:
             self.arrange_fit_button.setEnabled(False)
             self.snap_to_target_button.setEnabled(False)
             self.refresh_target_button.setEnabled(False)
-            self.target_context.setText("No simulation scene is selected.")
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.target_context,
+                "No simulation scene is selected.",
+                state="warning",
+            )
             self._set_status(
                 message or "Create or select a Cloth Simulation object.",
                 state="warning",
@@ -603,7 +631,15 @@ class SimulationQualityTaskPanel:
         self.run_button.setEnabled(not blocked)
         self.reset_button.setEnabled(True)
         self.arrange_fit_button.setEnabled(True)
-        self.target_context.setText(str(target_info["message"]))
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.target_context,
+            str(target_info["message"]),
+            state=(
+                "error" if blocked else ("success" if target_info["state"] == "ready" else "info")
+            ),
+        )
         target = getattr(self.scene, "DrapeTarget", None)
         source = getattr(target, "SourceObject", None)
         if target_info["state"] == "disabled":

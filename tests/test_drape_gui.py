@@ -23,8 +23,8 @@ EXPECTED_SOURCE_TYPE = "FreeCAD Geometry"
 
 type _ScalarValue = bool | float | int
 STAGED_PREVIEW_MESSAGE = (
-    "Staged target edits. Apply & Refresh to rebuild collision geometry; "
-    "Cancel leaves the document unchanged."
+    "Staged target edits. Apply & Refresh commits the collision settings now; "
+    "Cancel closes without applying further edits."
 )
 EXPECTED_STALE_STATUS = "Target status: stale — source changed"
 MISSING_SOURCE_MESSAGE = "Select a collision object"
@@ -203,8 +203,8 @@ def _panel() -> DrapeGui.DrapeTargetTaskPanel:
     panel = DrapeGui.DrapeTargetTaskPanel.__new__(DrapeGui.DrapeTargetTaskPanel)
     panel.target = SimpleNamespace()
     panel.source = _combo()
-    panel.target_type = _combo(0)
-    panel.target_type.items = [EXPECTED_SOURCE_TYPE]
+    panel.target_type = _combo(1)
+    panel.target_type.items = ["Mannequin", EXPECTED_SOURCE_TYPE]
     panel.preset = _combo(NORMAL_PRESET_INDEX)
     panel.preset.items = [name for name, _value in EXPECTED_PRESETS]
     panel.deflection = _scalar(DEFAULT_DEFLECTION_MM)
@@ -212,8 +212,216 @@ def _panel() -> DrapeGui.DrapeTargetTaskPanel:
     panel.enabled = _scalar(True)
     panel.status = _status()
     panel._source_objects = []
+    panel._source_picker = None
     panel._loading = False
     return panel
+
+
+class _Button:
+    """Capture viewport action availability and transient pick visibility."""
+
+    def __init__(self) -> None:
+        self.enabled = True
+        self.visible = True
+
+    def setEnabled(self, enabled: bool) -> None:
+        self.enabled = bool(enabled)
+
+    def setVisible(self, visible: bool) -> None:
+        self.visible = bool(visible)
+
+
+class _Selection:
+    """Capture the FreeCAD selection-observer and highlight lifecycle."""
+
+    def __init__(self) -> None:
+        self.observers: list[DrapeGui._ViewportSourcePicker] = []
+        self.calls: list[tuple[str] | tuple[str, SimpleNamespace]] = []
+
+    def addObserver(self, observer: DrapeGui._ViewportSourcePicker) -> None:
+        self.observers.append(observer)
+
+    def removeObserver(self, observer: DrapeGui._ViewportSourcePicker) -> None:
+        self.observers.remove(observer)
+
+    def clearSelection(self) -> None:
+        self.calls.append(("clear",))
+
+    def addSelection(self, source: SimpleNamespace) -> None:
+        self.calls.append(("select", source))
+
+
+def _viewport_panel(source: SimpleNamespace) -> tuple[DrapeGui.DrapeTargetTaskPanel, _Selection]:
+    """Build a headless panel with the viewport source actions wired to doubles."""
+    panel = _panel()
+    panel.doc = SimpleNamespace(
+        Name="ClothDocument",
+        Objects=(source,),
+        getObject=lambda name: source if name == source.Name else None,
+    )
+    panel.Gui = SimpleNamespace(Selection=_Selection())
+    panel._source_objects = [source]
+    panel.source = _combo()
+    panel.source.addItem(str(source.Label))
+    panel.target_type = _combo(1)
+    panel.target_type.items = ["Mannequin", EXPECTED_SOURCE_TYPE]
+    panel.apply_button = _Button()
+    panel.pick_source_button = _Button()
+    panel.cancel_pick_button = _Button()
+    panel.show_source_button = _Button()
+    return panel, panel.Gui.Selection
+
+
+def test_viewport_pick_is_disabled_without_eligible_document_sources() -> None:
+    """Avoid arming a viewport picker when no valid collision source can be selected."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, _selection = _viewport_panel(source)
+    panel._source_objects = []
+
+    panel._update_source_actions()
+
+    assert panel.pick_source_button.enabled is False
+    assert panel.show_source_button.enabled is False
+    assert panel.apply_button.enabled is False
+
+
+def test_viewport_pick_stages_source_and_releases_selection_observer() -> None:
+    """Pick a document object in 3D and return to the normal panel actions."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+
+    panel._begin_source_pick()
+    picker = panel._source_picker
+
+    assert picker is not None
+    assert selection.observers == [picker]
+    assert panel.pick_source_button.enabled is False
+    assert panel.cancel_pick_button.visible is True
+
+    picker.addSelection("ClothDocument", "CollisionBody", "Face3")
+
+    assert panel.source.currentIndex() == 0
+    assert panel.apply_button.enabled is True
+    assert panel.show_source_button.enabled is True
+    assert panel._source_picker is None
+    assert selection.observers == []
+    assert panel.cancel_pick_button.visible is False
+    assert panel.pick_source_button.enabled is True
+    assert "Picked Collision Body" in panel.status.text
+    assert panel.status.properties["clothState"] == "info"
+
+
+def test_viewport_pick_rejects_objects_from_another_document() -> None:
+    """Keep the picker armed when a selection belongs to a different document."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    picker.addSelection("OtherDocument", "CollisionBody", "Face1")
+
+    assert picker.armed is True
+    assert panel._source_picker is picker
+    assert panel.status.properties["clothState"] == "warning"
+    assert "active document" in panel.status.text
+    assert selection.observers == [picker]
+
+
+def test_viewport_pick_rejects_unlisted_objects_and_remains_armed() -> None:
+    """Do not accept a document object unless it is in the panel's valid source list."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    unrelated = SimpleNamespace(Name="PatternSketch", Label="Pattern Sketch", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel.doc = SimpleNamespace(
+        Name="ClothDocument",
+        getObject=lambda name: unrelated if name == "PatternSketch" else source,
+    )
+
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    picker.addSelection("ClothDocument", "PatternSketch", "Face1")
+
+    assert picker.armed is True
+    assert panel._source_picker is picker
+    assert "not an available" in panel.status.text
+    assert panel.status.properties["clothState"] == "warning"
+    assert selection.observers == [picker]
+
+
+def test_viewport_pick_chooses_mannequin_provider_for_avatar_sources() -> None:
+    """Synchronize viewport selection with the matching mannequin provider."""
+    source = SimpleNamespace(
+        Name="ClothAvatar",
+        Label="Cloth Mannequin",
+        AvatarType="ClothAvatar",
+        Shape=object(),
+    )
+    panel, selection = _viewport_panel(source)
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    picker.addSelection("ClothDocument", "ClothAvatar", "")
+
+    assert panel.target_type.currentText() == "Mannequin"
+    assert panel.source.currentIndex() == 0
+    assert panel._source_picker is None
+    assert selection.observers == []
+
+
+def test_select_source_in_view_uses_native_selection_without_camera_changes() -> None:
+    """Highlight the current collision source without altering the view camera."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel.source.setCurrentIndex(0)
+
+    assert panel._select_source_in_view() is True
+    assert selection.calls == [("clear",), ("select", source)]
+    assert panel.status.properties["clothState"] == "info"
+    assert "without moving the camera" in panel.status.text
+
+
+def test_accept_cancels_an_unfinished_viewport_pick_before_validation() -> None:
+    """Do not leave a selection observer installed after the native OK action."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    assert panel.accept() is False
+    assert picker.armed is False
+    assert selection.observers == []
+    assert panel._source_picker is None
+
+
+def test_cancel_and_reject_remove_viewport_selection_observer() -> None:
+    """Unregister the temporary selection observer on either exit path."""
+    source = SimpleNamespace(Name="CollisionBody", Label="Collision Body", Shape=object())
+    panel, selection = _viewport_panel(source)
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+
+    panel._cancel_source_pick()
+    assert picker.armed is False
+    assert selection.observers == []
+    assert panel._source_picker is None
+    assert panel.status.properties["clothState"] == "info"
+
+    panel._begin_source_pick()
+    picker = panel._source_picker
+    assert picker is not None
+    panel.Gui.activeDocument = lambda: None
+    panel.Gui.Control = SimpleNamespace(activeDialog=lambda: None, closeDialog=lambda: None)
+    panel.reject()
+    assert picker.armed is False
+    assert selection.observers == []
+    assert panel._source_picker is None
 
 
 def test_presets_are_explicit_and_materially_distinct() -> None:
@@ -384,6 +592,16 @@ def test_refresh_status_reports_state_and_invalidation_reason() -> None:
     assert panel.status.text == EXPECTED_STALE_STATUS, (
         "Status display must include both target state and invalidation reason."
     )
+
+
+def test_refresh_status_marks_ready_target_as_success() -> None:
+    """Show a ready collision target as successful rather than neutral information."""
+    panel = _panel()
+    panel.target = SimpleNamespace(TargetStatus="ready", InvalidationReason="")
+    panel._refresh_status()
+
+    assert panel.status.text == "Target status: ready"
+    assert panel.status.properties["clothState"] == "success"
 
 
 def test_reject_closes_active_dialog() -> None:

@@ -7,6 +7,7 @@ from freecad_cloth.pattern.PatternTopologyRepair import (
     InvalidRepairTarget,
     TopologyRepairError,
     build_repair_plan,
+    current_edge_candidate_for_sketch_index,
     current_edge_candidates,
     seam_reference_status,
 )
@@ -114,3 +115,63 @@ def test_duplicate_side_mapping_is_rejected_before_mutation():
     edge = current_edge_candidates(seam, "A")[1]["id"]
     with pytest.raises(TopologyRepairError, match="duplicate repair target"):
         build_repair_plan([(seam, "A", edge), (seam, "A", edge)])
+
+
+def test_viewport_native_sketch_index_resolves_exact_semantic_edge() -> None:
+    """Map a viewport EdgeN hit to the same stable semantic ID used by repair rows."""
+    seam = _seam(_piece())
+
+    record = current_edge_candidate_for_sketch_index(seam, "A", 2)
+
+    assert record["id"] == seam.PatternA.Sketch.SemanticEdgeIds[2]
+    assert record["id"] == current_edge_candidates(seam, "A")[2]["id"]
+
+
+def test_viewport_sketch_edge_number_keeps_geometry_index_across_construction_geometry() -> None:
+    """Keep EdgeN mapped to original Sketcher Geometry index when construction is skipped."""
+
+    class Point:
+        def __init__(self, x: float, y: float) -> None:
+            self.x, self.y, self.z = float(x), float(y), 0.0
+
+    class LineSegment:
+        def __init__(self, start: tuple[float, float], end: tuple[float, float]) -> None:
+            self.StartPoint = Point(*start)
+            self.EndPoint = Point(*end)
+
+    piece = _piece()
+    geometry = piece.Sketch.Geometry
+    construction = LineSegment((30.0, 30.0), (40.0, 40.0))
+    piece.Sketch.Geometry = (geometry[0], construction, *geometry[1:])
+    piece.Sketch.SemanticEdgeIds = (
+        "front:edge:0",
+        "",
+        "front:edge:1",
+        "front:edge:2",
+        "front:edge:3",
+    )
+    piece.Sketch.getConstruction = lambda index: index == 1
+    seam = _seam(piece)
+
+    # FreeCAD's SketchObject::buildShape increments geoId before skipping construction
+    # geometry, so the visible native Edge3 still identifies Geometry[2].
+    record = current_edge_candidate_for_sketch_index(seam, "A", 2)
+
+    assert record["id"] == "front:edge:1"
+    assert record["id"] in {candidate["id"] for candidate in current_edge_candidates(seam, "A")}
+
+
+def test_viewport_native_sketch_index_rejects_nonexistent_edge() -> None:
+    """Fail closed when a viewport edge index is outside the current Sketcher source."""
+    seam = _seam(_piece())
+
+    with pytest.raises(InvalidRepairTarget, match="current Sketcher boundary"):
+        current_edge_candidate_for_sketch_index(seam, "A", 99)
+
+
+def test_viewport_native_sketch_index_rejects_invalid_seam_side() -> None:
+    """Do not map an edge when the caller does not identify side A or B."""
+    seam = _seam(_piece())
+
+    with pytest.raises(ValueError, match="side must be A or B"):
+        current_edge_candidate_for_sketch_index(seam, "C", 0)

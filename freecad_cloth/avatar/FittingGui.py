@@ -820,9 +820,10 @@ class ViewportAnchorPicker:
         self.armed = True
         self.panel.pick_surface_button.setEnabled(False)
         self.panel.cancel_pick_button.setVisible(True)
-        self.panel.status.setText(
+        self.panel._set_status(
             "Pick a face on the configured avatar/target in the 3D view. "
-            "The clicked location becomes a persistent snap anchor."
+            "The clicked location becomes a persistent snap anchor.",
+            state="info",
         )
 
     def cancel(self):
@@ -830,7 +831,10 @@ class ViewportAnchorPicker:
         self.armed = False
         self.panel.pick_surface_button.setEnabled(True)
         self.panel.cancel_pick_button.setVisible(False)
-        self.panel.status.setText("Surface pick cancelled; the document was not changed.")
+        self.panel._set_status(
+            "Surface pick cancelled; the document was not changed.",
+            state="info",
+        )
 
     def _finish(self):
         """Leave selection-pick mode and restore the task-panel controls."""
@@ -893,8 +897,9 @@ class ViewportAnchorPicker:
         sources = self._target_sources()
         target = sources.get(str(object_name))
         if target is None:
-            self.panel.status.setText(
-                "That object is not the configured fitting target. Pick the avatar/target surface."
+            self.panel._set_status(
+                "That object is not the configured fitting target. Pick the avatar/target surface.",
+                state="warning",
             )
             return
         picked_sub_element = str(subelement_name or "")
@@ -915,8 +920,9 @@ class ViewportAnchorPicker:
         if not picked_sub_element and mesh is not None:
             picked_sub_element = "MeshSurface"
         if world_point is None or not picked_sub_element:
-            self.panel.status.setText(
-                "Pick an actual face/triangle on the configured target, not empty viewport space."
+            self.panel._set_status(
+                "Pick an actual face/triangle on the configured target, not empty viewport space.",
+                state="warning",
             )
             return
         name = str(self.panel.anchor_name.text()).strip()
@@ -933,16 +939,21 @@ class ViewportAnchorPicker:
                 wrap_direction=str(self.panel.wrap_direction.currentText()),
             )
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
-            self.panel.status.setText(f"Could not create surface anchor — {exc}.")
+            self.panel._set_status(
+                f"Could not create surface anchor — {exc}.",
+                state="error",
+            )
             return
         self._finish()
         self.Gui.Selection.clearSelection()
         self.panel.controller._queue_anchor_overlay_refresh()
         self.panel.anchor_name.setText(self.panel._next_anchor_name())
         self.panel._refresh_context()
-        self.panel.status.setText(
-            f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; target changes "
-            "invalidate the anchor, and the anchor does not attach cloth to the surface."
+        self.panel._set_status(
+            f"Created surface anchor '{point.name}'. Drag a pattern piece to its marker; "
+            "target changes "
+            "invalidate the anchor, and the anchor does not attach cloth to the surface.",
+            state="success",
         )
 
     def dispose(self):
@@ -978,6 +989,8 @@ class FittingTaskPanel:
         self.form = QtWidgets.QWidget()
         self.form.setObjectName("ClothInteractiveArrangeTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
+        anchor_content = QtWidgets.QWidget()
+        anchor_content_layout = QtWidgets.QVBoxLayout(anchor_content)
 
         context = QtWidgets.QGroupBox("Fitting")
         context_layout = QtWidgets.QVBoxLayout(context)
@@ -990,14 +1003,16 @@ class FittingTaskPanel:
         actions = QtWidgets.QGroupBox("Arrange")
         action_layout = QtWidgets.QVBoxLayout(actions)
         self.instruction = QtWidgets.QLabel(
-            "Drag a pattern piece. Blue crosshairs mark where its placement origin will snap; release to commit."
+            "Drag a pattern piece. Blue crosshairs mark where its placement origin will snap; "
+            "release to commit."
         )
         self.instruction.setWordWrap(True)
         action_layout.addWidget(self.instruction)
         self.snap = QtWidgets.QCheckBox("Snap to arrangement points")
         self.snap.setChecked(True)
         self.snap.setToolTip(
-            "When a dragged piece is close to an arrangement point, preview and apply its saved orientation."
+            "When a dragged piece is close to an arrangement point, preview and apply "
+            "its saved orientation."
         )
         action_layout.addWidget(self.snap)
         buttons = QtWidgets.QHBoxLayout()
@@ -1040,7 +1055,11 @@ class FittingTaskPanel:
         )
         self.anchor_hint.setWordWrap(True)
         anchor_layout.addWidget(self.anchor_hint)
-        root.addWidget(anchors)
+        anchor_content_layout.addWidget(anchors)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(anchor_content, QtWidgets), 1)
 
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
@@ -1068,11 +1087,26 @@ class FittingTaskPanel:
         mark_button(self.pick_surface_button, "primary")
         apply_panel_style(self.form)
 
-    def _set_status(self, text: str, state: str = "info") -> None:
-        """Update arrange/fit feedback using the shared status vocabulary."""
+    def _set_status(self, text: str, state: str | None = None) -> None:
+        """Update arrange/fit feedback using the shared status vocabulary.
+
+        Args:
+            text: User-facing instruction or result from viewport manipulation.
+            state: Optional explicit semantic state; controller messages are classified
+                when no state is supplied.
+        """
         from freecad_cloth.common.UiDesign import set_status
 
-        set_status(self.status, text, state=state)
+        message = str(text)
+        if state is None:
+            lowered = message.casefold()
+            if lowered.startswith(("placement blocked", "attachment-point overlay unavailable")):
+                state = "error"
+            elif lowered.startswith(("snapped ", "placed ")):
+                state = "success"
+            else:
+                state = "info"
+        set_status(self.status, message, state=state)
 
     def _next_anchor_name(self):
         """Return a predictable name not already used by a saved snap point."""
@@ -1116,7 +1150,8 @@ class FittingTaskPanel:
         )
         suffix = f" | {stale} stale anchor(s) excluded" if stale else ""
         self.context.setText(
-            f"{len(pieces)} piece(s) | {len(point_objects)} snap point(s) | Target: {target_name}{suffix}"
+            f"{len(pieces)} piece(s) | {len(point_objects)} snap point(s) | "
+            f"Target: {target_name}{suffix}"
         )
 
     def reset_arrangement(self):

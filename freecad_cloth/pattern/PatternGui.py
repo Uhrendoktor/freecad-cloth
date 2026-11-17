@@ -78,11 +78,20 @@ class PatternPieceTaskPanel:
             ("Grainline angle", self.grain),
         ):
             layout.addRow(label, widget)
+        self._width_label = layout.labelForField(self.width)
+        self._height_label = layout.labelForField(self.height)
         self.edit_sketch = None
         if self._sketch_authoritative:
             self.edit_sketch = QtWidgets.QPushButton("Edit native Sketch…")
             self.edit_sketch.clicked.connect(self._edit_sketch)
             layout.addRow("Geometry editor", self.edit_sketch)
+        self.focus_piece = QtWidgets.QPushButton("Focus in 3D")
+        self.focus_piece.setToolTip(
+            "Switch to the top view and frame this pattern piece in the FreeCAD viewport."
+        )
+        self.focus_piece.setEnabled(obj is not None)
+        self.focus_piece.clicked.connect(self._focus_piece)
+        layout.addRow("Viewport", self.focus_piece)
         self.mode.currentTextChanged.connect(self._mode_changed)
         if obj:
             self.name.setText(obj.Label)
@@ -110,9 +119,15 @@ class PatternPieceTaskPanel:
             self._original = None
         self._mode_changed(self.mode.currentText())
 
-        from freecad_cloth.common.UiDesign import apply_panel_style, mark_button
+        from freecad_cloth.common.UiDesign import (
+            apply_panel_style,
+            configure_form_layout,
+            mark_button,
+        )
 
+        configure_form_layout(layout, QtWidgets)
         mark_button(self.edit_sketch, "secondary")
+        mark_button(self.focus_piece, "secondary")
         apply_panel_style(self.form)
 
     def _edit_sketch(self):
@@ -128,14 +143,64 @@ class PatternPieceTaskPanel:
             raise RuntimeError(msg)
         active.setEdit(sketch.Name)
 
+    def _focus_piece(self) -> bool:
+        """Select and frame the current PatternPiece in FreeCAD's top viewport.
+
+        Returns:
+            True when the piece is selected and framed in the active 3D view.
+        """
+        if self.obj is None:
+            return False
+        active = self.Gui.activeDocument()
+        if active is None:
+            msg = "no active FreeCAD document"
+            raise RuntimeError(msg)
+        selection = self.Gui.Selection
+        selection.clearSelection()
+        selection.addSelection(self.obj)
+        view = active.activeView()
+        view.viewTop()
+        view.fitAll()
+        return True
+
     def _mode_changed(self, mode):
         if self._sketch_authoritative:
             self.width.setEnabled(False)
             self.height.setEnabled(False)
+            self._width_label.setText("Width (from Sketch)")
+            self._height_label.setText("Height (from Sketch)")
+            self.width.setToolTip(
+                "Read-only dimension derived from the linked native Sketch. "
+                "Edit the geometry in Sketcher."
+            )
+            self.height.setToolTip(
+                "Read-only dimension derived from the linked native Sketch. "
+                "Edit the geometry in Sketcher."
+            )
+            self.width.setVisible(True)
+            self.height.setVisible(True)
+            self._width_label.setVisible(True)
+            self._height_label.setVisible(True)
             return
         custom = mode == "Custom"
         self.width.setEnabled(not custom)
         self.height.setEnabled(not custom)
+        self.width.setVisible(True)
+        self.height.setVisible(True)
+        self._width_label.setVisible(True)
+        self._height_label.setVisible(True)
+        self._width_label.setText("Width (from outline)" if custom else "Width")
+        self._height_label.setText("Height (from outline)" if custom else "Height")
+        if custom:
+            self.width.setToolTip(
+                "Read-only bounding dimension derived from the custom drafting outline."
+            )
+            self.height.setToolTip(
+                "Read-only bounding dimension derived from the custom drafting outline."
+            )
+        else:
+            self.width.setToolTip("Width of the parameter-driven rectangle, in millimetres.")
+            self.height.setToolTip("Height of the parameter-driven rectangle, in millimetres.")
 
     def _validate(self):
         name = self.name.text().strip()
@@ -156,7 +221,8 @@ class PatternPieceTaskPanel:
     def _apply(self):
         self._validate()
         mode = self.mode.currentText()
-        if self.obj is None:
+        created = self.obj is None
+        if created:
             from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_parameters
 
             self.obj = create_pattern_piece_from_parameters(
@@ -180,8 +246,13 @@ class PatternPieceTaskPanel:
         self.obj.GrainlineAngle = self.grain.value()
         self.obj.Label = self.name.text().strip() or self.obj.Label
         self.App.ActiveDocument.recompute()
-        self.Gui.activeDocument().activeView().viewTop()
-        self.Gui.activeDocument().activeView().fitAll()
+        focus_button = getattr(self, "focus_piece", None)
+        if focus_button is not None:
+            focus_button.setEnabled(True)
+        # A newly created piece has no existing viewport representation to locate;
+        # frame it once. Editing an existing piece leaves the user's camera untouched.
+        if created:
+            self._focus_piece()
 
     def _restore(self):
         if self.obj is None or self._original is None:

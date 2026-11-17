@@ -8,6 +8,7 @@ silently edit a network whose canonical seam references are invalid.
 from __future__ import annotations
 
 from itertools import starmap
+from types import ModuleType
 from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
@@ -59,6 +60,34 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     Seams: Sequence[_SeamFeature]
 
 
+class _RangeEditor(Protocol):
+    """Numeric Qt control used for one normalized seam-range endpoint."""
+
+    def setRange(self, _minimum: float, _maximum: float) -> None:
+        """Limit the editor to a normalized parameter interval."""
+        ...
+
+    def setDecimals(self, _decimals: int) -> None:
+        """Set the displayed decimal precision."""
+        ...
+
+    def setSingleStep(self, _step: float) -> None:
+        """Set the keyboard/wheel increment."""
+        ...
+
+    def setValue(self, _value: float) -> None:
+        """Set the currently displayed endpoint."""
+        ...
+
+    def value(self) -> float:
+        """Return the current numeric endpoint."""
+        ...
+
+    def setEnabled(self, _enabled: bool) -> None:
+        """Enable or disable the endpoint editor."""
+        ...
+
+
 def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str, str], ...]:
     """Collect non-valid statuses from canonical sewing-network members.
 
@@ -106,20 +135,29 @@ class SewingNetworkTaskPanel:
         Args:
             network: Network whose seam ranges and alignment will be edited.
         """
-        App, Gui, QtCore, QtWidgets = _modules()
-        self.App, self.Gui, self.QtCore = App, Gui, QtCore
+        App, Gui, _QtCore, QtWidgets = _modules()
+        self.App, self.Gui = App, Gui
         self.network = network
         self.form = QtWidgets.QWidget()
-        layout = QtWidgets.QVBoxLayout(self.form)
+        root = QtWidgets.QVBoxLayout(self.form)
+        title = QtWidgets.QLabel("Sewing network")
+        title.setProperty("clothRole", "title")
+        root.addWidget(title)
+        content = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(content)
         self.info = QtWidgets.QLabel(
-            "Relationship {} — edit normalized edge ranges (0..1). Ranges are local to each referenced edge.".format(
+            "Relationship {} — edit normalized edge ranges (0..1). "
+            "Ranges are local to each referenced edge.".format(
                 str(getattr(network, "RelationshipId", ""))
             )
         )
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
 
+        from freecad_cloth.common.UiDesign import configure_form_layout
+
         controls = QtWidgets.QFormLayout()
+        configure_form_layout(controls, QtWidgets)
         self.alignment = QtWidgets.QComboBox()
         self.alignment.addItems(["endpoints", "uniform"])
         alignments = {
@@ -156,44 +194,94 @@ class SewingNetworkTaskPanel:
         self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
         layout.addWidget(self.correspondence)
 
-        columns = (
-            "A piece",
-            "A edge",
-            "A start",
-            "A end",
-            "B piece",
-            "B edge",
-            "B start",
-            "B end",
-            "Direction",
-            "Status",
-        )
-        self.table = QtWidgets.QTableWidget(len(seam_values), len(columns))
-        self.table.setHorizontalHeaderLabels(columns)
-        self.table.setObjectName("ClothSewingNetworkRangeTable")
         self._seams = seam_values
-        for row, seam in enumerate(seam_values):
-            values = (
-                str(getattr(seam, "PieceA", "")),
-                str(getattr(seam, "EdgeA", "")),
+        self._range_values = [
+            (
                 float(getattr(seam, "StartA", 0.0)),
                 float(getattr(seam, "EndA", 1.0)),
-                str(getattr(seam, "PieceB", "")),
-                str(getattr(seam, "EdgeB", "")),
                 float(getattr(seam, "StartB", 0.0)),
                 float(getattr(seam, "EndB", 1.0)),
-                "reversed" if bool(getattr(seam, "ReversedB", False)) else "forward",
-                str(getattr(seam, "Status", getattr(network, "Status", ""))),
             )
-            for column, value in enumerate(values):
-                item = QtWidgets.QTableWidgetItem(str(value))
-                if column not in (2, 3, 6, 7):
-                    item.setFlags(item.flags() & ~QtCore.Qt.ItemIsEditable)
-                self.table.setItem(row, column, item)
-        layout.addWidget(self.table)
+            for seam in seam_values
+        ]
+        self._current_row = -1
+        self._loading_range = False
+
+        seam_group = QtWidgets.QGroupBox("Seams")
+        seam_layout = QtWidgets.QVBoxLayout(seam_group)
+        self.seam_filter = QtWidgets.QLineEdit()
+        self.seam_filter.setPlaceholderText("Filter this network by piece, edge or status…")
+        self.seam_filter.setClearButtonEnabled(True)
+        self.seam_filter.setToolTip(
+            "Narrow only the seams already contained in this network; no document-wide search."
+        )
+        seam_layout.addWidget(self.seam_filter)
+        self.seam_list = QtWidgets.QListWidget()
+        self.seam_list.setObjectName("ClothSewingNetworkSeamList")
+        self.seam_list.setMinimumHeight(90)
+        self.seam_list.setMaximumHeight(170)
+        self._seam_items = []
+        for seam in seam_values:
+            item = QtWidgets.QListWidgetItem(self._seam_caption(seam, network))
+            item.setToolTip(self._seam_search_text(seam, network))
+            self.seam_list.addItem(item)
+            self._seam_items.append(item)
+        seam_layout.addWidget(self.seam_list)
+        layout.addWidget(seam_group)
+
+        detail = QtWidgets.QGroupBox("Selected seam")
+        detail_layout = QtWidgets.QVBoxLayout(detail)
+        self.selected_seam_label = QtWidgets.QLabel("Select a seam to edit its ranges.")
+        self.selected_seam_label.setWordWrap(True)
+        detail_layout.addWidget(self.selected_seam_label)
+        range_form = QtWidgets.QFormLayout()
+        configure_form_layout(range_form, QtWidgets)
+        self.start_a, self.end_a, self.start_b, self.end_b = (
+            self._range_spin(QtWidgets) for _ in range(4)
+        )
+        self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
+        for label, field in (
+            ("Side A start (0-1)", self.start_a),
+            ("Side A end (0-1)", self.end_a),
+            ("Side B start (0-1)", self.start_b),
+            ("Side B end (0-1)", self.end_b),
+        ):
+            range_form.addRow(label, field)
+        detail_layout.addLayout(range_form)
+        layout.addWidget(detail)
+
+        self.focus_seam_button = QtWidgets.QPushButton("Focus seam in 3D")
+        self.focus_seam_button.setToolTip(
+            "Frame the selected seam and both participating pattern pieces in the viewport."
+        )
+        self.focus_seam_button.setEnabled(bool(seam_values))
+        self.focus_seam_button.clicked.connect(self._focus_selected_seam_in_viewport)
+
+        self.seam_filter.textChanged.connect(self._filter_seams)
+        self.seam_list.currentRowChanged.connect(self._select_seam_row)
+        for field in self._range_fields:
+            field.valueChanged.connect(self._selected_range_changed)
+        if seam_values:
+            self.seam_list.setCurrentRow(0)
+        else:
+            self._set_range_editor_enabled(False)
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.selected_seam_label,
+                "This network has no seam members.",
+                state="warning",
+            )
+
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
-        layout.addWidget(self.status)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area, mark_button
+
+        mark_button(self.focus_seam_button, "secondary")
+        root.addWidget(self.focus_seam_button)
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
+        root.addWidget(self.status)
 
         self._original = {
             "ranges": tuple(
@@ -255,6 +343,12 @@ class SewingNetworkTaskPanel:
 
     def _restore_original(self) -> None:
         """Restore the saved seam ranges, alignment, and correspondence direction."""
+        if hasattr(self, "_range_values"):
+            self._range_values = [tuple(values) for values in self._original["ranges"]]
+            current_row = getattr(self, "_current_row", -1)
+            if hasattr(self, "_range_fields") and 0 <= current_row < len(self._range_values):
+                self._current_row = -1
+                self._select_seam_row(current_row)
         for seam, ranges, alignment, reversed_b in zip(
             self._seams,
             self._original["ranges"],
@@ -266,22 +360,206 @@ class SewingNetworkTaskPanel:
             seam.Alignment = alignment
             seam.ReversedB = reversed_b
 
-    def _range(self, row: int, column: int) -> float:
-        """Parse and validate one normalized edge range from the table.
+    @staticmethod
+    def _range_spin(qt_widgets: ModuleType) -> _RangeEditor:
+        """Create one precise normalized edge-range editor.
 
         Args:
-            row: Table row containing the seam range.
-            column: Table column containing its numeric value.
+            qt_widgets: QtWidgets module providing QDoubleSpinBox.
+
+        Returns:
+            A native numeric editor constrained to the normalized edge interval.
+        """
+        field = qt_widgets.QDoubleSpinBox()
+        field.setRange(0.0, 1.0)
+        field.setDecimals(4)
+        field.setSingleStep(0.01)
+        return field
+
+    @staticmethod
+    def _seam_search_text(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+        """Build searchable text from both seam sides and validation state.
+
+        Args:
+            seam: Seam whose identity and edge references are displayed.
+            network: Parent network used as a status fallback.
+
+        Returns:
+            Case-folded search content for one seam-list entry.
+        """
+        return " ".join(
+            str(value)
+            for value in (
+                getattr(seam, "SeamId", ""),
+                getattr(seam, "PieceA", ""),
+                getattr(seam, "EdgeA", ""),
+                getattr(seam, "PieceB", ""),
+                getattr(seam, "EdgeB", ""),
+                getattr(seam, "Status", getattr(network, "Status", "")),
+            )
+        ).casefold()
+
+    @staticmethod
+    def _seam_caption(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
+        """Create a compact row caption identifying both connected edges.
+
+        Args:
+            seam: Seam whose two pattern-edge references are summarized.
+            network: Parent network used as a status fallback.
+
+        Returns:
+            One readable seam-list caption.
+        """
+        side_a = "{} / Edge {}".format(
+            str(getattr(seam, "PieceA", "—")), str(getattr(seam, "EdgeA", "—"))
+        )
+        side_b = "{} / Edge {}".format(
+            str(getattr(seam, "PieceB", "—")), str(getattr(seam, "EdgeB", "—"))
+        )
+        status = str(getattr(seam, "Status", getattr(network, "Status", "Unknown")))
+        return f"{side_a}  ↔  {side_b}  ·  {status}"
+
+    def _set_range_editor_enabled(self, enabled: bool) -> None:
+        """Enable or disable the selected-seam numeric editor as one unit.
+
+        Args:
+            enabled: Whether a visible seam row is currently selected.
+        """
+        for field in getattr(self, "_range_fields", ()):
+            field.setEnabled(bool(enabled))
+
+    def _store_selected_range(self) -> None:
+        """Copy the current four spin-box values into the staged seam record."""
+        row = int(getattr(self, "_current_row", -1))
+        ranges = getattr(self, "_range_values", ())
+        fields = getattr(self, "_range_fields", ())
+        if getattr(self, "_loading_range", False) or not 0 <= row < len(ranges) or len(fields) != 4:
+            return
+        self._range_values[row] = tuple(float(field.value()) for field in fields)
+
+    def _select_seam_row(self, row: int) -> None:
+        """Load a selected seam's staged range values into the detail editor.
+
+        Args:
+            row: Current zero-based seam-list row, or -1 when no row is selected.
+        """
+        self._store_selected_range()
+        self._current_row = int(row)
+        focus_button = getattr(self, "focus_seam_button", None)
+        if focus_button is not None:
+            focus_button.setEnabled(0 <= self._current_row < len(self._seams))
+        if not 0 <= self._current_row < len(self._seams):
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(
+                self.selected_seam_label,
+                "No seams match the current filter.",
+                state="warning",
+            )
+            self._set_range_editor_enabled(False)
+            return
+        seam = self._seams[self._current_row]
+        seam_status = str(getattr(seam, "Status", getattr(self.network, "Status", "Unknown")))
+        from freecad_cloth.common.UiDesign import set_status
+
+        set_status(
+            self.selected_seam_label,
+            "Seam {} — {}".format(
+                str(getattr(seam, "SeamId", self._current_row + 1)),
+                seam_status,
+            ),
+            state="success" if seam_status.lower() in {"valid", "ok"} else "error",
+        )
+        self._loading_range = True
+        for field, value in zip(
+            self._range_fields, self._range_values[self._current_row], strict=True
+        ):
+            field.setValue(float(value))
+        self._loading_range = False
+        self._set_range_editor_enabled(True)
+
+    def _focus_selected_seam_in_viewport(self) -> bool:
+        """Frame the selected relationship and its two pattern pieces in the 3D view.
+
+        Returns:
+            True when a selected seam was successfully focused in the active viewport.
+        """
+        row = int(getattr(self, "_current_row", -1))
+        if not 0 <= row < len(self._seams):
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, "Select a seam before focusing the 3D view.", state="warning")
+            return False
+        seam = self._seams[row]
+        try:
+            self.Gui.Selection.clearSelection()
+            self.Gui.Selection.addSelection(seam)
+            from freecad_cloth.sewing.SewingCommands import focus_selected_seam_3d
+
+            focus_selected_seam_3d()
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            from freecad_cloth.common.UiDesign import set_status
+
+            set_status(self.status, f"Could not focus the selected seam — {exc}.", state="error")
+            return False
+        from freecad_cloth.common.UiDesign import set_status
+
+        label = str(getattr(seam, "Label", getattr(seam, "SeamId", "seam")))
+        set_status(
+            self.status,
+            f"Focused {label} with both pattern pieces in the 3D view.",
+            state="info",
+        )
+        return True
+
+    def _selected_range_changed(self, _value: float) -> None:
+        """Update staged values when an active seam endpoint is edited."""
+        if not getattr(self, "_loading_range", False):
+            self._store_selected_range()
+
+    def _filter_seams(self, query: str) -> None:
+        """Filter seam rows by either piece, either edge, or status.
+
+        Args:
+            query: User-entered text used to filter the visible seam list.
+        """
+        needle = str(query).strip().casefold()
+        visible_rows = []
+        for row, item in enumerate(self._seam_items):
+            hidden = bool(needle) and needle not in self._seam_search_text(
+                self._seams[row], self.network
+            )
+            item.setHidden(hidden)
+            if not hidden:
+                visible_rows.append(row)
+        if self.seam_list.currentRow() not in visible_rows:
+            self.seam_list.setCurrentRow(visible_rows[0] if visible_rows else -1)
+
+    def _range(self, row: int, column: int) -> float:
+        """Parse and validate one normalized edge-range endpoint.
+
+        Args:
+            row: Seam index in the canonical network member sequence.
+            column: Legacy endpoint selector (2, 3, 6, or 7).
 
         Returns:
             Range endpoint constrained to the inclusive interval from zero to one.
 
         Raises:
-            ValueError: If the cell is not numeric or its value is out of range.
+            ValueError: If the endpoint is not numeric or is outside the valid range.
         """
+        column_index = {2: 0, 3: 1, 6: 2, 7: 3}.get(column)
+        if column_index is None:
+            msg = "unsupported seam range field"
+            raise ValueError(msg)
+        self._store_selected_range()
         try:
-            value = float(self.table.item(row, column).text())
-        except (TypeError, ValueError) as exc:
+            ranges = getattr(self, "_range_values", None)
+            if ranges is None:
+                value = float(self.table.item(row, column).text())
+            else:
+                value = float(ranges[row][column_index])
+        except (AttributeError, IndexError, TypeError, ValueError) as exc:
             msg = "range values must be numeric"
             raise ValueError(msg) from exc
         if not 0.0 <= value <= 1.0:

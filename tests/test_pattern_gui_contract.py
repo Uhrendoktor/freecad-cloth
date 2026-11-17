@@ -3,7 +3,7 @@
 
 from types import SimpleNamespace
 
-from freecad_cloth.pattern import PatternGui
+from freecad_cloth.pattern import PatternExportGui, PatternGui
 
 EXPECTED_RECOMPUTE_COUNT = 1
 EXPECTED_ORIGINAL_WIDTH_MM = 100.0
@@ -114,19 +114,213 @@ def test_sketch_edit_uses_the_linked_native_sketch() -> None:
     assert calls == ["AuthoritativeSketch"], "Sketch edit must target the linked native sketch."
 
 
-def test_sketch_authoritative_mode_disables_parameter_geometry_controls() -> None:
-    """Keep dimensions non-editable when the native sketch owns the boundary."""
+def test_sketch_authoritative_mode_displays_read_only_sketch_dimensions() -> None:
+    """Label dimensions as Sketch-derived and keep them visible but non-editable."""
     width_states: list[bool] = []
     height_states: list[bool] = []
+    visible_states: list[bool] = []
+    width_tooltips: list[str] = []
+    height_tooltips: list[str] = []
+    width_label: list[str] = []
+    height_label: list[str] = []
     panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
     panel._sketch_authoritative = True
-    panel.width = SimpleNamespace(setEnabled=width_states.append)
-    panel.height = SimpleNamespace(setEnabled=height_states.append)
+    panel.width = SimpleNamespace(
+        setEnabled=width_states.append,
+        setVisible=visible_states.append,
+        setToolTip=width_tooltips.append,
+    )
+    panel.height = SimpleNamespace(
+        setEnabled=height_states.append,
+        setVisible=visible_states.append,
+        setToolTip=height_tooltips.append,
+    )
+    panel._width_label = SimpleNamespace(
+        setText=width_label.append,
+        setVisible=visible_states.append,
+    )
+    panel._height_label = SimpleNamespace(
+        setText=height_label.append,
+        setVisible=visible_states.append,
+    )
 
     panel._mode_changed("Rectangle")
 
     assert width_states == [False], "Sketch authority must disable the width field."
     assert height_states == [False], "Sketch authority must disable the height field."
+    assert width_label == ["Width (from Sketch)"]
+    assert height_label == ["Height (from Sketch)"]
+    assert visible_states == [True, True, True, True]
+    assert "linked native Sketch" in width_tooltips[0]
+    assert "linked native Sketch" in height_tooltips[0]
+
+
+def test_pattern_piece_displays_custom_outline_dimensions_as_read_only() -> None:
+    """Keep bounding dimensions visible but non-editable for a custom outline."""
+    width_enabled: list[bool] = []
+    height_enabled: list[bool] = []
+    width_visible: list[bool] = []
+    height_visible: list[bool] = []
+    width_label_text: list[str] = []
+    height_label_text: list[str] = []
+    width_label_visible: list[bool] = []
+    height_label_visible: list[bool] = []
+    width_tooltips: list[str] = []
+    height_tooltips: list[str] = []
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel._sketch_authoritative = False
+    panel.width = SimpleNamespace(
+        setEnabled=width_enabled.append,
+        setVisible=width_visible.append,
+        setToolTip=width_tooltips.append,
+    )
+    panel.height = SimpleNamespace(
+        setEnabled=height_enabled.append,
+        setVisible=height_visible.append,
+        setToolTip=height_tooltips.append,
+    )
+    panel._width_label = SimpleNamespace(
+        setText=width_label_text.append,
+        setVisible=width_label_visible.append,
+    )
+    panel._height_label = SimpleNamespace(
+        setText=height_label_text.append,
+        setVisible=height_label_visible.append,
+    )
+
+    panel._mode_changed("Rectangle")
+    assert width_enabled[-1] is True and height_enabled[-1] is True
+    assert width_visible[-1] is True and height_visible[-1] is True
+    assert width_label_text[-1] == "Width" and height_label_text[-1] == "Height"
+
+    panel._mode_changed("Custom")
+    assert width_enabled[-1] is False and height_enabled[-1] is False
+    assert width_visible[-1] is True and height_visible[-1] is True
+    assert width_label_visible[-1] is True and height_label_visible[-1] is True
+    assert width_label_text[-1] == "Width (from outline)"
+    assert height_label_text[-1] == "Height (from outline)"
+    assert "derived from the custom drafting outline" in width_tooltips[-1]
+    assert "derived from the custom drafting outline" in height_tooltips[-1]
+
+
+def _pattern_piece_viewport_fixture(
+    piece: SimpleNamespace,
+) -> tuple[
+    PatternGui.PatternPieceTaskPanel,
+    list[tuple[str | SimpleNamespace | bool, ...]],
+    SimpleNamespace,
+    SimpleNamespace,
+]:
+    calls: list[tuple[str | SimpleNamespace | bool, ...]] = []
+    view = SimpleNamespace(
+        viewTop=lambda: calls.append(("top",)),
+        fitAll=lambda: calls.append(("fit",)),
+    )
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+    return panel, calls, view, selection
+
+
+def test_pattern_piece_focus_action_selects_and_frames_only_on_request() -> None:
+    """Keep viewport camera changes behind the explicit task-panel action."""
+    piece = SimpleNamespace(Name="FrontPiece", Label="Front")
+    panel, calls, _, _ = _pattern_piece_viewport_fixture(piece)
+    panel.obj = piece
+
+    assert panel._focus_piece() is True
+
+    assert calls == [("clear",), ("select", piece), ("top",), ("fit",)]
+
+
+def test_new_pattern_piece_is_framed_once_after_creation() -> None:
+    """Keep initial viewport discovery for newly created pieces behind the OK action."""
+    from unittest.mock import patch
+
+    piece = SimpleNamespace(Label="PatternPiece")
+    panel, calls, view, selection = _pattern_piece_viewport_fixture(piece)
+    panel.obj = None
+    panel._sketch_authoritative = False
+    panel.name = SimpleNamespace(text=lambda: "New front")
+    panel.mode = SimpleNamespace(currentText=lambda: "Rectangle")
+    panel.width = SimpleNamespace(value=lambda: 140.0)
+    panel.height = SimpleNamespace(value=lambda: 85.0)
+    panel.allowance = SimpleNamespace(value=lambda: 4.0)
+    panel.grain = SimpleNamespace(value=lambda: 12.0)
+    panel.App = _App()
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+    panel.focus_piece = SimpleNamespace(setEnabled=lambda value: calls.append(("enabled", value)))
+
+    with patch(
+        "freecad_cloth.pattern.PatternCommands.create_pattern_piece_from_parameters",
+        return_value=piece,
+    ) as create:
+        panel._apply()
+
+    create.assert_called_once_with("New front", 140.0, 85.0, 4.0, 12.0)
+    assert piece.Label == "New front"
+    assert calls == [
+        ("enabled", True),
+        ("clear",),
+        ("select", piece),
+        ("top",),
+        ("fit",),
+    ]
+
+
+def test_pattern_piece_apply_does_not_change_viewport_camera() -> None:
+    """Applying piece properties must not silently change the current camera."""
+    piece = SimpleNamespace(
+        Label="Front",
+        GeometryMode="Rectangle",
+        Width=100.0,
+        Height=60.0,
+        SeamAllowance=4.0,
+        GrainlineAngle=15.0,
+    )
+    focus_enabled: list[bool] = []
+    viewport_calls: list[str] = []
+    panel = PatternGui.PatternPieceTaskPanel.__new__(PatternGui.PatternPieceTaskPanel)
+    panel.obj = piece
+    panel._sketch_authoritative = False
+    panel.name = SimpleNamespace(text=lambda: "Front edited")
+    panel.mode = SimpleNamespace(currentText=lambda: "Rectangle")
+    panel.width = SimpleNamespace(value=lambda: 120.0)
+    panel.height = SimpleNamespace(value=lambda: 70.0)
+    panel.allowance = SimpleNamespace(value=lambda: 5.0)
+    panel.grain = SimpleNamespace(value=lambda: 20.0)
+    panel.App = _App()
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(
+            activeView=lambda: SimpleNamespace(
+                viewTop=lambda: viewport_calls.append("top"),
+                fitAll=lambda: viewport_calls.append("fit"),
+            )
+        )
+    )
+    panel.focus_piece = SimpleNamespace(setEnabled=focus_enabled.append)
+
+    panel._apply()
+
+    assert piece.Label == "Front edited"
+    assert (piece.Width, piece.Height, piece.SeamAllowance, piece.GrainlineAngle) == (
+        120.0,
+        70.0,
+        5.0,
+        20.0,
+    )
+    assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+    assert focus_enabled == [True]
+    assert viewport_calls == [], "Property application must leave the current camera unchanged."
 
 
 def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
@@ -163,3 +357,24 @@ def test_reject_restores_properties_without_replacing_sketch_identity() -> None:
     assert obj.SeamAllowance == EXPECTED_ORIGINAL_ALLOWANCE_MM
     assert obj.GrainlineAngle == EXPECTED_ORIGINAL_GRAINLINE_ANGLE_DEG
     assert panel.App.ActiveDocument.recompute_count == EXPECTED_RECOMPUTE_COUNT
+
+
+def test_pattern_export_focus_action_selects_and_frames_source_without_changing_camera() -> None:
+    """Expose a source-focus action while preserving the current viewport orientation."""
+    piece = SimpleNamespace(Name="FrontPiece")
+    calls: list[tuple[str | SimpleNamespace | bool, ...]] = []
+    view = SimpleNamespace(fitAll=lambda: calls.append(("fit",)))
+    selection = SimpleNamespace(
+        clearSelection=lambda: calls.append(("clear",)),
+        addSelection=lambda obj: calls.append(("select", obj)),
+    )
+    panel = PatternExportGui.PatternExportTaskPanel.__new__(PatternExportGui.PatternExportTaskPanel)
+    panel.piece = piece
+    panel.App = SimpleNamespace(ActiveDocument=object())
+    panel.Gui = SimpleNamespace(
+        activeDocument=lambda: SimpleNamespace(activeView=lambda: view),
+        Selection=selection,
+    )
+
+    assert panel.focus_source_in_3d() is True
+    assert calls == [("clear",), ("select", piece), ("fit",)]

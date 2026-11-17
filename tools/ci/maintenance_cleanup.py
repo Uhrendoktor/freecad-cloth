@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
+type ApiJsonObject = dict[str, ApiJsonValue]
+
 import argparse
 import hashlib
 import http.client
@@ -18,9 +21,6 @@ from urllib.parse import quote
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
-
-type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
-type ApiJsonObject = dict[str, ApiJsonValue]
 
 PAGE_SIZE = 100
 HTTP_SUCCESS_MIN = 200

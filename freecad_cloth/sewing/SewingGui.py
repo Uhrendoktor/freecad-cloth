@@ -145,7 +145,10 @@ def repair_correspondence_settings(
         seam.StartB, seam.EndB = 0.0, 1.0
         return "invalid ranges reset to full seam edges"
     if report.status == "length_mismatch":
-        msg = "length mismatch requires editing the pattern or seam ranges; it was not hidden by changing tolerance"
+        msg = (
+            "length mismatch requires editing the pattern or seam ranges; "
+            "it was not hidden by changing tolerance"
+        )
         raise ValueError(msg)
     return "seam correspondence is already valid"
 
@@ -162,7 +165,10 @@ class SewingTaskPanel:
         self.seam = getattr(obj, "Seam", None)
         self._transaction_active = False
         self.form = QtWidgets.QWidget()
-        layout = QtWidgets.QFormLayout(self.form)
+        self.form.setObjectName("ClothSewingOperationTaskPanel")
+        root = QtWidgets.QVBoxLayout(self.form)
+        content = QtWidgets.QWidget()
+        layout = QtWidgets.QFormLayout(content)
         seam_id = str(getattr(self.seam, "SeamId", "")) if self.seam else ""
         piece_a = getattr(self.seam, "PieceA", None) if self.seam else None
         piece_b = getattr(self.seam, "PieceB", None) if self.seam else None
@@ -203,17 +209,14 @@ class SewingTaskPanel:
         layout.addRow("Stitch samples", self.stitches)
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
+        self.action_feedback = QtWidgets.QLabel()
+        self.action_feedback.setWordWrap(True)
         self.lengths = QtWidgets.QLabel()
         self.lengths.setWordWrap(True)
         self.correspondence = QtWidgets.QLabel()
         self.correspondence.setWordWrap(True)
-        layout.addRow("Status", self.status)
         layout.addRow("Seam lengths", self.lengths)
         layout.addRow("Correspondence", self.correspondence)
-        self.reverse_button = QtWidgets.QPushButton("Reverse B")
-        self.reverse_button.setToolTip("Toggle the direction of seam B correspondence")
-        self.reverse_button.clicked.connect(self.reverse_b)
-        layout.addRow("Orientation", self.reverse_button)
         self.reset_ranges_button = QtWidgets.QPushButton("Reset ranges")
         self.reset_ranges_button.setToolTip(
             "Reset both seam ranges to the complete referenced edges"
@@ -238,6 +241,18 @@ class SewingTaskPanel:
         self.edit_b_button = QtWidgets.QPushButton("Edit side B in Sketcher")
         self.edit_b_button.clicked.connect(lambda: self.edit_sketch_side("B"))
         layout.addRow("Sketcher B", self.edit_b_button)
+
+        from freecad_cloth.common.UiDesign import (
+            apply_panel_style,
+            configure_form_layout,
+            make_scroll_area,
+            set_status,
+        )
+
+        configure_form_layout(layout, QtWidgets)
+        root.addWidget(self.status)
+        root.addWidget(self.action_feedback)
+        root.addWidget(make_scroll_area(content, QtWidgets), 1)
         self._original = {
             "Tolerance": float(obj.Tolerance),
             "RelativeTolerance": float(getattr(obj, "RelativeTolerance", 0.05)),
@@ -253,8 +268,6 @@ class SewingTaskPanel:
         }
         self._begin_transaction()
         self._refresh()
-
-        from freecad_cloth.common.UiDesign import apply_panel_style, set_status
 
         set_status(self.seam_info, self.seam_info.text(), state="info")
         apply_panel_style(self.form)
@@ -296,7 +309,7 @@ class SewingTaskPanel:
         self._transaction_active = False
         return False
 
-    def _refresh(self):
+    def _refresh(self, message: str | None = None) -> None:
         from freecad_cloth.common.UiDesign import set_status
 
         current_status = str(self.obj.Status)
@@ -306,7 +319,8 @@ class SewingTaskPanel:
             state="success" if current_status.lower() == "valid" else "error",
         )
         self.lengths.setText(
-            f"{float(self.obj.LengthA):.2f} / {float(self.obj.LengthB):.2f} mm (Δ {float(self.obj.LengthDifference):.2f})"
+            f"{float(self.obj.LengthA):.2f} / {float(self.obj.LengthB):.2f} mm "
+            f"(Δ {float(self.obj.LengthDifference):.2f})"
         )
         report = correspondence_report(
             self.seam,
@@ -316,6 +330,8 @@ class SewingTaskPanel:
         )
         if report is None:
             set_status(self.correspondence, "No seam correspondence", state="warning")
+            if message:
+                set_status(self.action_feedback, message, state="info")
             return
         set_status(
             self.correspondence,
@@ -324,9 +340,6 @@ class SewingTaskPanel:
                 f"ratio {report.length_ratio:.4f}); recovery: {report.recovery}"
             ),
             state="success" if str(report.status).lower() in {"valid", "ok"} else "error",
-        )
-        self.reverse_button.setText(
-            "Unreverse B" if bool(getattr(self.seam, "ReversedB", False)) else "Reverse B"
         )
         self.reset_ranges_button.setEnabled(
             any(
@@ -339,6 +352,8 @@ class SewingTaskPanel:
                 )
             )
         )
+        if message:
+            set_status(self.action_feedback, message, state="info")
 
     def focus_3d(self):
         if self.seam is None:

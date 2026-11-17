@@ -175,6 +175,74 @@ class _VisibilityWidget(Protocol):
         ...
 
 
+class _FormLayout(Protocol):
+    """Minimal responsive QFormLayout configuration surface."""
+
+    def setRowWrapPolicy(self, _policy: int) -> None:
+        """Set how a form row wraps when horizontal space is limited.
+
+        Args:
+            _policy: Qt row-wrap policy selected by the host.
+        """
+        ...
+
+    def setFieldGrowthPolicy(self, _policy: int) -> None:
+        """Set how form fields consume available horizontal space.
+
+        Args:
+            _policy: Qt field-growth policy selected by the host.
+        """
+        ...
+
+
+class _ScrollContentLayout(Protocol):
+    """Layout sizing capability required by dynamic scroll-area content."""
+
+    def setSizeConstraint(self, _constraint: int) -> None:
+        """Update the hosted widget's size bounds when child visibility changes.
+
+        Args:
+            _constraint: Qt layout size constraint selected by the host.
+        """
+        ...
+
+
+class _ScrollContentWidget(_VisibilityWidget, Protocol):
+    """Widget whose layout controls the scroll area's content extent."""
+
+    def layout(self) -> _ScrollContentLayout | None:
+        """Return the content layout whose extent must follow disclosure state."""
+        ...
+
+
+class _ScrollArea(Protocol):
+    """Minimal native Qt scroll area used for long task-panel content."""
+
+    def setWidgetResizable(self, _enabled: bool) -> None:
+        """Allow the content widget to track the available viewport size.
+
+        Args:
+            _enabled: Whether the scroll area resizes its content widget.
+        """
+        ...
+
+    def setWidget(self, _widget: _ScrollContentWidget) -> None:
+        """Install the content widget hosted by the scroll area.
+
+        Args:
+            _widget: Widget whose size and visibility are managed by Qt.
+        """
+        ...
+
+    def setObjectName(self, _name: str) -> None:
+        """Assign a stable object name for inspection and tests.
+
+        Args:
+            _name: Object name assigned to the scroll area.
+        """
+        ...
+
+
 PANEL_STYLE = r"""
 QGroupBox {
     font-weight: 600;
@@ -264,6 +332,45 @@ def _refresh_widget_style(widget: _StyledWidget) -> None:
     widget.update()
 
 
+def configure_form_layout(layout: _FormLayout, qt_widgets: ModuleType) -> None:
+    """Make form labels and fields adapt to compact task-panel widths.
+
+    Long labels wrap above their fields when necessary, and fields expand to
+    the available width rather than retaining a cramped fixed-width column.
+
+    Args:
+        layout: QFormLayout whose row and field sizing behavior is updated.
+        qt_widgets: QtWidgets module providing the host's QFormLayout enums.
+    """
+    layout.setRowWrapPolicy(qt_widgets.QFormLayout.WrapLongRows)
+    layout.setFieldGrowthPolicy(qt_widgets.QFormLayout.AllNonFixedFieldsGrow)
+
+
+def make_scroll_area(content: _ScrollContentWidget, qt_widgets: ModuleType) -> _ScrollArea:
+    """Wrap long task-panel content in a resize-aware native Qt scroll area.
+
+    The hosted layout uses SetMinAndMaxSize so expanding or collapsing child
+    disclosures updates the scroll extent while the task panel remains open.
+    The scroll area stays inside FreeCAD's current task-panel widget; it does
+    not create a top-level window or alter the host's dock arrangement.
+
+    Args:
+        content: Content widget to host inside the scroll area.
+        qt_widgets: QtWidgets module providing QScrollArea and QLayout.
+
+    Returns:
+        Native scroll area containing the supplied content widget.
+    """
+    content_layout = content.layout()
+    if content_layout is not None:
+        content_layout.setSizeConstraint(qt_widgets.QLayout.SetMinAndMaxSize)
+    scroll = cast("_ScrollArea", qt_widgets.QScrollArea())
+    scroll.setWidgetResizable(True)
+    scroll.setWidget(content)
+    scroll.setObjectName("ClothTaskPanelScrollArea")
+    return scroll
+
+
 def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None = None) -> None:
     """Apply restrained palette-aware styling to one panel and normalize spacing.
 
@@ -277,21 +384,35 @@ def apply_panel_style(panel: _Panel | None, *, layout_type: type[object] | None 
     if panel is None:
         return
     panel.setStyleSheet(PANEL_STYLE)
+    qt_widgets = None
+    if layout_type is None:
+        if TYPE_CHECKING:
+            qt_widgets = _QT_TYPE_QtWidgets
+        else:
+            try:
+                from PySide import QtWidgets as qt_widgets
+            except ImportError:
+                from PySide2 import QtWidgets as qt_widgets
+        layout_type = cast("type[object]", qt_widgets.QLayout)
+    form_layout_type = getattr(qt_widgets, "QFormLayout", None)
     layout = panel.layout()
     if layout is not None:
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
-    if layout_type is None:
-        if TYPE_CHECKING:
-            QtWidgets = _QT_TYPE_QtWidgets
-        else:
-            try:
-                from PySide import QtWidgets
-            except ImportError:
-                from PySide2 import QtWidgets
-        layout_type = cast("type[object]", QtWidgets.QLayout)
+        if (
+            form_layout_type is not None
+            and qt_widgets is not None
+            and isinstance(layout, form_layout_type)
+        ):
+            configure_form_layout(cast("_FormLayout", layout), qt_widgets)
     for nested_layout in panel.findChildren(layout_type):
         nested_layout.setSpacing(6)
+        if (
+            form_layout_type is not None
+            and qt_widgets is not None
+            and isinstance(nested_layout, form_layout_type)
+        ):
+            configure_form_layout(cast("_FormLayout", nested_layout), qt_widgets)
 
 
 def mark_button(button: _StyledWidget | None, emphasis: str = "secondary") -> None:

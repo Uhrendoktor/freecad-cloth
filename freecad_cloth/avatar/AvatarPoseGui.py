@@ -311,9 +311,7 @@ class SkeletonPoseController:
             str(getattr(self.panel.avatar, "AvatarProviderId", "makehuman-hm08"))
             != "makehuman-hm08"
         ):
-            self.panel.status.setText(
-                "Pose Mode is available for the MakeHuman HM08 avatar provider."
-            )
+            self.panel._set_status("Pose Mode is available for the MakeHuman HM08 avatar provider.")
             return
 
         self.view = self.Gui.activeDocument().activeView()
@@ -345,7 +343,7 @@ class SkeletonPoseController:
             bone = str(getattr(self.panel, "skeleton_joint_index", ""))
             if bone:
                 self.select_joint(bone)
-            self.panel.status.setText(
+            self.panel._set_status(
                 "Pose Mode: viewport posing is unavailable in this FreeCAD build; "
                 "use Joint list and Exact angles."
             )
@@ -371,7 +369,7 @@ class SkeletonPoseController:
             if "No SWIG wrapped library loaded" not in str(exc):
                 raise
             self.mouse_callback = None
-            self.panel.status.setText(
+            self.panel._set_status(
                 "Pose Mode: bone clicking is unavailable in this FreeCAD/SWIG build; "
                 "use Joint list to select a joint, then Exact angles to edit rotation."
             )
@@ -391,7 +389,7 @@ class SkeletonPoseController:
             bone = str(getattr(self.panel, "skeleton_joint_index", "") or "")
         if bone:
             self.select_joint(bone)
-        self.panel.status.setText("Click a bone to select · drag a rotation ring to pose.")
+        self.panel._set_status("Click a bone to select · drag a rotation ring to pose.")
 
     def _clear_fallback_gizmo(self):
         """Remove any FreeCAD object used for the fallback gizmo."""
@@ -882,7 +880,7 @@ class SkeletonPoseController:
             dragger.rotationIncrement.setValue(
                 math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
             )
-        self.panel.status.setText(
+        self.panel._set_status(
             f"Rotating {self.panel._joint_label(bone)} — "
             "release to keep the staged pose; Cancel restores it."
         )
@@ -949,7 +947,7 @@ class SkeletonPoseController:
         self.base_rotation = None
         self._active_gizmo_axis = None
         if self.selected_bone:
-            self.panel.status.setText(
+            self.panel._set_status(
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
             )
@@ -1169,6 +1167,10 @@ class AvatarPoseTaskPanel:
         tool_row.addStretch(1)
         root.addLayout(tool_row)
 
+        scroll_content = QtWidgets.QWidget()
+        scroll_layout = QtWidgets.QVBoxLayout(scroll_content)
+        scroll_layout.setContentsMargins(0, 0, 0, 0)
+
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
         self.selected_label = QtWidgets.QLabel("Select a bone in the 3D view.")
@@ -1215,7 +1217,7 @@ class AvatarPoseTaskPanel:
         self.precision_widget = precision_widget
         self.precision_widget.setVisible(False)
         self.precision.toggled.connect(self._toggle_precision)
-        root.addWidget(selected)
+        scroll_layout.addWidget(selected)
 
         joint_toggle_row = QtWidgets.QHBoxLayout()
         self.joint_list_toggle = QtWidgets.QToolButton()
@@ -1226,7 +1228,7 @@ class AvatarPoseTaskPanel:
         self.joint_list_toggle.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         joint_toggle_row.addWidget(self.joint_list_toggle)
         joint_toggle_row.addStretch(1)
-        root.addLayout(joint_toggle_row)
+        scroll_layout.addLayout(joint_toggle_row)
 
         joint_list_widget = QtWidgets.QWidget()
         joint_list_layout = QtWidgets.QVBoxLayout(joint_list_widget)
@@ -1237,7 +1239,11 @@ class AvatarPoseTaskPanel:
         self.joints.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
         self._populate_joints()
         joint_list_layout.addWidget(self.joints)
-        root.addWidget(joint_list_widget)
+        scroll_layout.addWidget(joint_list_widget)
+
+        from freecad_cloth.common.UiDesign import make_scroll_area
+
+        root.addWidget(make_scroll_area(scroll_content, QtWidgets), 1)
         self.joint_list_widget = joint_list_widget
         self.joint_list_widget.setVisible(False)
         self.joint_list_toggle.toggled.connect(self._toggle_joint_list)
@@ -1340,10 +1346,33 @@ class AvatarPoseTaskPanel:
                 top.addChild(child)
             top.setExpanded(False)
 
+    def _set_status(self, message: str, *, state: str | None = None) -> None:
+        """Update pose feedback with the shared palette-aware status treatment.
+
+        Args:
+            message: User-facing pose, preview, or recovery message.
+            state: Optional information, warning, error, or success state. When omitted,
+                a conservative semantic state is inferred from the message.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        text = str(message)
+        if state is None:
+            lowered = text.casefold()
+            if "preview unavailable" in lowered:
+                state = "error"
+            elif "unavailable" in lowered or "create a cloth human mannequin" in lowered:
+                state = "warning"
+            elif " posed." in lowered or "pose reset" in lowered:
+                state = "success"
+            else:
+                state = "info"
+        set_status(self.status, text, state=state)
+
     def _load(self):
         """Load the current pose preset and rotations into the panel."""
         if self.avatar is None:
-            self.status.setText("Create a Cloth Human Mannequin first.")
+            self._set_status("Create a Cloth Human Mannequin first.")
             return
         from freecad_cloth.avatar.SkeletonPose import (
             joint_rotation_map,
@@ -1488,7 +1517,7 @@ class AvatarPoseTaskPanel:
         self._select_joint_without_preview(str(bone))
         if preview:
             self._preview_rebuild()
-        self.status.setText(
+        self._set_status(
             f"{self._joint_label(bone)} staged at X {rotation.x:.0f}° "
             f"Y {rotation.y:.0f}° Z {rotation.z:.0f}°."
         )
@@ -1590,7 +1619,7 @@ class AvatarPoseTaskPanel:
         }
         self._preview_rebuild()
         self._select_first_joint()
-        self.status.setText(
+        self._set_status(
             f"{preset.title()} preset staged. Manual joint edits will start from this baseline."
         )
 
@@ -1633,7 +1662,7 @@ class AvatarPoseTaskPanel:
                 )
             )
         except (AttributeError, RuntimeError, TypeError, ValueError):
-            self.status.setText("Preview unavailable; the staged values remain editable.")
+            self._set_status("Preview unavailable; the staged values remain editable.")
 
     def _reset_pose(self):
         """Reset all staged joint rotations to the selected neutral preset."""
@@ -1656,7 +1685,7 @@ class AvatarPoseTaskPanel:
         }
         self._preview_rebuild()
         self._select_first_joint()
-        self.status.setText("Pose reset to the selected preset baseline.")
+        self._set_status("Pose reset to the selected preset baseline.")
 
     def _toggle_precision(self, expanded):
         """Expand or collapse the precision controls without changing pose data.

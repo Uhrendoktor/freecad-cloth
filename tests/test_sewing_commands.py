@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Headless regression coverage for the Sewing workbench command layer."""
 
+import sys
 from collections.abc import Callable
 from types import SimpleNamespace
 
@@ -338,3 +339,18 @@ def test_edit_selected_seam_side_selects_authoritative_sketch_before_editing() -
         ("clear",),
         ("add", sketch, "Edge3"),
     ], "selection transitions from the piece to its authoritative sketch edge"
+
+
+def test_seam_overlay_options_command_uses_the_native_task_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Route seam preferences through FreeCAD's current task-panel host."""
+    expected_panel = object()
+    task_panel_module = SimpleNamespace(show_seam_overlay_options_task=lambda: expected_panel)
+    monkeypatch.setitem(
+        sys.modules,
+        "freecad_cloth.sewing.SeamOverlayOptionsGui",
+        task_panel_module,
+    )
+
+    assert sewing_commands.show_seam_overlay_options() is expected_panel
