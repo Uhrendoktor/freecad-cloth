@@ -60,17 +60,10 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     Seams: Sequence[_SeamFeature]
 
 
-class _SeamReferenceStatus(Protocol):
-    """Seam identity and status required to check network references."""
-
-    Status: str
-    SeamId: str
-
-
 class _NetworkReferenceCollection(Protocol):
     """Ordered seam collection required by reference-status validators."""
 
-    Seams: Sequence[_SeamReferenceStatus]
+    Seams: Sequence[object]
 
 
 class _RangeEditor(Protocol):

@@ -192,10 +192,7 @@ def _validate_frame_scheduler_fields(
     if scheduler.get("mode") != "threaded-feedback-phase-locked":
         errors.append("frame_scheduler.mode must be threaded-feedback-phase-locked")
     target_fps = _number(scheduler.get("target_fps"))
-    if (
-        target_fps is None
-        or abs(target_fps - TARGET_FPS) > FRAME_SCHEDULER_TOLERANCE
-    ):
+    if target_fps is None or abs(target_fps - TARGET_FPS) > FRAME_SCHEDULER_TOLERANCE:
         errors.append(f"frame_scheduler.target_fps must equal {TARGET_FPS:g}")
     initial_delay = _number(scheduler.get("initial_queue_delay_ms"))
     if (
