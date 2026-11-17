@@ -183,25 +183,25 @@ jobs:
 
           replace_once("from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Protocol")
           replace_once(
-              "if TYPE_CHECKING:\\n    from types import ModuleType\\n\\n    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n",
-              "if TYPE_CHECKING:\\n"
-              "    from types import ModuleType\\n\\n"
-              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
-              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n",
+              "if TYPE_CHECKING:\n    from types import ModuleType\n\n    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n",
+              "if TYPE_CHECKING:\n"
+              "    from types import ModuleType\n\n"
+              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n",
           )
           insert_after = (
-              "if TYPE_CHECKING:\\n"
-              "    from types import ModuleType\\n\\n"
-              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
-              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n"
+              "if TYPE_CHECKING:\n"
+              "    from types import ModuleType\n\n"
+              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
           )
           protocol = (
-              "\\n\\nclass _ComboBoxProtocol(Protocol):\\n"
-              "    def addItem(self, text: str, userData: object = None) -> None: ...\\n\\n"
-              "    def currentData(self) -> object: ...\\n\\n"
-              "    def findData(self, value: object) -> int: ...\\n\\n"
-              "    def setCurrentIndex(self, index: int) -> None: ...\\n\\n"
-              "    def count(self) -> int: ...\\n"
+              "\n\nclass _ComboBoxProtocol(Protocol):\n"
+              "    def addItem(self, text: str, userData: object = None) -> None: ...\n\n"
+              "    def currentData(self) -> object: ...\n\n"
+              "    def findData(self, value: object) -> int: ...\n\n"
+              "    def setCurrentIndex(self, index: int) -> None: ...\n\n"
+              "    def count(self) -> int: ...\n"
           )
           if text.count(insert_after) != 1:
               raise SystemExit("could not locate the TYPE_CHECKING import block")
@@ -213,8 +213,8 @@ jobs:
           )
           replace_once("    def accept(self):", "    def accept(self) -> bool:")
           replace_once(
-              "        repairs = [\\n            (seam, side, combo.currentData())",
-              "        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [\\n"
+              "        repairs = [\n            (seam, side, combo.currentData())",
+              "        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [\n"
               "            (seam, side, str(combo.currentData()))",
           )
           replace_once("    def reject(self):", "    def reject(self) -> bool:")
