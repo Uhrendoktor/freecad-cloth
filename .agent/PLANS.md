@@ -1,75 +1,42 @@
 # Reuse one OpenMP team in native PBD constraint projection
 
-## Objective
+## Goal
 
-Benchmark an opt-in pyPBD implementation that reuses one OpenMP team across ordered position-constraint groups and solver iterations. Preserve the pinned solver identity, grouping, threshold, group ordering, per-group synchronization, all production settings, and all physical/visual acceptance gates. Keep the normal installed pyPBD wheel and production runtime path unchanged.
+Measure whether a single persistent OpenMP team reduces the overhead of native pyPBD position-constraint projection without changing solver ordering, physical behavior, or the default production runtime.
 
-## Baseline evidence
+## Design constraints
 
-- Parent/profile head: `e7ba923369ee65f633e9fda0097a27708eb4d7c3`.
-- Exact baseline run: [#44116135559](https://github.com/uhrendoktor/freecad-cloth/actions/runs/44116135559), all required jobs passed.
-- Production profile: 9,624 constraints across 30 groups; 26 groups exceed the strict upstream threshold of 64.
-- Native position projection: 11,172.993 ms of 12,370.300 ms native step time, across 5,760 projection samples.
-- Canonical workload: 8 position iterations × 16 native substeps × 360 backend steps, or 1,382,400 ordered group visits.
-- Pinned upstream source: PositionBasedDynamics `10a70bc146a97873dc3c8fef372f5217e010542e`.
+- Pin PositionBasedDynamics to `10a70bc146a97873dc3c8fef372f5217e010542e`.
+- Keep the installed `pyPBD==2.2.2` wheel as the normal runtime; the source-built experiment extension is isolated under `/opt/pypbd-openmp-experiment`.
+- Keep the experiment opt-in through `CLOTH_PBD_OPENMP_TEAM_REUSE=1`; mode 0 retains the upstream per-group implementation.
+- Preserve conflict-free group order, the strict `groupSize > 64` parallel threshold, static scheduling for eligible groups, synchronization between groups and iterations, and serial particle-solid contact solving.
+- Do not change solver defaults, thread count, timestep, substeps, collision configuration, constraints, geometry, or physical/visual acceptance gates.
 
-## Architecture
+## Implementation
 
-- The existing PyPI `pyPBD==2.2.2` wheel remains installed and is the default module for the normal runtime.
-- A second, isolated Python extension is built from the pinned upstream source in the validation image. The experiment selects either upstream per-group regions (mode 0) or persistent team reuse (mode 1) explicitly.
-- The candidate keeps static worksharing for groups strictly larger than 64, serial master-thread execution for smaller groups, and a barrier between every group and solver iteration. Particle-solid contact solving remains serial on the master thread.
-- The paired baseline and candidate production audits run on the same runner, source-built binary, image, production fixture and settings. Preview measurements remain separate.
+- The pinned patch adds a Python-only native build option and the opt-in persistent-team projection path.
+- The validation image builds the extension separately, records source/patch/binary provenance, and includes both the Dockerfile and experiment patch in its immutable image identity.
+- The production audit wrapper loads the extension by absolute path and rejects an accidental import of the installed wheel.
+- Four matched production runs (baseline, candidate, baseline, candidate) write profiles; a fail-closed comparator checks completion, all seven gates, identical runtime/build context and production settings, at least 5% median projection improvement, and no production wall-time regression.
+- The experiment and comparator have focused regression tests. The normal realtime preview remains a separate diagnostic.
 
-## Scope and non-goals
+## Measured result
 
-- Pinned upstream patch under `docker/freecad-ci/patches/`.
-- Isolated source build in the existing PBD validation image, exact-mode production audit, fail-closed comparator, and focused regression tests.
-- No change to the installed wheel, default runtime import path, solver defaults, OpenMP threshold, thread count, iteration count, timestep, substeps, particle spacing, collision settings, constraints, geometry, seam behavior, or acceptance thresholds.
-- No preview-FPS optimization and no additional workflow.
+On the exact implementation head `5b4b2a75d73a7e3deb6add7a34134efcaeb4ae37`, full-validation run [#44172920333, attempt 2](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/44172920333) completed successfully: 25 jobs passed, 5 conditional jobs were skipped, and none failed. All four production audits completed 90/90 scene steps and 360/360 backend steps, and all seven physical/visual gates passed in each run.
 
-## Implementation result
+The matched two-repetition comparison passed with no rejection reasons:
 
-- [x] Add the pinned native patch and Python-only CMake build option; compile the experiment extension separately from the installed wheel.
-- [x] Explicitly load the selected experiment extension by absolute path and reject accidental fallback to the installed wheel.
-- [x] Capture native module path, source/patch/binary provenance, experiment mode, CPU affinity and OpenMP/runtime context.
-- [x] Run two baseline and two candidate 90-step production audits on the same runner and image; preserve final candidate render evidence.
-- [x] Compare profiles fail-closed on completion, all seven gates, production settings, group distribution, native provenance and matched runtime context.
-- [x] Run exact-head full canonical validation and inspect the final render evidence.
+- Median native position projection: 13,366.37 ms baseline vs 12,050.67 ms candidate (**9.84% faster**).
+- Median full production wall time: 21,306.37 ms baseline vs 19,934.39 ms candidate (**6.44% lower**).
 
-## Final exact-head evidence
+All four profiles used the pinned source-built extension with matching source, patch, and binary provenance. The installed wheel remains the normal runtime, and no production solver settings were changed.
 
-PR [#2866](https://github.com/Uhrendoktor/freecad-cloth/pull/2866) head `e2f673e39ad33f80a8fd20486fd414c2c2ec9018` passed [workflow run #44150715330](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/44150715330). All required workflow jobs completed successfully, including strict static/architecture/workflow/security checks, Python validation, GUI acceptance, collision ladder, workbench benchmarks and all four production tunic audits.
+## Integration status
 
-Artifact `pbd-openmp-team-reuse-comparison` (ID `14359682222`) records four profiles. Every profile:
-- loaded `/opt/pypbd-openmp-experiment/pypbd.cpython-312-x86_64-linux-gnu.so`;
-- carried matching source SHA `10a70bc146a97873dc3c8fef372f5217e010542e`, patch SHA256 `f5b5cbd54998908ac985a90749a3053ade654c7b1d9e46a4121a3f25fd3cf839`, and binary SHA256 `5ae71a7c11f7806e6c61d61bd3a0bb5b2fa9a4e4c4a335df2595743a72e3f2a3`;
-- completed 90/90 scene steps and 360/360 backend steps, with all seven physical/visual gates passing.
+- PR [#2862](https://github.com/Uhrendoktor/freecad-cloth/pull/2862), the read-only production constraint-group profiler, was merged into `main` at `1a01537581fb25467e1b651dfad1ac4d4d8fe16d`.
+- PR [#2866](https://github.com/Uhrendoktor/freecad-cloth/pull/2866) has been retargeted to `main`. It is no longer stacked on an open PR.
+- The current exact-head full-validation check after this integration/documentation update is the final merge gate. Do not merge unless it completes successfully and the fail-closed production comparison passes.
 
-Matched comparison (two repetitions per mode):
-- Median native position projection: 8,749.84 ms baseline vs 8,224.43 ms candidate (**6.00% faster**; required minimum 5%).
-- Median production wall time: 14,979.95 ms baseline vs 14,194.41 ms candidate (**5.24% lower**; no regression).
-- Comparator: `acceptance=passed`, no rejection reasons.
+## Falsifier
 
-The earlier valid run #44145460639 also passed (9.73% projection improvement and 7.55% lower production wall time). The initial invalid run #44137908584 was rejected because it loaded the stock wheel in both modes; the explicit absolute-path loader corrected that provenance failure. No solver identity, production settings, physical acceptance thresholds, geometry or collision settings were changed.
-
-## Latest exact-head revalidation
-
-The plan-record update itself was validated on PR #2866 head `7c480b13281ba79d886cc89e43d59ed17e65ee3a` by [full-validation run #44161584093](https://github.com/uhrendoktor/freecad-cloth/actions/runs/44161584093). The run reached terminal success: all 30 jobs completed, 21 required jobs passed and 9 conditional jobs were skipped; no job failed.
-
-The fresh `pbd-openmp-team-reuse-comparison` artifact (ID `14363419604`) independently confirms:
-- All four runs loaded the source-built experiment module and identical pinned source/patch/binary provenance listed above.
-- Each run completed 90/90 scene steps and 360/360 backend steps; all seven physical/visual gates passed.
-- Runtime context matched: AMD EPYC 9V45, four-CPU affinity (0–3), GCC `libgomp`, CPU fallback, and unchanged non-experiment thread settings.
-- Median native position projection: 9,489.84 ms baseline vs 8,723.48 ms candidate (**8.08% improvement**).
-- Median full production wall time: 16,410.44 ms baseline vs 15,881.06 ms candidate (**3.23% reduction**).
-- Comparator: `acceptance=passed`, no rejection reasons.
-
-The run also published the fresh final visual audit bundle (artifact ID `14365560623`) and independent preview diagnostic (artifact ID `14365195236`). Production solver/geometry/collision settings and the acceptance gates remained unchanged.
-
-## Current status and handoff
-
-The implementation and exact-head validation for this experiment are complete. PR #2866 intentionally remains draft and stacked on PR #2862; do not merge or promote it independently of that base. PR #2862 is the read-only constraint-group profile on `main`. Maintainer review and the base-PR integration sequence remain outstanding. After #2862 is integrated, retarget/revalidate #2866 against the resulting base before merging. This experiment does not replace the installed pyPBD wheel or change normal production runtime behavior; any product-runtime rollout requires a separately reviewed packaging and compatibility decision.
-
-## Falsifier / stop condition
-
-Reject this scheduling change if paired projection improvement is below 5%, total production wall time regresses, runtime/build contexts differ, any physical gate fails, or a run is partial/timed out. Do not compensate by changing the threshold, group order, thread count, or any solver/physical parameter.
+Reject the experiment if any audit is incomplete, any physical/visual gate fails, build/runtime contexts differ, median projection improvement is below 5%, or median full-production wall time regresses. Do not compensate by changing solver or physical parameters.
