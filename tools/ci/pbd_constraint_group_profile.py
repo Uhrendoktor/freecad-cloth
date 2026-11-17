@@ -46,8 +46,10 @@ class ConstraintGroupProfile(TypedDict):
 
 def _nearest_rank(ordered_values: Sequence[int], percentile: float) -> int:
     """Return the nearest-rank percentile from an ascending non-empty sequence."""
-    numerator, denominator = percentile.as_integer_ratio()
-    nearest_rank = (numerator * len(ordered_values) + denominator - 1) // denominator
+    scaled_rank = percentile * len(ordered_values)
+    nearest_rank = int(scaled_rank)
+    if scaled_rank > nearest_rank:
+        nearest_rank += 1
     index = max(0, min(len(ordered_values) - 1, nearest_rank - 1))
     return ordered_values[index]
 

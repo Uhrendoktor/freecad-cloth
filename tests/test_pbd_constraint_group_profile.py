@@ -65,6 +65,24 @@ def test_group_profile_reports_histogram_and_openmp_eligible_work() -> None:
     }
 
 
+def test_group_profile_nearest_rank_percentiles_handle_exact_boundaries() -> None:
+    """Percentile ranks stay exact when the scaled percentile is an integer."""
+    for group_count, expected_p90, expected_p95 in (
+        (10, 9, 10),
+        (20, 18, 19),
+    ):
+        groups: list[list[int]] = []
+        next_index = 0
+        for size in range(1, group_count + 1):
+            groups.append(list(range(next_index, next_index + size)))
+            next_index += size
+
+        profile = summarize_constraint_groups(groups, next_index)
+
+        assert profile["p90_group_size"] == expected_p90
+        assert profile["p95_group_size"] == expected_p95
+
+
 def test_native_profile_reads_existing_grouping_without_mutating_it() -> None:
     """The native adapter only reads the groups already produced by pyPBD."""
     groups = [[0, 1, 2], [3, 4], [5]]
