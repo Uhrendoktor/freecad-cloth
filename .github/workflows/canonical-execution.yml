@@ -358,7 +358,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ github.head_ref == 'agents/issue-2839-openmp-sweep' && 35 || 15 }}
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -427,6 +427,7 @@ jobs:
             echo "::error title=Production tunic audit failed::The full 90-step production tunic audit did not complete and is blocking."
             exit 1
           fi
+      - {uses: ./.github/actions/pbd-openmp-sweep, if: "always() && !cancelled() && github.head_ref == 'agents/issue-2839-openmp-sweep'", with: {image: "${{ env.FREECAD_PBD_IMAGE }}"}}
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}

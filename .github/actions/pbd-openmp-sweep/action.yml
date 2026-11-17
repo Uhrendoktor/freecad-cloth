@@ -1,0 +1,116 @@
+name: Production PBD OpenMP sweep
+description: Compare the unchanged production tunic audit with OpenMP thread counts 1, 2, and 4.
+inputs:
+  image:
+    description: Immutable pinned FreeCAD/PBD validation image.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Preserve the default OpenMP production profile
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p artifacts/pbd-openmp-sweep
+        if [[ -s artifacts/tunic-audit/production-pbd-profile.json ]]; then
+          cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-sweep/unset.json
+        else
+          echo "::warning::Default OpenMP production profile is missing or incomplete."
+        fi
+    - name: Production tunic audit with OMP_NUM_THREADS=1
+      if: always() && !cancelled()
+      uses: ./.github/actions/freecad-test
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "360"
+        test-script: tests/freecad_tunic_audit_production.py
+        stage-workbench: "true"
+        clean-user: "true"
+        log-file: artifacts/pbd-openmp-sweep/omp-1-audit.log
+        validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic-production'
+        environment: |
+          FREECAD_CLOTH_ANNY_FIT_STEPS=18
+          CLOTH_PBD_SUBSTEPS=16
+          CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+          CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          OMP_NUM_THREADS=1
+    - name: Preserve OMP_NUM_THREADS=1 profile
+      if: always()
+      shell: bash
+      run: |
+        if [[ -s artifacts/tunic-audit/production-pbd-profile.json ]]; then
+          cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-sweep/omp-1.json
+        else
+          echo "::warning::OMP_NUM_THREADS=1 production profile is missing or incomplete."
+        fi
+    - name: Production tunic audit with OMP_NUM_THREADS=2
+      if: always() && !cancelled()
+      uses: ./.github/actions/freecad-test
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "360"
+        test-script: tests/freecad_tunic_audit_production.py
+        stage-workbench: "true"
+        clean-user: "true"
+        log-file: artifacts/pbd-openmp-sweep/omp-2-audit.log
+        validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic-production'
+        environment: |
+          FREECAD_CLOTH_ANNY_FIT_STEPS=18
+          CLOTH_PBD_SUBSTEPS=16
+          CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+          CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          OMP_NUM_THREADS=2
+    - name: Preserve OMP_NUM_THREADS=2 profile
+      if: always()
+      shell: bash
+      run: |
+        if [[ -s artifacts/tunic-audit/production-pbd-profile.json ]]; then
+          cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-sweep/omp-2.json
+        else
+          echo "::warning::OMP_NUM_THREADS=2 production profile is missing or incomplete."
+        fi
+    - name: Production tunic audit with OMP_NUM_THREADS=4
+      if: always() && !cancelled()
+      uses: ./.github/actions/freecad-test
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "360"
+        test-script: tests/freecad_tunic_audit_production.py
+        stage-workbench: "true"
+        clean-user: "true"
+        log-file: artifacts/pbd-openmp-sweep/omp-4-audit.log
+        validate-command: timeout --signal=TERM --kill-after=5s 50s bash -lc 'python3 tools/ci/capture_pypbd_provenance.py "$FREECAD_PBD_IMAGE" artifacts/pypbd-provenance.txt && python3 tools/ci/validate_manifests.py tunic-production'
+        environment: |
+          FREECAD_CLOTH_ANNY_FIT_STEPS=18
+          CLOTH_PBD_SUBSTEPS=16
+          CLOTH_PBD_COLLISION_VOXEL_MM=8.0
+          CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          OMP_NUM_THREADS=4
+    - name: Preserve OMP_NUM_THREADS=4 profile
+      if: always()
+      shell: bash
+      run: |
+        if [[ -s artifacts/tunic-audit/production-pbd-profile.json ]]; then
+          cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-sweep/omp-4.json
+        else
+          echo "::warning::OMP_NUM_THREADS=4 production profile is missing or incomplete."
+        fi
+    - name: Compare complete production profiles
+      if: always() && !cancelled()
+      shell: bash
+      run: python3 tools/ci/summarize_pbd_openmp_sweep.py
+    - name: Upload OpenMP sweep evidence
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: pbd-openmp-sweep
+        path: artifacts/pbd-openmp-sweep/**
+        if-no-files-found: warn
+        compression-level: 1
