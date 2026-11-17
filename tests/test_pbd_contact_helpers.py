@@ -166,7 +166,7 @@ def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> Non
         groups,
         (1.0,) * len(positions),
         clearance_mm=1.0,
-        iterations=4,
+        iterations=16,
     )
 
     assert metrics.contact_count > 0
@@ -208,7 +208,7 @@ def test_inter_cloth_projection_separates_exactly_coincident_parallel_groups() -
         groups,
         (1.0,) * len(positions),
         clearance_mm=1.0,
-        iterations=8,
+        iterations=16,
     )
 
     assert metrics.contact_count > 0
@@ -367,7 +367,7 @@ def test_inter_cloth_measurement_reports_post_projection_clearance_deficit() -> 
         groups,
         (1.0,) * len(positions),
         clearance_mm=1.0,
-        iterations=4,
+        iterations=16,
     )
     residual_count, residual_deficit = measure_inter_cloth_contacts(
         corrected,
