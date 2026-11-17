@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Summarize native pyPBD constraint-group sizes without changing solver state."""
 
+from __future__ import annotations
+
 from typing import Protocol, TypedDict
 
 
