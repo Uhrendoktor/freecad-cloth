@@ -167,8 +167,8 @@ def _decode_github_response(connection: http.client.HTTPSConnection) -> ApiJsonV
     if not payload:
         return None
     try:
-        decoded: object = json.loads(payload)
-        return as_json_value(decoded)
+        decoded: ApiJsonValue = as_json_value(json.loads(payload))
+        return decoded
     except (json.JSONDecodeError, TypeError) as exc:
         msg = "GitHub API returned invalid JSON"
         raise GitHubApiError(msg) from exc

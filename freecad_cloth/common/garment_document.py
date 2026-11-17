@@ -43,19 +43,31 @@ class FreeCADDocumentObjectProtocol(Protocol):
 
     @property
     def Name(self) -> str:
-        """Return the immutable internal object name."""
+        """Return the immutable internal object name.
+
+        Returns:
+            Stable document-local name assigned by FreeCAD.
+        """
         ...
 
     Label: str
 
     @property
     def TypeId(self) -> str:
-        """Return the immutable native object type identifier."""
+        """Return the immutable native object type identifier.
+
+        Returns:
+            FreeCAD TypeId for this document object.
+        """
         ...
 
     @property
     def PropertiesList(self) -> Sequence[str]:
-        """Return the names of properties registered on the native object."""
+        """Return the names of properties registered on the native object.
+
+        Returns:
+            Read-only sequence of registered property identifiers.
+        """
         ...
 
 

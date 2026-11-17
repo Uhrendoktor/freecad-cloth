@@ -14,7 +14,11 @@ class SimulationDocument(Protocol):
 
     @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return a read-only view of the document's native objects."""
+        """Return a read-only view of the document's native objects.
+
+        Returns:
+            Sequence of native objects currently owned by the document.
+        """
         ...
 
     def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
@@ -41,7 +45,11 @@ class SimulationDocument(Protocol):
         ...
 
     def recompute(self) -> int | None:
-        """Recompute the document after simulation state changes."""
+        """Recompute the document after simulation state changes.
+
+        Returns:
+            Native recompute status when the host application exposes one.
+        """
         ...
 
 

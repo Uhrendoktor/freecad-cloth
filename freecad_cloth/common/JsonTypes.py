@@ -9,7 +9,7 @@ type JsonValue = str | int | float | bool | list[JsonValue] | dict[str, JsonValu
 type JsonObject = dict[str, JsonValue]
 
 
-def as_json_value(value: object) -> JsonValue:
+def as_json_value(value: JsonValue) -> JsonValue:
     """Validate and normalize one value at a recursive JSON boundary.
 
     Args:
