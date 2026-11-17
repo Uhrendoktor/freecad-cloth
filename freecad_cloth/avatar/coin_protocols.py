@@ -6,7 +6,7 @@ These narrow protocols describe only the Coin members used by Pose Mode.
 """
 
 from collections.abc import Callable, Sequence
-from typing import Protocol
+from typing import Protocol, overload
 
 
 class _CoinField(Protocol):
@@ -56,8 +56,14 @@ class _CoinSeparator(_CoinNode, Protocol):
         """Return the number of children currently attached."""
         ...
 
+    @overload
     def removeChild(self, index: int) -> None:
         """Remove the child at the requested index."""
+        ...
+
+    @overload
+    def removeChild(self, child: _CoinNode) -> None:
+        """Remove the supplied child node from this separator."""
         ...
 
 
@@ -114,9 +120,23 @@ class _CoinName(Protocol):
         ...
 
 
+class _CoinRotatorGeometry(_CoinNode, Protocol):
+    """Coin geometry fields used to draw native colored rotation rings."""
+
+    arcAngle: _CoinField
+    arcRadius: _CoinField
+    arcThickness: _CoinField
+    sphereRadius: _CoinField
+    coneBottomRadius: _CoinField
+    coneHeight: _CoinField
+    leftArrowVisible: _CoinField
+    rightArrowVisible: _CoinField
+
+
 class _CoinDynamicDragger(_CoinSeparator, Protocol):
     """Dynamic rotation/trackball dragger fields and callback registration."""
 
+    isActive: bool
     rotation: _CoinRotationField
     rotationIncrement: _CoinField
     geometryScale: _CoinField
@@ -226,3 +246,13 @@ class _CoinModule(Protocol):
     SoTrackballDragger: Callable[[], _CoinDynamicDragger]
     SbVec3f: Callable[..., object]
     SbRotation: Callable[..., object]
+
+
+# Public structural aliases for consumers crossing module boundaries.
+CoinDynamicDragger = _CoinDynamicDragger
+CoinEventCallback = _CoinEventCallback
+CoinModule = _CoinModule
+CoinSeparator = _CoinSeparator
+CoinTransform = _CoinTransform
+CoinType = _CoinType
+CoinRotatorGeometry = _CoinRotatorGeometry

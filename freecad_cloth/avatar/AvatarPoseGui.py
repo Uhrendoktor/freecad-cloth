@@ -12,6 +12,7 @@ import contextlib
 import math
 from collections.abc import Callable, Sequence
 from importlib import import_module
+from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.avatar.AvatarProperties import (
@@ -43,17 +44,30 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
 if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+    from PySide2.QtWidgets import (
+        QButtonGroup as _QButtonGroup,
+        QDialogButtonBox as _QDialogButtonBox,
+        QDoubleSpinBox as _QDoubleSpinBox,
+        QLabel as _QLabel,
+        QToolButton as _QToolButton,
+        QTreeWidget as _QTreeWidget,
+        QTreeWidgetItem as _QTreeWidgetItem,
+        QWidget as _QWidget,
+    )
 
-    from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+    from freecad_cloth.avatar.avatar_protocols import (
+        AvatarParametersFeatureProtocol,
+        AvatarTaskPanelProtocol,
+    )
     from freecad_cloth.avatar.AvatarModel import AvatarParameters
     from freecad_cloth.avatar.coin_protocols import (
-        _CoinDynamicDragger,
-        _CoinEventCallback,
-        _CoinModule,
-        _CoinNode,
-        _CoinSeparator,
-        _CoinTransform,
-        _CoinType,
+        CoinDynamicDragger,
+        CoinEventCallback,
+        CoinModule,
+        CoinSeparator,
+        CoinTransform,
+        CoinType,
+        CoinRotatorGeometry,
     )
     from freecad_cloth.avatar.SkeletonPose import AffineTransform, JointRotation
     from freecad_cloth.avatar.SkeletonTypes import SkeletonData
@@ -62,6 +76,24 @@ if TYPE_CHECKING:
 type PosePoint = tuple[float, float, float]
 type PoseSegment = tuple[PosePoint, PosePoint]
 type ScreenPoint = tuple[float, float]
+
+_COIN_ADD_CHILD_METHOD = "addChild"
+_COIN_REMOVE_CHILD_METHOD = "removeChild"
+
+
+def _pose_point(values: Sequence[float]) -> PosePoint:
+    """Normalize a native three-coordinate sequence to a fixed-length pose point.
+
+    Args:
+        values: Native point coordinates in x/y/z order.
+
+    Returns:
+        A fixed three-component floating-point pose point.
+    """
+    if len(values) != 3:
+        msg = "pose point must contain exactly three coordinates"
+        raise ValueError(msg)
+    return float(values[0]), float(values[1]), float(values[2])
 
 
 class _PoseVector(Protocol):
@@ -78,11 +110,18 @@ class _PoseRotation(Protocol):
     def setEulerAngles(self, mode: int, x: float, y: float, z: float) -> None:
         """Set the rotation using the selected FreeCAD Euler convention."""
 
+        ...
+
     def multiply(self, other: _PoseRotation) -> _PoseRotation:
         """Compose this rotation with another native rotation."""
 
+        ...
+
     def getEulerAngles(self, mode: int) -> Sequence[float]:
         """Return Euler components in the requested FreeCAD convention."""
+
+
+        ...
 
 
 class _PoseRotationFactory(Protocol):
@@ -94,6 +133,9 @@ class _PoseRotationFactory(Protocol):
         """Construct a native FreeCAD rotation."""
 
 
+        ...
+
+
 class _PoseDocument(Protocol):
     """Minimal document operations used to remove a fallback gizmo object."""
 
@@ -101,24 +143,29 @@ class _PoseDocument(Protocol):
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
         """Return the current native document objects."""
 
+        ...
+
     def removeObject(self, name: str) -> None:
         """Remove a native object by its internal document name."""
+
+        ...
 
     def recompute(self) -> int | None:
         """Recompute document features after removing the fallback object."""
 
 
-class _PoseAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):
+        ...
+
+
+class _PoseAvatarFeature(AvatarParametersFeatureProtocol, Protocol):
     """Persistent avatar fields consumed and updated by Pose Mode."""
 
     @property
     def Document(self) -> _PoseDocument:
         """Return the document that owns this avatar."""
+        ...
 
     AvatarProviderId: str
-    JointPoseJSON: str
-    PosePreset: str
-    SkinOffset: float
     Mesh: object
 
 
@@ -129,6 +176,8 @@ class _PoseApplication(Protocol):
     def ActiveDocument(self) -> _PoseDocument | None:
         """Return the active document when one is open."""
 
+        ...
+
     Vector: Callable[..., _PoseVector]
     Rotation: _PoseRotationFactory
 
@@ -136,22 +185,33 @@ class _PoseApplication(Protocol):
 class _PoseView(Protocol):
     """Viewport operations used by the Coin skeleton and rotation overlays."""
 
-    def getSceneGraph(self) -> _CoinSeparator:
+    def getSceneGraph(self) -> CoinSeparator:
         """Return the native Coin scene root."""
+
+        ...
 
     def getPointOnScreen(self, point: _PoseVector) -> Sequence[float]:
         """Project a world-space point into viewport pixel coordinates."""
 
+        ...
+
     def getSize(self) -> tuple[int, int]:
         """Return viewport dimensions in pixels."""
 
+        ...
+
     def addEventCallbackPivy(
-        self, event_type: object, callback: Callable[[_CoinEventCallback], None]
+        self, event_type: object, callback: Callable[[CoinEventCallback], None]
     ) -> int:
         """Register a callback for one Pivy event type."""
 
+        ...
+
     def removeEventCallbackPivy(self, event_type: object, callback_id: int) -> None:
         """Remove a Pivy callback previously registered on this view."""
+
+
+        ...
 
 
 class _PoseGuiDocument(Protocol):
@@ -161,11 +221,17 @@ class _PoseGuiDocument(Protocol):
         """Return the active 3D view when one is available."""
 
 
+        ...
+
+
 class _PoseGuiControl(Protocol):
     """Task-panel presentation operation provided by FreeCADGui."""
 
     def showDialog(self, panel: AvatarPoseTaskPanel) -> None:
         """Display a native FreeCAD task panel."""
+
+
+        ...
 
 
 class _PoseGui(Protocol):
@@ -175,64 +241,48 @@ class _PoseGui(Protocol):
 
     def activeDocument(self) -> _PoseGuiDocument | None:
         """Return the active GUI document when one is available."""
+        ...
 
 
-class _PoseToggle(Protocol):
-    """Small button interface used by the viewport fallback and rotation controls."""
+class _PoseApplicationAdapter:
+    """Typed adapter for the dynamically imported FreeCAD application module."""
 
-    def setChecked(self, checked: bool) -> None:
-        """Set the toggle state."""
+    def __init__(self, module: ModuleType) -> None:
+        self._module = module
 
-    def setEnabled(self, enabled: bool) -> None:
-        """Enable or disable the control."""
+    @property
+    def ActiveDocument(self) -> _PoseDocument | None:
+        """Return the active native document, when one is open."""
+        return cast("_PoseDocument | None", getattr(self._module, "ActiveDocument"))
 
-    def setToolTip(self, text: str) -> None:
-        """Set the explanatory tooltip."""
+    @property
+    def Vector(self) -> Callable[..., _PoseVector]:
+        """Return the native three-dimensional vector constructor."""
+        return cast("Callable[..., _PoseVector]", getattr(self._module, "Vector"))
 
-    def isChecked(self) -> bool:
-        """Return the current toggle state."""
-
-
-class _PoseLabel(Protocol):
-    """Text label interface used by the controller's fallback messages."""
-
-    def setText(self, text: str) -> None:
-        """Set the visible label text."""
-
-
-class _PosePanel(Protocol):
-    """Task-panel state and callbacks consumed by the viewport controller."""
-
-    App: _PoseApplication
-    Gui: _PoseGui
-    avatar: _PoseAvatarFeature | None
-    angle_snap: _PoseToggle
-    joint_list_toggle: _PoseToggle
-    instruction_label: _PoseLabel
-    _staged_joint_rotations: dict[str, JointRotation]
-
-    def _staged_parameters(self) -> AvatarParameters:
-        """Build the validated parameter model representing staged panel edits."""
-
-    def _select_first_joint(self) -> None:
-        """Select the first controllable joint in the task panel."""
-
-    def _select_joint_without_preview(self, bone: str) -> None:
-        """Update the panel selection without generating preview geometry."""
-
-    def _joint_label(self, bone: str) -> str:
-        """Return the display label for a skeleton bone."""
-
-    def _set_status(self, message: str) -> None:
-        """Update the task panel status message."""
-
-    def _stage_joint_rotation(
-        self, bone: str, x: float, y: float, z: float, *, preview: bool
-    ) -> None:
-        """Stage one joint rotation from an interactive viewport drag."""
+    @property
+    def Rotation(self) -> _PoseRotationFactory:
+        """Return the native rotation constructor and Euler convention constants."""
+        return cast("_PoseRotationFactory", getattr(self._module, "Rotation"))
 
 
-def _modules() -> tuple[_PoseApplication, _PoseGui, _QT_TYPE_QtCore, _QT_TYPE_QtWidgets]:
+class _PoseGuiAdapter:
+    """Typed adapter for the dynamically imported FreeCAD GUI module."""
+
+    def __init__(self, module: ModuleType) -> None:
+        self._module = module
+
+    @property
+    def Control(self) -> _PoseGuiControl:
+        """Return the FreeCAD task-panel dialog controller."""
+        return cast("_PoseGuiControl", getattr(self._module, "Control"))
+
+    def activeDocument(self) -> _PoseGuiDocument | None:
+        """Return the active GUI document when one is available."""
+        return cast("_PoseGuiDocument | None", getattr(self._module, "activeDocument")())
+
+
+def _modules() -> tuple[_PoseApplication, _PoseGui, ModuleType, ModuleType]:
     """Load FreeCAD, GUI, Qt and Coin modules only when Pose Mode is opened.
 
     Returns:
@@ -249,7 +299,7 @@ def _modules() -> tuple[_PoseApplication, _PoseGui, _QT_TYPE_QtCore, _QT_TYPE_Qt
             from PySide import QtCore, QtWidgets
         except ImportError:
             from PySide2 import QtCore, QtWidgets
-    return cast("_PoseApplication", App), cast("_PoseGui", Gui), QtCore, QtWidgets
+    return _PoseApplicationAdapter(App), _PoseGuiAdapter(Gui), QtCore, QtWidgets
 
 
 def _pose_world_state(
@@ -286,7 +336,7 @@ def joint_world_positions(parameters: AvatarParameters) -> dict[str, PosePoint]:
         if data is None or bone not in transforms:
             continue
         fitted_head = joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
-        result[bone] = tuple(float(value) for value in transforms[bone].apply(fitted_head))
+        result[bone] = _pose_point(transforms[bone].apply(fitted_head))
     return result
 
 
@@ -309,8 +359,8 @@ def skeleton_world_segments(
             continue
         fitted_head = joint_point(source_vertices, skeleton["joints"][data["head"]], mapper=mapper)
         fitted_tail = joint_point(source_vertices, skeleton["joints"][data["tail"]], mapper=mapper)
-        head = tuple(float(value) for value in transform.apply(fitted_head))
-        tail = tuple(float(value) for value in transform.apply(fitted_tail))
+        head = _pose_point(transform.apply(fitted_head))
+        tail = _pose_point(transform.apply(fitted_tail))
         segments[bone] = (head, tail)
         joints.setdefault(data["head"], head)
         joints[data["tail"]] = tail
@@ -339,14 +389,14 @@ class _NativeGizmoHandle:
     is_fallback = False
     is_visual = True
 
-    def __init__(self, dragger: _CoinDynamicDragger, controller: SkeletonPoseController) -> None:
+    def __init__(self, dragger: CoinDynamicDragger, controller: SkeletonPoseController) -> None:
         """Bind a native rotation dragger to its state controller.
 
         Args:
             dragger: Native Coin dragger whose activity state is exposed.
             controller: Skeleton controller that owns the active drag state.
         """
-        self.dragger: _CoinDynamicDragger = dragger
+        self.dragger: CoinDynamicDragger = dragger
         self._controller: SkeletonPoseController = controller
 
     @property
@@ -366,7 +416,7 @@ class SkeletonPoseController:
     BONE_PICK_RADIUS = 12.0
     JOINT_PICK_RADIUS = 20.0
 
-    def __init__(self, panel: _PosePanel) -> None:
+    def __init__(self, panel: AvatarPoseTaskPanel) -> None:
         """Create the viewport overlay state for the supplied pose panel.
 
         Args:
@@ -376,14 +426,14 @@ class SkeletonPoseController:
         self.App: _PoseApplication = panel.App
         self.Gui: _PoseGui = panel.Gui
         self.view: _PoseView | None = None
-        self.scene_graph: _CoinSeparator | None = None
-        self.overlay: _CoinSeparator | None = None
-        self.gizmo_separator: _CoinSeparator | None = None
-        self.gizmo_transform: _CoinTransform | None = None
-        self.gizmo: _CoinDynamicDragger | _NativeGizmoHandle | _FallbackGizmo | None = None
+        self.scene_graph: CoinSeparator | None = None
+        self.overlay: CoinSeparator | None = None
+        self.gizmo_separator: CoinSeparator | None = None
+        self.gizmo_transform: CoinTransform | None = None
+        self.gizmo: CoinDynamicDragger | _NativeGizmoHandle | _FallbackGizmo | None = None
         self.mouse_callback: int | None = None
         self._location_callback: int | None = None
-        self._hover_separator: _CoinSeparator | None = None
+        self._hover_separator: CoinSeparator | None = None
         self._hover_bone: str | None = None
         self.selected_bone: str | None = None
         self.base_rotation: JointRotation | None = None
@@ -393,18 +443,18 @@ class SkeletonPoseController:
         self.gizmo_mode: str | None = None
         self.gizmo_style: str | None = None
         self.gizmo_style_error: str | None = None
-        self._native_dragger: list[_CoinDynamicDragger] | None = None
+        self._native_dragger: list[CoinDynamicDragger] | None = None
         self._active_gizmo_axis: PosePoint | None = None
         self.fallback_gizmo_object: FreeCADDocumentObjectProtocol | None = None
         self.viewport_runtime_error: str | None = None
 
-    def _coin(self) -> _CoinModule:
+    def _coin(self) -> CoinModule:
         """Return the available Pivy Coin module when the runtime can be loaded.
 
         Returns:
             The imported Coin module, or None when Pivy is unavailable.
         """
-        return cast("_CoinModule", import_module("pivy.coin"))
+        return cast("CoinModule", import_module("pivy.coin"))
 
     def _screen_position(self, point: Sequence[float]) -> tuple[float, float] | None:
         """Project a world-space point into viewport screen coordinates.
@@ -465,7 +515,7 @@ class SkeletonPoseController:
         }
         return joints
 
-    def _native_transform_type(self, coin: _CoinModule) -> _CoinType | None:
+    def _native_transform_type(self, coin: CoinModule) -> CoinType | None:
         """Resolve the transform-dragger type supported by the loaded Coin runtime.
 
         Args:
@@ -582,21 +632,22 @@ class SkeletonPoseController:
             self.select_joint(bone)
         self.panel._set_status("Click a bone to select · drag a rotation ring to pose.")
 
-    def _clear_fallback_gizmo(self):
+    def _clear_fallback_gizmo(self) -> None:
         """Remove any FreeCAD object used for the fallback gizmo."""
         obj = self.fallback_gizmo_object
         self.fallback_gizmo_object = None
-        if obj is None:
+        avatar = self.panel.avatar
+        if obj is None or avatar is None:
             return
         try:
-            doc = self.panel.avatar.Document
+            doc = avatar.Document
             if obj.Name in [item.Name for item in doc.Objects]:
                 doc.removeObject(obj.Name)
                 doc.recompute()
         except (AttributeError, RuntimeError):
             pass
 
-    def _create_fallback_gizmo(self, bone):
+    def _create_fallback_gizmo(self, bone: str) -> None:
         """Install the explicit panel-based fallback when viewport dragging is unavailable.
 
         Args:
@@ -665,7 +716,7 @@ class SkeletonPoseController:
         self._skeleton_segments = {}
         self.view = None
 
-    def _add_skeleton_overlay(self, coin: _CoinModule) -> None:
+    def _add_skeleton_overlay(self, coin: CoinModule) -> None:
         """Draw the complete posed skeleton with selectable controls highlighted.
 
         Args:
@@ -799,15 +850,15 @@ class SkeletonPoseController:
         if self.view is None:
             return
         if self.scene_graph is None:
-            if self.selected_bone:
+            if self.selected_bone is not None:
                 self._build_positions()
                 self._create_fallback_gizmo(self.selected_bone)
             return
         self._remove_overlay_children()
         self._add_skeleton_overlay(self._coin())
-        if self.selected_bone and not keep_gizmo:
+        if self.selected_bone is not None and not keep_gizmo:
             self._create_gizmo(self.selected_bone)
-        elif self.selected_bone and self.gizmo_transform is not None:
+        elif self.selected_bone is not None and self.gizmo_transform is not None:
             point = self._positions.get(self.selected_bone)
             if point is not None:
                 self.gizmo_transform.translation.setValue(self._coin().SbVec3f(*point))
@@ -828,8 +879,8 @@ class SkeletonPoseController:
 
     def _configure_axis_rotation_dragger(
         self,
-        coin: _CoinModule,
-        dragger: _CoinDynamicDragger,
+        coin: CoinModule,
+        dragger: CoinDynamicDragger,
         rgb: tuple[float, float, float],
         geometry_scale: float,
     ) -> bool:
@@ -862,6 +913,7 @@ class SkeletonPoseController:
         if rotator is None:
             self.gizmo_style_error = "failed to instantiate SoRotatorGeometry2"
             return False
+        rotator = cast("CoinRotatorGeometry", rotator)
         if not dragger.setPart("rotator", rotator):
             self.gizmo_style_error = "cannot replace SoRotationDragger rotator part"
             return False
@@ -893,7 +945,7 @@ class SkeletonPoseController:
         dragger.baseGeomVisible.setValue(False)
         return True
 
-    def _create_native_gizmo(self, coin: _CoinModule) -> bool:
+    def _create_native_gizmo(self, coin: CoinModule) -> bool:
         """Create native axis rotation rings when the viewport runtime supports them.
 
         Args:
@@ -980,7 +1032,7 @@ class SkeletonPoseController:
                 getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(separator)
             return False
 
-    def _create_trackball_gizmo(self, coin: _CoinModule) -> None:
+    def _create_trackball_gizmo(self, coin: CoinModule) -> None:
         """Create a trackball fallback when native axis draggers are unavailable.
 
         Args:
@@ -1048,7 +1100,7 @@ class SkeletonPoseController:
         self.panel._select_joint_without_preview(bone)
         self._create_gizmo(bone)
 
-    def _gizmo_start(self, _data: object, dragger: _CoinDynamicDragger) -> None:
+    def _gizmo_start(self, _data: object, dragger: CoinDynamicDragger) -> None:
         """Record the beginning of a user-driven rotation drag.
 
         Args:
@@ -1088,7 +1140,7 @@ class SkeletonPoseController:
         )
 
     def _dragger_quaternion(
-        self, dragger: _CoinDynamicDragger
+        self, dragger: CoinDynamicDragger
     ) -> tuple[float, float, float, float]:
         """Return the native dragger quaternion in scalar-first component order.
 
@@ -1107,7 +1159,7 @@ class SkeletonPoseController:
             float(values[3]),
         )
 
-    def _gizmo_motion(self, _data: object, dragger: _CoinDynamicDragger) -> None:
+    def _gizmo_motion(self, _data: object, dragger: CoinDynamicDragger) -> None:
         """Apply an in-progress drag rotation to the selected skeleton bone.
 
         Args:
@@ -1145,7 +1197,7 @@ class SkeletonPoseController:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             return
 
-    def _gizmo_finish(self, _data: object, _dragger: _CoinDynamicDragger) -> None:
+    def _gizmo_finish(self, _data: object, _dragger: CoinDynamicDragger) -> None:
         """Commit drag completion and clear the active interaction state.
 
         Args:
@@ -1155,7 +1207,7 @@ class SkeletonPoseController:
         self._gizmo_dragging = False
         self.base_rotation = None
         self._active_gizmo_axis = None
-        if self.selected_bone:
+        if self.selected_bone is not None:
             self.panel._set_status(
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
@@ -1264,7 +1316,7 @@ class SkeletonPoseController:
                     best_distance = distance
         return best
 
-    def _location_event(self, event_callback: _CoinEventCallback) -> None:
+    def _location_event(self, event_callback: CoinEventCallback) -> None:
         """Update the hover highlight from a viewport location event.
 
         Args:
@@ -1281,7 +1333,7 @@ class SkeletonPoseController:
         screen = (float(position[0]), float(size[1] - position[1]))
         self._set_hover_bone(self._pick_bone(screen))
 
-    def _mouse_event(self, event_callback: _CoinEventCallback) -> None:
+    def _mouse_event(self, event_callback: CoinEventCallback) -> None:
         """Handle pointer presses and releases for the pose gizmo.
 
         Args:
@@ -1309,7 +1361,7 @@ class SkeletonPoseController:
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
-    form: _QT_TYPE_QtWidgets.QWidget
+    form: _QWidget
 
     PRESETS = (
         ("t_pose", "T-pose"),
@@ -1327,10 +1379,10 @@ class AvatarPoseTaskPanel:
         App, Gui, QtCore, QtWidgets = _modules()
         self.App: _PoseApplication = App
         self.Gui: _PoseGui = Gui
-        self.QtCore: _QT_TYPE_QtCore = QtCore
-        self.QtWidgets: _QT_TYPE_QtWidgets = QtWidgets
+        self.QtCore: ModuleType = QtCore
+        self.QtWidgets: ModuleType = QtWidgets
         self.avatar: _PoseAvatarFeature | None = self._find_avatar() if avatar is None else avatar
-        self.form: _QT_TYPE_QtWidgets.QWidget = QtWidgets.QWidget()
+        self.form: _QWidget = QtWidgets.QWidget()
         self.form.setObjectName("ClothAvatarPoseTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
 
@@ -1343,8 +1395,8 @@ class AvatarPoseTaskPanel:
 
         presets = QtWidgets.QHBoxLayout()
         presets.setSpacing(2)
-        self.preset_group: _QT_TYPE_QtWidgets.QButtonGroup = QtWidgets.QButtonGroup(self.form)
-        self.preset_buttons: dict[str, _QT_TYPE_QtWidgets.QToolButton] = {}
+        self.preset_group: _QButtonGroup = QtWidgets.QButtonGroup(self.form)
+        self.preset_buttons: dict[str, _QToolButton] = {}
         for preset, label in self.PRESETS:
             button = QtWidgets.QToolButton()
             button.setText(label)
@@ -1358,7 +1410,7 @@ class AvatarPoseTaskPanel:
         root.addLayout(presets)
 
         tool_row = QtWidgets.QHBoxLayout()
-        self.symmetry: _QT_TYPE_QtWidgets.QToolButton = QtWidgets.QToolButton()
+        self.symmetry: _QToolButton = QtWidgets.QToolButton()
         self.symmetry.setText("Mirror")
         self.symmetry.setCheckable(True)
         self.symmetry.setChecked(False)
@@ -1366,7 +1418,7 @@ class AvatarPoseTaskPanel:
         self.symmetry.setToolTip(
             "Mirror left/right joint rotations across the mannequin center line."
         )
-        self.angle_snap: _QT_TYPE_QtWidgets.QToolButton = QtWidgets.QToolButton()
+        self.angle_snap: _QToolButton = QtWidgets.QToolButton()
         self.angle_snap.setText("5° Snap")
         self.angle_snap.setCheckable(True)
         self.angle_snap.setChecked(False)
@@ -1383,20 +1435,20 @@ class AvatarPoseTaskPanel:
 
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
-        self.selected_label: _QT_TYPE_QtWidgets.QLabel = QtWidgets.QLabel(
+        self.selected_label: _QLabel = QtWidgets.QLabel(
             "Select a bone in the 3D view."
         )
         self.selected_label.setProperty("clothRole", "subtitle")
         selected_layout.addWidget(self.selected_label)
 
-        self.instruction_label: _QT_TYPE_QtWidgets.QLabel = QtWidgets.QLabel(
+        self.instruction_label: _QLabel = QtWidgets.QLabel(
             "Click a bone to select it. Drag a colored ring to rotate that axis."
         )
         self.instruction_label.setWordWrap(True)
         selected_layout.addWidget(self.instruction_label)
 
         axis_row = QtWidgets.QHBoxLayout()
-        self._angle_labels: dict[str, _QT_TYPE_QtWidgets.QLabel] = {}
+        self._angle_labels: dict[str, _QLabel] = {}
         for axis in ("x", "y", "z"):
             value = QtWidgets.QLabel(f"{axis.upper()} 0°")
             value.setAlignment(QtCore.Qt.AlignCenter)
@@ -1412,7 +1464,7 @@ class AvatarPoseTaskPanel:
         self.precision.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
         selected_layout.addWidget(self.precision)
 
-        self.precision_fields: dict[str, _QT_TYPE_QtWidgets.QDoubleSpinBox] = {}
+        self.precision_fields: dict[str, _QDoubleSpinBox] = {}
         precision_widget = QtWidgets.QWidget()
         precision_layout = QtWidgets.QHBoxLayout(precision_widget)
         precision_layout.setContentsMargins(0, 0, 0, 0)
@@ -1445,7 +1497,7 @@ class AvatarPoseTaskPanel:
         joint_list_widget = QtWidgets.QWidget()
         joint_list_layout = QtWidgets.QVBoxLayout(joint_list_widget)
         joint_list_layout.setContentsMargins(0, 0, 0, 0)
-        self.joints: _QT_TYPE_QtWidgets.QTreeWidget = QtWidgets.QTreeWidget()
+        self.joints: _QTreeWidget = QtWidgets.QTreeWidget()
         self.joints.setHeaderHidden(True)
         self.joints.setRootIsDecorated(True)
         self.joints.setSelectionMode(QtWidgets.QAbstractItemView.SingleSelection)
@@ -1472,7 +1524,7 @@ class AvatarPoseTaskPanel:
         action_row.addStretch(1)
         root.addLayout(action_row)
 
-        self.status: _QT_TYPE_QtWidgets.QLabel = QtWidgets.QLabel()
+        self.status: _QLabel = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         from freecad_cloth.common.UiDesign import set_status
 
@@ -1612,8 +1664,8 @@ class AvatarPoseTaskPanel:
 
     def _joint_item_changed(
         self,
-        current: _QT_TYPE_QtWidgets.QTreeWidgetItem | None,
-        _previous: _QT_TYPE_QtWidgets.QTreeWidgetItem | None,
+        current: _QTreeWidgetItem | None,
+        _previous: _QTreeWidgetItem | None,
     ) -> None:
         """Synchronize staged rotation values when the selected joint row changes.
 
@@ -1977,7 +2029,7 @@ class AvatarPoseTaskPanel:
         buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         return int(getattr(buttons, "value", buttons))
 
-    def modifyStandardButtons(self, button_box: _QT_TYPE_QtWidgets.QDialogButtonBox) -> None:
+    def modifyStandardButtons(self, button_box: _QDialogButtonBox) -> None:
         """Customize the supplied dialog buttons for Pose Mode.
 
         Args:
@@ -1985,8 +2037,7 @@ class AvatarPoseTaskPanel:
         """
         _, _, _, QtWidgets = _modules()
         ok = button_box.button(QtWidgets.QDialogButtonBox.Ok)
-        if ok is not None:
-            ok.setText("Apply & Rebuild")
+        ok.setText("Apply & Rebuild")
 
 
 def show_avatar_pose_task(

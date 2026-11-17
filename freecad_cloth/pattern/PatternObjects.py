@@ -217,6 +217,33 @@ def _edge_records(
     return list(records)
 
 
+def edge_records_for_repair(piece: _PatternPieceDocumentFeature) -> list[EdgeRecord]:
+    """Expose authoritative native edge records to topology-repair commands.
+
+    Args:
+        piece: PatternPiece document feature with native Sketcher provenance.
+
+    Returns:
+        Current semantic edge records in native Sketcher order.
+    """
+    return _edge_records(piece)
+
+
+def native_edge_record_for_sketch_index(
+    piece: _PatternPieceDocumentFeature, edge_index: int
+) -> EdgeRecord | None:
+    """Resolve one viewport edge index through the native Sketcher authority.
+
+    Args:
+        piece: PatternPiece document feature with native Sketcher provenance.
+        edge_index: Zero-based native Sketcher geometry index.
+
+    Returns:
+        Semantic edge record for the requested index, or None when unavailable.
+    """
+    return _native_edge_record_for_sketch_index(piece, edge_index)
+
+
 def _seam_edge_id(
     piece: _PatternPieceDocumentFeature,
     edge: int | str,

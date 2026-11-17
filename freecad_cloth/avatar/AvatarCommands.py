@@ -40,6 +40,7 @@ from freecad_cloth.common.garment_document import (
     FreeCADDocumentProtocol,
 )
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
@@ -474,7 +475,7 @@ def _shape_float(value: JsonValue, *, name: str) -> float:
         raise ValueError(msg) from exc
 
 
-def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
+def _stored_pose(obj: AvatarParametersFeatureProtocol, preset: str, payload: str) -> Pose:
     """Reconstruct saved pose values and apply legacy-schema angle migration.
 
     Args:
@@ -515,7 +516,7 @@ def _stored_pose(obj: _AvatarFeature, preset: str, payload: str) -> Pose:
     )
 
 
-def _parameters(obj: _AvatarFeature) -> AvatarParameters:
+def _parameters(obj: AvatarParametersFeatureProtocol) -> AvatarParameters:
     """Reconstruct validated avatar parameters from persisted FreeCAD properties.
 
     Args:

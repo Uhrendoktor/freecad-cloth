@@ -76,16 +76,28 @@ class FreeCADDocumentProtocol(Protocol):
 
     @property
     def Name(self) -> str:
-        """Return the immutable internal document name."""
+        """Return the immutable internal document name.
+
+        Returns:
+            Stable internal name assigned by the FreeCAD document manager.
+        """
         ...
 
     @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
+        """Return the document's native objects as a read-only sequence.
+
+        Returns:
+            Read-only sequence of native document features.
+        """
         ...
 
     def recompute(self) -> int | None:
-        """Recompute document features and return the native host status code."""
+        """Recompute document features and return the native host status code.
+
+        Returns:
+            Native recompute status code, or None when the host returns no status.
+        """
         ...
 
 

@@ -3,6 +3,11 @@
 
 from typing import Protocol
 
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
+
 
 class AvatarPoseProtocol(Protocol):
     """Read-only pose fields consumed by the MakeHuman mesh fitter."""
@@ -120,6 +125,20 @@ class AvatarParametersProtocol(Protocol):
             The selected measurement value in millimetres.
         """
         ...
+
+
+class AvatarParametersFeatureProtocol(FreeCADDocumentObjectProtocol, Protocol):
+    """Persistent avatar properties required to reconstruct validated parameters."""
+
+    @property
+    def Document(self) -> FreeCADDocumentProtocol:
+        """Return the document that owns the persistent avatar feature."""
+        ...
+
+    PosePreset: str
+    JointPoseJSON: str
+    ParametersJSON: str
+    SkinOffset: float
 
 
 class AvatarTaskPanelFormProtocol(Protocol):

@@ -5,8 +5,10 @@ from collections.abc import Iterable, Sequence
 from typing import Protocol, TypeVar, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
-from freecad_cloth.common.JsonTypes import JsonObject
-from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index
+from freecad_cloth.pattern.PatternObjects import (
+    edge_records_for_repair,
+    native_edge_record_for_sketch_index,
+)
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeRecord,
@@ -53,7 +55,11 @@ class DocumentTransactionProtocol(Protocol):
 
     @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return a read-only view of the document's native objects."""
+        """Return a read-only view of the document's native objects.
+
+        Returns:
+            Native objects currently owned by the document.
+        """
         ...
 
     def openTransaction(self, label: str) -> None:
@@ -107,7 +113,7 @@ def seam_reference_status(seam: SeamFeatureProtocol, side: str) -> tuple[bool, s
     except ValueError:
         return False, "changed"
     try:
-        resolve_edge_reference(reference, _edge_records(piece))
+        resolve_edge_reference(reference, edge_records_for_repair(piece))
     except MissingEdgeReference:
         return False, "missing"
     except ChangedEdgeReference:
@@ -132,10 +138,10 @@ def invalid_seam_sides(
         if getattr(obj, "SeamId", None) is None:
             continue
         for side in ("A", "B"):
-            valid, reason = seam_reference_status(obj, side)
+            seam = cast("SeamFeatureProtocol", obj)
+            valid, reason = seam_reference_status(seam, side)
             if not valid:
-                # SeamId marks a native seam feature with the properties in this protocol.
-                result.append((cast("SeamFeatureProtocol", obj), side, reason))
+                result.append((seam, side, reason))
     return result
 
 
@@ -159,12 +165,12 @@ def current_edge_candidates(seam: SeamFeatureProtocol, side: str) -> list[EdgeRe
     piece = getattr(seam, "PatternA" if side == "A" else "PatternB", None)
     if piece is None:
         return []
-    return list(_edge_records(piece))
+    return list(edge_records_for_repair(piece))
 
 
 def current_edge_candidate_for_sketch_index(
     seam: SeamFeatureProtocol, side: str, edge_index: int
-) -> JsonObject:
+) -> EdgeRecord:
     """Resolve a viewport-picked native Sketcher edge to its current semantic record.
 
     Args:
@@ -187,7 +193,7 @@ def current_edge_candidate_for_sketch_index(
     if piece is None:
         raise InvalidRepairTarget(f"seam side {side} has no source PatternPiece")
     try:
-        record = _native_edge_record_for_sketch_index(piece, int(edge_index))
+        record = native_edge_record_for_sketch_index(piece, int(edge_index))
     except (IndexError, KeyError, TypeError, ValueError, RuntimeError) as exc:
         raise InvalidRepairTarget(
             f"selected native edge is not a current Sketcher boundary on seam side {side}"
