@@ -130,12 +130,12 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     blanket_visual = workflow.split("  gui-visual-examples:", 1)[1].split(
         "  publish-pr-simulation-evidence:", 1
     )[0]
-    realtime_step = tunic_audit.split(
-        "      - uses: ./.github/actions/pbd-realtime-diagnostic", 1
-    )[1].split("      - uses: ./.github/actions/pbd-tunic-audit", 1)[0]
-    production_tunic_steps = tunic_audit.split(
-        "      - uses: ./.github/actions/pbd-tunic-audit"
-    )[1:]
+    realtime_step = tunic_audit.split("      - uses: ./.github/actions/pbd-realtime-diagnostic", 1)[
+        1
+    ].split("      - uses: ./.github/actions/pbd-tunic-audit", 1)[0]
+    production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/pbd-tunic-audit")[
+        1:
+    ]
     assert workflow.count("timeout-seconds:") == 6
     assert workflow.count('timeout-seconds: "240"') == 1
     assert workflow.count('timeout-seconds: "360"') == 3
@@ -188,6 +188,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action
     assert 'default: "120"' in container_action
     assert "configured_timeout_seconds()" in runner
+
 
 def test_timeout_contract_is_documented() -> None:
     """The human documentation points to the authoritative configuration."""
@@ -290,9 +291,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
         "4" * 40: b"FROM freecad:four\n",
         "5" * 40: b"FROM freecad:five\n",
     }
-    patch_contents_by_sha = {
-        sha: f"native patch for {sha}\n".encode() for sha in contents_by_sha
-    }
+    patch_contents_by_sha = {sha: f"native patch for {sha}\n".encode() for sha in contents_by_sha}
     queries = []
 
     def fake_gh_json(*args: str) -> JsonObject:
