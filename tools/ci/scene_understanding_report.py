@@ -625,9 +625,7 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             }
         if line.startswith("drape-metrics="):
             try:
-                parsed_metrics = as_json_value(
-                    json.loads(line.removeprefix("drape-metrics="))
-                )
+                parsed_metrics = as_json_value(json.loads(line.removeprefix("drape-metrics=")))
             except (json.JSONDecodeError, TypeError):
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
@@ -918,9 +916,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
     metrics_payload: JsonValue = None
     if metrics_path.is_file():
         try:
-            metrics_payload = as_json_value(
-                json.loads(metrics_path.read_text(encoding="utf-8"))
-            )
+            metrics_payload = as_json_value(json.loads(metrics_path.read_text(encoding="utf-8")))
         except (json.JSONDecodeError, TypeError):
             metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
     result = assessment.result
