@@ -1,0 +1,94 @@
+name: PR 2842 controlled rebase v2
+on:
+  push:
+    branches:
+      - agents/pr2842-controlled-rebase-v2
+permissions:
+  actions: write
+  contents: write
+  pull-requests: read
+jobs:
+  rebase-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Rebase with reviewed strict-policy preservation and clean three-way merges
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: 1e3fd604e503ed77608134135911d3ce91c3424a
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          pr_number=2842
+          target_branch="agents/strict-python-all-files"
+          pr_json="$(gh api "repos/${repo}/pulls/${pr_number}")"
+          test "$(jq -r '.state' <<< "$pr_json")" = "open"
+          test "$(jq -r '.base.ref' <<< "$pr_json")" = "main"
+          test "$(jq -r '.head.ref' <<< "$pr_json")" = "$target_branch"
+          test "$(jq -r '.head.sha' <<< "$pr_json")" = "$EXPECTED_HEAD"
+          test "$(jq -r '.head.repo.full_name' <<< "$pr_json")" = "$repo"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/${repo}.git"
+          git fetch origin main "refs/heads/${target_branch}:refs/remotes/origin/${target_branch}"
+          test "$(git rev-parse "refs/remotes/origin/${target_branch}")" = "$EXPECTED_HEAD"
+          git checkout -B "$target_branch" "refs/remotes/origin/$target_branch"
+          if ! git rebase origin/main; then
+            while [[ -d .git/rebase-merge || -d .git/rebase-apply ]]; do
+              mapfile -t conflicts < <(git diff --name-only --diff-filter=U | sort)
+              if (( ${#conflicts[@]} == 0 )); then
+                echo "::error::Rebase stopped without identifiable conflict files."
+                git rebase --abort
+                exit 1
+              fi
+              for path in "${conflicts[@]}"; do
+                if [[ "$path" == "pyrightconfig.json" ]]; then
+                  # Preserve the PR's explicit repository-root strict Pyright policy.
+                  git checkout --theirs -- "$path"
+                  git add -- "$path"
+                  continue
+                fi
+                # Use a true three-way merge; only non-overlapping changes are accepted.
+                tmpdir="$(mktemp -d)"
+                git show ":1:$path" > "$tmpdir/base"
+                git show ":2:$path" > "$tmpdir/main"
+                git show ":3:$path" > "$tmpdir/pr"
+                if ! git merge-file -p "$tmpdir/main" "$tmpdir/base" "$tmpdir/pr" > "$tmpdir/merged"; then
+                  printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
+                  rm -rf "$tmpdir"
+                  git rebase --abort
+                  exit 1
+                fi
+                cat "$tmpdir/merged" > "$path"
+                rm -rf "$tmpdir"
+                git add -- "$path"
+              done
+              if ! GIT_EDITOR=true git rebase --continue; then
+                if ! git diff --name-only --diff-filter=U | grep -q .; then
+                  echo "::error::Rebase continuation failed without a conflict; refusing to skip commits."
+                  git rebase --abort
+                  exit 1
+                fi
+              fi
+            done
+          fi
+          git merge-base --is-ancestor origin/main HEAD
+          rebased_head="$(git rev-parse HEAD)"
+          git push --force-with-lease="refs/heads/${target_branch}:${EXPECTED_HEAD}" origin "HEAD:refs/heads/${target_branch}"
+          gh workflow run commit-validation.yml --repo "$repo" --ref "$target_branch" -f execution_mode=full -f pr_number="$pr_number"
+          for _ in $(seq 1 45); do
+            run_json="$(gh run list --repo "$repo" --workflow "Commit validation" --branch "$target_branch" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "$rebased_head" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [[ -n "$run_json" ]]; then
+              echo "$run_json"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Full validation was dispatched but no exact-head run appeared for $rebased_head."
+          exit 1
