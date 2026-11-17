@@ -197,7 +197,7 @@ jobs:
                   index += 1
               if index >= len(lines):
                   raise SystemExit("unterminated PR import conflict")
-              if "_write_mesh," not in "".join(ours):
+              if "_write_mesh" not in "".join(ours):
                   raise SystemExit("unexpected main-side eager import conflict")
               result.extend(theirs)
               resolved += 1
