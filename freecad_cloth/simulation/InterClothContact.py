@@ -540,11 +540,7 @@ def _candidate_edge_triangle_pairs(
     clearance_mm: float,
 ) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64], int, float, float]:
     """Batch conservative edge/triangle broad-phase queries for one direction."""
-    radii = (
-        clearance_mm
-        + source.edge_half_lengths
-        + float(target.triangle_radii.max())
-    )
+    radii = clearance_mm + source.edge_half_lengths + float(target.triangle_radii.max())
     query_started = time.perf_counter()
     neighbors = target.triangle_tree.query_ball_point(
         source.edge_centers,
@@ -570,18 +566,13 @@ def _candidate_edge_triangle_pairs(
         [np.asarray(indices, dtype=np.int64) for indices in neighbors if len(indices)]
     )
     filter_started = time.perf_counter()
-    center_delta = (
-        target.triangle_centers[target_triangle_indices]
-        - source.edge_centers[source_edge_indices]
-    )
+    center_delta = target.triangle_centers[target_triangle_indices] - source.edge_centers[source_edge_indices]
     maximum_reach = (
         clearance_mm
         + source.edge_half_lengths[source_edge_indices]
         + target.triangle_radii[target_triangle_indices]
     )
-    plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (
-        maximum_reach * maximum_reach
-    )
+    plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (maximum_reach * maximum_reach)
     source_edge_indices = source_edge_indices[plausible]
     target_triangle_indices = target_triangle_indices[plausible]
     filter_seconds = time.perf_counter() - filter_started
@@ -1051,12 +1042,17 @@ def project_inter_cloth_contacts(
                     exact_tests = plausible_candidate_count
                     closest_started = time.perf_counter()
                     if plausible_candidate_count:
-                        edge_points, face_points, edge_factors, face_weights, normals, distances_squared = (
-                            _closest_segment_triangles_batch(
-                                current[source.edges[source_edge_indices, 0]],
-                                current[source.edges[source_edge_indices, 1]],
-                                current[target.triangles[target_triangle_indices]],
-                            )
+                        (
+                            edge_points,
+                            face_points,
+                            edge_factors,
+                            face_weights,
+                            normals,
+                            distances_squared,
+                        ) = _closest_segment_triangles_batch(
+                            current[source.edges[source_edge_indices, 0]],
+                            current[source.edges[source_edge_indices, 1]],
+                            current[target.triangles[target_triangle_indices]],
                         )
                     else:
                         edge_points = np.empty((0, 3), dtype=np.float64)
@@ -1068,6 +1064,7 @@ def project_inter_cloth_contacts(
                     closest_seconds = time.perf_counter() - closest_started
 
                     correction_started = time.perf_counter()
+                    active_constraints = 0
                     if plausible_candidate_count:
                         best_distance_by_edge = np.full(
                             len(source.edges),
