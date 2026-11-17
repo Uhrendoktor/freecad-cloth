@@ -610,9 +610,9 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     preview_action = (
         ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
     ).read_text(encoding="utf-8")
-    production_action = (
-        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
-    ).read_text(encoding="utf-8")
+    production_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     preview_index = gui.index("./.github/actions/pbd-realtime-diagnostic")
     audit_index = gui.index("./.github/actions/pbd-tunic-audit")
