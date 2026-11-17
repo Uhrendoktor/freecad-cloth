@@ -9,6 +9,7 @@ piece/edge/seam contracts.
 from collections.abc import Mapping, Sequence
 from dataclasses import field, replace
 from math import hypot
+from typing import Protocol
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -18,6 +19,33 @@ from freecad_cloth.pattern.PatternModel import EdgeRef, PatternPiece, Seam
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
 Point3 = tuple[float, float, float]
+
+
+class _Vector3Protocol(Protocol):
+    x: float
+    y: float
+    z: float
+
+
+class _NativeCurveProtocol(Protocol):
+    StartPoint: _Vector3Protocol
+    EndPoint: _Vector3Protocol
+    FirstParameter: float
+    LastParameter: float
+
+    def valueAt(self, parameter: float) -> _Vector3Protocol:
+        """Evaluate the native curve at one parameter."""
+        ...
+
+
+class SketchDocumentProtocol(Protocol):
+    """Minimal Sketcher document surface consumed by the PatternIR adapter."""
+
+    Geometry: Sequence[_NativeCurveProtocol]
+
+    def getConstruction(self, index: int) -> bool:
+        """Return whether one native geometry index is construction-only."""
+        ...
 
 
 @pydantic_dataclass(frozen=True)
@@ -288,7 +316,7 @@ class PatternIR:
     def from_sketches(
         cls,
         graph: SeamGraph,
-        sketches: Mapping[str, object],
+        sketches: Mapping[str, SketchDocumentProtocol],
         materials: Mapping[str, str] | None = None,
         curve_samples: int = 32,
     ) -> "PatternIR":
@@ -409,7 +437,7 @@ def _boundary_ir(segment: Segment, curve_samples: int) -> BoundaryIR:
 
 
 def _sketch_boundaries(
-    sketch: object, piece_id: str, curve_samples: int
+    sketch: SketchDocumentProtocol, piece_id: str, curve_samples: int
 ) -> tuple[tuple[BoundaryIR, ...], dict[int, str]]:
     """Extract non-construction Sketcher geometry with stable semantic edge IDs.
 
@@ -665,7 +693,7 @@ def _orient_boundary(
     raise ValueError(msg)
 
 
-def _is_construction(sketch: object, index: int) -> bool:
+def _is_construction(sketch: SketchDocumentProtocol, index: int) -> bool:
     """Check whether a native sketch geometry element is construction-only.
 
     Args:
@@ -684,7 +712,7 @@ def _is_construction(sketch: object, index: int) -> bool:
         return False
 
 
-def _native_boundary(native: object, edge_id: str, curve_samples: int) -> BoundaryIR:
+def _native_boundary(native: _NativeCurveProtocol, edge_id: str, curve_samples: int) -> BoundaryIR:
     """Sample one native Sketcher geometry object into a typed boundary record.
 
     Args:
@@ -733,7 +761,7 @@ def _native_boundary(native: object, edge_id: str, curve_samples: int) -> Bounda
     return BoundaryIR(edge_id, kind, samples, (first, last))
 
 
-def _native_parameter(native: object, name: str, default: float) -> float:
+def _native_parameter(native: _NativeCurveProtocol, name: str, default: float) -> float:
     """Read a finite numeric native-curve parameter or use its fallback.
 
     Args:
@@ -748,7 +776,7 @@ def _native_parameter(native: object, name: str, default: float) -> float:
     return validate_finite_number(value() if callable(value) else value)
 
 
-def _native_value(native: object, parameter: float) -> object:
+def _native_value(native: _NativeCurveProtocol, parameter: float) -> _Vector3Protocol:
     """Evaluate one native curve through the host's supported value method.
 
     Args:
@@ -771,7 +799,7 @@ def _native_value(native: object, parameter: float) -> object:
     raise ValueError(msg)
 
 
-def _point3(point: object) -> Point3:
+def _point3(point: _Vector3Protocol) -> Point3:
     """Convert a native vector-like sketch point into a plain XYZ tuple.
 
     Args:

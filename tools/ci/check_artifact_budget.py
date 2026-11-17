@@ -49,7 +49,7 @@ def _safe_error_body_preview(body: bytes) -> str:
     return preview[:API_ERROR_BODY_PREVIEW_CHAR_LIMIT]
 
 
-def _is_artifact_identifier(value: object) -> bool:
+def _is_artifact_identifier(value: JSONValue) -> bool:
     """Return whether a value is an integer artifact identifier, excluding booleans.
 
     Args:
@@ -62,8 +62,8 @@ def _is_artifact_identifier(value: object) -> bool:
 
 
 def latest_artifacts_by_name(
-    artifacts: Iterable[Mapping[str, object]],
-) -> list[Mapping[str, object]]:
+    artifacts: Iterable[Mapping[str, JSONValue]],
+) -> list[Mapping[str, JSONValue]]:
     """Keep the newest upload for each logical artifact name across run attempts.
 
     Args:
@@ -76,7 +76,7 @@ def latest_artifacts_by_name(
         ValueError: If duplicate uploads omit required ordering metadata.
         TypeError: If creation timestamps or artifact identifiers have invalid types.
     """
-    latest: dict[str, Mapping[str, object]] = {}
+    latest: dict[str, Mapping[str, JSONValue]] = {}
     for artifact in artifacts:
         name = artifact.get("name")
         if not isinstance(name, str) or not name:
@@ -107,7 +107,7 @@ def latest_artifacts_by_name(
     return [latest[name] for name in sorted(latest)]
 
 
-def accumulated_size(artifacts: Iterable[Mapping[str, object]]) -> int:
+def accumulated_size(artifacts: Iterable[Mapping[str, JSONValue]]) -> int:
     """Return the accumulated stored size of workflow artifacts in bytes.
 
     Args:
@@ -243,7 +243,7 @@ def request_artifact_payload(
 
 def fetch_artifact_page(
     repository: str, run_id: int, token: str, page: int
-) -> list[Mapping[str, object]]:
+) -> list[Mapping[str, JSONValue]]:
     """Fetch one paginated workflow-artifact response.
 
     Args:
@@ -285,7 +285,7 @@ def fetch_artifact_page(
     if not isinstance(artifacts, list):
         msg = "GitHub artifact API response has no artifact list"
         raise TypeError(msg)
-    normalized: list[Mapping[str, object]] = []
+    normalized: list[Mapping[str, JSONValue]] = []
     for item in artifacts:
         if not isinstance(item, dict):
             msg = "GitHub artifact API returned a malformed artifact list"
@@ -294,7 +294,7 @@ def fetch_artifact_page(
     return normalized
 
 
-def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, object]]:
+def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mapping[str, JSONValue]]:
     """Fetch every artifact belonging to one workflow run.
 
     Args:
@@ -305,7 +305,7 @@ def fetch_run_artifacts(repository: str, run_id: int, token: str) -> list[Mappin
     Returns:
         All artifact records from the workflow run.
     """
-    artifacts: list[Mapping[str, object]] = []
+    artifacts: list[Mapping[str, JSONValue]] = []
     page = 1
     while True:
         batch = fetch_artifact_page(repository, run_id, token, page)

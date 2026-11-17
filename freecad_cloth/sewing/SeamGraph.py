@@ -397,7 +397,7 @@ class SeamGraph:
 
     @staticmethod
     def _edge_vertices(
-        edge_vertices: Mapping[tuple[str, EdgeRef], Sequence[object]],
+        edge_vertices: Mapping[tuple[str, EdgeRef], Sequence[int]],
         piece_id: str,
         edge_index: EdgeRef,
     ) -> tuple[int, ...]:

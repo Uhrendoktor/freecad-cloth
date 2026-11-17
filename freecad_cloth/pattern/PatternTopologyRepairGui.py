@@ -6,24 +6,23 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Protocol
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 if TYPE_CHECKING:
     from types import ModuleType
 
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol
+    from freecad_cloth.pattern.PatternTopologyRepair import DocumentTransactionProtocol, SeamFeatureProtocol
 
 
 class _ComboBoxProtocol(Protocol):
     """Minimal Qt combo-box interface used by the topology repair panel."""
 
-    def addItem(self, text: str, userData: object | None = None) -> None: ...
+    def addItem(self, text: str, userData: str | None = None) -> None: ...
 
-    def currentData(self) -> object: ...
+    def currentData(self) -> str | None: ...
 
-    def findData(self, value: object) -> int: ...
+    def findData(self, value: str) -> int: ...
 
     def setCurrentIndex(self, index: int) -> None: ...
 
@@ -49,7 +48,7 @@ class _TopologyRepairViewportPicker:
     def __init__(
         self,
         panel: PatternTopologyRepairTaskPanel,
-        seam: FreeCADDocumentObjectProtocol,
+        seam: DocumentTransactionProtocol,
         side: str,
         combo: _QT_TYPE_QtWidgets.QComboBox,
     ) -> None:
@@ -210,7 +209,7 @@ class _TopologyRepairViewportPicker:
 class PatternTopologyRepairTaskPanel:
     """Show invalid seam sides and require an explicit current-edge mapping."""
 
-    def __init__(self, doc: object) -> None:
+    def __init__(self, doc: DocumentTransactionProtocol) -> None:
         Gui, QtWidgets = _gui_modules()
         from freecad_cloth.pattern.PatternTopologyRepair import (
             current_edge_candidates,
@@ -296,7 +295,7 @@ class PatternTopologyRepairTaskPanel:
 
     def _begin_viewport_pick(
         self,
-        seam: FreeCADDocumentObjectProtocol,
+        seam: DocumentTransactionProtocol,
         side: str,
         combo: _QT_TYPE_QtWidgets.QComboBox,
     ) -> None:
@@ -393,7 +392,7 @@ class PatternTopologyRepairTaskPanel:
         return 0x00000400 | 0x00800000
 
 
-def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:
+def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:
     Gui, _QtWidgets = _gui_modules()
     panel = PatternTopologyRepairTaskPanel(doc)
     Gui.Control.showDialog(panel)

@@ -1,10 +1,12 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD document objects for the cloth pattern model."""
 
+from __future__ import annotations
+
 import ast
 from collections.abc import Callable, Sequence
 from types import ModuleType
-from typing import Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
@@ -17,27 +19,39 @@ from freecad_cloth.pattern.SeamReference import (
 )
 from freecad_cloth.shared.SeamColors import apply_seam_colors
 
+if TYPE_CHECKING:
+    from freecad_cloth.pattern.PatternIR import SketchDocumentProtocol
+
 type Point2D = tuple[float, float]
+
+
+class _PartShapeProtocol(Protocol):
+    """Minimal native Part shape surface assigned by the pattern-piece proxy."""
+
+    def isNull(self) -> bool: ...
 
 
 class _PatternPieceDocumentFeature(Protocol):
     """Native pattern-piece properties written by the recompute proxy."""
 
-    Width: object
-    Height: object
-    SeamAllowance: object
+    PieceId: str
+    GeometryAuthority: str
+    Sketch: SketchDocumentProtocol | None
+    Width: float
+    Height: float
+    SeamAllowance: float
     GeometryMode: str
     DraftingBoundary: str
     SewingBoundary: str
     SewingOutline: str
-    Shape: object
+    Shape: _PartShapeProtocol
 
 
-def _parse_points(value: object) -> list[Point2D]:
+def _parse_points(value: str) -> list[Point2D]:
     if not value:
         return []
     try:
-        points = cast("Sequence[Sequence[object]]", ast.literal_eval(str(value)))
+        points = cast("Sequence[Sequence[float]]", ast.literal_eval(value))
         return [(float(point[0]), float(point[1])) for point in points]
     except (ValueError, SyntaxError, TypeError, IndexError) as exc:
         msg = "invalid pattern boundary"
@@ -58,7 +72,7 @@ def _boundary_shape(
     *,
     app_module: ModuleType | None = None,
     part_module: ModuleType | None = None,
-) -> object:
+) -> _PartShapeProtocol:
     if app_module is None:
         import FreeCAD as app_module
     if part_module is None:
@@ -95,7 +109,7 @@ def _boundary_shape(
     return part_module.Face(wire)
 
 
-def _native_edge_records(piece: object) -> list[EdgeRecord] | None:
+def _native_edge_records(piece: _PatternPieceDocumentFeature) -> list[EdgeRecord] | None:
     """Expose native Sketcher/PatternIR provenance as semantic edge records."""
     sketch = getattr(piece, "Sketch", None)
     if sketch is None or str(getattr(piece, "GeometryAuthority", "")) != "Sketcher":
@@ -138,10 +152,10 @@ def _native_edge_records(piece: object) -> list[EdgeRecord] | None:
 
 
 def _native_edge_record_for_sketch_index(
-    piece: object,
+    piece: _PatternPieceDocumentFeature,
     edge: int,
     *,
-    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
 ) -> EdgeRecord | None:
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
@@ -169,9 +183,9 @@ def _native_edge_record_for_sketch_index(
 
 
 def _edge_records(
-    piece: object,
+    piece: _PatternPieceDocumentFeature,
     *,
-    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
 ) -> list[EdgeRecord]:
     """Return edge records derived only from the authoritative native Sketcher boundary.
 
@@ -202,11 +216,11 @@ def _edge_records(
 
 
 def _seam_edge_id(
-    piece: object,
+    piece: _PatternPieceDocumentFeature,
     edge: int | str,
     prefix: str,
     *,
-    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
 ) -> tuple[str, str]:
     """Return the semantic edge id and captured signature for a seam side."""
     if isinstance(edge, int):
@@ -233,7 +247,7 @@ def _seam_edge_id(
     raise MissingEdgeReference(msg)
 
 
-def refresh_edge_reference_signature(piece: object, edge_id: str) -> str:
+def refresh_edge_reference_signature(piece: _PatternPieceDocumentFeature, edge_id: str) -> str:
     """Return a refreshed signature without changing semantic edge identity.
 
     This is an explicit repair primitive: it refreshes a stored reference only
@@ -270,11 +284,11 @@ def refresh_edge_reference_signature(piece: object, edge_id: str) -> str:
 
 
 def _resolve_document_edge(
-    piece: object,
+    piece: _PatternPieceDocumentFeature,
     edge_id: str,
     signature: str,
     *,
-    native_edge_records_fn: Callable[[object], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
 ) -> EdgeRecord:
     """Resolve a stored semantic seam reference against current Sketcher provenance.
 

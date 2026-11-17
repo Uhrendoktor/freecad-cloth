@@ -43,27 +43,37 @@ class SeamFeatureProtocol(Protocol):
     EdgeBSignature: str
     EdgeB: int
 
-    def touch(self) -> None: ...
+    def touch(self) -> None:
+        """Mark the seam feature as changed for recomputation."""
+        ...
 
 
 class DocumentTransactionProtocol(Protocol):
     """FreeCAD document transaction surface used by the repair operation."""
 
-    Objects: Sequence[object]
+    Objects: Sequence[FreeCADDocumentObjectProtocol]
 
-    def openTransaction(self, label: str) -> None: ...
+    def openTransaction(self, label: str) -> None:
+        """Begin an undoable transaction with the supplied label."""
+        ...
 
-    def recompute(self) -> None: ...
+    def recompute(self) -> None:
+        """Recompute document objects after the repair properties are updated."""
+        ...
 
-    def commitTransaction(self) -> None: ...
+    def commitTransaction(self) -> None:
+        """Commit the current repair transaction."""
+        ...
 
-    def abortTransaction(self) -> None: ...
+    def abortTransaction(self) -> None:
+        """Roll back the current repair transaction."""
+        ...
 
 
-_RepairSeam = TypeVar("_RepairSeam")
+_RepairSeam = TypeVar("_RepairSeam", bound=SeamFeatureProtocol)
 
 
-def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:
+def seam_reference_status(seam: SeamFeatureProtocol, side: str) -> tuple[bool, str]:
     """Check whether one stored seam side still resolves to its authored edge.
 
     Args:
@@ -99,7 +109,7 @@ def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:
 
 
 def invalid_seam_sides(
-    doc: object,
+    doc: DocumentTransactionProtocol,
 ) -> list[tuple[SeamFeatureProtocol, str, str]]:
     """Collect every invalid semantic edge reference in one FreeCAD document.
 
@@ -110,7 +120,7 @@ def invalid_seam_sides(
         Tuples containing each invalid seam feature, side selector, and failure reason.
     """
     result: list[tuple[SeamFeatureProtocol, str, str]] = []
-    objects = cast("Sequence[object]", getattr(doc, "Objects", ()))
+    objects = doc.Objects
     for obj in objects:
         if getattr(obj, "SeamId", None) is None:
             continue
@@ -122,7 +132,7 @@ def invalid_seam_sides(
     return result
 
 
-def current_edge_candidates(seam: object, side: str) -> list[EdgeRecord]:
+def current_edge_candidates(seam: SeamFeatureProtocol, side: str) -> list[EdgeRecord]:
     """Return current semantic edge records for one seam side's source piece.
 
     Args:
@@ -146,7 +156,7 @@ def current_edge_candidates(seam: object, side: str) -> list[EdgeRecord]:
 
 
 def current_edge_candidate_for_sketch_index(
-    seam: FreeCADDocumentObjectProtocol, side: str, edge_index: int
+    seam: SeamFeatureProtocol, side: str, edge_index: int
 ) -> JsonObject:
     """Resolve a viewport-picked native Sketcher edge to its current semantic record.
 
@@ -190,7 +200,7 @@ def current_edge_candidate_for_sketch_index(
     return record
 
 
-def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:
+def validate_repair_target(seam: SeamFeatureProtocol, side: str, edge_id: str) -> EdgeRecord:
     """Resolve an explicitly selected current edge and return its record.
 
     Args:
@@ -250,7 +260,7 @@ def build_repair_plan(
 
 
 def apply_repair_plan(
-    doc: object,
+    doc: DocumentTransactionProtocol,
     repairs: Iterable[tuple[SeamFeatureProtocol, str, str]],
 ) -> list[tuple[SeamFeatureProtocol, str, EdgeRecord]]:
     """Apply validated semantic seam-edge repairs in one undoable transaction.
@@ -267,7 +277,7 @@ def apply_repair_plan(
         InvalidRepairTarget: If a selected replacement edge cannot be resolved.
     """
     plan = build_repair_plan(repairs)
-    document = cast("DocumentTransactionProtocol", doc)
+    document = doc
     document.openTransaction("Repair Cloth pattern topology")
     try:
         for seam, side, record in plan:
