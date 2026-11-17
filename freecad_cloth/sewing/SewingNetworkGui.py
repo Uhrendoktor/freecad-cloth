@@ -60,6 +60,19 @@ class _SewingNetworkFeature(FreeCADDocumentObjectProtocol, Protocol):
     Seams: Sequence[_SeamFeature]
 
 
+class _SeamReferenceStatus(Protocol):
+    """Seam identity and status required to check network references."""
+
+    Status: str
+    SeamId: str
+
+
+class _NetworkReferenceCollection(Protocol):
+    """Ordered seam collection required by reference-status validators."""
+
+    Seams: Sequence[_SeamReferenceStatus]
+
+
 class _RangeEditor(Protocol):
     """Numeric Qt control used for one normalized seam-range endpoint."""
 
@@ -88,7 +101,7 @@ class _RangeEditor(Protocol):
         ...
 
 
-def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str, str], ...]:
+def network_reference_errors(network: _NetworkReferenceCollection) -> tuple[tuple[str, str], ...]:
     """Collect non-valid statuses from canonical sewing-network members.
 
     Args:
@@ -105,7 +118,7 @@ def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str,
     return tuple(errors)
 
 
-def validate_network_for_edit(network: _SewingNetworkFeature) -> bool:
+def validate_network_for_edit(network: _NetworkReferenceCollection) -> bool:
     """Check whether a persisted network can safely enter the editor.
 
     Args:

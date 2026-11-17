@@ -54,7 +54,11 @@ class DocumentTransactionProtocol(Protocol):
     Objects: Sequence[FreeCADDocumentObjectProtocol]
 
     def openTransaction(self, label: str) -> None:
-        """Begin an undoable transaction with the supplied label."""
+        """Begin an undoable document transaction with the supplied label.
+
+        Args:
+            label: Human-readable transaction name displayed in the undo history.
+        """
         ...
 
     def recompute(self) -> None:

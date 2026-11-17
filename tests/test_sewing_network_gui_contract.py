@@ -1,4 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+from collections.abc import Sequence
 import sys
 import unittest
 from pathlib import Path
@@ -13,13 +14,18 @@ from freecad_cloth.sewing.SewingNetworkGui import (
 
 
 class _Seam:
-    def __init__(self, seam_id, status="Valid"):
+    SeamId: str
+    Status: str
+
+    def __init__(self, seam_id: str, status: str = "Valid") -> None:
         self.SeamId = seam_id
         self.Status = status
 
 
 class _Network:
-    def __init__(self, seams):
+    Seams: Sequence[_Seam]
+
+    def __init__(self, seams: Sequence[_Seam]) -> None:
         self.Seams = seams
 
 

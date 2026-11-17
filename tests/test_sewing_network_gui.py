@@ -75,6 +75,8 @@ class _NetworkFixture(Protocol):
 class _ReferenceNetwork:
     """Provide the seam collection consumed by sewing-network validators."""
 
+    Seams: Sequence[_ReferenceSeam]
+
     def __init__(self, seams: Sequence[_ReferenceSeam]) -> None:
         """Initialize a network with the supplied seam collection.
 

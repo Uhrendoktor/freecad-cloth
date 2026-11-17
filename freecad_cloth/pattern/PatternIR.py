@@ -44,7 +44,14 @@ class SketchDocumentProtocol(Protocol):
     Geometry: Sequence[_NativeCurveProtocol]
 
     def getConstruction(self, index: int) -> bool:
-        """Return whether one native geometry index is construction-only."""
+        """Return whether the native Sketcher element is construction-only.
+
+        Args:
+            index: Zero-based index of the geometry entry in the Sketcher list.
+
+        Returns:
+            True when the geometry entry is marked as construction geometry.
+        """
         ...
 
 

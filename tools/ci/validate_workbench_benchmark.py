@@ -10,10 +10,10 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-if not __package__:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-
-from tools.ci.repository_paths import add_repository_root
+if __package__ is None or __package__ == "":
+    from repository_paths import add_repository_root
+else:
+    from .repository_paths import add_repository_root
 
 ROOT = add_repository_root(__file__)
 
