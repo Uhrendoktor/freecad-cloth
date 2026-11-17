@@ -378,7 +378,7 @@ def test_inter_cloth_measurement_reports_post_projection_clearance_deficit() -> 
     assert residual_deficit == 0.0
 
     moved_back = np.asarray(corrected).copy()
-    moved_back[4:, 2] -= 0.75
+    moved_back[4:, 2] -= 2.0
     residual_count, residual_deficit = measure_inter_cloth_contacts(
         moved_back,
         groups,
