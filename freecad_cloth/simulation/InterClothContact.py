@@ -49,10 +49,14 @@ class _SurfaceIndex(NamedTuple):
     triangles: TriangleArray
     triangle_centers: PointArray
     triangle_radii: PointArray
+    triangle_minimums: PointArray
+    triangle_maximums: PointArray
     triangle_tree: KDTree
     edges: EdgeArray
     edge_centers: PointArray
     edge_half_lengths: PointArray
+    edge_minimums: PointArray
+    edge_maximums: PointArray
     edge_tree: KDTree
 
 
@@ -566,15 +570,19 @@ def _candidate_edge_triangle_pairs(
         [np.asarray(indices, dtype=np.int64) for indices in neighbors if len(indices)]
     )
     filter_started = time.perf_counter()
-    center_delta = (
-        target.triangle_centers[target_triangle_indices] - source.edge_centers[source_edge_indices]
+    # An expanded segment AABB and triangle AABB are a conservative distance
+    # broad phase: any pair within the requested Euclidean clearance must overlap
+    # on all three axes. This is substantially tighter than centre/radius spheres
+    # for long, thin cloth triangles and avoids expensive exact tests for them.
+    edge_minimums = source.edge_minimums[source_edge_indices] - clearance_mm
+    edge_maximums = source.edge_maximums[source_edge_indices] + clearance_mm
+    triangle_minimums = target.triangle_minimums[target_triangle_indices]
+    triangle_maximums = target.triangle_maximums[target_triangle_indices]
+    plausible = np.all(
+        (edge_maximums >= triangle_minimums)
+        & (triangle_maximums >= edge_minimums),
+        axis=1,
     )
-    maximum_reach = (
-        clearance_mm
-        + source.edge_half_lengths[source_edge_indices]
-        + target.triangle_radii[target_triangle_indices]
-    )
-    plausible = np.einsum("ij,ij->i", center_delta, center_delta) <= (maximum_reach * maximum_reach)
     source_edge_indices = source_edge_indices[plausible]
     target_triangle_indices = target_triangle_indices[plausible]
     filter_seconds = time.perf_counter() - filter_started
@@ -616,6 +624,8 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
         triangle_points - triangle_centers[:, None, :],
         axis=2,
     ).max(axis=1)
+    triangle_minimums = triangle_points.min(axis=1)
+    triangle_maximums = triangle_points.max(axis=1)
     triangle_tree = KDTree(triangle_centers)
 
     directed_edges = np.concatenate(
@@ -626,15 +636,21 @@ def _surface_index(positions: PointArray, triangles: TriangleArray) -> _SurfaceI
     edge_points = positions[edges]
     edge_centers = edge_points.mean(axis=1)
     edge_half_lengths = np.linalg.norm(edge_points[:, 1] - edge_points[:, 0], axis=1) * 0.5
+    edge_minimums = edge_points.min(axis=1)
+    edge_maximums = edge_points.max(axis=1)
     edge_tree = KDTree(edge_centers)
     return _SurfaceIndex(
         triangles,
         triangle_centers,
         triangle_radii,
+        triangle_minimums,
+        triangle_maximums,
         triangle_tree,
         edges,
         edge_centers,
         edge_half_lengths,
+        edge_minimums,
+        edge_maximums,
         edge_tree,
     )
 
@@ -925,6 +941,7 @@ def project_inter_cloth_contacts(
     stitches: Sequence[tuple[int, int]] = (),
     iterations: int = 8,
     relaxation: float = 0.8,
+    measure_residual: bool = True,
 ) -> tuple[PointArray, PointArray, InterClothContactMetrics]:
     """Project distinct garment groups apart using two-sided edge/face contacts.
 
@@ -1171,15 +1188,18 @@ def project_inter_cloth_contacts(
         if not bool(np.any(moved)):
             break
 
-    surfaces = {
-        group_id: _surface_index(current, surface.triangles)
-        for group_id, surface in surfaces.items()
-    }
-    _emit_contact_diagnostic("inter-cloth-residual-measure-start")
-    remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
-    _emit_contact_diagnostic(
-        f"inter-cloth-residual-measure-finish remaining={remaining_contacts} max_deficit_mm={maximum_after:.4f}"
-    )
+    remaining_contacts = 0
+    maximum_after = 0.0
+    if measure_residual:
+        surfaces = {
+            group_id: _surface_index(current, surface.triangles)
+            for group_id, surface in surfaces.items()
+        }
+        _emit_contact_diagnostic("inter-cloth-residual-measure-start")
+        remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
+        _emit_contact_diagnostic(
+            f"inter-cloth-residual-measure-finish remaining={remaining_contacts} max_deficit_mm={maximum_after:.4f}"
+        )
     movement = np.linalg.norm(current - original, axis=1)
     corrected_count = int(np.count_nonzero(movement > 1e-8))
     directions = np.zeros_like(current)
