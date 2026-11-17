@@ -116,9 +116,9 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     realtime_action = (
         ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
     ).read_text(encoding="utf-8")
-    production_action = (
-        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
-    ).read_text(encoding="utf-8")
+    production_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     runner = (ROOT / "tools" / "ci" / "run_freecad.py").read_text(encoding="utf-8")
 
     simulation_ladder = workflow.split("  simulation-ladder:", 1)[1].split("  python:", 1)[0]
