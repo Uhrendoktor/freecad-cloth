@@ -163,6 +163,70 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                if [[ "$path" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]; then
+                  # Keep main's newer native Sketcher viewport picker and layer the PR's
+                  # Protocol annotations over that implementation instead of reverting it.
+                  git checkout --ours -- "$path"
+                  python3 - "$path" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          text = path.read_text(encoding="utf-8")
+
+          def replace_once(old: str, new: str) -> None:
+              global text
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"expected one occurrence of {old!r}, found {count}")
+              text = text.replace(old, new, 1)
+
+          replace_once("from typing import TYPE_CHECKING", "from typing import TYPE_CHECKING, Protocol")
+          replace_once(
+              "if TYPE_CHECKING:\\n    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n",
+              "if TYPE_CHECKING:\\n"
+              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
+              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n",
+          )
+          insert_after = (
+              "if TYPE_CHECKING:\\n"
+              "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\\n"
+              "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\\n"
+          )
+          protocol = (
+              "\\n\\nclass _ComboBoxProtocol(Protocol):\\n"
+              "    def addItem(self, text: str, userData: object = None) -> None: ...\\n\\n"
+              "    def currentData(self) -> object: ...\\n\\n"
+              "    def findData(self, value: object) -> int: ...\\n\\n"
+              "    def setCurrentIndex(self, index: int) -> None: ...\\n\\n"
+              "    def count(self) -> int: ...\\n"
+          )
+          if text.count(insert_after) != 1:
+              raise SystemExit("could not locate the TYPE_CHECKING import block")
+          text = text.replace(insert_after, insert_after + protocol, 1)
+          replace_once("    def __init__(self, doc):", "    def __init__(self, doc: object) -> None:")
+          replace_once(
+              "        self.rows = []",
+              "        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]] = []",
+          )
+          replace_once("    def accept(self):", "    def accept(self) -> bool:")
+          replace_once(
+              "        repairs = [\\n            (seam, side, combo.currentData())",
+              "        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [\\n"
+              "            (seam, side, str(combo.currentData()))",
+          )
+          replace_once("    def reject(self):", "    def reject(self) -> bool:")
+          replace_once("    def getStandardButtons(self):", "    def getStandardButtons(self) -> int:")
+          replace_once(
+              "def show_topology_repair_task(doc):",
+              "def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:",
+          )
+          path.write_text(text, encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 if [[ "$path" == "freecad_cloth/pattern/PatternTopologyRepair.py" ]]; then
                   # Keep main's native Sketcher viewport-edge resolver and the PR's explicit
                   # Protocol/EdgeRecord typing. The two conflict hunks are imports and the
