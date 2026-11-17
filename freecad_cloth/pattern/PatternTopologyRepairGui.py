@@ -6,13 +6,15 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Protocol
 
-
 if TYPE_CHECKING:
     from types import ModuleType
 
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-    from freecad_cloth.pattern.PatternTopologyRepair import DocumentTransactionProtocol, SeamFeatureProtocol
+    from freecad_cloth.pattern.PatternTopologyRepair import (
+        DocumentTransactionProtocol,
+        SeamFeatureProtocol,
+    )
 
 
 class _ComboBoxProtocol(Protocol):

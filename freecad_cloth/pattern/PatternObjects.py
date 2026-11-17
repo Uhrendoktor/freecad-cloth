@@ -155,7 +155,8 @@ def _native_edge_record_for_sketch_index(
     piece: _PatternPieceDocumentFeature,
     edge: int,
     *,
-    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None]
+    | None = None,
 ) -> EdgeRecord | None:
     """Resolve a native integer edge through the original Sketcher geometry index."""
     sketch = getattr(piece, "Sketch", None)
@@ -185,7 +186,8 @@ def _native_edge_record_for_sketch_index(
 def _edge_records(
     piece: _PatternPieceDocumentFeature,
     *,
-    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None]
+    | None = None,
 ) -> list[EdgeRecord]:
     """Return edge records derived only from the authoritative native Sketcher boundary.
 
@@ -220,7 +222,8 @@ def _seam_edge_id(
     edge: int | str,
     prefix: str,
     *,
-    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None]
+    | None = None,
 ) -> tuple[str, str]:
     """Return the semantic edge id and captured signature for a seam side."""
     if isinstance(edge, int):
@@ -288,7 +291,8 @@ def _resolve_document_edge(
     edge_id: str,
     signature: str,
     *,
-    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None] | None = None,
+    native_edge_records_fn: Callable[[_PatternPieceDocumentFeature], Sequence[EdgeRecord] | None]
+    | None = None,
 ) -> EdgeRecord:
     """Resolve a stored semantic seam reference against current Sketcher provenance.
 
