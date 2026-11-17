@@ -51,7 +51,10 @@ class SeamFeatureProtocol(Protocol):
 class DocumentTransactionProtocol(Protocol):
     """FreeCAD document transaction surface used by the repair operation."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return a read-only view of the document's native objects."""
+        ...
 
     def openTransaction(self, label: str) -> None:
         """Begin an undoable document transaction with the supplied label.

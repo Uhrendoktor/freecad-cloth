@@ -193,7 +193,7 @@ class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
 class _FreeCADDocument(Protocol):
     """Document recomputation operation captured for a diagnostic checkpoint."""
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the persisted document after a solver step."""
         ...
 
@@ -216,7 +216,7 @@ class _Sketch(FreeCADDocumentObjectProtocol, Protocol):
 class _SketchDocument(_FreeCADDocument, Protocol):
     """Document operations required by the diagnostic rectangle-sketch factory."""
 
-    def addObject(self, object_type: str, name: str) -> _Sketch:
+    def addObject(self, object_type: str, name: str, /) -> _Sketch:
         """Create and return one native Sketcher profile."""
         ...
 
@@ -235,7 +235,7 @@ class _DiagnosticCube(FreeCADDocumentObjectProtocol, Protocol):
 class _DiagnosticCubeDocument(Protocol):
     """Document method required to create the controlled collision cube."""
 
-    def addObject(self, object_type: str, name: str) -> _DiagnosticCube:
+    def addObject(self, object_type: str, name: str, /) -> _DiagnosticCube:
         """Create a native document feature with the requested internal name."""
         ...
 

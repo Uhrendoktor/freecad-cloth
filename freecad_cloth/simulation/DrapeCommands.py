@@ -17,11 +17,11 @@ from freecad_cloth.common.garment_document import (
 class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document members required by drape-target commands."""
 
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a document object by its internal name."""
         ...
 
-    def addObject(self, type_id: str, object_name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, type_id: str, object_name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native document object for the requested feature type."""
         ...
 
