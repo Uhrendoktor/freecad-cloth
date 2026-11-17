@@ -35,15 +35,15 @@ RUN git -C /opt/PositionBasedDynamics apply /tmp/pypbd-openmp-team-reuse.patch \
         -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF \
     && grep -Eq '^OpenMP_CXX_FLAGS(:STRING)?=.*-fopenmp' /opt/pypbd-openmp-build/CMakeCache.txt \
     && cmake --build /opt/pypbd-openmp-build --target pypbd --parallel 4 \
-    && /opt/conda/envs/freecad/bin/python -c "import pypbd; print('pypbd-openmp-experiment=' + pypbd.__file__)" \
-        -- 2>/dev/null || PYTHONPATH=/opt/pypbd-openmp-experiment /opt/conda/envs/freecad/bin/python -c "import pypbd; print('pypbd-openmp-experiment=' + pypbd.__file__)"
+    && PYTHONPATH=/opt/pypbd-openmp-experiment /opt/conda/envs/freecad/bin/python \
+        -c "import pypbd; print('pypbd-openmp-experiment=' + pypbd.__file__)"
 
-RUN printf 'PBD source: %s\\n' "${PBD_SOURCE_SHA}" > /opt/pypbd-openmp-experiment/provenance.txt \
+RUN printf 'PBD source: %s\n' "${PBD_SOURCE_SHA}" > /opt/pypbd-openmp-experiment/provenance.txt \
     && printf 'Patch SHA256: ' >> /opt/pypbd-openmp-experiment/provenance.txt \
     && sha256sum /tmp/pypbd-openmp-team-reuse.patch | cut -d' ' -f1 >> /opt/pypbd-openmp-experiment/provenance.txt \
     && printf 'Binary SHA256: ' >> /opt/pypbd-openmp-experiment/provenance.txt \
     && sha256sum /opt/pypbd-openmp-experiment/pypbd*.so | cut -d' ' -f1 >> /opt/pypbd-openmp-experiment/provenance.txt \
-    && printf 'Build: Release, CI_BUILD=ON, USE_DOUBLE_PRECISION=ON, OpenMP=ON, Python=3.12\\n' >> /opt/pypbd-openmp-experiment/provenance.txt
+    && printf 'Build: Release, CI_BUILD=ON, USE_DOUBLE_PRECISION=ON, OpenMP=ON, Python=3.12\n' >> /opt/pypbd-openmp-experiment/provenance.txt
 
 # Keep the Pivy extension on the same SWIG-era runtime as the FreeCAD 1.1.0
 # conda build. The unpinned r3 image can resolve a newer Pivy build that is
