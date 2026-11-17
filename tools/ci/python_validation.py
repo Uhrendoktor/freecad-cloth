@@ -93,6 +93,8 @@ GROUPS = {
         "tests/test_avatar_runtime_api_adapter.py",
         "tests/test_drape_target_commands.py",
         "tests/test_fitting_handoff_command_registration.py",
+        "tests/test_diagnostics_gui_contract.py",
+        "tests/test_fitting_gui_status.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",
