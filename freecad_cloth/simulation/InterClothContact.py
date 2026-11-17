@@ -700,10 +700,12 @@ def project_inter_cloth_contacts(
             left = surfaces[left_id]
             for right_id in group_ids[left_index + 1 :]:
                 right = surfaces[right_id]
-                for direction_index, (source, target, fallback_sign) in enumerate((
-                    (left, right, 1.0),
-                    (right, left, -1.0),
-                )):
+                for direction_index, (source, target, fallback_sign) in enumerate(
+                    (
+                        (left, right, 1.0),
+                        (right, left, -1.0),
+                    )
+                ):
                     direction_started = time.perf_counter()
                     candidate_count = 0
                     _emit_contact_diagnostic(
