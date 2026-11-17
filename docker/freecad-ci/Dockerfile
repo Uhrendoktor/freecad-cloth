@@ -30,7 +30,7 @@ RUN git -C /opt/PositionBasedDynamics apply /tmp/pypbd-openmp-team-reuse.patch \
         -DCMAKE_LIBRARY_OUTPUT_DIRECTORY=/opt/pypbd-openmp-experiment \
         -DCMAKE_CXX_FLAGS=-fPIC \
         -DCMAKE_C_FLAGS=-fPIC \
-        -DCMAKE_INSTALL_RPATH='\$ORIGIN' \
+        -DCMAKE_INSTALL_RPATH='$ORIGIN' \
         -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON \
         -DCMAKE_INSTALL_RPATH_USE_LINK_PATH=OFF \
     && grep -Eq '^OpenMP_CXX_FLAGS(:STRING)?=.*-fopenmp' /opt/pypbd-openmp-build/CMakeCache.txt \
