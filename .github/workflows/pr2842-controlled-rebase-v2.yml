@@ -9,6 +9,7 @@ permissions:
   pull-requests: read
 jobs:
   rebase-and-validate:
+    if: ${{ !startsWith(github.event.head_commit.message, 'DISPATCH FULL VALIDATION PR #2842') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -513,3 +514,43 @@ jobs:
             echo "- Original PR parent: `$EXPECTED_HEAD`"
             echo "- The current mainline canonical workflow was retained."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  dispatch-full-validation:
+    if: ${{ startsWith(github.event.head_commit.message, 'DISPATCH FULL VALIDATION PR #2842') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.ref }}
+          persist-credentials: false
+      - name: Dispatch full validation for the exact updated PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_HEAD: ${{ github.event.head_commit.message }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo="${GITHUB_REPOSITORY}"
+          pr_number=2842
+          branch="agents/strict-python-all-files"
+          expected="$(cat .agent/activation/pr2842-full-validation.txt)"
+          pr_json="$(gh api "repos/${repo}/pulls/${pr_number}")"
+          test "$(jq -r '.state' <<< "$pr_json")" = "open"
+          test "$(jq -r '.head.ref' <<< "$pr_json")" = "$branch"
+          test "$(jq -r '.head.sha' <<< "$pr_json")" = "$expected"
+          gh workflow run commit-validation.yml --repo "$repo" --ref "$branch" -f execution_mode=full -f pr_number="$pr_number"
+          for _ in $(seq 1 45); do
+            run_json="$(gh run list --repo "$repo" --workflow "Commit validation" --branch "$branch" --event workflow_dispatch --limit 20 --json databaseId,headSha,status,url | jq -c --arg sha "$expected" '[.[] | select(.headSha == $sha)] | first // empty' || true)"
+            if [[ -n "$run_json" ]]; then
+              echo "$run_json"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::No exact-head full-validation run appeared for $expected."
+          exit 1
