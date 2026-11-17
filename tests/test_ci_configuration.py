@@ -216,6 +216,9 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert 'runner_key="$(printf %s "$runner_scope" | sha256sum | cut -c1-12)"' in container_action
     assert 'execution_key="freecad-$run_id-$run_attempt-$job_key-$runner_key"' in container_action
     assert "420" not in container_action, 'Expected "420" not in container_action.'
+    assert "if ! grep -q '^PYTHONPATH=' <<<\"$EXTRA_ENV\"; then" in container_action, (
+        "An explicit native-module PYTHONPATH must override the default workspace-only path."
+    )
     assert "--no-deps -e ." in action, 'Expected "--no-deps -e ." in action.'
     assert '"numpy>=1.26,<3"' in action, "Expected '\"numpy>=1.26,<3\"' in action."
     assert '"pydantic>=2.11,<3"' in action, "Expected '\"pydantic>=2.11,<3\"' in action."
