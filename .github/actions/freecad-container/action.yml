@@ -8,7 +8,7 @@ inputs:
     description: Shell command to execute in the container.
     required: true
   timeout-seconds:
-    description: Hard container command timeout in seconds; maximum 360 seconds; the harness adds 10 seconds for diagnostics.
+    description: Hard container command timeout in seconds; maximum 1800 seconds; the harness adds 10 seconds for diagnostics.
     required: false
     default: "120"
   environment:
@@ -77,11 +77,11 @@ runs:
 
         timeout_seconds="$TIMEOUT_SECONDS"
         if [[ ! "$timeout_seconds" =~ ^[0-9]+$ ]]; then
-          echo "timeout-seconds must be an integer between 0 and 360" >&2
+          echo "timeout-seconds must be an integer between 0 and 1800" >&2
           exit 2
         fi
-        if [ "$timeout_seconds" -gt 360 ]; then
-          echo "timeout-seconds must be <= 360" >&2
+        if [ "$timeout_seconds" -gt 1800 ]; then
+          echo "timeout-seconds must be <= 1800" >&2
           exit 2
         fi
 
