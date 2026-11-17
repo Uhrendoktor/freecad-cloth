@@ -1123,7 +1123,10 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
     assert "uses: ./.github/actions/publish-visual-evidence" in job
     layered_outfit = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     assert "timeout-minutes: 45" in layered_outfit
-    assert 'timeout: "360"' in layered_outfit.split("case: simulation-quality", 1)[1].split("case: layered-outfit", 1)[0]
+    assert (
+        'timeout: "360"'
+        in layered_outfit.split("case: simulation-quality", 1)[1].split("case: layered-outfit", 1)[0]
+    )
     assert 'timeout: "1800"' in layered_outfit.split("case: layered-outfit", 1)[1]
     assert 'timeout: "1800"' in layered_outfit
     assert "name: layered-outfit-acceptance" in action
