@@ -132,7 +132,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
     production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
     assert workflow.count("timeout-seconds:") == 7, (
-        'Expected seven workflow timeout consumers, including targeted UI validation.'
+        "Expected seven workflow timeout consumers, including targeted UI validation."
     )
     assert workflow.count('timeout-seconds: "240"') == 1, (
         "Targeted UI validation must retain its bounded 240-second command timeout."
