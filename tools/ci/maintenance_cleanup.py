@@ -584,8 +584,8 @@ def pbd_validation_tag(
     dockerfile_hash = hashlib.sha256(dockerfile_contents).hexdigest()
     patch_hash = hashlib.sha256(experiment_patch_contents).hexdigest()
     manifest = (
-        f"{dockerfile_hash}  docker/freecad-ci/Dockerfile\\n"
-        f"{patch_hash}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\\n"
+        f"{dockerfile_hash}  docker/freecad-ci/Dockerfile\n"
+        f"{patch_hash}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
     )
     return hashlib.sha256(manifest.encode("utf-8")).hexdigest()[:32]
 
@@ -668,7 +668,6 @@ def _dockerfile_tag_batch(
         TypeError: If GitHub returns protected Dockerfile data with an unexpected type.
     """
     aliases: dict[str, str] = {}
-    patch_aliases: dict[str, str] = {}
     fields: list[str] = []
     for index, sha in enumerate(batch):
         if len(sha) != COMMIT_SHA_HEX_LENGTH or any(char not in string.hexdigits for char in sha):
@@ -677,7 +676,6 @@ def _dockerfile_tag_batch(
         alias = f"file{index}"
         patch_alias = f"patch{index}"
         aliases[alias] = sha
-        patch_aliases[patch_alias] = sha
         fields.extend(
             (
                 f'{alias}: object(expression: "{sha}:docker/freecad-ci/Dockerfile") '
