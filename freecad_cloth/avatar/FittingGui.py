@@ -36,14 +36,30 @@ class _ViewVector(Protocol):
     z: float
 
 
+class _ViewSceneGraphName(Protocol):
+    """Native Coin name wrapper returned by a scene-graph node."""
+
+    def getString(self) -> str:
+        """Return the node's stable name as a Python string."""
+        ...
+
+
+class _ViewSceneGraphNode(Protocol):
+    """Coin node that can be attached to or removed from a scene graph."""
+
+    def getName(self) -> _ViewSceneGraphName:
+        """Return the native Coin name wrapper for this node."""
+        ...
+
+
 class _ViewSceneGraph(Protocol):
     """Scene-graph mutations required by transient fitting overlays."""
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _ViewSceneGraphNode) -> None:
         """Attach a transient overlay node to the active viewport."""
         ...
 
-    def removeChild(self, child: object) -> None:
+    def removeChild(self, child: _ViewSceneGraphNode) -> None:
         """Remove a previously attached overlay node."""
         ...
 
@@ -67,7 +83,7 @@ class _FittingView(Protocol):
         """Return the world-space point under a screen coordinate."""
         ...
 
-    def addEventCallback(self, event: str, callback: Callable[..., object]) -> int:
+    def addEventCallback(self, event: str, callback: Callable[..., None]) -> int:
         """Register one callback for a Coin event type."""
         ...
 

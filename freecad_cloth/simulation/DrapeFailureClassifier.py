@@ -16,32 +16,56 @@ class DrapeMetrics(Protocol):
 
     @property
     def finite(self) -> bool:
-        """Whether all measured mesh coordinates are finite."""
+        """Whether all measured mesh coordinates are finite.
+
+        Returns:
+            True when every measured coordinate is finite.
+        """
         ...
 
     @property
     def vertices(self) -> int:
-        """Number of vertices in the measured garment mesh."""
+        """Number of vertices in the measured garment mesh.
+
+        Returns:
+            Vertex count in the measured garment mesh.
+        """
         ...
 
     @property
     def state(self) -> str:
-        """Existing mesh-state label from the upstream metric producer."""
+        """Existing mesh-state label from the upstream metric producer.
+
+        Returns:
+            Stable state label emitted by the metrics producer.
+        """
         ...
 
     @property
     def vertical_span_ratio(self) -> float:
-        """Vertical extent relative to the target."""
+        """Vertical extent relative to the target.
+
+        Returns:
+            Ratio of garment vertical extent to target vertical extent.
+        """
         ...
 
     @property
     def lateral_span_ratio(self) -> float:
-        """Lateral extent relative to the target."""
+        """Lateral extent relative to the target.
+
+        Returns:
+            Ratio of garment lateral extent to target lateral extent.
+        """
         ...
 
     @property
     def target_vertex_clearance(self) -> float | None:
-        """Nearest target-vertex clearance, when measured."""
+        """Nearest target-vertex clearance, when measured.
+
+        Returns:
+            Nearest measured clearance, or None when no target vertex is available.
+        """
         ...
 
 
