@@ -537,9 +537,7 @@ def _body_clearance(
             from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
             inside_points = tuple(positions[index] for index in inside_indices)
-            candidate_counts = tuple(
-                dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32))
-            )
+            candidate_counts = tuple(dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32)))
             for candidate_count in candidate_counts:
                 probe = MeshCollisionProjector(
                     surface,
