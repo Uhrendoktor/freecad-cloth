@@ -41,6 +41,7 @@ import Sketcher
 
 
 OUTPUT = Path(os.environ.get("CLOTH_LAYERED_OUTFIT_DIR", "artifacts/layered-outfit"))
+os.environ["CLOTH_INTER_CLOTH_DIAGNOSTICS"] = "1"
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
@@ -789,9 +790,11 @@ def run_acceptance() -> None:
         checkpoints = []
         for step in CHECKPOINTS[1:]:
             scene.Steps = int(step)
+            _log("layered-outfit-step-start=%d" % step)
             started = time.perf_counter()
             doc.recompute()
             elapsed_ms = 1000.0 * (time.perf_counter() - started)
+            _log("layered-outfit-step-finish=%d elapsed_ms=%.1f" % (step, elapsed_ms))
             _events()
             base = scene.Proxy._base_or_restore()
             backend = base.backend
