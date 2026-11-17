@@ -130,15 +130,15 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     realtime_validator = tunic_audit.split(
         "      - name: Validate realtime preview metrics (diagnostic)", 1
     )[1].split("      - uses: ./.github/actions/freecad-test", 1)[0]
-    production_tunic_step = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2]
-    assert workflow.count("timeout-seconds:") == 7, (
-        "Expected seven workflow timeout consumers, including targeted UI validation."
+    production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/freecad-test")[2:]
+    assert workflow.count("timeout-seconds:") == 10, (
+        "Expected four paired production audits in addition to the existing bounded consumers."
     )
     assert workflow.count('timeout-seconds: "240"') == 1, (
         "Targeted UI validation must retain its bounded 240-second command timeout."
     )
-    assert workflow.count('timeout-seconds: "360"') == 4, (
-        "Expected four bounded 360-second FreeCAD command timeouts."
+    assert workflow.count('timeout-seconds: "360"') == 7, (
+        "Expected the four paired production audits plus the existing 360-second consumers."
     )
     assert (
         workflow.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"") == 1
@@ -150,8 +150,11 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         python_validation.count("timeout-seconds: \"${{ matrix.group == 'core' && 360 || 120 }}\"")
         == 1
     ), "Only the core Python validation group may use the extended Python budget."
-    assert tunic_audit.count('timeout-seconds: "360"') == 1, (
-        "Expected one bounded 360-second production tunic audit budget."
+    assert tunic_audit.count('timeout-seconds: "360"') == 4, (
+        "All four paired production tunic audits must retain their bounded 360-second budget."
+    )
+    assert "timeout-minutes: 30" in tunic_audit, (
+        "The sequential paired production audits need a 30-minute job envelope."
     )
     assert turntable_validation.count('timeout-seconds: "360"') == 1, (
         "Expected one bounded 360-second simulation turntable budget."
@@ -171,24 +174,36 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "continue-on-error: true" in realtime_validator, (
         "The independent realtime metric validator remains diagnostic-only."
     )
-    assert "id: production-tunic-audit" in production_tunic_step, (
-        "The production tunic audit outcome must be reported explicitly."
+    assert len(production_tunic_steps) == 4, (
+        "The native scheduling experiment requires two baseline and two candidate audits."
     )
-    assert "continue-on-error: true" not in production_tunic_step, (
-        "The production audit must block when it fails or does not complete."
-    )
-    assert 'timeout-seconds: "360"' in production_tunic_step, (
-        "The production audit must retain its existing bounded execution budget."
-    )
-    assert "steps.production-tunic-audit.outcome" in production_tunic_step, (
-        "The advisory warning must preserve the actual audit step outcome."
-    )
-    assert "::error title=Production tunic audit failed" in production_tunic_step, (
-        "A timed-out or failed production audit must produce a blocking CI error."
-    )
-    assert "is blocking" in production_tunic_step, (
-        "The production audit must explicitly identify the blocking failure outcome."
-    )
+    for step in production_tunic_steps:
+        assert "test-script: tests/freecad_tunic_audit_production.py" in step
+        assert 'timeout-seconds: "360"' in step
+        assert "continue-on-error:" not in step
+        assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in step
+        assert "CLOTH_PBD_SUBSTEPS=16" in step
+        assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in step
+    assert "id: baseline_1_audit" in production_tunic_steps[0]
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=0" in production_tunic_steps[0]
+    assert "id: candidate_1_audit" in production_tunic_steps[1]
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_tunic_steps[1]
+    assert "id: baseline_2_audit" in production_tunic_steps[2]
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=0" in production_tunic_steps[2]
+    assert "id: candidate_2_audit" in production_tunic_steps[3]
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_tunic_steps[3]
+    assert "compare_pbd_openmp_team_reuse.py" in production_tunic_steps[3]
+    assert "baseline-1.json" in production_tunic_steps[0]
+    assert "candidate-1.json" in production_tunic_steps[1]
+    assert "baseline-2.json" in production_tunic_steps[2]
+    assert "candidate-2.json" in production_tunic_steps[3]
+    assert "projection_improvement_percent" in production_tunic_steps[3]
+    assert "Report paired native production audit outcome" in tunic_audit
+    assert "steps.baseline_1_audit.outcome" in tunic_audit
+    assert "steps.candidate_1_audit.outcome" in tunic_audit
+    assert "steps.baseline_2_audit.outcome" in tunic_audit
+    assert "steps.candidate_2_audit.outcome" in tunic_audit
+    assert "::error title=Paired production audit failed" in tunic_audit
     assert "freecad_application_timeout_seconds" not in workflow, (
         'Expected "freecad_application_timeout_seconds" not in workflow.'
     )
