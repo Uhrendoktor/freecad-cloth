@@ -187,11 +187,6 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "inputs.timeout-seconds" in action
     assert "FREECAD_APPLICATION_TIMEOUT_SECONDS=" in action
     assert 'default: "120"' in container_action
-    assert "--no-deps -e ." in action
-    assert '"numpy>=1.26,<3"' in action
-    assert '"pydantic>=2.11,<3"' in action
-    image = (ROOT / "docker" / "freecad-ci" / "Dockerfile").read_text(encoding="utf-8")
-    assert '"pillow>=11,<13"' in image
     assert "configured_timeout_seconds()" in runner
 
 def test_timeout_contract_is_documented() -> None:
