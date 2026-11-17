@@ -38,6 +38,7 @@ if TYPE_CHECKING:
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
+_MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES = 2
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
@@ -1114,6 +1115,42 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 max_penetration_after_mm=maximum_deficit,
             )
 
+    def _resolve_inter_cloth_body_contacts(self) -> None:
+        """Reconcile bounded cloth/body contact corrections until both remain clear.
+
+        The final mannequin projection can move one garment into another. Apply a
+        bounded inter-cloth/body correction cycle only when the authoritative
+        post-body measurement reports residual garment contact.
+        """
+        self._measure_inter_cloth_residual()
+        aggregate = self._inter_cloth_metrics
+        if aggregate is None:
+            return
+
+        for _pass_index in range(_MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES):
+            if aggregate.remaining_contact_count <= 0:
+                break
+
+            self._project_inter_cloth_positions()
+            correction = self._inter_cloth_metrics
+            self._project_collision_positions()
+            self._measure_inter_cloth_residual()
+            measured = self._inter_cloth_metrics
+            if correction is None or measured is None:
+                break
+
+            self._inter_cloth_metrics = measured._replace(
+                contact_count=aggregate.contact_count + correction.contact_count,
+                corrected_particle_count=(
+                    aggregate.corrected_particle_count + correction.corrected_particle_count
+                ),
+                max_penetration_before_mm=max(
+                    aggregate.max_penetration_before_mm,
+                    correction.max_penetration_before_mm,
+                ),
+            )
+            aggregate = self._inter_cloth_metrics
+
     @property
     def inter_cloth_metrics(self) -> InterClothContactMetrics | None:
         """Return the latest measured contact projection result for the garment groups.
@@ -1223,7 +1260,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 f"cloth-pbd-final-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
         stage_started = time.perf_counter()
-        self._measure_inter_cloth_residual()
+        self._resolve_inter_cloth_body_contacts()
         if diagnostics:
             _emit_diagnostic(
                 f"cloth-pbd-residual-measure-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
