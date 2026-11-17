@@ -10,6 +10,7 @@ from itertools import starmap
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
+from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
 from freecad_cloth.avatar.AvatarArrangement import arrangement_points_from_landmarks
 from freecad_cloth.avatar.AvatarModel import (
     DEFAULT_MEASUREMENTS,
@@ -30,7 +31,6 @@ from freecad_cloth.avatar.AvatarProvider import (
     PROVIDER_IDS,
     FreeCADGeometryAvatarProvider,
 )
-from freecad_cloth.avatar.avatar_protocols import AvatarParametersFeatureProtocol
 from freecad_cloth.avatar.SkeletonPose import (
     JointRotation,
     joint_rotations_from_json,

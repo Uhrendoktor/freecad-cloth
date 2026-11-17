@@ -46,12 +46,26 @@ if TYPE_CHECKING:
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
     from PySide2.QtWidgets import (
         QButtonGroup as _QButtonGroup,
+    )
+    from PySide2.QtWidgets import (
         QDialogButtonBox as _QDialogButtonBox,
+    )
+    from PySide2.QtWidgets import (
         QDoubleSpinBox as _QDoubleSpinBox,
+    )
+    from PySide2.QtWidgets import (
         QLabel as _QLabel,
+    )
+    from PySide2.QtWidgets import (
         QToolButton as _QToolButton,
+    )
+    from PySide2.QtWidgets import (
         QTreeWidget as _QTreeWidget,
+    )
+    from PySide2.QtWidgets import (
         QTreeWidgetItem as _QTreeWidgetItem,
+    )
+    from PySide2.QtWidgets import (
         QWidget as _QWidget,
     )
 
@@ -226,17 +240,17 @@ class _PoseApplicationAdapter:
     @property
     def ActiveDocument(self) -> _PoseDocument | None:
         """Return the active native document, when one is open."""
-        return cast("_PoseDocument | None", getattr(self._module, "ActiveDocument"))
+        return cast("_PoseDocument | None", self._module.ActiveDocument)
 
     @property
     def Vector(self) -> Callable[..., _PoseVector]:
         """Return the native three-dimensional vector constructor."""
-        return cast("Callable[..., _PoseVector]", getattr(self._module, "Vector"))
+        return cast("Callable[..., _PoseVector]", self._module.Vector)
 
     @property
     def Rotation(self) -> _PoseRotationFactory:
         """Return the native rotation constructor and Euler convention constants."""
-        return cast("_PoseRotationFactory", getattr(self._module, "Rotation"))
+        return cast("_PoseRotationFactory", self._module.Rotation)
 
 
 class _PoseGuiAdapter:
@@ -248,11 +262,11 @@ class _PoseGuiAdapter:
     @property
     def Control(self) -> _PoseGuiControl:
         """Return the FreeCAD task-panel dialog controller."""
-        return cast("_PoseGuiControl", getattr(self._module, "Control"))
+        return cast("_PoseGuiControl", self._module.Control)
 
     def activeDocument(self) -> _PoseGuiDocument | None:
         """Return the active GUI document when one is available."""
-        return cast("_PoseGuiDocument | None", getattr(self._module, "activeDocument")())
+        return cast("_PoseGuiDocument | None", self._module.activeDocument())
 
 
 def _modules() -> tuple[_PoseApplication, _PoseGui, ModuleType, ModuleType]:
@@ -1112,9 +1126,7 @@ class SkeletonPoseController:
             "release to keep the staged pose; Cancel restores it."
         )
 
-    def _dragger_quaternion(
-        self, dragger: CoinDynamicDragger
-    ) -> tuple[float, float, float, float]:
+    def _dragger_quaternion(self, dragger: CoinDynamicDragger) -> tuple[float, float, float, float]:
         """Return the native dragger quaternion in scalar-first component order.
 
         Args:
@@ -1408,9 +1420,7 @@ class AvatarPoseTaskPanel:
 
         selected = QtWidgets.QGroupBox("Selected joint")
         selected_layout = QtWidgets.QVBoxLayout(selected)
-        self.selected_label: _QLabel = QtWidgets.QLabel(
-            "Select a bone in the 3D view."
-        )
+        self.selected_label: _QLabel = QtWidgets.QLabel("Select a bone in the 3D view.")
         self.selected_label.setProperty("clothRole", "subtitle")
         selected_layout.addWidget(self.selected_label)
 
