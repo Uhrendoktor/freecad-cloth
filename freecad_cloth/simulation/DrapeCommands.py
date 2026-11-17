@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
@@ -24,6 +24,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     def addObject(self, type_id: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native document object for the requested feature type."""
         ...
+
 
 class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Simulation-scene properties owned by the canonical target model."""

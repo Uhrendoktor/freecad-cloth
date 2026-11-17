@@ -88,6 +88,7 @@ class FreeCADDocumentProtocol(Protocol):
         """Recompute document features and return the native host status code."""
         ...
 
+
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 

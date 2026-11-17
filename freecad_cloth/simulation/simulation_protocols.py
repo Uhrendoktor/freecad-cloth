@@ -38,6 +38,7 @@ class SimulationDocument(FreeCADDocumentProtocol, Protocol):
         """
         ...
 
+
 class SimulationScene(Protocol):
     """Persisted simulation scene fields required by public lifecycle commands."""
 

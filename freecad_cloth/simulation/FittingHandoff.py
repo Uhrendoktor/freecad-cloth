@@ -33,6 +33,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         """Look up a native document feature by its internal name."""
         ...
 
+
 class _FreeCADApplication(Protocol):
     """Describe the application methods used to resolve FreeCAD documents."""
 

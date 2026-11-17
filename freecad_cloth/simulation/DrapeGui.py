@@ -45,7 +45,7 @@ SIGNALS_BLOCKED = True
 SIGNALS_UNBLOCKED = False
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Sequence
+    from collections.abc import Callable
     from types import ModuleType
 
 
@@ -55,6 +55,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return the object with this internal name, when present."""
         ...
+
 
 class _FreeCADApplication(Protocol):
     """Active-document member exported by the FreeCAD application module."""

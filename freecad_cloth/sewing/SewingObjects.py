@@ -160,6 +160,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         """Create a Python-backed sewing feature with the requested internal name."""
         ...
 
+
 def _edge_endpoint_pair(
     native_edge: _NativeEdge,
 ) -> tuple[tuple[float, float], tuple[float, float]] | None:
