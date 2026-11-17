@@ -428,30 +428,26 @@ jobs:
           main_sha="$(git rev-parse origin/main)"
           main_tree="$(git rev-parse "origin/main^{tree}")"
           tree_entries='[]'
-          while IFS=$'\\t' read -r status path; do
+          while IFS= read -r -d '' path; do
             [[ -n "$path" ]] || continue
-            if [[ "$status" == "D" ]]; then
+            if [[ -e "$path" || -L "$path" ]]; then
+              mode=100644
+              [[ -x "$path" ]] && mode=100755
+              if [[ -L "$path" ]]; then
+                mode=120000
+                encoded="$(readlink "$path" | base64 -w0)"
+              else
+                encoded="$(base64 -w0 < "$path")"
+              fi
+              blob_sha="$(gh api --method POST "repos/${repo}/git/blobs" -f content="$encoded" -f encoding=base64 --jq .sha)"
+              entry="$(jq -n --arg path "$path" --arg mode "$mode" --arg sha "$blob_sha" '{path:$path,mode:$mode,type:"blob",sha:$sha}')"
+            else
               mode="$(git ls-tree origin/main -- "$path" | awk '{print $1}')"
               [[ -n "$mode" ]] || mode=100644
               entry="$(jq -n --arg path "$path" --arg mode "$mode" '{path:$path,mode:$mode,type:"blob",sha:null}')"
-            else
-              tree_line="$(git ls-tree HEAD -- "$path")"
-              mode="$(awk '{print $1}' <<< "$tree_line")"
-              type="$(awk '{print $2}' <<< "$tree_line")"
-              if [[ "$type" == "blob" ]]; then
-                encoded="$(git show "HEAD:$path" | base64 -w0)"
-                blob_sha="$(gh api --method POST "repos/${repo}/git/blobs" -f content="$encoded" -f encoding=base64 --jq .sha)"
-                entry="$(jq -n --arg path "$path" --arg mode "$mode" --arg type "$type" --arg sha "$blob_sha" '{path:$path,mode:$mode,type:$type,sha:$sha}')"
-              elif [[ "$type" == "commit" ]]; then
-                blob_sha="$(awk '{print $3}' <<< "$tree_line")"
-                entry="$(jq -n --arg path "$path" --arg mode "$mode" --arg type "$type" --arg sha "$blob_sha" '{path:$path,mode:$mode,type:$type,sha:$sha}')"
-              else
-                echo "::error::Unsupported tree object type for $path: $type"
-                exit 1
-              fi
             fi
             tree_entries="$(jq --argjson entry "$entry" '. + [$entry]' <<< "$tree_entries")"
-          done < <(git diff --name-status --no-renames origin/main HEAD)
+          done < <(git diff --name-only -z --no-renames origin/main HEAD)
           tree_payload="$RUNNER_TEMP/pr2842-tree.json"
           jq -n --arg base_tree "$main_tree" --argjson tree "$tree_entries" '{base_tree:$base_tree,tree:$tree}' > "$tree_payload"
           merged_tree="$(gh api --method POST "repos/${repo}/git/trees" --input "$tree_payload" --jq .sha)"
