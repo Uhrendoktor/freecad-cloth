@@ -143,7 +143,7 @@ def test_readme_pattern_and_3d_views_share_the_same_sketch_profiles():
     assert publisher.index('Path("tunic")') < publisher.index('Path("turntables")')
 
 
-def test_visual_asset_contract_follows_nested_local_producer_actions():
+def test_visual_asset_contract_follows_nested_local_producer_actions() -> None:
     """Visual producer discovery must follow reusable local composite actions transitively."""
     from tools.ci.check_visual_asset_contract import _local_action_sources
 
