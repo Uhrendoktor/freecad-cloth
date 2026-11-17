@@ -164,16 +164,13 @@ jobs:
                   continue
                 fi
                 if [[ "$path" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]; then
-                  # Keep the PR's lazy FreeCAD boundary import; main's top-level _write_mesh
-                  # import would eagerly load SimulationObjects in this module.
-                  python3 - "$tmpdir/merged" "$tmpdir/pr" "$path" <<'PY'
+                  # Main added transient preview mesh publication after this PR forked.
+                  # Keep that behavior; this PR's old side predates the publisher contract.
+                  python3 - "$tmpdir/merged" "$path" <<'PY'
           import pathlib
           import sys
 
-          merged_path, pr_path, output_path = map(pathlib.Path, sys.argv[1:])
-          pr_text = pr_path.read_text(encoding="utf-8")
-          if "from freecad_cloth.simulation.SimulationObjects import _write_mesh" not in pr_text:
-              raise SystemExit("PR lazy _write_mesh import is missing")
+          merged_path, output_path = map(pathlib.Path, sys.argv[1:])
           lines = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
           result = []
           index = 0
@@ -184,26 +181,27 @@ jobs:
                   index += 1
                   continue
               index += 1
-              ours = []
+              main_side = []
               while index < len(lines) and not lines[index].startswith("======="):
-                  ours.append(lines[index])
+                  main_side.append(lines[index])
                   index += 1
               if index >= len(lines):
-                  raise SystemExit("unterminated main import conflict")
+                  raise SystemExit("unterminated main preview-publisher side")
               index += 1
-              theirs = []
+              pr_side = []
               while index < len(lines) and not lines[index].startswith(">>>>>>> "):
-                  theirs.append(lines[index])
+                  pr_side.append(lines[index])
                   index += 1
               if index >= len(lines):
-                  raise SystemExit("unterminated PR import conflict")
-              if "_write_mesh" not in "".join(ours):
-                  raise SystemExit("unexpected main-side eager import conflict")
-              result.extend(theirs)
+                  raise SystemExit("unterminated PR preview-publisher side")
+              main_text = "".join(main_side)
+              if "_preview_mesh_publisher" not in main_text or "publisher(panel, positions, triangles)" not in main_text:
+                  raise SystemExit("main preview-publisher behavior is not present in conflict")
+              result.extend(main_side)
               resolved += 1
               index += 1
           if resolved != 1:
-              raise SystemExit(f"expected one lazy-import conflict, found {resolved}")
+              raise SystemExit(f"expected one preview-publisher conflict, found {resolved}")
           output_path.write_text("".join(result), encoding="utf-8")
           PY
                   git add -- "$path"
