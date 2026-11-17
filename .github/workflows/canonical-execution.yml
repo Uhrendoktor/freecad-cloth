@@ -470,7 +470,7 @@ jobs:
           pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log
           stage-workbench: "true"
           clean-user: "true"
-          log-file: artifacts/tunic-audit/candidate-2.log
+          log-file: artifacts/tunic-audit/freecad-tunic-audit.log
           validate-command: >-
             python3 tools/ci/validate_manifests.py tunic-production &&
             cp artifacts/tunic-audit/production-pbd-profile.json artifacts/pbd-openmp-team-reuse/candidate-2.json &&
