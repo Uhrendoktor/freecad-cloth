@@ -776,8 +776,26 @@ def project_inter_cloth_contacts(
                         best_distance_squared = float("inf")
                         source_start = current[int(edge[0])]
                         source_end = current[int(edge[1])]
-                        for triangle_index in candidate_indices:
-                            triangle_ids = target.triangles[int(triangle_index)]
+                        center_distances = np.linalg.norm(
+                            target.triangle_centers[candidate_indices] - source.edge_centers[edge_index],
+                            axis=1,
+                        )
+                        lower_bounds = np.maximum(
+                            0.0,
+                            center_distances
+                            - float(source.edge_half_lengths[edge_index])
+                            - target.triangle_radii[candidate_indices],
+                        )
+                        candidate_order = np.argsort(lower_bounds)
+                        for candidate_position in candidate_order:
+                            lower_bound = float(lower_bounds[candidate_position])
+                            if (
+                                best_geometry is not None
+                                and lower_bound * lower_bound >= best_distance_squared
+                            ):
+                                break
+                            triangle_index = int(candidate_indices[candidate_position])
+                            triangle_ids = target.triangles[triangle_index]
                             geometry = _closest_segment_triangle(
                                 source_start,
                                 source_end,
@@ -788,7 +806,7 @@ def project_inter_cloth_contacts(
                             if distance_squared < best_distance_squared:
                                 best_distance_squared = distance_squared
                                 best_geometry = geometry
-                                best_triangle_index = int(triangle_index)
+                                best_triangle_index = triangle_index
                         if (
                             best_geometry is not None
                             and best_distance_squared < clearance * clearance
