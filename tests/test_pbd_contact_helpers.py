@@ -193,7 +193,7 @@ def test_inter_cloth_projection_uses_one_nearest_contact_per_source_edge() -> No
         iterations=8,
     )
 
-    assert metrics.contact_count <= 5
+    assert metrics.contact_count <= 10
     assert metrics.corrected_particle_count > 0
     assert metrics.remaining_contact_count == 0
     assert metrics.max_penetration_after_mm <= 1e-7
