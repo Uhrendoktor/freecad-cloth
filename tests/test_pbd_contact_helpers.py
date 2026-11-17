@@ -9,6 +9,8 @@ import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import (
+    _closest_segment_triangle,
+    _closest_segment_triangles_batch,
     measure_inter_cloth_contacts,
     project_inter_cloth_contacts,
 )
@@ -156,6 +158,70 @@ def _parallel_cloth_groups(
         "shirt": triangles,
         "skirt": tuple(tuple(index + 4 for index in triangle) for triangle in triangles),
     }
+
+
+def test_vectorized_inter_cloth_narrow_phase_matches_scalar_reference() -> None:
+    """Batch closest geometry must match the scalar segment/triangle definition."""
+    random = np.random.default_rng(20261117)
+    triangles = random.normal(size=(48, 3, 3)) * 20.0
+    starts = random.normal(size=(48, 3)) * 20.0
+    ends = random.normal(size=(48, 3)) * 20.0
+    triangles[:3] = np.asarray(
+        (
+            ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+            ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+            ((0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)),
+        ),
+        dtype=np.float64,
+    )
+    starts[:3] = np.asarray(
+        (
+            (2.0, 2.0, -5.0),
+            (2.0, 2.0, 2.0),
+            (-2.0, 5.0, 0.0),
+        ),
+        dtype=np.float64,
+    )
+    ends[:3] = np.asarray(
+        (
+            (2.0, 2.0, 5.0),
+            (8.0, 2.0, 2.0),
+            (-2.0, 8.0, 0.0),
+        ),
+        dtype=np.float64,
+    )
+
+    actual = _closest_segment_triangles_batch(starts, ends, triangles)
+    expected = [
+        _closest_segment_triangle(starts[index], ends[index], triangles[index])
+        for index in range(len(starts))
+    ]
+    expected_distance_squared = np.asarray(
+        [
+            np.dot(edge_point - face_point, edge_point - face_point)
+            for edge_point, face_point, _factor, _weights, _normal in expected
+        ],
+        dtype=np.float64,
+    )
+
+    for actual_values, expected_values in zip(
+        actual[:5],
+        (
+            np.asarray([item[0] for item in expected]),
+            np.asarray([item[1] for item in expected]),
+            np.asarray([item[2] for item in expected]),
+            np.asarray([item[3] for item in expected]),
+            np.asarray([item[4] for item in expected]),
+        ),
+        strict=True,
+    ):
+        np.testing.assert_allclose(actual_values, expected_values, rtol=1e-10, atol=1e-10)
+    np.testing.assert_allclose(
+        actual[5],
+        expected_distance_squared,
+        rtol=1e-10,
+        atol=1e-10,
+    )
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:

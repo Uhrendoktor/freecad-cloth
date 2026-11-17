@@ -856,7 +856,7 @@ def _measure_contacts(
                     continue
 
                 closest_started = time.perf_counter()
-                edge_points, face_points, _factors, _weights, _normals, distances_squared = (
+                _edge_points, _face_points, _factors, _weights, _normals, distances_squared = (
                     _closest_segment_triangles_batch(
                         positions[source.edges[source_edge_indices, 0]],
                         positions[source.edges[source_edge_indices, 1]],
@@ -867,8 +867,7 @@ def _measure_contacts(
                 candidate_count = len(source_edge_indices)
                 measured_candidates += candidate_count
                 exact_tests += candidate_count
-                # Use the batch distance returned by the exact solver to keep the
-                # same nearest-geometry result used by position projection.
+                # Use the batch distance from the exact segment/triangle narrow phase.
                 penetration = clearance_mm - np.sqrt(distances_squared)
                 residual = penetration > _CONTACT_MEASUREMENT_EPSILON_MM
                 residual_count = int(np.count_nonzero(residual))
