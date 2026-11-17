@@ -26,7 +26,7 @@ On the exact implementation head `5b4b2a75d73a7e3deb6add7a34134efcaeb4ae37`, ful
 
 The matched two-repetition comparison passed with no rejection reasons:
 
-- Median native position projection: 13,366.37 ms baseline vs 12,050.67 ms candidate (**9.84% faster**).
+- Median native position projection: 13,366.52 ms baseline vs 12,050.67 ms candidate (**9.84% faster**).
 - Median full production wall time: 21,306.37 ms baseline vs 19,934.39 ms candidate (**6.44% lower**).
 
 All four profiles used the pinned source-built extension with matching source, patch, and binary provenance. The installed wheel remains the normal runtime, and no production solver settings were changed.
