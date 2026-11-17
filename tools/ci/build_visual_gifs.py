@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import argparse
 import shutil
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-if __package__:
-    from tools.ci.command_runner import run_command
+if __package__ is not None and __package__ != "":
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 TURNTABLE_FRAME_COUNT = 73
 
@@ -26,7 +26,7 @@ def image_tool() -> str:
         SystemExit: If neither supported ImageMagick executable is available.
     """
     tool = shutil.which("magick") or shutil.which("convert")
-    if not tool:
+    if tool is None:
         msg = "ImageMagick is required on the CI runner"
         raise SystemExit(msg)
     return tool
@@ -61,8 +61,7 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
             "128",
             str(output),
         ],
-        check=True,
-        timeout=timeout,
+        options=CommandOptions(check=True, timeout=timeout),
     )
     if not output.is_file() or not output.stat().st_size:
         msg = f"GIF was not produced: {output}"
@@ -93,7 +92,7 @@ def main() -> int:
             ),
             ("cloth-simulation-draped-turntable-frames", "cloth-simulation-draped-turntable.gif"),
         )
-        jobs = []
+        jobs: list[Future[None]] = []
         with ThreadPoolExecutor(max_workers=3) as pool:
             for directory, output in specs:
                 frames = sorted((root / directory).glob("frame-*.png"))
