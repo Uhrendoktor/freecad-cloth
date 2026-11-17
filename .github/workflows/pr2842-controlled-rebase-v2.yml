@@ -61,6 +61,8 @@ jobs:
                 git show ":3:$path" > "$tmpdir/pr"
                 if ! git merge-file -p "$tmpdir/main" "$tmpdir/base" "$tmpdir/pr" > "$tmpdir/merged"; then
                   printf '::error::Overlapping edits require manual resolution: %s\\n' "$path"
+                  grep -n -E '^(<<<<<<<|=======|>>>>>>>)' "$tmpdir/merged" || true
+                  awk 'BEGIN { emit=0; remaining=0 } /^<<<<<<< / { emit=1; remaining=80 } emit { print; remaining--; if (remaining <= 0) emit=0 }' "$tmpdir/merged"
                   rm -rf "$tmpdir"
                   git rebase --abort
                   exit 1
