@@ -108,15 +108,15 @@ class _AvatarFeatureView(Protocol):
 class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Document operations used by the persistent avatar command boundary."""
 
-    def addObject(self, object_type: str, object_name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, object_name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native feature with the requested type and internal name."""
         ...
 
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a native document feature by its internal name."""
         ...
 
-    def removeObject(self, object_name: str) -> None:
+    def removeObject(self, object_name: str, /) -> None:
         """Remove the named object from this document.
 
         Args:
@@ -124,7 +124,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         """
         ...
 
-    def recompute(self) -> int | None:
+    def recompute(self, /) -> int | None:
         """Recompute the document after changing persistent avatar state."""
         ...
 

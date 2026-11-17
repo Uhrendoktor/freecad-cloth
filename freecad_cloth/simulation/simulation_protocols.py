@@ -15,7 +15,7 @@ from freecad_cloth.common.garment_document import (
 class SimulationDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document operations required by simulation commands."""
 
-    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
 
         Args:
@@ -27,7 +27,7 @@ class SimulationDocument(FreeCADDocumentProtocol, Protocol):
         """
         ...
 
-    def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
+    def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
         """Find a feature by its stable internal name.
 
         Args:

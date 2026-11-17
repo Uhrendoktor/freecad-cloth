@@ -101,7 +101,7 @@ class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
 class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
+    def addObject(self, object_type: str, name: str, /) -> FreeCADDocumentObjectProtocol:
         """Create a native FreeCAD object inside the document.
 
         Args:
