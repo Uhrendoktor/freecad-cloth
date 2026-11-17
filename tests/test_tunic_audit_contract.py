@@ -371,9 +371,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "CLOTH_PBD_COLLISION_MODE: mesh" in workflow, (
         'Contract failed: "CLOTH_PBD_COLLISION_MODE: mesh" in wor...'
     )
-    tunic_action = (
-        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
-    ).read_text(encoding="utf-8")
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "CLOTH_PBD_COLLISION_VOXEL_MM=8.0" in tunic_action, (
         "The reusable production audit action must pin the 8 mm collision voxel."
     )
@@ -422,9 +422,9 @@ def test_tunic_realtime_profile_is_bounded_and_mesh_collision_is_explicit() -> N
     assert "realtime-preview=passed backend=position-based-dynamics" in source, (
         'Contract failed: "realtime-preview=passed backend=positi...'
     )
-    tunic_action = (
-        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
-    ).read_text(encoding="utf-8")
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "tools/ci/validate_manifests.py tunic-production" in tunic_action, (
         "The reusable production audit action must run the strict physical-evidence validator."
     )
