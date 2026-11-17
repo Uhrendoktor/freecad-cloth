@@ -152,9 +152,13 @@ def test_visual_asset_contract_follows_nested_local_producer_actions() -> None:
     )
     action_sources = _local_action_sources(workflow)
 
+    expected_artifact_name = (
+        "artifact-name: ${{ inputs.collect-evidence == 'true' "
+        "&& 'tunic-visual-audit' || '' }}"
+    )
     assert any(
         "test-script: tests/freecad_tunic_audit_production.py" in source
-        and "artifact-name: tunic-visual-audit" in source
+        and expected_artifact_name in source
         for source in action_sources
     )
     assert any("name: FreeCAD container" in source for source in action_sources)
