@@ -163,6 +163,27 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                if [[ "$path" == "tests/test_simulation_gui.py" ]]; then
+                  # Main added simulation GUI regression coverage; the PR commit only removes
+                  # the now-redundant sys.path bootstrap. Keep main's tests and apply that removal.
+                  git checkout --ours -- "$path"
+                  python3 - "$path" <<'PY'
+          import pathlib
+          import sys
+
+          path = pathlib.Path(sys.argv[1])
+          lines = path.read_text(encoding="utf-8").splitlines()
+          lines = [
+              line for line in lines
+              if line != "from pathlib import Path"
+              and line != "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))"
+          ]
+          path.write_text("\\n".join(lines) + "\\n", encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 if [[ "$path" == "tests/test_tunic_audit_contract.py" ]]; then
                   # Both branches append independent contract tests: retain the mainline production
                   # profiling tests and the PR's native-arc boundary regression.
