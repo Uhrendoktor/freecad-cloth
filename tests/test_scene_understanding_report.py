@@ -257,8 +257,6 @@ def test_scene_report_uses_the_selected_artifact_name(
         "The FreeCAD test action must pass the artifact name to the scene reporter."
     )
 
-
-
 def test_missing_progress_log_emits_explicit_incomplete_dossier(tmp_path: Path) -> None:
     """Leave an explicit incomplete report when an early crash prevents observations.
 
