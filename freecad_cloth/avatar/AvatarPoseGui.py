@@ -44,27 +44,24 @@ if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
 
-    from freecad_cloth.avatar.AvatarModel import AvatarParameters
-    from freecad_cloth.avatar.SkeletonPose import AffineTransform, JointRotation
-    from freecad_cloth.avatar.SkeletonTypes import SkeletonData
     from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol
+    from freecad_cloth.avatar.AvatarModel import AvatarParameters
     from freecad_cloth.avatar.coin_protocols import (
         _CoinDynamicDragger,
         _CoinEventCallback,
         _CoinModule,
         _CoinNode,
-        _CoinRotationField,
         _CoinSeparator,
         _CoinTransform,
         _CoinType,
     )
+    from freecad_cloth.avatar.SkeletonPose import AffineTransform, JointRotation
+    from freecad_cloth.avatar.SkeletonTypes import SkeletonData
     from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
 type PosePoint = tuple[float, float, float]
 type PoseSegment = tuple[PosePoint, PosePoint]
 type ScreenPoint = tuple[float, float]
-
-
 
 
 class _PoseVector(Protocol):
@@ -80,15 +77,12 @@ class _PoseRotation(Protocol):
 
     def setEulerAngles(self, mode: int, x: float, y: float, z: float) -> None:
         """Set the rotation using the selected FreeCAD Euler convention."""
-        ...
 
     def multiply(self, other: _PoseRotation) -> _PoseRotation:
         """Compose this rotation with another native rotation."""
-        ...
 
     def getEulerAngles(self, mode: int) -> Sequence[float]:
         """Return Euler components in the requested FreeCAD convention."""
-        ...
 
 
 class _PoseRotationFactory(Protocol):
@@ -98,7 +92,6 @@ class _PoseRotationFactory(Protocol):
 
     def __call__(self, *args: object) -> _PoseRotation:
         """Construct a native FreeCAD rotation."""
-        ...
 
 
 class _PoseDocument(Protocol):
@@ -107,15 +100,12 @@ class _PoseDocument(Protocol):
     @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
         """Return the current native document objects."""
-        ...
 
     def removeObject(self, name: str) -> None:
         """Remove a native object by its internal document name."""
-        ...
 
     def recompute(self) -> int | None:
         """Recompute document features after removing the fallback object."""
-        ...
 
 
 class _PoseAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):
@@ -124,7 +114,6 @@ class _PoseAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):
     @property
     def Document(self) -> _PoseDocument:
         """Return the document that owns this avatar."""
-        ...
 
     AvatarProviderId: str
     JointPoseJSON: str
@@ -139,7 +128,6 @@ class _PoseApplication(Protocol):
     @property
     def ActiveDocument(self) -> _PoseDocument | None:
         """Return the active document when one is open."""
-        ...
 
     Vector: Callable[..., _PoseVector]
     Rotation: _PoseRotationFactory
@@ -150,25 +138,20 @@ class _PoseView(Protocol):
 
     def getSceneGraph(self) -> _CoinSeparator:
         """Return the native Coin scene root."""
-        ...
 
     def getPointOnScreen(self, point: _PoseVector) -> Sequence[float]:
         """Project a world-space point into viewport pixel coordinates."""
-        ...
 
     def getSize(self) -> tuple[int, int]:
         """Return viewport dimensions in pixels."""
-        ...
 
     def addEventCallbackPivy(
         self, event_type: object, callback: Callable[[_CoinEventCallback], None]
     ) -> int:
         """Register a callback for one Pivy event type."""
-        ...
 
     def removeEventCallbackPivy(self, event_type: object, callback_id: int) -> None:
         """Remove a Pivy callback previously registered on this view."""
-        ...
 
 
 class _PoseGuiDocument(Protocol):
@@ -176,7 +159,6 @@ class _PoseGuiDocument(Protocol):
 
     def activeView(self) -> _PoseView | None:
         """Return the active 3D view when one is available."""
-        ...
 
 
 class _PoseGuiControl(Protocol):
@@ -184,7 +166,6 @@ class _PoseGuiControl(Protocol):
 
     def showDialog(self, panel: AvatarPoseTaskPanel) -> None:
         """Display a native FreeCAD task panel."""
-        ...
 
 
 class _PoseGui(Protocol):
@@ -194,7 +175,6 @@ class _PoseGui(Protocol):
 
     def activeDocument(self) -> _PoseGuiDocument | None:
         """Return the active GUI document when one is available."""
-        ...
 
 
 class _PoseToggle(Protocol):
@@ -202,19 +182,15 @@ class _PoseToggle(Protocol):
 
     def setChecked(self, checked: bool) -> None:
         """Set the toggle state."""
-        ...
 
     def setEnabled(self, enabled: bool) -> None:
         """Enable or disable the control."""
-        ...
 
     def setToolTip(self, text: str) -> None:
         """Set the explanatory tooltip."""
-        ...
 
     def isChecked(self) -> bool:
         """Return the current toggle state."""
-        ...
 
 
 class _PoseLabel(Protocol):
@@ -222,7 +198,6 @@ class _PoseLabel(Protocol):
 
     def setText(self, text: str) -> None:
         """Set the visible label text."""
-        ...
 
 
 class _PosePanel(Protocol):
@@ -238,34 +213,26 @@ class _PosePanel(Protocol):
 
     def _staged_parameters(self) -> AvatarParameters:
         """Build the validated parameter model representing staged panel edits."""
-        ...
 
     def _select_first_joint(self) -> None:
         """Select the first controllable joint in the task panel."""
-        ...
 
     def _select_joint_without_preview(self, bone: str) -> None:
         """Update the panel selection without generating preview geometry."""
-        ...
 
     def _joint_label(self, bone: str) -> str:
         """Return the display label for a skeleton bone."""
-        ...
 
     def _set_status(self, message: str) -> None:
         """Update the task panel status message."""
-        ...
 
     def _stage_joint_rotation(
         self, bone: str, x: float, y: float, z: float, *, preview: bool
     ) -> None:
         """Stage one joint rotation from an interactive viewport drag."""
-        ...
 
 
-def _modules() -> tuple[
-    _PoseApplication, _PoseGui, _QT_TYPE_QtCore, _QT_TYPE_QtWidgets
-]:
+def _modules() -> tuple[_PoseApplication, _PoseGui, _QT_TYPE_QtCore, _QT_TYPE_QtWidgets]:
     """Load FreeCAD, GUI, Qt and Coin modules only when Pose Mode is opened.
 
     Returns:
@@ -372,9 +339,7 @@ class _NativeGizmoHandle:
     is_fallback = False
     is_visual = True
 
-    def __init__(
-        self, dragger: _CoinDynamicDragger, controller: SkeletonPoseController
-    ) -> None:
+    def __init__(self, dragger: _CoinDynamicDragger, controller: SkeletonPoseController) -> None:
         """Bind a native rotation dragger to its state controller.
 
         Args:
@@ -458,9 +423,7 @@ class SkeletonPoseController:
         return float(projected[0]), float(size[1] - projected[1])
 
     @staticmethod
-    def _screen_segment_distance(
-        point: ScreenPoint, start: ScreenPoint, end: ScreenPoint
-    ) -> float:
+    def _screen_segment_distance(point: ScreenPoint, start: ScreenPoint, end: ScreenPoint) -> float:
         """Return the 2D distance from a point to a projected bone segment.
 
         Args:
@@ -1174,9 +1137,7 @@ class SkeletonPoseController:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             return
 
-    def _gizmo_finish(
-        self, _data: object, _dragger: _CoinDynamicDragger
-    ) -> None:
+    def _gizmo_finish(self, _data: object, _dragger: _CoinDynamicDragger) -> None:
         """Commit drag completion and clear the active interaction state.
 
         Args:
@@ -1245,9 +1206,7 @@ class SkeletonPoseController:
             self._hover_separator = None
             self._hover_bone = None
 
-    def _pick_bone(
-        self, screen: ScreenPoint, include_joint_fallback: bool = False
-    ) -> str | None:
+    def _pick_bone(self, screen: ScreenPoint, include_joint_fallback: bool = False) -> str | None:
         """Pick the closest skeleton bone to a viewport position.
 
         Args:
@@ -1362,9 +1321,7 @@ class AvatarPoseTaskPanel:
         self.Gui: _PoseGui = Gui
         self.QtCore: _QT_TYPE_QtCore = QtCore
         self.QtWidgets: _QT_TYPE_QtWidgets = QtWidgets
-        self.avatar: _PoseAvatarFeature | None = (
-            self._find_avatar() if avatar is None else avatar
-        )
+        self.avatar: _PoseAvatarFeature | None = self._find_avatar() if avatar is None else avatar
         self.form: _QT_TYPE_QtWidgets.QWidget = QtWidgets.QWidget()
         self.form.setObjectName("ClothAvatarPoseTaskPanel")
         root = QtWidgets.QVBoxLayout(self.form)
@@ -2012,9 +1969,7 @@ class AvatarPoseTaskPanel:
         buttons = QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         return int(getattr(buttons, "value", buttons))
 
-    def modifyStandardButtons(
-        self, button_box: _QT_TYPE_QtWidgets.QDialogButtonBox
-    ) -> None:
+    def modifyStandardButtons(self, button_box: _QT_TYPE_QtWidgets.QDialogButtonBox) -> None:
         """Customize the supplied dialog buttons for Pose Mode.
 
         Args:
