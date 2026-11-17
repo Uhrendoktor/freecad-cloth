@@ -6,7 +6,6 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -395,16 +394,9 @@ def write_ruff_autofix_patch(patch_text: str) -> Path:
     Raises:
         OSError: If the temporary patch file cannot be created or written.
     """
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        encoding="utf-8",
-        prefix="ruff-autofix-",
-        suffix=".patch",
-        dir=os.environ.get("RUNNER_TEMP"),
-        delete=False,
-    ) as patch_file:
-        patch_file.write(patch_text)
-    return Path(patch_file.name)
+    patch_path = Path(os.environ.get("RUFF_AUTOFIX_PATCH_PATH", "/tmp/ruff-autofix.patch"))
+    patch_path.write_text(patch_text, encoding="utf-8")
+    return patch_path
 
 
 def _run_repository_ruff_autofix() -> int:

@@ -73,6 +73,7 @@ container_id="$(docker create --name "$container_name" --init --security-opt sec
   --env XDG_CACHE_HOME=/runner-cache/xdg \
   --env QUALITY_IMAGE_ID="$image_id" \
   --env WORKSPACE_CACHE_KEY="$workspace_key" \
+  --env RUFF_AUTOFIX_PATCH_PATH=/tmp/ruff-autofix.patch \
   --env QUALITY_BUNDLE_BRANCH="$bundle_branch" \
   --env QUALITY_HEAD_SHA="$head_sha" \
   --env QUALITY_BASE_REF="$base_ref" \

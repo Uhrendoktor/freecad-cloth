@@ -241,28 +241,22 @@ def test_quality_command_inventory_includes_every_strict_gate() -> None:
     )
 
 
-def test_ruff_autofix_patch_uses_unique_temporary_files(
+def test_ruff_autofix_patch_uses_the_container_copy_path(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Keep generated patch files unique, retained, and scoped to the runner temp directory."""
-    monkeypatch.setenv("RUNNER_TEMP", str(tmp_path))
-    first_patch = "diff --git a/first.py b/first.py\n"
-    second_patch = "diff --git a/second.py b/second.py\n"
+    """Write the safe-fix patch to the exact path copied back by the runner."""
+    patch_path = tmp_path / "ruff-autofix.patch"
+    monkeypatch.setenv("RUFF_AUTOFIX_PATCH_PATH", str(patch_path))
+    patch_text = "diff --git a/first.py b/first.py\\n"
 
-    first_path = write_ruff_autofix_patch(first_patch)
-    second_path = write_ruff_autofix_patch(second_patch)
+    written_path = write_ruff_autofix_patch(patch_text)
 
     require(
-        condition=first_path.parent == tmp_path and second_path.parent == tmp_path,
-        message="Ruff patch files must be created inside RUNNER_TEMP.",
+        condition=written_path == patch_path,
+        message="The container patch writer and docker cp source path must agree.",
     )
     require(
-        condition=first_path != second_path,
-        message="Concurrent Ruff autofix runs must not share a fixed patch filename.",
-    )
-    require(
-        condition=first_path.read_text(encoding="utf-8") == first_patch
-        and second_path.read_text(encoding="utf-8") == second_patch,
-        message="Each temporary patch must retain its own generated diff text.",
+        condition=written_path.read_text(encoding="utf-8") == patch_text,
+        message="The container patch file must retain the generated safe Ruff diff.",
     )
