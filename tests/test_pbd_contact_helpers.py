@@ -10,7 +10,9 @@ import pytest
 from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.InterClothContact import (
     _closest_segment_triangle,
+    _candidate_edge_triangle_pairs,
     _closest_segment_triangles_batch,
+    _surface_index,
     measure_inter_cloth_contacts,
     project_inter_cloth_contacts,
 )
@@ -222,6 +224,31 @@ def test_vectorized_inter_cloth_narrow_phase_matches_scalar_reference() -> None:
         rtol=1e-10,
         atol=1e-10,
     )
+
+
+def test_inter_cloth_aabb_broad_phase_keeps_every_exact_near_contact() -> None:
+    """Expanded edge/triangle AABBs must retain every pair within clearance."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    source = _surface_index(np.asarray(positions, dtype=np.float64), np.asarray(groups["shirt"]))
+    target = _surface_index(np.asarray(positions, dtype=np.float64), np.asarray(groups["skirt"]))
+    edge_indices, triangle_indices, _raw_count, _query_s, _filter_s = (
+        _candidate_edge_triangle_pairs(source, target, 1.0)
+    )
+    retained = set(zip(edge_indices.tolist(), triangle_indices.tolist(), strict=True))
+    points = np.asarray(positions, dtype=np.float64)
+    for edge_index, edge in enumerate(source.edges):
+        for triangle_index, triangle_ids in enumerate(target.triangles):
+            closest = _closest_segment_triangle(
+                points[int(edge[0])],
+                points[int(edge[1])],
+                points[triangle_ids],
+            )
+            edge_point, face_point = closest[0], closest[1]
+            distance = float(np.linalg.norm(edge_point - face_point))
+            if distance <= 1.0 + 1e-10:
+                assert (edge_index, triangle_index) in retained, (
+                    "AABB broad phase dropped an edge/triangle pair within clearance"
+                )
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:
