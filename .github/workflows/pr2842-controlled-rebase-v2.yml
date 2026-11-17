@@ -485,7 +485,7 @@ jobs:
           git add -- .github/workflows/canonical-execution.yml
           tree_sha="$(git write-tree)"
           main_sha="$(git rev-parse origin/main)"
-          merge_commit="$(printf '%s\\n' "Merge main into PR #2842 after reviewed rebase" | git commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD")"
+          merge_commit="$(printf '%s\n' "Merge main into PR #2842 after reviewed rebase" | git commit-tree "$tree_sha" -p "$main_sha" -p "$EXPECTED_HEAD")"
           git merge-base --is-ancestor "$EXPECTED_HEAD" "$merge_commit"
           git merge-base --is-ancestor "$main_sha" "$merge_commit"
           git push origin "$merge_commit:refs/heads/${target_branch}"
@@ -499,4 +499,4 @@ jobs:
             echo "- Main parent: `$main_sha`"
             echo "- Original PR parent: `$EXPECTED_HEAD`"
             echo "- The current mainline canonical workflow was retained."
-          } >> "$GITHUB_STEP_SUMMARY"          exit 1
+          } >> "$GITHUB_STEP_SUMMARY"
