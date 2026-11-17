@@ -163,6 +163,70 @@ jobs:
                   rm -rf "$tmpdir"
                   continue
                 fi
+                if [[ "$path" == "freecad_cloth/pattern/PatternTopologyRepair.py" ]]; then
+                  # Keep main's native Sketcher viewport-edge resolver and the PR's explicit
+                  # Protocol/EdgeRecord typing. The two conflict hunks are imports and the
+                  # insertion point immediately before validate_repair_target.
+                  python3 - "$tmpdir/merged" "$path" <<'PY'
+          import pathlib
+          import sys
+
+          merged_path, output_path = map(pathlib.Path, sys.argv[1:])
+          lines = merged_path.read_text(encoding="utf-8").splitlines(keepends=True)
+          result = []
+          index = 0
+          import_conflicts = 0
+          resolver_conflicts = 0
+          while index < len(lines):
+              if not lines[index].startswith("<<<<<<< "):
+                  result.append(lines[index])
+                  index += 1
+                  continue
+              index += 1
+              main_side = []
+              while index < len(lines) and not lines[index].startswith("======="):
+                  main_side.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated main topology-repair conflict")
+              index += 1
+              pr_side = []
+              while index < len(lines) and not lines[index].startswith(">>>>>>> "):
+                  pr_side.append(lines[index])
+                  index += 1
+              if index >= len(lines):
+                  raise SystemExit("unterminated PR topology-repair conflict")
+              main_text = "".join(main_side)
+              pr_text = "".join(pr_side)
+              if "FreeCADDocumentObjectProtocol" in main_text and "Iterable, Sequence" in pr_text:
+                  # Standard-library imports first, then the mainline and PR local imports.
+                  result.extend(pr_side)
+                  result.extend(main_side)
+                  import_conflicts += 1
+              elif (
+                  "current_edge_candidate_for_sketch_index" in main_text
+                  and "def validate_repair_target(seam, side, edge_id):" in main_text
+                  and "def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:" in pr_text
+              ):
+                  merged_block = main_text.replace(
+                      "def validate_repair_target(seam, side, edge_id):",
+                      "def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:",
+                  )
+                  result.append(merged_block)
+                  resolver_conflicts += 1
+              else:
+                  raise SystemExit("unexpected topology-repair conflict block")
+              index += 1
+          if import_conflicts != 1 or resolver_conflicts != 1:
+              raise SystemExit(
+                  f"expected one import and one resolver conflict, got {import_conflicts} and {resolver_conflicts}"
+              )
+          output_path.write_text("".join(result), encoding="utf-8")
+          PY
+                  git add -- "$path"
+                  rm -rf "$tmpdir"
+                  continue
+                fi
                 if [[ "$path" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]; then
                   # Main added transient preview mesh publication after this PR forked.
                   # Keep that behavior; this PR's old side predates the publisher contract.
