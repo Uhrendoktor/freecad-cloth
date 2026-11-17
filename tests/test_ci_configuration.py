@@ -4,11 +4,11 @@
 import json
 import re
 import tomllib
-
-import pytest
 from collections.abc import Iterator
 from hashlib import sha256
 from pathlib import Path
+
+import pytest
 
 from freecad_cloth.common.JsonTypes import JsonObject
 from tests.support.assertions import require
@@ -104,7 +104,9 @@ def test_freecad_timeout_is_positive_and_declared_once() -> None:
     )
 
 
-def test_freecad_timeout_override_accepts_extended_validation_budget(monkeypatch) -> None:
+def test_freecad_timeout_override_accepts_extended_validation_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The layered-outfit acceptance may use the action's 1800-second hard limit."""
     monkeypatch.setenv("FREECAD_APPLICATION_TIMEOUT_SECONDS", "1800")
     assert configured_timeout_seconds() == 1800.0
