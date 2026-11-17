@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import sys
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from itertools import starmap
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast, override
