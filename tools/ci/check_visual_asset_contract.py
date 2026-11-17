@@ -51,7 +51,7 @@ def _local_action_sources(workflow_text: str) -> list[str]:
         breadth-first discovery order. Missing action files are not silently
         substituted; the workflow/action validator owns that diagnostic.
     """
-    pattern = re.compile(r"uses:\\s*\\./\\.github/actions/([A-Za-z0-9_-]+)")
+    pattern = re.compile(r"uses:\s*\./\.github/actions/([A-Za-z0-9_-]+)")
     pending = pattern.findall(workflow_text)
     visited: set[str] = set()
     sources: list[str] = []
