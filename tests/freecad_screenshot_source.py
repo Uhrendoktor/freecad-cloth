@@ -1773,7 +1773,7 @@ def capture_tunic_sewing_view(
         show_task(
             panel,
             "Sewing Workbench",
-            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Status"),
+            ("Seam", "Alignment", "Validation tolerance", "Stitch samples", "Valid"),
         )
         # As with the pattern view, close the task panel so neither canonical
         # profile is obscured in the generated evidence.
@@ -2172,9 +2172,16 @@ def _run_production_tunic_drape(
 
     profile_output = pathlib.Path("artifacts/tunic-audit/production-pbd-profile.json")
     profile_output.parent.mkdir(exist_ok=True, parents=True)
+    from tools.ci.pbd_constraint_group_profile import (
+        ConstraintGroupModel,
+        ConstraintGroupProfile,
+        profile_native_constraint_groups,
+    )
+
     profile_samples_ms: dict[str, list[float]] = {}
     batch_history: list[dict[str, int | float]] = []
     inside_stitched_reconciliation = [False]
+    native_constraint_group_profile: ConstraintGroupProfile | None = None
 
     def record_profile_sample(stage: str, started_at: float) -> None:
         profile_samples_ms.setdefault(stage, []).append(1000.0 * (perf_counter() - started_at))
@@ -2309,6 +2316,26 @@ def _run_production_tunic_drape(
         *,
         scene_steps_completed: int,
     ) -> None:
+        nonlocal native_constraint_group_profile
+        if native_constraint_group_profile is None and backend_steps_completed > 0:
+            native_model = getattr(active_backend, "_model", None)
+            if native_model is None:
+                raise RuntimeError("production PBD backend does not expose its initialized model")
+            native_constraint_group_profile = profile_native_constraint_groups(
+                cast(ConstraintGroupModel, native_model)
+            )
+            group_profile = native_constraint_group_profile
+            log(
+                "pypbd-constraint-groups groups=%d constraints=%d "
+                "parallel-groups=%d parallel-constraints=%d threshold=%d"
+                % (
+                    group_profile["group_count"],
+                    group_profile["constraint_count"],
+                    group_profile["parallel_eligible_group_count"],
+                    group_profile["parallel_eligible_constraint_count"],
+                    group_profile["openmp_parallel_threshold"],
+                )
+            )
         native = native_timing_snapshot()
         python_stages = {
             name: profile_summary(samples) for name, samples in sorted(profile_samples_ms.items())
@@ -2361,6 +2388,7 @@ def _run_production_tunic_drape(
                 "collision_effective_clearance_mm": effective_mm,
             },
             "native_pypbd_stage_timings": native,
+            "native_constraint_groups": native_constraint_group_profile,
             "python_backend_stage_timings": python_stages,
             "derived_exclusive_timings_ms": {
                 "native_step_other": max(
