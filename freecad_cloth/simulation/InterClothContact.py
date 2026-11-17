@@ -9,6 +9,9 @@ exact global particle indices and preserves authored seams and pins.
 
 from __future__ import annotations
 
+import os
+import sys
+import time
 from collections.abc import Mapping, Sequence
 from typing import NamedTuple
 
@@ -21,6 +24,13 @@ type TriangleArray = npt.NDArray[np.int64]
 type EdgeArray = npt.NDArray[np.int64]
 
 _CONTACT_MEASUREMENT_EPSILON_MM = 0.002
+
+
+def _emit_contact_diagnostic(message: str) -> None:
+    """Emit opt-in flushed contact-stage diagnostics for native acceptance runs."""
+    if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+        sys.stdout.write(f"{message}\\n")
+        sys.stdout.flush()
 
 
 class InterClothContactMetrics(NamedTuple):
@@ -653,6 +663,14 @@ def project_inter_cloth_contacts(
         positions, triangles_by_group, operation="projection"
     )
     group_ids = tuple(sorted(surfaces))
+    _emit_contact_diagnostic(
+        "inter-cloth-indexed "
+        f"particles={len(positions)} "
+        + " ".join(
+            f"group={group_id}:triangles={len(surfaces[group_id].triangles)}:edges={len(surfaces[group_id].edges)}"
+            for group_id in group_ids
+        )
+    )
     for raw_left, raw_right in stitches:
         left, right = int(raw_left), int(raw_right)
         left_group = particle_owners.get(left)
@@ -667,6 +685,8 @@ def project_inter_cloth_contacts(
     maximum_before = 0.0
 
     for iteration in range(pass_count):
+        pass_started = time.perf_counter()
+        _emit_contact_diagnostic(f"inter-cloth-pass-start iteration={iteration + 1}")
         surfaces = {
             group_id: _surface_index(current, surface.triangles)
             for group_id, surface in surfaces.items()
@@ -680,10 +700,17 @@ def project_inter_cloth_contacts(
             left = surfaces[left_id]
             for right_id in group_ids[left_index + 1 :]:
                 right = surfaces[right_id]
-                for source, target, fallback_sign in (
+                for direction_index, (source, target, fallback_sign) in enumerate((
                     (left, right, 1.0),
                     (right, left, -1.0),
-                ):
+                )):
+                    direction_started = time.perf_counter()
+                    candidate_count = 0
+                    _emit_contact_diagnostic(
+                        f"inter-cloth-direction-start iteration={iteration + 1} "
+                        f"source_edges={len(source.edges)} target_triangles={len(target.triangles)} "
+                        f"direction={direction_index}"
+                    )
                     source_center = current[np.unique(source.triangles)].mean(axis=0)
                     target_center = current[np.unique(target.triangles)].mean(axis=0)
                     for edge_index, edge in enumerate(source.edges):
@@ -696,6 +723,13 @@ def project_inter_cloth_contacts(
                             source.edge_centers[edge_index],
                             query_radius,
                         )
+                        candidate_count += len(candidates)
+                        if edge_index > 0 and edge_index % 5000 == 0:
+                            _emit_contact_diagnostic(
+                                f"inter-cloth-direction-progress iteration={iteration + 1} "
+                                f"direction={direction_index} edges={edge_index}/{len(source.edges)} "
+                                f"candidates={candidate_count} elapsed_s={time.perf_counter() - direction_started:.1f}"
+                            )
                         for triangle_index in candidates:
                             triangle: tuple[int, int, int] = (
                                 int(target.triangles[int(triangle_index), 0]),
@@ -719,6 +753,11 @@ def project_inter_cloth_contacts(
                                 maximum_this_pass,
                                 penetration if contact else 0.0,
                             )
+                    _emit_contact_diagnostic(
+                        f"inter-cloth-direction-finish iteration={iteration + 1} "
+                        f"direction={direction_index} candidates={candidate_count} "
+                        f"elapsed_s={time.perf_counter() - direction_started:.1f}"
+                    )
 
         corrections = np.divide(
             correction_sum,
@@ -732,6 +771,11 @@ def project_inter_cloth_contacts(
         if iteration == 0:
             contacts_before = contacts_this_pass
             maximum_before = maximum_this_pass
+        _emit_contact_diagnostic(
+            f"inter-cloth-pass-finish iteration={iteration + 1} "
+            f"contacts={contacts_this_pass} moved={int(np.count_nonzero(moved))} "
+            f"elapsed_s={time.perf_counter() - pass_started:.1f}"
+        )
         if not bool(np.any(moved)):
             break
 
@@ -739,7 +783,11 @@ def project_inter_cloth_contacts(
         group_id: _surface_index(current, surface.triangles)
         for group_id, surface in surfaces.items()
     }
+    _emit_contact_diagnostic("inter-cloth-residual-measure-start")
     remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
+    _emit_contact_diagnostic(
+        f"inter-cloth-residual-measure-finish remaining={remaining_contacts} max_deficit_mm={maximum_after:.4f}"
+    )
     movement = np.linalg.norm(current - original, axis=1)
     corrected_count = int(np.count_nonzero(movement > 1e-8))
     directions = np.zeros_like(current)
