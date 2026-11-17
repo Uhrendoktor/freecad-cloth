@@ -594,16 +594,16 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     assert "image: ${{ env.FREECAD_PBD_IMAGE }}" in gui, (
         'Contract failed: "image: ${{ env.FREECAD_PBD_IMAGE }}" i...'
     )
-    assert "capture_pypbd_provenance.py" in gui, (
-        'Contract failed: "capture_pypbd_provenance.py" in gui'
+    assert "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile, (
+        'Contract failed: "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile'
     )
-    assert "artifacts/pypbd-provenance.txt" in gui, (
-        'Contract failed: "artifacts/pypbd-provenance.txt" in gui'
+    assert "artifacts/pbd-openmp-team-reuse/**" in gui, (
+        'Contract failed: "artifacts/pbd-openmp-team-reuse/**" in gui'
     )
 
 
 def test_production_tunic_audit_is_a_blocking_gate() -> None:
-    """Require the complete production tunic audit to block when acceptance fails."""
+    """Require four complete matched production tunic audits and a blocking comparator."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -619,7 +619,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     audit_index = gui.index("test-script: tests/freecad_tunic_audit_production.py")
     audit_action_index = gui.rfind("- uses: ./.github/actions/freecad-test", 0, audit_index)
     report_index = gui.index(
-        "      - name: Report production tunic audit outcome", audit_action_index
+        "      - name: Report paired native production audit outcome", audit_action_index
     )
     audit_action = gui[audit_action_index:report_index]
     assert "CLOTH_REALTIME_FRAMES=120" in gui[benchmark_action_index:metric_validator_index]
@@ -633,24 +633,36 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     )
     assert "continue-on-error: true" in gui[benchmark_action_index:metric_validator_index]
     assert "continue-on-error: true" in gui[metric_validator_index:audit_action_index]
-    assert "if: always()" in audit_action, (
-        "The production tunic audit must still execute after preview diagnostics."
-    )
-    assert "id: production-tunic-audit" in audit_action
-    assert "continue-on-error:" not in audit_action
-    assert 'timeout-seconds: "360"' in audit_action
+    assert "if: always()" not in audit_action
+    assert audit_action.count("test-script: tests/freecad_tunic_audit_production.py") == 4
+    assert audit_action.count('timeout-seconds: "360"') == 4
+    assert "id: baseline_1_audit" in audit_action
+    assert "id: candidate_1_audit" in audit_action
+    assert "id: baseline_2_audit" in audit_action
+    assert "id: candidate_2_audit" in audit_action
+    assert audit_action.count("CLOTH_PBD_OPENMP_TEAM_REUSE=0") == 2
+    assert audit_action.count("CLOTH_PBD_OPENMP_TEAM_REUSE=1") == 2
+    assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in audit_action
+    assert "compare_pbd_openmp_team_reuse.py" in audit_action
+    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in audit_action
+    assert "acceptance-gates=passed" not in audit_action
     report = gui[report_index:]
-    assert "steps.production-tunic-audit.outcome" in report
-    assert "The complete 90-step production tunic audit passed" in report
-    assert "::error title=Production tunic audit failed" in report
-    assert "is blocking" in report
+    for step_id in (
+        "baseline_1_audit",
+        "candidate_1_audit",
+        "baseline_2_audit",
+        "candidate_2_audit",
+    ):
+        assert f"steps.{step_id}.outcome" in report
+    assert "::error title=Paired production audit failed" in report
+    assert "5% projection" in report
+    assert "non-regressing wall-time gates" in report
     assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
     assert "p95_frame_interval_ms exceeds the 60 FPS budget" in validator
-
 
 def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     """Verify production tunic wrapper dispatches in freecad macro host contract."""
