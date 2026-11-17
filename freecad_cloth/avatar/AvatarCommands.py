@@ -35,7 +35,10 @@ from freecad_cloth.avatar.SkeletonPose import (
     joint_rotations_from_json,
     joint_rotations_to_json,
 )
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.shared.CommandIds import AVATAR_COMMANDS
 
 if TYPE_CHECKING:
@@ -102,18 +105,8 @@ class _AvatarFeatureView(Protocol):
     ViewObject: _AvatarViewObject
 
 
-class _FreeCADDocument(Protocol):
-    """Read-only document identity and operations used by avatar commands."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable internal document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return a read-only view of the document's native objects."""
-        ...
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
+    """Document operations used by the persistent avatar command boundary."""
 
     def addObject(self, object_type: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native feature with the requested type and internal name."""

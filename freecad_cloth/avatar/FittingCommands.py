@@ -9,7 +9,10 @@ import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from typing import Protocol, SupportsFloat, SupportsInt, cast
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.shared.CommandIds import FITTING_COMMANDS
 
 type JsonValue = bool | int | float | str | list[JsonValue] | dict[str, JsonValue] | None
@@ -1321,18 +1324,8 @@ class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
         ...
 
 
-class _FittingDocument(Protocol):
+class _FittingDocument(FreeCADDocumentProtocol, Protocol):
     """Document API used to organize generated marker features."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable internal document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
-        ...
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return the named native object, or None when it is not in the document.

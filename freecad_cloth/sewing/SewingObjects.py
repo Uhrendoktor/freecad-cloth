@@ -8,7 +8,10 @@ from typing import TYPE_CHECKING, Protocol, cast
 
 import numpy as np
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeRecord,
@@ -150,27 +153,12 @@ class _SewingFeature(FreeCADDocumentObjectProtocol, Protocol):
     def setEditorMode(self, name: str, _mode: int) -> None: ...
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Native document operation required to create a persistent sewing feature."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable internal document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the native objects owned by the sewing document."""
-        ...
 
     def addObject(self, _type_id: str, name: str) -> _SewingFeature:
         """Create a Python-backed sewing feature with the requested internal name."""
         ...
-
-    def recompute(self) -> int | None:
-        """Recompute native sewing features and their document dependencies."""
-        ...
-
 
 def _edge_endpoint_pair(
     native_edge: _NativeEdge,

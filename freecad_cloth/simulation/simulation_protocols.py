@@ -6,20 +6,14 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Protocol
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 
-class SimulationDocument(Protocol):
+class SimulationDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document operations required by simulation commands."""
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return a read-only view of the document's native objects.
-
-        Returns:
-            Sequence of native objects currently owned by the document.
-        """
-        ...
 
     def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
@@ -43,15 +37,6 @@ class SimulationDocument(Protocol):
             The matching feature or None when it is absent.
         """
         ...
-
-    def recompute(self) -> int | None:
-        """Recompute the document after simulation state changes.
-
-        Returns:
-            Native recompute status when the host application exposes one.
-        """
-        ...
-
 
 class SimulationScene(Protocol):
     """Persisted simulation scene fields required by public lifecycle commands."""

@@ -31,7 +31,10 @@ else:
         except ImportError:
             _QtWidgets = None
 
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 from freecad_cloth.common.UiDesign import apply_panel_style as _apply_panel_style
 from freecad_cloth.common.UiDesign import configure_form_layout as _configure_form_layout
 from freecad_cloth.common.UiDesign import mark_button as _mark_button
@@ -46,27 +49,12 @@ if TYPE_CHECKING:
     from types import ModuleType
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Document operations and object inventory used by the task panel."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable native document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
-        ...
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return the object with this internal name, when present."""
         ...
-
-    def recompute(self) -> int | None:
-        """Recompute document features and return the host status code."""
-        ...
-
 
 class _FreeCADApplication(Protocol):
     """Active-document member exported by the FreeCAD application module."""

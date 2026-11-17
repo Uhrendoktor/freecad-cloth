@@ -8,16 +8,14 @@ from collections.abc import Callable, Sequence
 from typing import Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import icon_for_command
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """FreeCAD document members required by drape-target commands."""
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
-        ...
 
     def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
         """Find a document object by its internal name."""
@@ -26,11 +24,6 @@ class _FreeCADDocument(Protocol):
     def addObject(self, type_id: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native document object for the requested feature type."""
         ...
-
-    def recompute(self) -> int | None:
-        """Recompute the document after target links are assigned."""
-        ...
-
 
 class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Simulation-scene properties owned by the canonical target model."""

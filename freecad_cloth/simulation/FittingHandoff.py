@@ -11,7 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, cast
 
 from freecad_cloth.common.CommandAdapter import register_commands
-from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+from freecad_cloth.common.garment_document import (
+    FreeCADDocumentObjectProtocol,
+    FreeCADDocumentProtocol,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -23,27 +26,12 @@ _FREECAD_COLLISION_THICKNESS_MM = 2.0
 _COLLISION_DEFLECTION_MM = 1.0
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Describe the document methods used by the fitting handoff."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable internal document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
-        ...
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Look up a native document feature by its internal name."""
         ...
-
-    def recompute(self) -> int | None:
-        """Recompute the active document and return its host status code."""
-        ...
-
 
 class _FreeCADApplication(Protocol):
     """Describe the application methods used to resolve FreeCAD documents."""

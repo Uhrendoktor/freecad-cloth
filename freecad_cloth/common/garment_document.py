@@ -71,6 +71,23 @@ class FreeCADDocumentObjectProtocol(Protocol):
         ...
 
 
+class FreeCADDocumentProtocol(Protocol):
+    """Read-only identity and lifecycle operations shared by native FreeCAD documents."""
+
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence."""
+        ...
+
+    def recompute(self) -> int | None:
+        """Recompute document features and return the native host status code."""
+        ...
+
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
@@ -80,18 +97,8 @@ class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
         ...
 
 
-class _FreeCADDocument(Protocol):
+class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
     """Document operations used by the garment hierarchy adapter."""
-
-    @property
-    def Name(self) -> str:
-        """Return the immutable internal document name."""
-        ...
-
-    @property
-    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return a read-only view of the document's native objects."""
-        ...
 
     def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native FreeCAD object inside the document.
@@ -103,10 +110,6 @@ class _FreeCADDocument(Protocol):
         Returns:
             The new document object exposing FreeCAD identity and properties.
         """
-        ...
-
-    def recompute(self) -> int | None:
-        """Recompute the document after hierarchy changes."""
         ...
 
 
