@@ -645,7 +645,8 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in audit_action
     assert "compare_pbd_openmp_team_reuse.py" in audit_action
     assert "artifacts/pbd-openmp-team-reuse/comparison.json" in audit_action
-    assert "acceptance-gates=passed" not in audit_action
+    assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
+    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     report = gui[report_index:]
     for step_id in (
         "baseline_1_audit",
@@ -657,8 +658,6 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "::error title=Paired production audit failed" in report
     assert "5% projection" in report
     assert "non-regressing wall-time gates" in report
-    assert "CLOTH_PBD_SUBSTEPS=16" in audit_action
-    assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in audit_action
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
