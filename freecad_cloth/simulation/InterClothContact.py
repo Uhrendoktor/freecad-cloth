@@ -13,7 +13,7 @@ import os
 import sys
 import time
 from collections.abc import Mapping, Sequence
-from typing import NamedTuple
+from typing import NamedTuple, TextIO
 
 import numpy as np
 import numpy.typing as npt
@@ -24,13 +24,30 @@ type TriangleArray = npt.NDArray[np.int64]
 type EdgeArray = npt.NDArray[np.int64]
 
 _CONTACT_MEASUREMENT_EPSILON_MM = 0.002
+_DIAGNOSTIC_STREAM: TextIO | None = None
+_DIAGNOSTIC_STREAM_PATH: str | None = None
 
 
 def _emit_contact_diagnostic(message: str) -> None:
     """Emit opt-in flushed contact-stage diagnostics for native acceptance runs."""
-    if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
-        sys.stdout.write(f"{message}\n")
-        sys.stdout.flush()
+    if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1":
+        return
+    line = f"{message}\n"
+    sys.stdout.write(line)
+    sys.stdout.flush()
+    path = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS_FILE")
+    if path is None:
+        return
+    global _DIAGNOSTIC_STREAM, _DIAGNOSTIC_STREAM_PATH
+    if path != _DIAGNOSTIC_STREAM_PATH:
+        if _DIAGNOSTIC_STREAM is not None:
+            _DIAGNOSTIC_STREAM.close()
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        _DIAGNOSTIC_STREAM = open(path, "a", encoding="utf-8")
+        _DIAGNOSTIC_STREAM_PATH = path
+    if _DIAGNOSTIC_STREAM is not None:
+        _DIAGNOSTIC_STREAM.write(line)
+        _DIAGNOSTIC_STREAM.flush()
 
 
 class InterClothContactMetrics(NamedTuple):
@@ -61,6 +78,18 @@ class _SurfaceIndex(NamedTuple):
     edge_maximums: PointArray
     edge_starts: PointArray
     edge_ends: PointArray
+
+
+class _MeasuredContact(NamedTuple):
+    """One exact residual edge/triangle pair measured in the current particle state."""
+
+    source_edge: tuple[int, int]
+    target_triangle: tuple[int, int, int]
+    source_center: PointArray
+    target_center: PointArray
+    fallback_sign: float
+    closest_geometry: tuple[PointArray, PointArray, float, PointArray, PointArray]
+    distance_mm: float
 
 
 def _closest_point_on_triangle(
@@ -587,6 +616,7 @@ def _candidate_edge_triangle_pairs(
     )
     source_edge_indices = source_edge_indices[plausible]
     target_triangle_indices = target_triangle_indices[plausible]
+    aabb_candidate_count = len(source_edge_indices)
 
     # A segment/triangle pair within clearance must also approach the target
     # triangle's plane within clearance (or cross it). Reject the remaining
@@ -610,7 +640,12 @@ def _candidate_edge_triangle_pairs(
         )
         source_edge_indices = source_edge_indices[near_plane]
         target_triangle_indices = target_triangle_indices[near_plane]
+    plane_candidate_count = len(source_edge_indices)
     filter_seconds = time.perf_counter() - filter_started
+    _emit_contact_diagnostic(
+        f"inter-cloth-broadphase raw={candidate_count} aabb={aabb_candidate_count} "
+        f"plane={plane_candidate_count} query_s={query_seconds:.4f} filter_s={filter_seconds:.4f}"
+    )
     return (
         source_edge_indices,
         target_triangle_indices,
@@ -866,11 +901,14 @@ def _measure_contacts(
     positions: PointArray,
     surfaces: Mapping[str, _SurfaceIndex],
     clearance_mm: float,
-) -> tuple[int, float]:
+    *,
+    collect_constraints: bool = False,
+) -> tuple[int, float, tuple[_MeasuredContact, ...]]:
     """Measure residual clearance deficits greater than the 0.002 mm numeric tolerance."""
     group_ids = tuple(sorted(surfaces))
     contact_count = 0
     maximum = 0.0
+    constraints: list[_MeasuredContact] = []
     measurement_started = time.perf_counter()
     measured_candidates = 0
     exact_tests = 0
@@ -882,7 +920,10 @@ def _measure_contacts(
         left = surfaces[left_id]
         for right_id in group_ids[left_index + 1 :]:
             right = surfaces[right_id]
-            for source, target in ((left, right), (right, left)):
+            for source, target, fallback_sign in (
+                (left, right, 1.0),
+                (right, left, -1.0),
+            ):
                 (
                     source_edge_indices,
                     target_triangle_indices,
@@ -896,12 +937,17 @@ def _measure_contacts(
                     continue
 
                 closest_started = time.perf_counter()
-                _edge_points, _face_points, _factors, _weights, _normals, distances_squared = (
-                    _closest_segment_triangles_batch(
-                        positions[source.edges[source_edge_indices, 0]],
-                        positions[source.edges[source_edge_indices, 1]],
-                        positions[target.triangles[target_triangle_indices]],
-                    )
+                (
+                    edge_points,
+                    face_points,
+                    edge_factors,
+                    face_weights,
+                    normals,
+                    distances_squared,
+                ) = _closest_segment_triangles_batch(
+                    positions[source.edges[source_edge_indices, 0]],
+                    positions[source.edges[source_edge_indices, 1]],
+                    positions[target.triangles[target_triangle_indices]],
                 )
                 closest_seconds += time.perf_counter() - closest_started
                 candidate_count = len(source_edge_indices)
@@ -914,13 +960,44 @@ def _measure_contacts(
                 contact_count += residual_count
                 if residual_count:
                     maximum = max(maximum, float(np.max(penetration[residual])))
+                    if collect_constraints:
+                        source_center = positions[np.unique(source.triangles)].mean(axis=0)
+                        target_center = positions[np.unique(target.triangles)].mean(axis=0)
+                        for candidate_position in np.flatnonzero(residual):
+                            edge_values = source.edges[source_edge_indices[candidate_position]]
+                            triangle_values = target.triangles[target_triangle_indices[candidate_position]]
+                            constraints.append(
+                                _MeasuredContact(
+                                    (int(edge_values[0]), int(edge_values[1])),
+                                    (
+                                        int(triangle_values[0]),
+                                        int(triangle_values[1]),
+                                        int(triangle_values[2]),
+                                    ),
+                                    source_center,
+                                    target_center,
+                                    fallback_sign,
+                                    (
+                                        edge_points[candidate_position].copy(),
+                                        face_points[candidate_position].copy(),
+                                        float(edge_factors[candidate_position]),
+                                        face_weights[candidate_position].copy(),
+                                        normals[candidate_position].copy(),
+                                    ),
+                                    float(np.sqrt(distances_squared[candidate_position])),
+                                )
+                            )
 
     _emit_contact_diagnostic(
         f"inter-cloth-measure-finish candidates={measured_candidates} exact_tests={exact_tests} "
         f"query_s={query_seconds:.2f} filter_s={filter_seconds:.2f} "
         f"closest_s={closest_seconds:.2f} elapsed_s={time.perf_counter() - measurement_started:.2f}"
     )
-    return contact_count, maximum
+    _emit_contact_diagnostic(
+        f"inter-cloth-measure-residuals count={contact_count} constraints={len(constraints)} "
+        f"maximum_mm={maximum:.4f}"
+    )
+    return contact_count, maximum, tuple(constraints)
 
 
 def measure_inter_cloth_contacts(
@@ -960,7 +1037,166 @@ def measure_inter_cloth_contacts(
         msg = "inter-cloth clearance must be positive and finite"
         raise ValueError(msg)
     surfaces, _ = _index_garment_surfaces(positions, triangles_by_group, operation="measurement")
-    return _measure_contacts(positions, surfaces, clearance)
+    contact_count, maximum, _constraints = _measure_contacts(positions, surfaces, clearance)
+    return contact_count, maximum
+
+
+def measure_inter_cloth_contacts_with_constraints(
+    positions_mm: npt.ArrayLike,
+    triangles_by_group: Mapping[str, Sequence[Sequence[int]]],
+    *,
+    clearance_mm: float,
+) -> tuple[int, float, tuple[_MeasuredContact, ...]]:
+    """Measure residual clearance and retain exact geometry for those residual pairs.
+
+    Args:
+        positions_mm: Current global solver particle positions in millimetres.
+        triangles_by_group: Global triangle indices keyed by independent garment ID.
+        clearance_mm: Minimum requested separation between garment surfaces.
+
+    Returns:
+        Residual pair count, maximum deficit in millimetres, and exact measured
+        edge/triangle constraints suitable for a local corrective projection.
+
+    Raises:
+        ValueError: If positions, triangle indices, garment identities or clearance
+            are invalid.
+    """
+    positions = np.asarray(positions_mm, dtype=np.float64)
+    clearance = float(clearance_mm)
+    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
+        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
+        raise ValueError(msg)
+    if not bool(np.isfinite(positions).all()):
+        msg = "inter-cloth positions must be finite"
+        raise ValueError(msg)
+    if not np.isfinite(clearance) or clearance <= 0.0:
+        msg = "inter-cloth clearance must be positive and finite"
+        raise ValueError(msg)
+    surfaces, _ = _index_garment_surfaces(positions, triangles_by_group, operation="measurement")
+    return _measure_contacts(positions, surfaces, clearance, collect_constraints=True)
+
+
+def project_measured_inter_cloth_contacts(
+    positions_mm: npt.ArrayLike,
+    inverse_masses: npt.ArrayLike,
+    constraints: Sequence[_MeasuredContact],
+    *,
+    clearance_mm: float,
+    stitches: Sequence[tuple[int, int]] = (),
+    relaxation: float = 0.8,
+) -> tuple[PointArray, PointArray, InterClothContactMetrics]:
+    """Project only the exact residual edge/triangle pairs from a fresh measurement.
+
+    This is the narrow corrective path used after mannequin projection changes a
+    small number of garment particles. It reuses the measured closest geometry and
+    never rebuilds the global broad phase for pairs already known to violate clearance.
+
+    Args:
+        positions_mm: Current global solver particle positions in millimetres.
+        inverse_masses: Per-particle inverse mass; zero denotes a fixed particle.
+        constraints: Exact residual contacts returned by
+            measure_inter_cloth_contacts_with_constraints for these positions.
+        clearance_mm: Minimum requested separation between garment surfaces.
+        stitches: Exact global particle pairs used by authored sewing constraints.
+        relaxation: Fraction of each accumulated correction applied in this pass.
+
+    Returns:
+        Corrected particle positions, normalized actual correction directions,
+        and contact metrics for the targeted corrective pass.
+
+    Raises:
+        ValueError: If positions, inverse masses, clearance or relaxation are invalid.
+    """
+    positions = np.asarray(positions_mm, dtype=np.float64)
+    masses = np.asarray(inverse_masses, dtype=np.float64)
+    clearance = float(clearance_mm)
+    alpha = float(relaxation)
+    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
+        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
+        raise ValueError(msg)
+    if masses.shape != (len(positions),):
+        msg = "inter-cloth inverse masses must match the particle count"
+        raise ValueError(msg)
+    if not bool(np.isfinite(positions).all() and np.isfinite(masses).all()):
+        msg = "inter-cloth positions and inverse masses must be finite"
+        raise ValueError(msg)
+    if bool(np.any(masses < 0.0)):
+        msg = "inter-cloth inverse masses cannot be negative"
+        raise ValueError(msg)
+    if not np.isfinite(clearance) or clearance <= 0.0:
+        msg = "inter-cloth clearance must be positive and finite"
+        raise ValueError(msg)
+    if not np.isfinite(alpha) or not 0.0 < alpha <= 1.0:
+        msg = "inter-cloth relaxation must be in (0, 1]"
+        raise ValueError(msg)
+
+    original = positions.copy()
+    if not constraints:
+        return (
+            original,
+            np.zeros_like(original),
+            InterClothContactMetrics(0, 0, 0, 0.0, 0.0),
+        )
+
+    # A measured edge can be close to multiple adjacent target triangles. Match
+    # the full projector's nearest-triangle selection so shared-face duplicates
+    # do not over-constrain the same source edge.
+    nearest_by_edge: dict[tuple[int, int], _MeasuredContact] = {}
+    for item in constraints:
+        previous = nearest_by_edge.get(item.source_edge)
+        if (
+            previous is None
+            or item.distance_mm < previous.distance_mm - 1e-12
+            or (
+                abs(item.distance_mm - previous.distance_mm) <= 1e-12
+                and item.target_triangle < previous.target_triangle
+            )
+        ):
+            nearest_by_edge[item.source_edge] = item
+
+    correction_sum = np.zeros_like(original)
+    correction_count = np.zeros(len(original), dtype=np.int64)
+    contacts = 0
+    maximum = 0.0
+    for item in nearest_by_edge.values():
+        contact, penetration = _accumulate_edge_triangle(
+            original,
+            item.source_edge,
+            item.target_triangle,
+            masses,
+            clearance,
+            item.source_center,
+            item.target_center,
+            item.fallback_sign,
+            correction_sum,
+            correction_count,
+            closest_geometry=item.closest_geometry,
+        )
+        contacts += int(contact)
+        if contact:
+            maximum = max(maximum, penetration)
+
+    corrections = correction_sum.copy()
+    correction_lengths = np.linalg.norm(corrections, axis=1)
+    correction_scales = np.minimum(
+        1.0,
+        clearance / np.maximum(correction_lengths, 1e-12),
+    )
+    corrections *= correction_scales[:, None]
+    _share_sewn_corrections(corrections, masses, _stitch_clusters(len(original), stitches))
+    current = original + alpha * corrections
+    movement = np.linalg.norm(current - original, axis=1)
+    moved = movement > 1e-8
+    corrected_count = int(np.count_nonzero(moved))
+    directions = np.zeros_like(current)
+    directions[moved] = (current[moved] - original[moved]) / movement[moved, None]
+    metrics = InterClothContactMetrics(contacts, corrected_count, 0, maximum, 0.0)
+    _emit_contact_diagnostic(
+        f"inter-cloth-targeted-repair constraints={len(constraints)} "
+        f"selected={len(nearest_by_edge)} contacts={contacts} moved={corrected_count}"
+    )
+    return current, directions, metrics
 
 
 def project_inter_cloth_contacts(
@@ -1230,7 +1466,9 @@ def project_inter_cloth_contacts(
             for group_id, surface in surfaces.items()
         }
         _emit_contact_diagnostic("inter-cloth-residual-measure-start")
-        remaining_contacts, maximum_after = _measure_contacts(current, surfaces, clearance)
+        remaining_contacts, maximum_after, _constraints = _measure_contacts(
+            current, surfaces, clearance
+        )
         _emit_contact_diagnostic(
             f"inter-cloth-residual-measure-finish remaining={remaining_contacts} max_deficit_mm={maximum_after:.4f}"
         )
