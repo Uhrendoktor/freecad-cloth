@@ -489,17 +489,22 @@ jobs:
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
-    needs: [agent-quality, gui-tunic-visual]
-    if: ${{ needs.gui-tunic-visual.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
+    needs: [agent-quality, gui-simple]
+    if: ${{ needs.gui-simple.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
     runs-on: ${{ fromJSON(inputs.runner_target) }}
     timeout-minutes: 5
     permissions:
+      actions: read
       contents: write
       pull-requests: write
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@3bd8306b79b4274695176829edd7b750a0d8390d
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: ./.github/actions/publish-visual-evidence
         with:
           mode: pr
           source-sha: ${{ github.event.pull_request.head.sha || github.sha }}
