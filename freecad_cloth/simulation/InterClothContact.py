@@ -582,8 +582,7 @@ def _candidate_edge_triangle_pairs(
     triangle_minimums = target.triangle_minimums[target_triangle_indices]
     triangle_maximums = target.triangle_maximums[target_triangle_indices]
     plausible = np.all(
-        (edge_maximums >= triangle_minimums)
-        & (triangle_maximums >= edge_minimums),
+        (edge_maximums >= triangle_minimums) & (triangle_maximums >= edge_minimums),
         axis=1,
     )
     source_edge_indices = source_edge_indices[plausible]
@@ -606,9 +605,8 @@ def _candidate_edge_triangle_pairs(
             source.edge_ends[source_edge_indices] - triangle_origins,
             triangle_normals,
         )
-        near_plane = (
-            (signed_start * signed_end <= 0.0)
-            | (np.minimum(np.abs(signed_start), np.abs(signed_end)) <= clearance_mm)
+        near_plane = (signed_start * signed_end <= 0.0) | (
+            np.minimum(np.abs(signed_start), np.abs(signed_end)) <= clearance_mm
         )
         source_edge_indices = source_edge_indices[near_plane]
         target_triangle_indices = target_triangle_indices[near_plane]
@@ -992,6 +990,7 @@ def project_inter_cloth_contacts(
         stitches: Exact global particle pairs used by authored sewing constraints.
         iterations: Bounded number of position-projection passes (1 through 16).
         relaxation: Fraction of each accumulated correction applied per pass.
+        measure_residual: Whether to run a full residual measurement before returning.
 
     Returns:
         Corrected particle positions, normalized actual correction directions,
