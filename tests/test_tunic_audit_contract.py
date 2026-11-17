@@ -674,6 +674,18 @@ def test_production_tunic_wrapper_dispatches_in_freecad_macro_host() -> None:
     )
 
 
+def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fixture() -> None:
+    """Prevent an A/B run from silently importing the installed wheel in both modes."""
+    wrapper = (ROOT / "tests" / "freecad_tunic_audit.py").read_text(encoding="utf-8")
+    assert "def _load_openmp_experiment_binding() -> None:" in wrapper
+    assert 'spec_from_file_location("pypbd", module_path)' in wrapper
+    assert 'sys.modules["pypbd"] = module' in wrapper
+    assert 'mode = os.environ.get("CLOTH_PBD_OPENMP_TEAM_REUSE")' in wrapper
+    assert wrapper.index("_load_openmp_experiment_binding()") < wrapper.index(
+        'runpy.run_path(str(SOURCE), run_name="__main__")'
+    )
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
     """Verify canonical tunic fixture matches validated start geometry contract."""
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")

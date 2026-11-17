@@ -8,8 +8,10 @@ import json
 import math
 from pathlib import Path
 from statistics import median
+from typing import TYPE_CHECKING
 
-from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
+if TYPE_CHECKING:
+    from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 EXPECTED_SCENE_STEPS = 90
 EXPECTED_BACKEND_STEPS = 360
@@ -238,14 +240,16 @@ def compare_profile_sets(
     projection_improvement = 1.0 - candidate_median_projection / baseline_median_projection
     wall_time_change = candidate_median_wall / baseline_median_wall - 1.0
 
+    rejection_reasons: list[str] = []
     if projection_improvement < MIN_PROJECTION_IMPROVEMENT:
-        raise ValueError(
+        rejection_reasons.append(
             "persistent-team projection improvement is below 5%: "
             f"{projection_improvement * 100:.2f}%"
         )
     if wall_time_change > 0.0:
-        raise ValueError(
-            f"persistent-team median production wall time regressed: {wall_time_change * 100:.2f}%"
+        rejection_reasons.append(
+            "persistent-team median production wall time regressed: "
+            f"{wall_time_change * 100:.2f}%"
         )
 
     return {
@@ -266,7 +270,8 @@ def compare_profile_sets(
         "candidate_median_production_wall_ms": candidate_median_wall,
         "production_wall_time_change_fraction": wall_time_change,
         "production_wall_time_change_percent": 100.0 * wall_time_change,
-        "acceptance": "passed",
+        "acceptance": "rejected" if rejection_reasons else "passed",
+        "rejection_reasons": rejection_reasons,
     }
 
 
@@ -290,13 +295,16 @@ def main() -> int:
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    status = str(summary["acceptance"])
     print(
-        "pypbd-openmp-team-reuse=passed "
+        f"pypbd-openmp-team-reuse={status} "
         f"projection-improvement={summary['projection_improvement_percent']:.2f}% "
         f"production-wall-change={summary['production_wall_time_change_percent']:.2f}%",
         flush=True,
     )
-    return 0
+    for reason in summary["rejection_reasons"]:
+        print(f"rejection-reason={reason}", flush=True)
+    return 0 if status == "passed" else 1
 
 
 if __name__ == "__main__":

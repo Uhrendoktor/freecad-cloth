@@ -124,8 +124,10 @@ def test_team_reuse_rejects_projection_gain_below_five_percent() -> None:
         _profile("1", projection_ms=10900.0, wall_ms=20200.0),
     ]
 
-    with pytest.raises(ValueError, match="below 5%"):
-        compare_profile_sets(baseline, candidate)
+    result = compare_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "rejected"
+    assert any("below 5%" in reason for reason in result["rejection_reasons"])
 
 
 def test_team_reuse_rejects_any_median_production_wall_regression() -> None:
@@ -136,8 +138,10 @@ def test_team_reuse_rejects_any_median_production_wall_regression() -> None:
         _profile("1", projection_ms=10100.0, wall_ms=20600.0),
     ]
 
-    with pytest.raises(ValueError, match="wall time regressed"):
-        compare_profile_sets(baseline, candidate)
+    result = compare_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "rejected"
+    assert any("wall time regressed" in reason for reason in result["rejection_reasons"])
 
 
 def test_team_reuse_rejects_incomplete_or_failed_physical_acceptance() -> None:
@@ -166,7 +170,7 @@ def test_team_reuse_rejects_unmatched_runner_or_solver_context() -> None:
     baseline, candidate = _matched_profiles()
     candidate[0]["production_settings"]["position_iterations"] = 7
 
-    with pytest.raises(ValueError, match="production settings differ"):
+    with pytest.raises(ValueError, match="production solver or collision settings changed"):
         compare_profile_sets(baseline, candidate)
 
 

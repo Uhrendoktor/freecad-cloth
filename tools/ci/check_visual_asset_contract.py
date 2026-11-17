@@ -9,8 +9,12 @@ import re
 import sys
 from typing import cast
 
-from repository_paths import add_repository_root
-from visual_evidence import documented_assets
+if __package__:
+    from tools.ci.repository_paths import add_repository_root
+    from tools.ci.visual_evidence import documented_assets
+else:
+    from repository_paths import add_repository_root
+    from visual_evidence import documented_assets
 
 ROOT = add_repository_root(__file__)
 
