@@ -41,7 +41,9 @@ def _load_openmp_experiment_binding() -> None:
         existing_path = getattr(existing_module, "__file__", None)
         if isinstance(existing_path, str) and Path(existing_path).resolve() == module_path:
             return
-        raise RuntimeError(f"pyPBD was imported before the native experiment loader: {existing_path!r}")
+        raise RuntimeError(
+            f"pyPBD was imported before the native experiment loader: {existing_path!r}"
+        )
 
     spec = importlib.util.spec_from_file_location("pypbd", module_path)
     if spec is None or spec.loader is None:
@@ -58,12 +60,10 @@ def _load_openmp_experiment_binding() -> None:
     if not isinstance(loaded_path, str) or Path(loaded_path).resolve() != module_path:
         sys.modules.pop("pypbd", None)
         raise RuntimeError(
-            "source-built pyPBD import resolved to an unexpected module: "
-            f"{loaded_path!r}"
+            f"source-built pyPBD import resolved to an unexpected module: {loaded_path!r}"
         )
     print(
-        "pypbd-openmp-experiment=loaded "
-        f"mode={mode} module={loaded_path}",
+        f"pypbd-openmp-experiment=loaded mode={mode} module={loaded_path}",
         flush=True,
     )
 
