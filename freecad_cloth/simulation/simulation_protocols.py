@@ -12,7 +12,10 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 class SimulationDocument(Protocol):
     """FreeCAD document operations required by simulation commands."""
 
-    Objects: list[FreeCADDocumentObjectProtocol]
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return a read-only view of the document's native objects."""
+        ...
 
     def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a feature in the document.
@@ -37,7 +40,7 @@ class SimulationDocument(Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the document after simulation state changes."""
         ...
 

@@ -103,9 +103,17 @@ class _AvatarFeatureView(Protocol):
 
 
 class _FreeCADDocument(Protocol):
-    """Document members used by the persistent avatar command boundary."""
+    """Read-only document identity and operations used by avatar commands."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return a read-only view of the document's native objects."""
+        ...
 
     def addObject(self, object_type: str, object_name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native feature with the requested type and internal name."""
@@ -115,7 +123,15 @@ class _FreeCADDocument(Protocol):
         """Find a native document feature by its internal name."""
         ...
 
-    def recompute(self) -> None:
+    def removeObject(self, object_name: str) -> None:
+        """Remove the named object from this document.
+
+        Args:
+            object_name: Stable internal FreeCAD object name to remove.
+        """
+        ...
+
+    def recompute(self) -> int | None:
         """Recompute the document after changing persistent avatar state."""
         ...
 
@@ -147,7 +163,10 @@ class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol
 class _FreeCADApplication(Protocol):
     """Application operations dynamically exported by the FreeCAD module."""
 
-    ActiveDocument: _FreeCADDocument | None
+    @property
+    def ActiveDocument(self) -> _FreeCADDocument | None:
+        """Return the currently active document, when one is open."""
+        ...
 
     def newDocument(self, name: str) -> _FreeCADDocument:
         """Create a new document with its stable internal name."""

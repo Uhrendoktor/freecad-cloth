@@ -14,7 +14,10 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 class _FreeCADDocument(Protocol):
     """FreeCAD document members required by drape-target commands."""
 
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence."""
+        ...
 
     def getObject(self, object_name: str) -> FreeCADDocumentObjectProtocol | None:
         """Find a document object by its internal name."""
@@ -24,12 +27,12 @@ class _FreeCADDocument(Protocol):
         """Create a native document object for the requested feature type."""
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the document after target links are assigned."""
         ...
 
 
-class _SimulationScene(Protocol):
+class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Simulation-scene properties owned by the canonical target model."""
 
     Document: _FreeCADDocument

@@ -43,7 +43,7 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the document after changing persistent simulation state."""
         ...
 

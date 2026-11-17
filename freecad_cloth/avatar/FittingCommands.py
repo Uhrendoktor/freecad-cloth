@@ -1307,8 +1307,15 @@ class _FittingMarkerGroup(FreeCADDocumentObjectProtocol, Protocol):
 class _FittingDocument(Protocol):
     """Document API used to organize generated marker features."""
 
-    Name: str
-    Objects: Sequence[FreeCADDocumentObjectProtocol]
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the document's native objects as a read-only sequence."""
+        ...
 
     def getObject(self, name: str) -> FreeCADDocumentObjectProtocol | None:
         """Return the named native object, or None when it is not in the document.
@@ -1341,7 +1348,7 @@ class _FittingDocument(Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute features and document dependencies after property updates."""
         ...
 

@@ -5,24 +5,66 @@ from typing import Protocol
 
 
 class AvatarPoseProtocol(Protocol):
-    """Pose fields consumed by the MakeHuman mesh fitter."""
+    """Read-only pose fields consumed by the MakeHuman mesh fitter."""
 
-    preset: str
-    left_arm_angle: float | None
-    right_arm_angle: float | None
+    @property
+    def preset(self) -> str:
+        """Return the stable pose preset identifier."""
+        ...
+
+    @property
+    def left_arm_angle(self) -> float | None:
+        """Return the optional left upper-arm rotation."""
+        ...
+
+    @property
+    def right_arm_angle(self) -> float | None:
+        """Return the optional right upper-arm rotation."""
+        ...
 
 
 class AvatarParametersProtocol(Protocol):
-    """Validated avatar parameter fields consumed by mesh providers."""
+    """Read-only validated avatar parameters consumed by mesh providers."""
 
-    measurements: dict[str, float]
-    gender: float
-    breast_size: float
-    skin_offset: float
-    phenotype_overrides: dict[str, float]
-    local_change_overrides: dict[str, float]
-    mass_target_kg: float | None
-    pose: AvatarPoseProtocol
+    @property
+    def measurements(self) -> dict[str, float]:
+        """Return the canonical anthropometric measurement mapping."""
+        ...
+
+    @property
+    def gender(self) -> float:
+        """Return the normalized body-shape gender control."""
+        ...
+
+    @property
+    def breast_size(self) -> float:
+        """Return the normalized breast-projection control."""
+        ...
+
+    @property
+    def skin_offset(self) -> float:
+        """Return the collision/skin offset in millimetres."""
+        ...
+
+    @property
+    def phenotype_overrides(self) -> dict[str, float]:
+        """Return the normalized Anny phenotype overrides."""
+        ...
+
+    @property
+    def local_change_overrides(self) -> dict[str, float]:
+        """Return the normalized local body-morph overrides."""
+        ...
+
+    @property
+    def mass_target_kg(self) -> float | None:
+        """Return the optional target body mass."""
+        ...
+
+    @property
+    def pose(self) -> AvatarPoseProtocol:
+        """Return the authored pose contract."""
+        ...
 
     def measurement(self, name: str) -> float:
         """Return one validated anthropometric measurement in millimetres.

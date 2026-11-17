@@ -9,6 +9,7 @@ Standalone object creation remains valid when no Garment root is present.
 from __future__ import annotations
 
 import sys
+from collections.abc import Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
@@ -40,22 +41,45 @@ _ROLE_TO_GROUP: dict[str, str] = {
 class FreeCADDocumentObjectProtocol(Protocol):
     """Native FreeCAD object identity and property capabilities used by the hierarchy adapter."""
 
-    Name: str
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal object name."""
+        ...
+
     Label: str
-    TypeId: str
-    PropertiesList: list[str]
+
+    @property
+    def TypeId(self) -> str:
+        """Return the immutable native object type identifier."""
+        ...
+
+    @property
+    def PropertiesList(self) -> Sequence[str]:
+        """Return the names of properties registered on the native object."""
+        ...
 
 
 class _FreeCADContainer(FreeCADDocumentObjectProtocol, Protocol):
     """Native Part/group capabilities required to contain garment objects."""
 
-    Group: list[FreeCADDocumentObjectProtocol]
+    @property
+    def Group(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return the current children of this native container."""
+        ...
 
 
 class _FreeCADDocument(Protocol):
     """Document operations used by the garment hierarchy adapter."""
 
-    Objects: list[FreeCADDocumentObjectProtocol]
+    @property
+    def Name(self) -> str:
+        """Return the immutable internal document name."""
+        ...
+
+    @property
+    def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
+        """Return a read-only view of the document's native objects."""
+        ...
 
     def addObject(self, object_type: str, name: str) -> FreeCADDocumentObjectProtocol:
         """Create a native FreeCAD object inside the document.
@@ -69,7 +93,7 @@ class _FreeCADDocument(Protocol):
         """
         ...
 
-    def recompute(self) -> None:
+    def recompute(self) -> int | None:
         """Recompute the document after hierarchy changes."""
         ...
 
