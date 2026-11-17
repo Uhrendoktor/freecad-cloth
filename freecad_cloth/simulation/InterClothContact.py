@@ -1021,12 +1021,14 @@ def project_inter_cloth_contacts(
     for iteration in range(pass_count):
         pass_started = time.perf_counter()
         _emit_contact_diagnostic(f"inter-cloth-pass-start iteration={iteration + 1}")
-        index_started = time.perf_counter()
-        surfaces = {
-            group_id: _surface_index(current, surface.triangles)
-            for group_id, surface in surfaces.items()
-        }
-        index_elapsed = time.perf_counter() - index_started
+        index_elapsed = 0.0
+        if iteration > 0:
+            index_started = time.perf_counter()
+            surfaces = {
+                group_id: _surface_index(current, surface.triangles)
+                for group_id, surface in surfaces.items()
+            }
+            index_elapsed = time.perf_counter() - index_started
         correction_sum = np.zeros_like(current)
         correction_count = np.zeros(len(current), dtype=np.int64)
         contacts_this_pass = 0
