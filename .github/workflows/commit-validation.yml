@@ -65,7 +65,9 @@ jobs:
       pull-requests: write
     uses: ./.github/workflows/canonical-execution.yml
     with:
-      execution_mode: full
+      # Safe repository-wide Ruff autofix runs first for the tagged PR; it then dispatches
+      # exact-head full validation. Other full-validation PRs retain the direct full path.
+      execution_mode: ${{ contains(github.event.pull_request.title, '[apply-safe-ruff]') && 'fast' || 'full' }}
       diagnostic_controls: false
       pr_number: ${{ github.event.pull_request.number }}
       runner_target: ${{ vars.FREECAD_CUDA_RUNNER_GROUP != '' && format('{{"group":"{0}"}}', vars.FREECAD_CUDA_RUNNER_GROUP) || '"ubuntu-latest"' }}
