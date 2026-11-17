@@ -210,7 +210,7 @@ def compare_profile_sets(
                 f"{label}: native constraint grouping differs from the matched baseline"
             )
         if _runtime_signature(profile) != runtime:
-            raise ValueError(f"{label}: runner, OpenMP, or native build context differs")
+            raise ValueError(f"{label}: execution context differs (runner, OpenMP, or native build)")
 
     baseline_projection = [
         _projection_total(profile, f"baseline-{index + 1}")
