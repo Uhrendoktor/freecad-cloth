@@ -1071,6 +1071,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             inverse_masses,
             clearance_mm=self._inter_cloth_clearance_mm,
             stitches=self._stitches,
+            iterations=1,
+            # The authoritative residual is measured once after the final body
+            # projection below; do not repeat the same broad/narrow phase here.
+            measure_residual=False,
         )
         self._apply_position_corrections(
             particles, positions_mm, corrected_mm, contact_directions, skip_zero_directions=True
