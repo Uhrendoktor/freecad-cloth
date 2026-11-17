@@ -248,8 +248,7 @@ def compare_profile_sets(
         )
     if wall_time_change > 0.0:
         rejection_reasons.append(
-            "persistent-team median production wall time regressed: "
-            f"{wall_time_change * 100:.2f}%"
+            f"persistent-team median production wall time regressed: {wall_time_change * 100:.2f}%"
         )
 
     return {

@@ -141,9 +141,9 @@ def test_canonical_gui_jobs_use_shared_freecad_test_boundaries():
     )
     gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     tunic = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
-    tunic_action = (
-        ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml"
-    ).read_text(encoding="utf-8")
+    tunic_action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
     assert "uses: ./.github/actions/freecad-test" in gui
     assert "uses: ./.github/actions/pbd-tunic-audit" in tunic
     assert "uses: ./.github/actions/freecad-test" in tunic_action

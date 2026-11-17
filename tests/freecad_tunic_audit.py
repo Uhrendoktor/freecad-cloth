@@ -41,10 +41,7 @@ def _load_openmp_experiment_binding() -> None:
         existing_path = getattr(existing_module, "__file__", None)
         if isinstance(existing_path, str) and Path(existing_path).resolve() == module_path:
             return
-        raise RuntimeError(
-            "pyPBD was imported before the native experiment loader: "
-            f"{existing_path!r}"
-        )
+        raise RuntimeError(f"pyPBD was imported before the native experiment loader: {existing_path!r}")
 
     spec = importlib.util.spec_from_file_location("pypbd", module_path)
     if spec is None or spec.loader is None:
