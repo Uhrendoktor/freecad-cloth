@@ -1055,6 +1055,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             ],
             dtype=np.float64,
         )
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+            _emit_diagnostic(
+                "cloth-pbd-inter-cloth-start "
+                f"particles={len(positions_mm)} "
+                + " ".join(
+                    f"group={group_id}:triangles={len(triangles)}"
+                    for group_id, triangles in sorted(self._inter_cloth_groups.items())
+                )
+            )
         corrected_mm, contact_directions, metrics = project_inter_cloth_contacts(
             positions_mm,
             self._inter_cloth_groups,
@@ -1172,15 +1181,34 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._pbd.TimeStepController.MAX_ITERATIONS_V,
             int(iterations),
         )
+        diagnostics = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1"
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-native-step-start particles={self._particle_count} dt={float(dt):.6f}"
+            )
         timestep.step(self._model)
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-native-step-finish")
         self._inter_cloth_metrics_before_body_projection = None
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-first-body-projection-start")
         self._project_collision_positions()
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-first-body-projection-finish")
         self._project_inter_cloth_positions()
         self._inter_cloth_metrics_before_body_projection = self._inter_cloth_metrics
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-inter-cloth-projection-finish")
         # Cross-cloth response can push fabric back toward the avatar, so preserve
         # the authoritative body shell after the garment-group projection.
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-final-body-projection-start")
         self._project_collision_positions()
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-final-body-projection-finish")
         self._measure_inter_cloth_residual()
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-residual-measure-finish")
         self._time += float(dt)
 
     def reset(self) -> None:
