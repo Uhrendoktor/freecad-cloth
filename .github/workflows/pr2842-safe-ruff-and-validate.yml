@@ -24,7 +24,7 @@ jobs:
       - name: Apply only safe Ruff fixes to the exact PR head
         shell: bash
         env:
-          SOURCE_SHA: b3304c871ed5a24bb3e42f5ade88c44db636542e
+          SOURCE_SHA: f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e
           PR_BRANCH: agents/strict-python-all-files
         run: |
           set -euo pipefail
