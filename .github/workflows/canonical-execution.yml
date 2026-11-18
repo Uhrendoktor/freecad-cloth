@@ -329,7 +329,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') && 60 || 15 }}
     strategy:
       fail-fast: false
       matrix:
@@ -364,6 +364,9 @@ jobs:
           stage-workbench: ${{ matrix.stage }}
           clean-user: ${{ matrix.clean }}
           environment: ${{ matrix.env }}
+      - uses: ./.github/actions/layered-intercloth-query-workers
+        if: ${{ matrix.case == 'layered-outfit' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') }}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", head-sha: "${{ github.event.pull_request.head.sha }}"}
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     if: ${{ inputs.execution_mode == 'full' }}
@@ -426,127 +429,6 @@ jobs:
             fi
           done
           echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
-  gui-layered-intercloth-query-workers:
-    name: Layered outfit inter-cloth query-worker A/B
-    if: ${{ inputs.execution_mode == 'full' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') }}
-    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
-    runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 60
-    env:
-      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with: {ref: "${{ github.event.pull_request.head.sha }}", persist-credentials: false}
-      - uses: ./.github/actions/freecad-test
-        id: baseline_1_audit
-        with:
-          checkout: "false"
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          timeout-seconds: "600"
-          test-script: tests/freecad_layered_garment_acceptance.py
-          pre-command: "rm -rf artifacts/layered-outfit-query-workers/baseline-1 && mkdir -p artifacts/layered-outfit-query-workers/baseline-1"
-          log-file: artifacts/layered-outfit-query-workers/baseline-1/freecad-run.log
-          validate-command: python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit-query-workers/baseline-1/layered-outfit-manifest.json
-          stage-workbench: "true"
-          clean-user: "true"
-          environment: |
-            CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/baseline-1
-            CLOTH_HEAD_SHA=${{ github.event.pull_request.head.sha }}
-            CLOTH_INTER_CLOTH_QUERY_WORKERS=1
-      - uses: ./.github/actions/freecad-test
-        id: candidate_1_audit
-        with:
-          checkout: "false"
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          timeout-seconds: "600"
-          test-script: tests/freecad_layered_garment_acceptance.py
-          pre-command: "rm -rf artifacts/layered-outfit-query-workers/candidate-1 && mkdir -p artifacts/layered-outfit-query-workers/candidate-1"
-          log-file: artifacts/layered-outfit-query-workers/candidate-1/freecad-run.log
-          validate-command: python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit-query-workers/candidate-1/layered-outfit-manifest.json
-          stage-workbench: "true"
-          clean-user: "true"
-          environment: |
-            CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/candidate-1
-            CLOTH_HEAD_SHA=${{ github.event.pull_request.head.sha }}
-            CLOTH_INTER_CLOTH_QUERY_WORKERS=4
-      - uses: ./.github/actions/freecad-test
-        id: baseline_2_audit
-        with:
-          checkout: "false"
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          timeout-seconds: "600"
-          test-script: tests/freecad_layered_garment_acceptance.py
-          pre-command: "rm -rf artifacts/layered-outfit-query-workers/baseline-2 && mkdir -p artifacts/layered-outfit-query-workers/baseline-2"
-          log-file: artifacts/layered-outfit-query-workers/baseline-2/freecad-run.log
-          validate-command: python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit-query-workers/baseline-2/layered-outfit-manifest.json
-          stage-workbench: "true"
-          clean-user: "true"
-          environment: |
-            CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/baseline-2
-            CLOTH_HEAD_SHA=${{ github.event.pull_request.head.sha }}
-            CLOTH_INTER_CLOTH_QUERY_WORKERS=1
-      - uses: ./.github/actions/freecad-test
-        id: candidate_2_audit
-        with:
-          checkout: "false"
-          image: ${{ env.FREECAD_PBD_IMAGE }}
-          timeout-seconds: "600"
-          test-script: tests/freecad_layered_garment_acceptance.py
-          pre-command: "rm -rf artifacts/layered-outfit-query-workers/candidate-2 && mkdir -p artifacts/layered-outfit-query-workers/candidate-2"
-          log-file: artifacts/layered-outfit-query-workers/candidate-2/freecad-run.log
-          validate-command: python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit-query-workers/candidate-2/layered-outfit-manifest.json
-          stage-workbench: "true"
-          clean-user: "true"
-          environment: |
-            CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/candidate-2
-            CLOTH_HEAD_SHA=${{ github.event.pull_request.head.sha }}
-            CLOTH_INTER_CLOTH_QUERY_WORKERS=4
-      - name: Prepare artifact comparison runtime
-        if: ${{ success() }}
-        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
-        with:
-          python-version: "3.12"
-      - name: Install layered artifact comparison dependencies
-        if: ${{ success() }}
-        run: |
-          python -m pip install --disable-pip-version-check --no-deps -e .
-          python -m pip install --disable-pip-version-check "numpy>=1.26,<3" "pydantic>=2.11,<3" "Pillow>=11,<14"
-      - name: Compare complete layered outfit query-worker profiles
-        id: compare_paired_profiles
-        if: ${{ success() }}
-        run: |
-          python3 tools/ci/compare_layered_intercloth_query_workers.py \
-            --baseline-1 artifacts/layered-outfit-query-workers/baseline-1 \
-            --baseline-2 artifacts/layered-outfit-query-workers/baseline-2 \
-            --candidate-1 artifacts/layered-outfit-query-workers/candidate-1 \
-            --candidate-2 artifacts/layered-outfit-query-workers/candidate-2 \
-            --output artifacts/layered-outfit-query-workers/comparison.json
-      - name: Upload layered inter-cloth worker evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
-        with:
-          name: layered-intercloth-query-workers-comparison
-          path: artifacts/layered-outfit-query-workers/**
-          if-no-files-found: warn
-          compression-level: 1
-      - name: Report paired layered outfit audit outcome
-        if: always()
-        env:
-          BASELINE_1_OUTCOME: ${{ steps.baseline_1_audit.outcome }}
-          CANDIDATE_1_OUTCOME: ${{ steps.candidate_1_audit.outcome }}
-          BASELINE_2_OUTCOME: ${{ steps.baseline_2_audit.outcome }}
-          CANDIDATE_2_OUTCOME: ${{ steps.candidate_2_audit.outcome }}
-          COMPARISON_OUTCOME: ${{ steps.compare_paired_profiles.outcome }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
-            if [[ "$outcome" != "success" ]]; then
-              echo "::error title=Layered inter-cloth query-worker experiment failed::All four 12-piece outfit acceptance runs and the matched timing comparison are blocking."
-              exit 1
-            fi
-          done
-          echo "::notice title=Layered inter-cloth query-worker experiment::All four 12-piece outfit audits passed; exact query, inter-cloth projection and total wall-time gates met."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
@@ -774,7 +656,7 @@ jobs:
   artifact-budget:
     name: Accumulated artifact budget
     if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
-    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-layered-intercloth-query-workers, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
     timeout-minutes: 2
     permissions: {actions: read, contents: read}
@@ -822,7 +704,7 @@ jobs:
   required-validation-gate:
     name: Required validation gate
     if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
-    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-layered-intercloth-query-workers, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
     timeout-minutes: 2
     permissions:
@@ -838,8 +720,6 @@ jobs:
           PYTHON_RESULT: ${{ needs.python.result }}
           GUI_SIMPLE_RESULT: ${{ needs.gui-simple.result }}
           TUNIC_AUDIT_RESULT: ${{ needs.gui-tunic-visual.result }}
-          LAYERED_QUERY_RESULT: ${{ needs.gui-layered-intercloth-query-workers.result }}
-          LAYERED_QUERY_REQUIRED: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') }}
           TURNTABLE_RESULT: ${{ needs.gui-turntables.result }}
           BLANKET_RESULT: ${{ needs.gui-visual-examples.result }}
           ARTIFACT_BUDGET_RESULT: ${{ needs.artifact-budget.result }}
@@ -862,9 +742,6 @@ jobs:
             require_success "Python validation matrix" "$PYTHON_RESULT"
             require_success "GUI acceptance matrix" "$GUI_SIMPLE_RESULT"
             require_success "Tunic visual and simulation audit" "$TUNIC_AUDIT_RESULT"
-            if [ "$LAYERED_QUERY_REQUIRED" = "true" ]; then
-              require_success "Layered inter-cloth query-worker comparison" "$LAYERED_QUERY_RESULT"
-            fi
             require_success "Avatar and simulation turntables" "$TURNTABLE_RESULT"
             require_success "Blanket visual fixture" "$BLANKET_RESULT"
             require_success "Workbench benchmark" "$BENCHMARK_RESULT"
