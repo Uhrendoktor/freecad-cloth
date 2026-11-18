@@ -373,9 +373,9 @@ def project_stitched_pairs(
         msg = "stitch topology particle count does not match collision positions"
         raise ValueError(msg)
 
-    eligible_groups: list[list[int]] = []
+    eligible_groups: list[tuple[int, ...]] = []
     shared_points: list[npt.NDArray[np.float64]] = []
-    near_shell_groups: list[list[int]] = []
+    near_shell_groups: list[tuple[int, ...]] = []
     near_shell_midpoints: list[npt.NDArray[np.float64]] = []
     for group in topology.groups:
         if len(group) < 2 or pinned.intersection(group):
