@@ -344,8 +344,11 @@ class MeshCollisionProjector:
                 inside_corrected, inside_normals = self._project_inside_points(
                     active_points[ambiguous_indices]
                 )
-                active_corrected[ambiguous_indices] = inside_corrected
-                active_normals[ambiguous_indices] = inside_normals
+                confirmed_inside = np.linalg.norm(inside_normals, axis=1) > 1e-10
+                if bool(np.any(confirmed_inside)):
+                    inside_indices = ambiguous_indices[confirmed_inside]
+                    active_corrected[inside_indices] = inside_corrected[confirmed_inside]
+                    active_normals[inside_indices] = inside_normals[confirmed_inside]
 
             corrected[active_point_indices] = active_corrected
             contact_normals[active_point_indices] = active_normals
