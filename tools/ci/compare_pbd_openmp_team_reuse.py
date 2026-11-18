@@ -132,7 +132,9 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
         f"{label}.runtime_limits.thread_environment",
     )
     if thread_environment.get(BASELINE_ENVIRONMENT_KEY) != "1":
-        raise ValueError(f"{label}: current projection-level team reuse must remain enabled in both modes")
+        raise ValueError(
+            f"{label}: current projection-level team reuse must remain enabled in both modes"
+        )
     if thread_environment.get(EXPERIMENT_ENVIRONMENT_KEY) != expected_mode:
         raise ValueError(f"{label}: unexpected {EXPERIMENT_ENVIRONMENT_KEY} mode")
 
