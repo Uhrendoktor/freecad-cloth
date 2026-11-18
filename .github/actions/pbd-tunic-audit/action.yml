@@ -1,11 +1,13 @@
 name: PBD production tunic audit
-description: Run one fail-closed PBD production audit for the exact mesh-collision query-worker A/B experiment.
+description: >-
+  Run one fail-closed PBD production audit for the exact mesh-collision query-worker A/B experiment.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
     required: true
   mode:
-    description: Query-worker mode, 0 for one worker or 1 for four workers on the batched exact KDTree query.
+    description: >-
+      Query-worker mode, 0 for one worker or 1 for four workers on the batched exact KDTree query.
     required: true
   profile-name:
     description: Stable profile name (baseline-1, candidate-1, baseline-2, candidate-2).
@@ -23,7 +25,9 @@ runs:
         checkout: "false"
         timeout-seconds: "360"
         test-script: tests/freecad_tunic_audit_production.py
-        pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-collision-query-workers
+        pre-command: >-
+          rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log
+          && mkdir -p artifacts/pbd-collision-query-workers
         stage-workbench: "true"
         clean-user: "true"
         log-file: artifacts/tunic-audit/${{ inputs.profile-name }}.log
