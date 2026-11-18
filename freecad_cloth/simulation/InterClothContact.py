@@ -25,6 +25,21 @@ type TriangleArray = npt.NDArray[np.int64]
 type EdgeArray = npt.NDArray[np.int64]
 
 _CONTACT_MEASUREMENT_EPSILON_MM = 0.002
+_INTER_CLOTH_QUERY_WORKERS_ENV = "CLOTH_INTER_CLOTH_QUERY_WORKERS"
+
+
+def _inter_cloth_query_workers_from_environment() -> int:
+    """Return the positive worker count for batched inter-cloth radius queries."""
+    raw_workers = os.environ.get(_INTER_CLOTH_QUERY_WORKERS_ENV, "1")
+    try:
+        workers = int(raw_workers)
+    except ValueError as exc:
+        raise ValueError(
+            f"{_INTER_CLOTH_QUERY_WORKERS_ENV} must be a positive integer"
+        ) from exc
+    if workers < 1:
+        raise ValueError(f"{_INTER_CLOTH_QUERY_WORKERS_ENV} must be a positive integer")
+    return workers
 
 
 def _emit_contact_diagnostic(message: str) -> None:
@@ -562,10 +577,13 @@ def _candidate_edge_triangle_pairs(
 ) -> tuple[npt.NDArray[np.int64], npt.NDArray[np.int64], int, float, float]:
     """Batch conservative edge/triangle broad-phase queries for one direction."""
     radii = clearance_mm + source.edge_half_lengths + float(target.triangle_radii.max())
+    query_workers = _inter_cloth_query_workers_from_environment()
     query_started = time.perf_counter()
     neighbors = target.triangle_tree.query_ball_point(
         source.edge_centers,
         radii,
+        eps=0.0,
+        workers=query_workers,
         return_sorted=False,
     )
     query_seconds = time.perf_counter() - query_started
@@ -576,6 +594,10 @@ def _candidate_edge_triangle_pairs(
     )
     candidate_count = int(np.sum(counts))
     if candidate_count == 0:
+        _emit_contact_diagnostic(
+            f"inter-cloth-broadphase raw=0 aabb=0 plane=0 workers={query_workers} eps=0.0 "
+            f"query_s={query_seconds:.4f} filter_s=0.0000"
+        )
         empty = np.empty(0, dtype=np.int64)
         return empty, empty.copy(), 0, query_seconds, 0.0
 
@@ -629,7 +651,8 @@ def _candidate_edge_triangle_pairs(
     filter_seconds = time.perf_counter() - filter_started
     _emit_contact_diagnostic(
         f"inter-cloth-broadphase raw={candidate_count} aabb={aabb_candidate_count} "
-        f"plane={plane_candidate_count} query_s={query_seconds:.4f} filter_s={filter_seconds:.4f}"
+        f"plane={plane_candidate_count} workers={query_workers} eps=0.0 "
+        f"query_s={query_seconds:.4f} filter_s={filter_seconds:.4f}"
     )
     return (
         source_edge_indices,

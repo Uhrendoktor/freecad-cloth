@@ -1,0 +1,130 @@
+name: Layered outfit inter-cloth query-worker A/B
+description: Run four complete layered-outfit audits with matched exact KDTree worker counts.
+inputs:
+  image:
+    description: Immutable FreeCAD/PBD validation image.
+    required: true
+  head-sha:
+    description: Exact source commit under test.
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/freecad-test
+      id: baseline_1_audit
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "600"
+        test-script: tests/freecad_layered_garment_acceptance.py
+        pre-command: >-
+          rm -rf artifacts/layered-outfit-query-workers/baseline-1
+          && mkdir -p artifacts/layered-outfit-query-workers/baseline-1
+        log-file: artifacts/layered-outfit-query-workers/baseline-1/freecad-run.log
+        validate-command: >-
+          python3 tools/ci/validate_layered_outfit.py
+          artifacts/layered-outfit-query-workers/baseline-1/layered-outfit-manifest.json
+        stage-workbench: "true"
+        clean-user: "true"
+        environment: |
+          CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/baseline-1
+          CLOTH_HEAD_SHA=${{ inputs.head-sha }}
+          CLOTH_INTER_CLOTH_QUERY_WORKERS=1
+    - uses: ./.github/actions/freecad-test
+      id: candidate_1_audit
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "600"
+        test-script: tests/freecad_layered_garment_acceptance.py
+        pre-command: >-
+          rm -rf artifacts/layered-outfit-query-workers/candidate-1
+          && mkdir -p artifacts/layered-outfit-query-workers/candidate-1
+        log-file: artifacts/layered-outfit-query-workers/candidate-1/freecad-run.log
+        validate-command: >-
+          python3 tools/ci/validate_layered_outfit.py
+          artifacts/layered-outfit-query-workers/candidate-1/layered-outfit-manifest.json
+        stage-workbench: "true"
+        clean-user: "true"
+        environment: |
+          CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/candidate-1
+          CLOTH_HEAD_SHA=${{ inputs.head-sha }}
+          CLOTH_INTER_CLOTH_QUERY_WORKERS=4
+    - uses: ./.github/actions/freecad-test
+      id: baseline_2_audit
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "600"
+        test-script: tests/freecad_layered_garment_acceptance.py
+        pre-command: >-
+          rm -rf artifacts/layered-outfit-query-workers/baseline-2
+          && mkdir -p artifacts/layered-outfit-query-workers/baseline-2
+        log-file: artifacts/layered-outfit-query-workers/baseline-2/freecad-run.log
+        validate-command: >-
+          python3 tools/ci/validate_layered_outfit.py
+          artifacts/layered-outfit-query-workers/baseline-2/layered-outfit-manifest.json
+        stage-workbench: "true"
+        clean-user: "true"
+        environment: |
+          CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/baseline-2
+          CLOTH_HEAD_SHA=${{ inputs.head-sha }}
+          CLOTH_INTER_CLOTH_QUERY_WORKERS=1
+    - uses: ./.github/actions/freecad-test
+      id: candidate_2_audit
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        timeout-seconds: "600"
+        test-script: tests/freecad_layered_garment_acceptance.py
+        pre-command: >-
+          rm -rf artifacts/layered-outfit-query-workers/candidate-2
+          && mkdir -p artifacts/layered-outfit-query-workers/candidate-2
+        log-file: artifacts/layered-outfit-query-workers/candidate-2/freecad-run.log
+        validate-command: >-
+          python3 tools/ci/validate_layered_outfit.py
+          artifacts/layered-outfit-query-workers/candidate-2/layered-outfit-manifest.json
+        stage-workbench: "true"
+        clean-user: "true"
+        environment: |
+          CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit-query-workers/candidate-2
+          CLOTH_HEAD_SHA=${{ inputs.head-sha }}
+          CLOTH_INTER_CLOTH_QUERY_WORKERS=4
+    - name: Compare complete layered outfit query-worker profiles
+      id: compare_paired_profiles
+      if: ${{ success() }}
+      shell: bash
+      run: |
+        validator_python="${RUNNER_TOOL_CACHE:-$HOME/.cache}/freecad-cloth/venvs/evidence-validator/bin/python"
+        "$validator_python" tools/ci/compare_layered_intercloth_query_workers.py \
+          --baseline-1 artifacts/layered-outfit-query-workers/baseline-1 \
+          --baseline-2 artifacts/layered-outfit-query-workers/baseline-2 \
+          --candidate-1 artifacts/layered-outfit-query-workers/candidate-1 \
+          --candidate-2 artifacts/layered-outfit-query-workers/candidate-2 \
+          --output artifacts/layered-outfit-query-workers/comparison.json
+    - name: Upload layered inter-cloth worker evidence
+      if: always()
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+      with:
+        name: layered-intercloth-query-workers-comparison
+        path: artifacts/layered-outfit-query-workers/**
+        if-no-files-found: warn
+        compression-level: 1
+    - name: Report paired layered outfit audit outcome
+      if: always()
+      env:
+        BASELINE_1_OUTCOME: ${{ steps.baseline_1_audit.outcome }}
+        CANDIDATE_1_OUTCOME: ${{ steps.candidate_1_audit.outcome }}
+        BASELINE_2_OUTCOME: ${{ steps.baseline_2_audit.outcome }}
+        CANDIDATE_2_OUTCOME: ${{ steps.candidate_2_audit.outcome }}
+        COMPARISON_OUTCOME: ${{ steps.compare_paired_profiles.outcome }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
+          if [[ "$outcome" != "success" ]]; then
+            echo "::error title=Layered inter-cloth query-worker experiment failed::All four 12-piece outfit acceptance runs and the matched timing comparison are blocking."
+            exit 1
+          fi
+        done
+        echo "::notice title=Layered inter-cloth query-worker experiment::All four 12-piece outfit audits passed; exact query, inter-cloth projection and total wall-time gates met."

@@ -329,7 +329,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 15
+    timeout-minutes: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') && 60 || 15 }}
     strategy:
       fail-fast: false
       matrix:
@@ -364,6 +364,9 @@ jobs:
           stage-workbench: ${{ matrix.stage }}
           clean-user: ${{ matrix.clean }}
           environment: ${{ matrix.env }}
+      - uses: ./.github/actions/layered-intercloth-query-workers
+        if: ${{ matrix.case == 'layered-outfit' && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[layered-intercloth-query-workers]') }}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", head-sha: "${{ github.event.pull_request.head.sha }}"}
   gui-tunic-visual:
     name: Full tunic visual and simulation audit
     if: ${{ inputs.execution_mode == 'full' }}

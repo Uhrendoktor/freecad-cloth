@@ -42,6 +42,9 @@ import Sketcher
 
 OUTPUT = Path(os.environ.get("CLOTH_LAYERED_OUTFIT_DIR", "artifacts/layered-outfit"))
 os.environ["CLOTH_INTER_CLOTH_DIAGNOSTICS"] = "1"
+INTER_CLOTH_DIAGNOSTICS = OUTPUT / "inter-cloth-diagnostics.log"
+INTER_CLOTH_DIAGNOSTICS.unlink(missing_ok=True)
+os.environ["CLOTH_INTER_CLOTH_DIAGNOSTICS_FILE"] = str(INTER_CLOTH_DIAGNOSTICS)
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
@@ -1055,9 +1058,23 @@ def run_acceptance() -> None:
             )
         )
 
+        from freecad_cloth.simulation.InterClothContact import (
+            _inter_cloth_query_workers_from_environment,
+        )
+
+        cpu_affinity = (
+            sorted(os.sched_getaffinity(0))
+            if hasattr(os, "sched_getaffinity")
+            else None
+        )
         manifest = {
             "schema": "freecad-cloth.layered-outfit",
             "schema_version": 1,
+            "runtime_context": {
+                "inter_cloth_query_workers": _inter_cloth_query_workers_from_environment(),
+                "cpu_count": os.cpu_count(),
+                "cpu_affinity": cpu_affinity,
+            },
             "provenance": {
                 "commit_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
                 "document": save_path.name,

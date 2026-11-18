@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Tests for the import-safe shared PBD diagnostic helpers."""
 
+from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Never, NoReturn, cast
 
@@ -13,6 +14,7 @@ from freecad_cloth.simulation.InterClothContact import (
     _candidate_edge_triangle_pairs,
     _closest_segment_triangle,
     _closest_segment_triangles_batch,
+    _inter_cloth_query_workers_from_environment,
     _surface_index,
     measure_inter_cloth_contacts,
     measure_inter_cloth_contacts_with_constraints,
@@ -31,6 +33,9 @@ from tests.support.pbd_contact_helpers import (
     events,
     nearest_surface_distance,
     position_bounds,
+)
+from tools.ci.compare_layered_intercloth_query_workers import (
+    _parse_inter_cloth_diagnostics,
 )
 
 PBD_COLLISION_AXIS_COUNT = 3
@@ -255,6 +260,145 @@ def test_inter_cloth_aabb_broad_phase_keeps_every_exact_near_contact() -> None:
                 assert (edge_index, triangle_index) in retained, (
                     "AABB broad phase dropped an edge/triangle pair within clearance"
                 )
+
+
+def test_inter_cloth_query_workers_default_to_one_and_validate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The contact broad phase stays serial by default and rejects invalid worker counts."""
+    monkeypatch.delenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", raising=False)
+    assert _inter_cloth_query_workers_from_environment() == 1
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "4")
+    assert _inter_cloth_query_workers_from_environment() == 4
+
+    for invalid in ("0", "-1", "many"):
+        monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", invalid)
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            _inter_cloth_query_workers_from_environment()
+
+
+def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_projection(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Four-worker exact KDTree broad phase must preserve candidates and physical results."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    points = np.asarray(positions, dtype=np.float64)
+    source = _surface_index(points, np.asarray(groups["shirt"], dtype=np.int64))
+    target = _surface_index(points, np.asarray(groups["skirt"], dtype=np.int64))
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_DIAGNOSTICS", "1")
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "1")
+    single_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
+    single_pairs = set(
+        zip(
+            single_candidates[0].tolist(),
+            single_candidates[1].tolist(),
+            strict=True,
+        )
+    )
+    single_log = capsys.readouterr().out
+    single_positions, _single_directions, single_metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=16,
+    )
+    single_log += capsys.readouterr().out
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "4")
+    parallel_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
+    parallel_pairs = set(
+        zip(
+            parallel_candidates[0].tolist(),
+            parallel_candidates[1].tolist(),
+            strict=True,
+        )
+    )
+    parallel_log = capsys.readouterr().out
+    parallel_positions, _parallel_directions, parallel_metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=16,
+    )
+    parallel_log += capsys.readouterr().out
+
+    assert single_pairs == parallel_pairs
+    assert single_candidates[2] == parallel_candidates[2]
+    assert "workers=1" in single_log
+    assert "workers=4" in parallel_log
+    assert "eps=0.0" in single_log
+    assert "eps=0.0" in parallel_log
+    np.testing.assert_allclose(parallel_positions, single_positions, rtol=0.0, atol=1e-8)
+    assert parallel_metrics.contact_count == single_metrics.contact_count
+    assert parallel_metrics.corrected_particle_count == single_metrics.corrected_particle_count
+    assert parallel_metrics.remaining_contact_count == single_metrics.remaining_contact_count
+    assert parallel_metrics.max_penetration_before_mm == pytest.approx(
+        single_metrics.max_penetration_before_mm,
+        abs=1e-8,
+    )
+    assert parallel_metrics.max_penetration_after_mm == pytest.approx(
+        single_metrics.max_penetration_after_mm,
+        abs=1e-8,
+    )
+
+
+def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
+    tmp_path: Path,
+) -> None:
+    """The paired comparator reads exact worker, broad-phase, and projection timings."""
+    diagnostics = tmp_path / "inter-cloth-diagnostics.log"
+    diagnostics.write_text(
+        "\n".join(
+            (
+                (
+                    "inter-cloth-broadphase raw=100 aabb=40 plane=10 workers=4 "
+                    "eps=0.0 query_s=0.1000 filter_s=0.0300"
+                ),
+                (
+                    "inter-cloth-direction-finish iteration=1 direction=0 candidates=100 "
+                    "plausible=10 exact_tests=10 active_constraints=5 query_s=0.10 "
+                    "filter_s=0.03 closest_s=0.20 correction_s=0.05 elapsed_s=0.40"
+                ),
+                "inter-cloth-pass-finish iteration=1 contacts=5 moved=3 index_s=0.01 elapsed_s=0.50",
+                "cloth-pbd-inter-cloth-projection-finish elapsed_s=0.75",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    metrics = _parse_inter_cloth_diagnostics(diagnostics, 4)
+
+    assert metrics["query_seconds"] == pytest.approx(0.1)
+    assert metrics["filter_seconds"] == pytest.approx(0.03)
+    assert metrics["closest_seconds"] == pytest.approx(0.2)
+    assert metrics["correction_seconds"] == pytest.approx(0.05)
+    assert metrics["inter_cloth_projection_seconds"] == pytest.approx(0.75)
+    assert metrics["raw_candidate_pairs"] == 100
+    assert metrics["broadphase_samples"] == 1
+
+    with pytest.raises(ValueError, match="expected query workers 1"):
+        _parse_inter_cloth_diagnostics(diagnostics, 1)
+
+
+def test_layered_intercloth_query_workers_are_isolated_to_radius_broad_phase() -> None:
+    """The body nearest-face projector remains on its serial exact query path."""
+    repository_root = Path(__file__).resolve().parents[1]
+    contact = (
+        repository_root / "freecad_cloth" / "simulation" / "InterClothContact.py"
+    ).read_text(encoding="utf-8")
+    body_projector = (
+        repository_root / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
+    ).read_text(encoding="utf-8")
+    assert "CLOTH_INTER_CLOTH_QUERY_WORKERS" in contact
+    assert "workers=query_workers" in contact
+    assert "eps=0.0,\n        workers=query_workers," in contact
+    assert "workers=1" in body_projector
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:

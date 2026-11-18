@@ -1051,3 +1051,33 @@ def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics() -> None:
     )
     missing = tuple(fragment for fragment in required if fragment not in benchmark)
     assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"
+
+
+def test_layered_intercloth_query_worker_experiment_is_opt_in_and_blocking() -> None:
+    """Only the dedicated experiment PR adds four layered outfit runs to the GUI matrix."""
+    workflow = (
+        ROOT / ".github" / "workflows" / "canonical-execution.yml"
+    ).read_text(encoding="utf-8")
+    gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
+    action = (
+        ROOT / ".github" / "actions" / "layered-intercloth-query-workers" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "contains(github.event.pull_request.title, '[layered-intercloth-query-workers]')" in gui
+    assert "matrix.case == 'layered-outfit'" in gui
+    assert "&& 60 || 15" in gui
+    assert gui.count("./.github/actions/freecad-test") == 1
+    assert gui.count("./.github/actions/layered-intercloth-query-workers") == 1
+    assert action.count("./.github/actions/freecad-test") == 4
+    assert action.count("CLOTH_INTER_CLOTH_QUERY_WORKERS=1") == 2
+    assert action.count("CLOTH_INTER_CLOTH_QUERY_WORKERS=4") == 2
+    assert "compare_layered_intercloth_query_workers.py" in action
+    assert "layered-intercloth-query-workers-comparison" in action
+    assert "inter-cloth-diagnostics.log" in (
+        ROOT / "tests" / "freecad_layered_garment_acceptance.py"
+    ).read_text(encoding="utf-8")
+
+    budget = workflow.split("  artifact-budget:", 1)[1].split("  benchmark:", 1)[0]
+    gate = workflow.split("  required-validation-gate:", 1)[1].split("  maintenance-cleanup:", 1)[0]
+    assert "gui-simple" in budget
+    assert "GUI acceptance matrix" in gate
+
