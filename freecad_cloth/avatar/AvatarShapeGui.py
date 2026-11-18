@@ -527,9 +527,7 @@ class AvatarDimensionController:
         separator.addChild(line)
         self.overlay.addChild(separator)
 
-    def _add_marker(
-        self, coin: ModuleType, point: _Vector3, color: _Vector3, size: float
-    ) -> None:
+    def _add_marker(self, coin: ModuleType, point: _Vector3, color: _Vector3, size: float) -> None:
         """Draw an always-pickable foreground marker at a dimensional handle.
 
         Args:
@@ -557,9 +555,7 @@ class AvatarDimensionController:
         marker.addChild(points)
         self.overlay.addChild(marker)
 
-    def _add_label(
-        self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3
-    ) -> None:
+    def _add_label(self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3) -> None:
         """Draw the one-line value tooltip for the currently linked dimension.
 
         Args:

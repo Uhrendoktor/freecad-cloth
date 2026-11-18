@@ -166,7 +166,9 @@ def test_trunk_dimension_landmarks_are_distinct_on_the_rig_span() -> None:
     )
     assert ordered[0] == pelvis
     assert ordered[-1] == chest
-    distances = tuple(math.dist(ordered[index], ordered[index + 1]) for index in range(len(ordered) - 1))
+    distances = tuple(
+        math.dist(ordered[index], ordered[index + 1]) for index in range(len(ordered) - 1)
+    )
     assert all(distance > 1.0 for distance in distances)
     axis = AvatarDimensionController._unit(
         tuple(chest[index] - pelvis[index] for index in range(3))

@@ -137,7 +137,7 @@ class AvatarTaskPanel:
         "back_waist": "Back waist",
         "crotch_length": "Crotch",
         "shirt_length": "Shirt",
-        "back_neck_to_waist": "Back N–W",
+        "back_neck_to_waist": "Back N-W",
         "stomach": "Stomach",
         "sleeve_length": "Sleeve",
     }
