@@ -6,7 +6,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol, Self, cast
+from typing import TYPE_CHECKING, Protocol, Self, cast, override
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 class _SimulationDocument(SimulationDocument, Protocol):
     """Document API used by the simulation scene and its mesh outputs."""
 
+    @override
     def addObject(self, object_type: str, name: str, /) -> _SimulationFeature:
         """Create a simulation feature in the owning document.
 
@@ -32,6 +33,7 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """
         ...
 
+    @override
     def getObject(self, object_name: str, /) -> _SimulationFeature | None:
         """Look up a simulation feature by internal name.
 
@@ -43,6 +45,7 @@ class _SimulationDocument(SimulationDocument, Protocol):
         """
         ...
 
+    @override
     def recompute(self) -> int | None:
         """Recompute the document after changing persistent simulation state."""
         ...
@@ -643,6 +646,7 @@ class SimulationProxy:
         self.last_steps = 0
         self.collision_surface = None
 
+    @override
     def __getstate__(self):
         """Persist only deterministic proxy metadata; runtime solver state is rebuildable."""
         return {"schema": 1}

@@ -14,7 +14,7 @@ import time
 from dataclasses import dataclass
 from numbers import Real
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, Protocol, cast, override
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 
@@ -193,6 +193,7 @@ class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
 class _FreeCADDocument(Protocol):
     """Document recomputation operation captured for a diagnostic checkpoint."""
 
+    @override
     def recompute(self) -> int | None:
         """Recompute the persisted document after a solver step."""
         ...

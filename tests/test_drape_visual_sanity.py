@@ -2,7 +2,7 @@
 """Regression tests for drape mesh geometry and evidence classification."""
 
 import unittest
-from typing import NoReturn
+from typing import NoReturn, override
 
 from freecad_cloth.common.MeshValidation import validate_mesh
 from freecad_cloth.simulation.DrapeVisualSanity import (
@@ -27,6 +27,7 @@ TETRAHEDRON_TRIANGLES = ((0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3))
 class _DrapeTargetFixture(unittest.TestCase):
     """Supply canonical target geometry for drape regression tests."""
 
+    @override
     def setUp(self) -> None:
         """Prepare canonical target geometry used by the drape checks."""
         self.target = (

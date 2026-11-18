@@ -1,4 +1,6 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
+from typing import override
+
 """Regression coverage for persistent avatar arrangement-point metadata."""
 
 import freecad_cloth.avatar as avatar_package
@@ -21,6 +23,7 @@ class _StringRecord:
         """
         self.value = value
 
+    @override
     def __str__(self) -> str:
         """Return the serialized arrangement record.
 

@@ -8,7 +8,7 @@ proxy. It is the only quality runtime implementation.
 import weakref
 from collections.abc import Hashable, Sequence
 from math import ceil
-from typing import Protocol, Self, cast
+from typing import Protocol, Self, cast, override
 
 from freecad_cloth.simulation.SimulationObjects import (
     PIN_MODE_NAMES,
@@ -203,6 +203,7 @@ class QualitySimulationProxy:
         self._preview_mesh_publisher: _PreviewMeshPublisher | None = None
         self._restore_base()
 
+    @override
     def __getstate__(self) -> dict[str, int]:
         """Persist only the schema marker; solver state is rebuilt on document restore."""
         return {"schema": 1}
