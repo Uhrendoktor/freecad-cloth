@@ -5,6 +5,8 @@ The FreeCAD runtime supplies Pivy through SWIG rather than typed Python stubs.
 These narrow protocols describe only the Coin members used by Pose Mode.
 """
 
+from __future__ import annotations
+
 from collections.abc import Callable, Sequence
 from typing import Protocol, overload
 
