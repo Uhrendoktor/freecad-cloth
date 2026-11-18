@@ -60,8 +60,9 @@ def test_guarded_rebase_resolves_only_the_non_runtime_agent_plan_conflict() -> N
     rebase = _job_block(source, "guarded-rebase-pr")
 
     assert "if ! git rebase origin/main; then" in rebase
-    assert 'CONFLICTS[0]}" != ".agent/PLANS.md"' in rebase
-    assert 'git checkout --ours -- .agent/PLANS.md' in rebase
+    assert 'conflicts="$(git diff --name-only --diff-filter=U)"' in rebase
+    assert 'if [ "$conflicts" != ".agent/PLANS.md" ]' in rebase
+    assert "git checkout --ours -- .agent/PLANS.md" in rebase
     assert "git add .agent/PLANS.md" in rebase
     assert "GIT_EDITOR=true git rebase --continue" in rebase
     assert "git merge-base --is-ancestor origin/main HEAD" in rebase
