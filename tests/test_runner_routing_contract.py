@@ -120,6 +120,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "restoring the exact standalone-script root bootstrap" in resolver
     assert 'sys.stdout.write("simulation GUI tests passed\\n")' in resolver
     assert "Expected already-cleaned test bootstrap state before restoration." in resolver
+    assert '[[ "$conflicts" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]' in resolver
+    assert "897bfa8e14095ccfbb402b76e78a74378ccb3d72" in resolver
+    assert "git checkout --ours -- freecad_cloth/simulation/SimulationQualityRuntime.py" in resolver
+    assert "self._preview_mesh_publisher = None" in resolver
+    assert "Preserving mainline preview-publisher behavior" in resolver
+    assert "Ruff docstring formatting transform did not produce one exact formatted block." in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
