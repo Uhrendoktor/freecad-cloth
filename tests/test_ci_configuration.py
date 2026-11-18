@@ -155,10 +155,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         assert "id: " in step
         assert "image:" in step
     assert "id: baseline_1_audit" in production_tunic_steps[0]
-    assert 'mode: "0"' in production_tunic_steps[0]
+    assert 'stitch-cache: "0"' in production_tunic_steps[0]
     assert "profile-name: baseline-1" in production_tunic_steps[0]
     assert "id: candidate_1_audit" in production_tunic_steps[1]
-    assert 'mode: "1"' in production_tunic_steps[1]
+    assert 'stitch-cache: "1"' in production_tunic_steps[1]
     assert "profile-name: candidate-1" in production_tunic_steps[1]
     assert "id: baseline_2_audit" in production_tunic_steps[2]
     assert "profile-name: baseline-2" in production_tunic_steps[2]
@@ -172,7 +172,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "compare_pbd_openmp_team_reuse.py" in tunic_audit
-    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in tunic_audit
+    assert "artifacts/pbd-stitch-group-cache/comparison.json" in tunic_audit
     assert "Report paired native production audit outcome" in tunic_audit
     for step_id in (
         "baseline_1_audit",
@@ -273,7 +273,7 @@ def test_pbd_validation_tag_hashes_the_native_experiment_patch() -> None:
     patch = b"void TimeStepController::positionConstraintProjection() {}\n"
     expected_manifest = (
         f"{sha256(dockerfile).hexdigest()}  docker/freecad-ci/Dockerfile\n"
-        f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
+        f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-stitch-group-cache.patch\n"
     ).encode()
 
     assert (
@@ -314,7 +314,7 @@ def test_dockerfile_tags_for_shas_batches_graphql_queries() -> None:
             query,
         )
         patch_aliases = re.findall(
-            r'(patch\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/patches/pypbd-openmp-team-reuse\.patch"\)',
+            r'(patch\d+): object\(expression: "([0-9a-f]{40}):docker/freecad-ci/patches/pypbd-stitch-group-cache\.patch"\)',
             query,
         )
         assert bool(aliases), "Expected bool(aliases)."
