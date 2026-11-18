@@ -129,17 +129,32 @@ class AvatarTaskPanel:
         }
     )
     MEASUREMENT_DISPLAY_LABELS: ClassVar[dict[str, str]] = {
+        "height": "Ht",
         "neck": "Neck",
-        "shoulder": "Shoulder",
+        "shoulder": "Sh",
         "chest": "Chest",
-        "torso": "Torso",
-        "front_waist": "Front W.",
-        "back_waist": "Back waist",
-        "crotch_length": "Crotch",
-        "shirt_length": "Shirt",
-        "back_neck_to_waist": "Back N-W",
-        "stomach": "Stomach",
+        "underbust": "U/B",
+        "stomach": "Stom",
+        "waist": "Waist",
+        "high_hip": "H-Hip",
+        "hip": "Hip",
+        "upper_arm": "Arm",
+        "elbow": "Elb",
+        "wrist": "Wrist",
+        "thigh": "Thigh",
+        "knee": "Knee",
+        "calf": "Calf",
+        "ankle": "Ank",
         "sleeve_length": "Sleeve",
+        "inseam": "Inseam",
+        "torso": "Torso",
+        "front_waist": "F.W",
+        "back_waist": "B.W",
+        "crotch_length": "Crotch",
+        "front_rise": "F.Rise",
+        "back_rise": "B.Rise",
+        "shirt_length": "Shirt",
+        "back_neck_to_waist": "B.N-W",
     }
     PROVIDERS = (
         ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
@@ -392,13 +407,6 @@ class AvatarTaskPanel:
     def _add_measurement_group(self, parent, title, fields):
         """Add a compact, two-up grid of fully editable millimetre measurements."""
         _, _, QtWidgets = _modules()
-        if TYPE_CHECKING:
-            QtCore = _QT_TYPE_QtCore
-        else:
-            try:
-                from PySide import QtCore
-            except ImportError:
-                from PySide2 import QtCore
         from freecad_cloth.avatar.AvatarModel import LIMITS
 
         group = QtWidgets.QGroupBox(title)
@@ -425,15 +433,16 @@ class AvatarTaskPanel:
             else:
                 tooltip = "Stored garment measurement in millimetres. Editable here; it is not an independent body-fit constraint."
             full_tooltip = f"{label}: {tooltip}"
+            box.setPrefix(f"{self.MEASUREMENT_DISPLAY_LABELS[key]} ")
+            box.setSizePolicy(
+                QtWidgets.QSizePolicy.Ignored,
+                QtWidgets.QSizePolicy.Fixed,
+            )
+            box.setMinimumWidth(0)
             box.setToolTip(full_tooltip)
-            label_widget = QtWidgets.QLabel(self.MEASUREMENT_DISPLAY_LABELS.get(key, label))
-            label_widget.setToolTip(full_tooltip)
-            label_widget.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
-            row, pair = divmod(index, 2)
-            column = pair * 2
-            layout.addWidget(label_widget, row, column)
-            layout.addWidget(box, row, column + 1)
-            layout.setColumnStretch(column + 1, 1)
+            row, column = divmod(index, 2)
+            layout.addWidget(box, row, column)
+            layout.setColumnStretch(column, 1)
             self._boxes[key] = box
         parent.addWidget(group)
         self._measurement_groups.append(group)
@@ -850,6 +859,7 @@ class AvatarTaskPanel:
         self.gender_percent.setRange(0.0, 100.0)
         self.gender_percent.setDecimals(0)
         self.gender_percent.setSuffix("%")
+        self.gender_percent.setMaximumWidth(76)
         self.gender_percent.setKeyboardTracking(False)
         self.gender_percent.setToolTip(
             "Exact morphology blend in percent. Type a value instead of dragging the slider."
@@ -873,6 +883,7 @@ class AvatarTaskPanel:
         self.breast_percent.setRange(0.0, 100.0)
         self.breast_percent.setDecimals(0)
         self.breast_percent.setSuffix("%")
+        self.breast_percent.setMaximumWidth(76)
         self.breast_percent.setKeyboardTracking(False)
         self.breast_percent.setToolTip("Enter breast fullness precisely from 0 to 100 percent.")
         breast_row.addWidget(self.breast_percent)
@@ -1023,7 +1034,7 @@ class AvatarTaskPanel:
             label = "Masculine"
         else:
             label = "Custom"
-        self.gender_value.setText(f"{value}% · {label}")
+        self.gender_value.setText(label)
         self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
