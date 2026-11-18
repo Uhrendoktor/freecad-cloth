@@ -3,7 +3,7 @@
 
 import importlib
 from math import dist
-from typing import ClassVar
+from typing import ClassVar, override
 
 import pytest
 from hypothesis import given
@@ -345,6 +345,7 @@ def test_curve_polyline_is_sampled_once_during_segment_provenance_mapping() -> N
 
         calls: ClassVar[int] = 0
 
+        @override
         def polyline(self, samples: int = 32) -> list[Point]:
             """Count one sampling request and delegate to the quadratic curve.
 

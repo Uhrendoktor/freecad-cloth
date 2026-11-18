@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 from collections.abc import Sequence
 from types import ModuleType, SimpleNamespace
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, override
 
 from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
 
@@ -20,6 +20,7 @@ type _FieldPayload = Sequence[tuple[float, float, float]] | Sequence[int]
 class _CoinNode(Protocol):
     """Common opaque scenegraph node used by the Coin test doubles."""
 
+    @override
     def __repr__(self) -> str: ...
 
 

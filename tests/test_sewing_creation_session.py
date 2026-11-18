@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, override
 from unittest.mock import Mock
 
 import pytest
@@ -305,9 +305,11 @@ class _ErrorFeedbackPanel(SewingCreationTaskPanel):
     commit_button: Mock
     session: _FailedSession
 
+    @override
     def _stop_viewport_picking(self) -> None:
         """Skip viewport cleanup because the headless fixture has no active view."""
 
+    @override
     def _refresh_selection(self) -> None:
         """Skip selection rendering because the headless fixture has no Qt widgets."""
 
