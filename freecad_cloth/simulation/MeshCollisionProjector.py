@@ -28,8 +28,16 @@ class MeshCollisionProjector:
         surface: CollisionSurface,
         clearance_mm: float,
         candidate_count: int = 4,
+        query_workers: int = 1,
     ) -> None:
-        """Prepare outward-facing triangles and a spatial index for the target mesh."""
+        """Prepare outward-facing triangles and a spatial index for the target mesh.
+
+        Args:
+            surface: Closed, consistently-oriented target triangle mesh.
+            clearance_mm: Required signed clearance from the target surface.
+            candidate_count: Number of nearest face centroids to refine per point.
+            query_workers: SciPy workers for the batched exact centroid query.
+        """
         if not np.isfinite(clearance_mm) or clearance_mm <= 0.0:
             msg = "collision projection clearance must be positive and finite"
             raise ValueError(msg)
@@ -39,8 +47,16 @@ class MeshCollisionProjector:
         if candidate_count < 1:
             msg = "collision projection candidate count must be positive"
             raise ValueError(msg)
+        if (
+            isinstance(query_workers, bool)
+            or not isinstance(query_workers, int)
+            or query_workers < 1
+        ):
+            msg = "collision projection query workers must be a positive integer"
+            raise ValueError(msg)
 
         self.clearance_mm = float(clearance_mm)
+        self._query_workers = query_workers
         self._vertices = np.asarray(surface.vertices, dtype=np.float64)
         self._triangles = np.asarray(surface.triangles, dtype=np.int64).reshape((-1, 3))
         # Points beyond the mesh AABB expanded by clearance cannot be inside or
@@ -141,7 +157,7 @@ class MeshCollisionProjector:
             candidate_points,
             k=self._candidate_count,
             eps=0.0,
-            workers=1,
+            workers=self._query_workers,
         )
         candidate_ids = np.asarray(candidate_ids, dtype=np.int64)
         closest_face_ids = candidate_ids[:, 0]
