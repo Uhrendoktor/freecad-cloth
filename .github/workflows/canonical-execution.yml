@@ -93,21 +93,10 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          # Rebase without generated source/configuration repair. The only conflict
-          # resolved automatically is the historical agent plan file: it is non-runtime
-          # planning state, so retain the current main version and fail on every other path.
-          if ! git rebase origin/main; then
-            while [ -d "$(git rev-parse --git-path rebase-merge)" ] || [ -d "$(git rev-parse --git-path rebase-apply)" ]; do
-              mapfile -t CONFLICTS < <(git diff --name-only --diff-filter=U)
-              if [ "${#CONFLICTS[@]}" -ne 1 ] || [ "${CONFLICTS[0]}" != ".agent/PLANS.md" ]; then
-                printf '::error::Rebase has unsupported conflicts: %s\\n' "${CONFLICTS[*]:-(none)}"
-                exit 1
-              fi
-              echo "::warning::Keeping main's .agent/PLANS.md; it is non-runtime planning state."
-              git checkout --ours -- .agent/PLANS.md
-              git add .agent/PLANS.md
-              GIT_EDITOR=true git rebase --continue
-            done
+          if ! git rebase origin/main; then # only the non-runtime agent plan file is auto-resolved
+            conflicts="$(git diff --name-only --diff-filter=U)"
+            if [ "$conflicts" != ".agent/PLANS.md" ]; then echo "::error::Unsupported rebase conflict; aborting."; exit 1; fi
+            git checkout --ours -- .agent/PLANS.md && git add .agent/PLANS.md && GIT_EDITOR=true git rebase --continue
           fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
