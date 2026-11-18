@@ -182,6 +182,45 @@ def _projection_total(profile: JsonObject, label: str) -> float:
     )
     return _finite_number(projection.get("total_ms"), f"{label}.projection.total_ms")
 
+
+def _matched_timing_metrics(
+    baseline_stage: list[float],
+    candidate_stage: list[float],
+    baseline_wall: list[float],
+    candidate_wall: list[float],
+    *,
+    minimum_stage_improvement: float,
+    stage_label: str,
+    wall_regression_label: str,
+) -> tuple[float, float, float, float, float, float, list[str]]:
+    """Calculate paired median gains and apply the stage/wall-time gates."""
+    baseline_stage_median = median(baseline_stage)
+    candidate_stage_median = median(candidate_stage)
+    baseline_wall_median = median(baseline_wall)
+    candidate_wall_median = median(candidate_wall)
+    stage_improvement = 1.0 - candidate_stage_median / baseline_stage_median
+    wall_time_change = candidate_wall_median / baseline_wall_median - 1.0
+
+    rejection_reasons: list[str] = []
+    if stage_improvement < minimum_stage_improvement:
+        rejection_reasons.append(
+            f"{stage_label} improvement is below {minimum_stage_improvement:.0%}: "
+            f"{stage_improvement * 100:.2f}%"
+        )
+    if wall_time_change > 0.0:
+        rejection_reasons.append(
+            f"{wall_regression_label}: {wall_time_change * 100:.2f}%"
+        )
+    return (
+        baseline_stage_median,
+        candidate_stage_median,
+        baseline_wall_median,
+        candidate_wall_median,
+        stage_improvement,
+        wall_time_change,
+        rejection_reasons,
+    )
+
 def _mesh_collision_projector_total(profile: JsonObject, label: str) -> float:
     """Read the complete batched mesh-projector timing from one production profile."""
     stages = _as_object(
@@ -263,24 +302,23 @@ def compare_collision_query_worker_profile_sets(
         for i, profile in enumerate(candidate_profiles, 1)
     ]
 
-    baseline_median_projector = median(baseline_projector)
-    candidate_median_projector = median(candidate_projector)
-    baseline_median_wall = median(baseline_wall)
-    candidate_median_wall = median(candidate_wall)
-    projector_improvement = 1.0 - candidate_median_projector / baseline_median_projector
-    wall_time_change = candidate_median_wall / baseline_median_wall - 1.0
-
-    rejection_reasons: list[str] = []
-    if projector_improvement < MIN_COLLISION_QUERY_IMPROVEMENT:
-        rejection_reasons.append(
-            "four-worker mesh collision projector improvement is below 10%: "
-            f"{projector_improvement * 100:.2f}%"
-        )
-    if wall_time_change > 0.0:
-        rejection_reasons.append(
-            "four-worker median production wall time regressed: "
-            f"{wall_time_change * 100:.2f}%"
-        )
+    (
+        baseline_median_projector,
+        candidate_median_projector,
+        baseline_median_wall,
+        candidate_median_wall,
+        projector_improvement,
+        wall_time_change,
+        rejection_reasons,
+    ) = _matched_timing_metrics(
+        baseline_projector,
+        candidate_projector,
+        baseline_wall,
+        candidate_wall,
+        minimum_stage_improvement=MIN_COLLISION_QUERY_IMPROVEMENT,
+        stage_label="four-worker mesh collision projector",
+        wall_regression_label="four-worker median production wall time regressed",
+    )
 
     return {
         "schema_version": 1,
@@ -371,23 +409,23 @@ def compare_profile_sets(
         for i, profile in enumerate(candidate_profiles, 1)
     ]
 
-    baseline_median_projection = median(baseline_projection)
-    candidate_median_projection = median(candidate_projection)
-    baseline_median_wall = median(baseline_wall)
-    candidate_median_wall = median(candidate_wall)
-    projection_improvement = 1.0 - candidate_median_projection / baseline_median_projection
-    wall_time_change = candidate_median_wall / baseline_median_wall - 1.0
-
-    rejection_reasons: list[str] = []
-    if projection_improvement < MIN_PROJECTION_IMPROVEMENT:
-        rejection_reasons.append(
-            "persistent-team projection improvement is below 5%: "
-            f"{projection_improvement * 100:.2f}%"
-        )
-    if wall_time_change > 0.0:
-        rejection_reasons.append(
-            f"persistent-team median production wall time regressed: {wall_time_change * 100:.2f}%"
-        )
+    (
+        baseline_median_projection,
+        candidate_median_projection,
+        baseline_median_wall,
+        candidate_median_wall,
+        projection_improvement,
+        wall_time_change,
+        rejection_reasons,
+    ) = _matched_timing_metrics(
+        baseline_projection,
+        candidate_projection,
+        baseline_wall,
+        candidate_wall,
+        minimum_stage_improvement=MIN_PROJECTION_IMPROVEMENT,
+        stage_label="persistent-team projection",
+        wall_regression_label="persistent-team median production wall time regressed",
+    )
 
     return {
         "schema_version": 1,
@@ -413,20 +451,37 @@ def compare_profile_sets(
 
 
 def main() -> int:
-    """Load the four production JSON profiles, compare them, and write the summary."""
+    """Load four production profiles and compare the selected experiment."""
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline-1", type=Path, required=True)
     parser.add_argument("--baseline-2", type=Path, required=True)
     parser.add_argument("--candidate-1", type=Path, required=True)
     parser.add_argument("--candidate-2", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--collision-query-workers",
+        action="store_true",
+        help="Compare one versus four workers for the exact batch KDTree query.",
+    )
     args = parser.parse_args()
 
     paths = (args.baseline_1, args.baseline_2, args.candidate_1, args.candidate_2)
     profiles = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
     if not all(isinstance(profile, dict) for profile in profiles):
         raise SystemExit("all experiment profiles must contain JSON objects")
-    summary = compare_profile_sets([profiles[0], profiles[1]], [profiles[2], profiles[3]])
+    baseline = [profiles[0], profiles[1]]
+    candidate = [profiles[2], profiles[3]]
+    if args.collision_query_workers:
+        summary = compare_collision_query_worker_profile_sets(baseline, candidate)
+        experiment_name = "pbd-collision-query-workers"
+        improvement_key = "mesh_collision_projector_improvement_percent"
+        improvement_label = "projector-improvement"
+    else:
+        summary = compare_profile_sets(baseline, candidate)
+        experiment_name = "pypbd-openmp-team-reuse"
+        improvement_key = "projection_improvement_percent"
+        improvement_label = "projection-improvement"
+
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
@@ -434,8 +489,8 @@ def main() -> int:
     )
     status = str(summary["acceptance"])
     print(
-        f"pypbd-openmp-team-reuse={status} "
-        f"projection-improvement={summary['projection_improvement_percent']:.2f}% "
+        f"{experiment_name}={status} "
+        f"{improvement_label}={summary[improvement_key]:.2f}% "
         f"production-wall-change={summary['production_wall_time_change_percent']:.2f}%",
         flush=True,
     )
