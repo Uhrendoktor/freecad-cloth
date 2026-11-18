@@ -724,18 +724,49 @@ def run_acceptance() -> None:
         ]
 
         # The untucked shirt hem overlaps the separate waistband by 45 mm.
+        # Unlike the skirt, this shell must clear the mannequin's arms as well
+        # as its torso. Derive its independent rectangular envelope from every
+        # body vertex across the shirt height, rather than the torso-only hip slice.
         shirt_bottom_z = hip_z - 85.0
         shirt_top_z = shoulder_z + 35.0
+        shirt_body_samples = [
+            vertex
+            for vertex in body_surface.vertices
+            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shirt_top_z + 30.0
+        ]
+        if len(shirt_body_samples) < 100:
+            raise RuntimeError("authoritative mannequin surface has insufficient shirt-height samples")
+        shirt_radius_x = max(
+            radius_x,
+            max(abs(float(vertex[0]) - center_x) for vertex in shirt_body_samples) + 28.0,
+        )
+        shirt_center_y = 0.5 * (
+            min(float(vertex[1]) for vertex in shirt_body_samples)
+            + max(float(vertex[1]) for vertex in shirt_body_samples)
+        )
+        shirt_radius_y = 0.5 * (
+            max(float(vertex[1]) for vertex in shirt_body_samples)
+            - min(float(vertex[1]) for vertex in shirt_body_samples)
+        ) + 28.0
+        _log(
+            "shirt-body-envelope samples=%d radius_x_mm=%.3f radius_y_mm=%.3f center_y_mm=%.3f"
+            % (
+                len(shirt_body_samples),
+                shirt_radius_x,
+                shirt_radius_y,
+                shirt_center_y,
+            )
+        )
         shirt = _make_ring(
             doc,
             "Shirt",
-            radius_x + 7.0,
-            radius_y + 7.0,
+            shirt_radius_x + 7.0,
+            shirt_radius_y + 7.0,
             shirt_bottom_z,
             shirt_top_z - shirt_bottom_z,
             *rotations,
             center_x,
-            center_y,
+            shirt_center_y,
         )
         shirt_seams = _sew_ring(doc, "Shirt", shirt)
         doc.recompute()

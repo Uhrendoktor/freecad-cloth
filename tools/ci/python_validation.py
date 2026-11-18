@@ -95,8 +95,6 @@ GROUPS = {
         "tests/test_fitting_handoff_command_registration.py",
         "tests/test_fitting_gui_status.py",
         "tests/test_diagnostics_gui_contract.py",
-        "tests/test_diagnostics_gui_contract.py",
-        "tests/test_fitting_gui_status.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",
