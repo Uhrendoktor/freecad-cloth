@@ -206,11 +206,11 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +				#pragma omp barrier
 +			}
 +
++			#pragma omp barrier
 +			#pragma omp master
 +			{
 +				STOP_TIMING_AVG;
 +			}
-+			#pragma omp barrier
 +
 +			if (numBodies > MIN_PARALLEL_SIZE)
 +			{
