@@ -54,6 +54,20 @@ def test_one_canonical_workflow() -> None:
     assert "workflow_run:" not in shared
 
 
+def test_guarded_rebase_resolves_only_the_non_runtime_agent_plan_conflict() -> None:
+    """Retain current main planning state while failing closed on every other rebase conflict."""
+    source = WORKFLOW.read_text(encoding="utf-8")
+    rebase = _job_block(source, "guarded-rebase-pr")
+
+    assert "if ! git rebase origin/main; then" in rebase
+    assert 'CONFLICTS[0]}" != ".agent/PLANS.md"' in rebase
+    assert 'git checkout --ours -- .agent/PLANS.md' in rebase
+    assert "git add .agent/PLANS.md" in rebase
+    assert "GIT_EDITOR=true git rebase --continue" in rebase
+    assert "git merge-base --is-ancestor origin/main HEAD" in rebase
+    assert "git push --force-with-lease=" in rebase
+
+
 def test_pull_requests_are_trusted_before_using_the_configured_hosted_runner() -> None:
     """Allow same-repository, non-Dependabot PRs into the configured hosted group."""
     workflow_dir = ROOT / ".github" / "workflows"
