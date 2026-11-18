@@ -35,8 +35,6 @@ def _emit_contact_diagnostic(message: str) -> None:
     )
 
 
-
-
 class InterClothContactMetrics(NamedTuple):
     """Measured cross-garment contact projection activity for one solver frame."""
 
@@ -1069,18 +1067,11 @@ def measure_inter_cloth_contacts_with_constraints(
         ValueError: If positions, triangle indices, garment identities or clearance
             are invalid.
     """
-    positions = np.asarray(positions_mm, dtype=np.float64)
-    clearance = float(clearance_mm)
-    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
-        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
-        raise ValueError(msg)
-    if not bool(np.isfinite(positions).all()):
-        msg = "inter-cloth positions must be finite"
-        raise ValueError(msg)
-    if not np.isfinite(clearance) or clearance <= 0.0:
-        msg = "inter-cloth clearance must be positive and finite"
-        raise ValueError(msg)
-    surfaces, _ = _index_garment_surfaces(positions, triangles_by_group, operation="measurement")
+    positions, clearance, surfaces = _validated_measurement_inputs(
+        positions_mm,
+        triangles_by_group,
+        clearance_mm,
+    )
     return _measure_contacts(positions, surfaces, clearance, collect_constraints=True)
 
 
