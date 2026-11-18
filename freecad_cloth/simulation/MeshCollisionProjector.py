@@ -278,7 +278,9 @@ class MeshCollisionProjector:
             w = (d00 * d21 - d01 * d20) / safe_denominator
             u = 1.0 - v - w
             projected_plane = a + v[:, :, None] * ab + w[:, :, None] * ac
-            barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
+            barycentric_inside = (
+                (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
+            )
 
             edge_ab = ab
             edge_bc = c - b
@@ -338,7 +340,9 @@ class MeshCollisionProjector:
             # Its face normal may point into another part of the solid, so normal-only
             # projection can leave an interior particle embedded. Inspect ambiguous
             # edge/positive-side candidates against the exact closed surface.
-            ambiguous = (~barycentric_inside[row_indices, nearest_candidate]) | (signed_distance >= 0.0)
+            ambiguous = (~barycentric_inside[row_indices, nearest_candidate]) | (
+                signed_distance >= 0.0
+            )
             ambiguous_indices = np.flatnonzero(ambiguous)
             if ambiguous_indices.size:
                 inside_corrected, inside_normals = self._project_inside_points(
