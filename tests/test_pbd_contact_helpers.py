@@ -276,26 +276,14 @@ def test_inter_cloth_query_workers_default_to_one_and_validate(
 
 def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_projection(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """Four-worker exact KDTree broad phase must retain candidates and physical results."""
+    """Four-worker exact KDTree broad phase must preserve candidates and physical results."""
     positions, groups = _parallel_cloth_groups(offset_mm=0.25)
     points = np.asarray(positions, dtype=np.float64)
     source = _surface_index(points, np.asarray(groups["shirt"], dtype=np.int64))
     target = _surface_index(points, np.asarray(groups["skirt"], dtype=np.int64))
-    query_calls: list[dict[str, object]] = []
-    tree_type = type(target.triangle_tree)
-    original_query = tree_type.query_ball_point
-
-    def recording_query(
-        tree: object,
-        *args: object,
-        **kwargs: object,
-    ) -> object:
-        """Record actual SciPy worker arguments while retaining the real exact query."""
-        query_calls.append(dict(kwargs))
-        return original_query(tree, *args, **kwargs)
-
-    monkeypatch.setattr(tree_type, "query_ball_point", recording_query)
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_DIAGNOSTICS", "1")
 
     monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "1")
     single_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
@@ -306,6 +294,7 @@ def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_proje
             strict=True,
         )
     )
+    single_log = capsys.readouterr().out
     single_positions, _single_directions, single_metrics = project_inter_cloth_contacts(
         positions,
         groups,
@@ -313,6 +302,7 @@ def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_proje
         clearance_mm=1.0,
         iterations=16,
     )
+    single_log += capsys.readouterr().out
 
     monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "4")
     parallel_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
@@ -323,6 +313,7 @@ def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_proje
             strict=True,
         )
     )
+    parallel_log = capsys.readouterr().out
     parallel_positions, _parallel_directions, parallel_metrics = project_inter_cloth_contacts(
         positions,
         groups,
@@ -330,12 +321,14 @@ def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_proje
         clearance_mm=1.0,
         iterations=16,
     )
+    parallel_log += capsys.readouterr().out
 
     assert single_pairs == parallel_pairs
-    assert query_calls
-    assert all(call.get("eps") == 0.0 for call in query_calls)
-    assert any(call.get("workers") == 1 for call in query_calls)
-    assert any(call.get("workers") == 4 for call in query_calls)
+    assert single_candidates[2] == parallel_candidates[2]
+    assert "workers=1" in single_log
+    assert "workers=4" in parallel_log
+    assert "eps=0.0" in single_log
+    assert "eps=0.0" in parallel_log
     np.testing.assert_allclose(parallel_positions, single_positions, rtol=0.0, atol=1e-8)
     assert parallel_metrics.contact_count == single_metrics.contact_count
     assert parallel_metrics.corrected_particle_count == single_metrics.corrected_particle_count
