@@ -654,8 +654,8 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     ):
         assert f"steps.{step_id}.outcome" in report
     assert "::error title=Paired production audit failed" in report
-    assert "5% projection" in report
-    assert "non-regressing wall-time gates" in report
+    assert "at least 5%" in report
+    assert "no production wall-time regression" in report
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
