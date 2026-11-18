@@ -55,7 +55,7 @@ class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
     """Shared native document identity and property operations for scene features."""
 
     @property
-    def Document(self) -> _SimulationDocument | None:
+    def Document(self) -> _SimulationDocument:
         """Return the document that owns this persistent feature."""
         ...
 
@@ -132,7 +132,7 @@ class _SimulationMeshFeature(_MeshObjectKey, Protocol):
     ClothMeshType: str
 
 
-class _SimulationFeature(_MeshObjectKey, Protocol):
+class _SimulationFeature(_MeshObjectKey, SimulationScene, Protocol):
     """Feature properties created and persisted by the simulation factory."""
 
     Label: str

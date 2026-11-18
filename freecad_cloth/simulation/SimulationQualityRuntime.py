@@ -16,6 +16,7 @@ from freecad_cloth.simulation.SimulationObjects import (
     _write_mesh,
     resolve_pin_indices,
 )
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 from freecad_cloth.simulation.SimulationQuality import (
     QUALITY_PRESETS,
     normalize_color_rgb,
@@ -26,40 +27,8 @@ QUALITY_NAMES = tuple(QUALITY_PRESETS)
 _RUNTIME_BASES = weakref.WeakKeyDictionary()
 
 
-class _QualityScene(Protocol):
-    """Dynamic FreeCAD feature fields owned by the quality runtime."""
-
-    QualityPreset: str
-    ParticleDistance: float
-    SolverIterations: int
-    SolverSubsteps: int
-    PinMode: str
-    FabricDensity: float
-    FabricThickness: float
-    FabricStretch: float
-    FabricShear: float
-    FabricBend: float
-    FabricFriction: float
-    FabricColor: tuple[float, float, float]
-    FabricSpecular: float
-    FabricRoughness: float
-    FabricTransparency: int
-    AvatarSkinOffset: float
-    Steps: int
-    ClothPieces: Sequence[_PatternPieceDocumentObject]
-
-    def addProperty(self, type_name: str, name: str, group: str) -> Self:
-        """Register one persistent property on the FreeCAD feature.
-
-        Args:
-            type_name: Native FreeCAD property type.
-            name: Property name to add.
-            group: Property group displayed by FreeCAD.
-
-        Returns:
-            The FreeCAD feature on which the property was registered.
-        """
-        ...
+class _QualityScene(SimulationScene, Protocol):
+    """Quality-runtime view of the canonical simulation scene."""
 
 
 def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:

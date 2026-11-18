@@ -43,7 +43,7 @@ class SimulationQualityTaskPanel:
         "PinMode",
     )
 
-    def __init__(self, scene=None):
+    def __init__(self, scene: SimulationScene | None = None):
         App, Gui, QtCore, QtWidgets, QtGui = _qt()
         from freecad_cloth.simulation.SimulationObjects import PIN_MODE_NAMES
         from freecad_cloth.simulation.SimulationQualityRuntime import (
@@ -58,7 +58,7 @@ class SimulationQualityTaskPanel:
             QtWidgets,
             QtGui,
         )
-        self.scene = scene
+        self.scene: SimulationScene | None = scene
         self._apply_quality_preset = apply_quality_preset
         self._snapshot = None
         if self.scene is not None:
