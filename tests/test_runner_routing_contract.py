@@ -112,6 +112,14 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
     assert "sys.stdout.write(" in resolver
     assert "removing only the obsolete pytest root bootstrap" in resolver
+    assert '[[ "$conflicts" == "tests/test_simulation_gui.py" ]]' in resolver
+    assert "ffd9acf1e6e06794ded282037216e1db0449775c" in resolver
+    assert "d94c75f1fe15f978a3c5be15d3068ac46e59e96a" in resolver
+    assert "Preserving mainline simulation viewport tests" in resolver
+    assert "Preserving mainline viewport regressions" in resolver
+    assert "restoring the exact standalone-script root bootstrap" in resolver
+    assert "sys.stdout.write(\"simulation GUI tests passed\\n\")" in resolver
+    assert "Expected already-cleaned test bootstrap state before restoration." in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
