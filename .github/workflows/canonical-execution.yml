@@ -189,11 +189,11 @@ jobs:
         name: Derive immutable PBD image tag
         run: |
           set -euo pipefail
-          if [[ -f docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch ]]; then
+          if [[ -f docker/freecad-ci/patches/pypbd-stitch-group-cache.patch ]]; then
             digest="$(
               {
                 sha256sum docker/freecad-ci/Dockerfile
-                sha256sum docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch
+                sha256sum docker/freecad-ci/patches/pypbd-stitch-group-cache.patch
               } | sha256sum | cut -d' ' -f1
             )"
           else
@@ -379,32 +379,32 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", stitch-cache: "0", profile-name: baseline-1}
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", stitch-cache: "1", profile-name: candidate-1}
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", stitch-cache: "0", profile-name: baseline-2}
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", stitch-cache: "1", profile-name: candidate-2, collect-evidence: "true"}
       - name: Compare matched native production profiles
         id: compare_paired_profiles
         shell: bash
         run: |
           python3 tools/ci/compare_pbd_openmp_team_reuse.py \
-            --baseline-1 artifacts/pbd-openmp-team-reuse/baseline-1.json \
-            --baseline-2 artifacts/pbd-openmp-team-reuse/baseline-2.json \
-            --candidate-1 artifacts/pbd-openmp-team-reuse/candidate-1.json \
-            --candidate-2 artifacts/pbd-openmp-team-reuse/candidate-2.json \
-            --output artifacts/pbd-openmp-team-reuse/comparison.json
+            --baseline-1 artifacts/pbd-stitch-group-cache/baseline-1.json \
+            --baseline-2 artifacts/pbd-stitch-group-cache/baseline-2.json \
+            --candidate-1 artifacts/pbd-stitch-group-cache/candidate-1.json \
+            --candidate-2 artifacts/pbd-stitch-group-cache/candidate-2.json \
+            --output artifacts/pbd-stitch-group-cache/comparison.json
       - name: Upload matched PBD experiment profiles
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: pbd-openmp-team-reuse-comparison
-          path: artifacts/pbd-openmp-team-reuse/**
+          name: pbd-stitch-group-cache-comparison
+          path: artifacts/pbd-stitch-group-cache/**
           if-no-files-found: error
       - name: Report paired native production audit outcome
         if: always()
@@ -423,7 +423,7 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 10% stitch-stage and non-regressing wall-time gates."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
