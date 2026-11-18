@@ -18,7 +18,9 @@ EXPECTED_BACKEND_STEPS = 360
 EXPECTED_NATIVE_SUBSTEPS = 16
 EXPECTED_POSITION_ITERATIONS = 8
 MIN_PROJECTION_IMPROVEMENT = 0.05
+MIN_COLLISION_QUERY_IMPROVEMENT = 0.10
 EXPERIMENT_ENVIRONMENT_KEY = "CLOTH_PBD_OPENMP_TEAM_REUSE"
+COLLISION_QUERY_ENVIRONMENT_KEY = "CLOTH_PBD_COLLISION_QUERY_WORKERS"
 EXPERIMENT_MODULE_PREFIX = "/opt/pypbd-openmp-experiment/"
 RUNTIME_CONTEXT_KEYS = (
     "cpu_model",
@@ -58,8 +60,15 @@ def _integer(value: JsonValue, label: str) -> int:
     return value
 
 
-def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> None:
-    """Require one complete production audit with the expected native mode."""
+def _validate_profile(
+    profile: JsonObject,
+    expected_mode: str,
+    label: str,
+    *,
+    experiment_environment_key: str = EXPERIMENT_ENVIRONMENT_KEY,
+    required_environment: dict[str, str] | None = None,
+) -> None:
+    """Require one complete production audit with the expected experiment mode."""
     if profile.get("simulation_complete") is not True or profile.get("audit_complete") is not True:
         raise ValueError(f"{label}: production audit did not complete")
     if profile.get("acceptance_gates") != "passed":
@@ -130,8 +139,11 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
         runtime.get("thread_environment"),
         f"{label}.runtime_limits.thread_environment",
     )
-    if thread_environment.get(EXPERIMENT_ENVIRONMENT_KEY) != expected_mode:
-        raise ValueError(f"{label}: unexpected {EXPERIMENT_ENVIRONMENT_KEY} mode")
+    if thread_environment.get(experiment_environment_key) != expected_mode:
+        raise ValueError(f"{label}: unexpected {experiment_environment_key} mode")
+    for key, value in (required_environment or {}).items():
+        if thread_environment.get(key) != value:
+            raise ValueError(f"{label}: {key} must remain {value} in every comparison run")
 
     provenance = profile.get("pypbd_provenance")
     if (
@@ -143,13 +155,16 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
         raise ValueError(f"{label}: native experiment binary provenance is incomplete")
 
 
-def _runtime_signature(profile: JsonObject) -> tuple[JsonValue, ...]:
-    """Return fixed runner/OpenMP context, excluding the intentional mode toggle."""
+def _runtime_signature(
+    profile: JsonObject,
+    experiment_environment_key: str = EXPERIMENT_ENVIRONMENT_KEY,
+) -> tuple[JsonValue, ...]:
+    """Return fixed runner/OpenMP context, excluding one declared experiment toggle."""
     runtime = _as_object(profile.get("runtime_limits"), "runtime_limits")
     environment = dict(
         _as_object(runtime.get("thread_environment"), "runtime_limits.thread_environment")
     )
-    environment.pop(EXPERIMENT_ENVIRONMENT_KEY, None)
+    environment.pop(experiment_environment_key, None)
     context: list[JsonValue] = [runtime.get(key) for key in RUNTIME_CONTEXT_KEYS]
     context.extend((environment, profile.get("pypbd_provenance")))
     return tuple(context)
@@ -166,6 +181,123 @@ def _projection_total(profile: JsonObject, label: str) -> float:
         f"{label}.position constraints projection",
     )
     return _finite_number(projection.get("total_ms"), f"{label}.projection.total_ms")
+
+
+
+def _mesh_collision_projector_total(profile: JsonObject, label: str) -> float:
+    """Read the complete batched mesh-projector timing from one production profile."""
+    stages = _as_object(
+        profile.get("python_backend_stage_timings"),
+        f"{label}.python_backend_stage_timings",
+    )
+    projector = _as_object(stages.get("mesh_collision_projector"), f"{label}.mesh_collision_projector")
+    samples = _integer(projector.get("samples"), f"{label}.mesh_collision_projector.samples")
+    if samples != EXPECTED_BACKEND_STEPS:
+        raise ValueError(f"{label}: mesh collision projector timing sample count is incomplete")
+    return _finite_number(
+        projector.get("total_ms"), f"{label}.mesh_collision_projector.total_ms"
+    )
+
+
+def compare_collision_query_worker_profile_sets(
+    baseline_profiles: list[JsonObject],
+    candidate_profiles: list[JsonObject],
+) -> JsonObject:
+    """Require four complete matched audits and enforce query-stage and wall-time gates.
+
+    Baseline uses one KDTree query worker; candidate uses four. Both keep the merged
+    native OpenMP team-reuse path enabled and preserve exact nearest-neighbour search.
+    """
+    if len(baseline_profiles) != 2 or len(candidate_profiles) != 2:
+        raise ValueError("exactly two one-worker and two four-worker profiles are required")
+
+    records = [
+        *((profile, "1", f"baseline-{index + 1}") for index, profile in enumerate(baseline_profiles)),
+        *((profile, "4", f"candidate-{index + 1}") for index, profile in enumerate(candidate_profiles)),
+    ]
+    for profile, workers, label in records:
+        _validate_profile(
+            profile,
+            workers,
+            label,
+            experiment_environment_key=COLLISION_QUERY_ENVIRONMENT_KEY,
+            required_environment={"CLOTH_PBD_OPENMP_TEAM_REUSE": "1"},
+        )
+
+    reference = baseline_profiles[0]
+    settings = reference.get("production_settings")
+    groups = reference.get("native_constraint_groups")
+    runtime = _runtime_signature(reference, COLLISION_QUERY_ENVIRONMENT_KEY)
+    for profile, _, label in records[1:]:
+        if profile.get("production_settings") != settings:
+            raise ValueError(f"{label}: production settings differ from the matched baseline")
+        if profile.get("native_constraint_groups") != groups:
+            raise ValueError(
+                f"{label}: native constraint grouping differs from the matched baseline"
+            )
+        if _runtime_signature(profile, COLLISION_QUERY_ENVIRONMENT_KEY) != runtime:
+            raise ValueError(
+                f"{label}: execution context differs (runner, OpenMP, or native build)"
+            )
+
+    baseline_projector = [
+        _mesh_collision_projector_total(profile, f"baseline-{index + 1}")
+        for index, profile in enumerate(baseline_profiles)
+    ]
+    candidate_projector = [
+        _mesh_collision_projector_total(profile, f"candidate-{index + 1}")
+        for index, profile in enumerate(candidate_profiles)
+    ]
+    baseline_wall = [
+        _finite_number(profile.get("elapsed_production_ms"), f"baseline-{i}.elapsed_production_ms")
+        for i, profile in enumerate(baseline_profiles, 1)
+    ]
+    candidate_wall = [
+        _finite_number(profile.get("elapsed_production_ms"), f"candidate-{i}.elapsed_production_ms")
+        for i, profile in enumerate(candidate_profiles, 1)
+    ]
+
+    baseline_median_projector = median(baseline_projector)
+    candidate_median_projector = median(candidate_projector)
+    baseline_median_wall = median(baseline_wall)
+    candidate_median_wall = median(candidate_wall)
+    projector_improvement = 1.0 - candidate_median_projector / baseline_median_projector
+    wall_time_change = candidate_median_wall / baseline_median_wall - 1.0
+
+    rejection_reasons: list[str] = []
+    if projector_improvement < MIN_COLLISION_QUERY_IMPROVEMENT:
+        rejection_reasons.append(
+            "four-worker mesh collision projector improvement is below 10%: "
+            f"{projector_improvement * 100:.2f}%"
+        )
+    if wall_time_change > 0.0:
+        rejection_reasons.append(
+            "four-worker median production wall time regressed: "
+            f"{wall_time_change * 100:.2f}%"
+        )
+
+    return {
+        "schema_version": 1,
+        "experiment": "pypbd-mesh-collision-kdtree-query-workers",
+        "repetitions_per_mode": 2,
+        "baseline_query_workers": 1,
+        "candidate_query_workers": 4,
+        "production_acceptance": "passed_all_four_runs",
+        "baseline_mesh_collision_projector_total_ms": baseline_projector,
+        "candidate_mesh_collision_projector_total_ms": candidate_projector,
+        "baseline_median_mesh_collision_projector_ms": baseline_median_projector,
+        "candidate_median_mesh_collision_projector_ms": candidate_median_projector,
+        "mesh_collision_projector_improvement_fraction": projector_improvement,
+        "mesh_collision_projector_improvement_percent": 100.0 * projector_improvement,
+        "baseline_production_wall_ms": baseline_wall,
+        "candidate_production_wall_ms": candidate_wall,
+        "baseline_median_production_wall_ms": baseline_median_wall,
+        "candidate_median_production_wall_ms": candidate_median_wall,
+        "production_wall_time_change_fraction": wall_time_change,
+        "production_wall_time_change_percent": 100.0 * wall_time_change,
+        "acceptance": "rejected" if rejection_reasons else "passed",
+        "rejection_reasons": rejection_reasons,
+    }
 
 
 def compare_profile_sets(
