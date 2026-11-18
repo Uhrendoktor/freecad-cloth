@@ -144,6 +144,86 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_tunic_audit_contract.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "2856b23e6fc14666c6ce36ce2f91e0b18fe95094" ]] ||
+      ! git show origin/main:tests/test_tunic_audit_contract.py | grep -Fq 'def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics()' ||
+      git show origin/main:tests/test_tunic_audit_contract.py | grep -Fq 'test_native_arc_evaluator_returns_validated_planar_coordinates' ||
+      ! git show "${rebase_commit}:tests/test_tunic_audit_contract.py" | grep -Fq 'from tests.support.freecad_arc_geometry import _native_curve_value' ||
+      ! git show "${rebase_commit}:tests/test_tunic_audit_contract.py" | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()'; then
+      echo "::error::Refusing a tunic-audit test conflict outside the verified native-arc boundary regression commit and current-main profiling contract."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline tunic profiling contracts and transplanting only the exact native-arc boundary regression."
+    git checkout --ours -- tests/test_tunic_audit_contract.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tests/test_tunic_audit_contract.py")
+source = path.read_text(encoding="utf-8")
+dataclass_import = "from dataclasses import dataclass\n"
+importlib_import = "from importlib import import_module\n"
+collision_import = "from freecad_cloth.shared.Collision import CollisionSurface\n"
+arc_import = "from tests.support.freecad_arc_geometry import _native_curve_value\n"
+if source.count(importlib_import) != 1 or source.count(collision_import) != 1:
+    raise SystemExit("Unexpected tunic audit import structure; refusing test transplant.")
+if "from dataclasses import dataclass" in source or arc_import.strip() in source:
+    raise SystemExit("Native arc regression imports already exist; refusing duplicate transplant.")
+source = source.replace(importlib_import, dataclass_import + importlib_import)
+source = source.replace(collision_import, collision_import + arc_import)
+
+regression = '''
+
+@dataclass
+class _NativeArcPoint:
+    """Mutable native-point stand-in used to test the dynamic coordinate boundary."""
+
+    x: float
+    y: float
+
+
+class _NativeArcCurve:
+    """Expose one native-style parameter evaluator for the boundary regression."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        return _NativeArcPoint(parameter_value, parameter_value + 1.0)
+
+
+class _MalformedNativeArcCurve:
+    """Expose malformed native coordinates without changing the declared method type."""
+
+    def valueAt(self, parameter_value: float) -> _NativeArcPoint:
+        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)
+        setattr(point, "x", "invalid")
+        return point
+
+
+def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:
+    """Accept numeric FreeCAD point coordinates and reject malformed binding values."""
+    point = _native_curve_value(_NativeArcCurve(), 2.5)
+    assert (point.x, point.y) == (2.5, 3.5)
+
+    for curve in (
+        _MalformedNativeArcCurve(),
+    ):
+        try:
+            _native_curve_value(curve, 2.5)
+        except TypeError as error:
+            assert "numeric x/y" in str(error)
+        else:
+            raise AssertionError("malformed native point coordinates must be rejected")
+'''
+if source.count("def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics()") != 1:
+    raise SystemExit("Mainline tunic profiling test anchor is missing or duplicated.")
+if "test_native_arc_evaluator_returns_validated_planar_coordinates" in source:
+    raise SystemExit("Native arc regression already present; refusing duplicate append.")
+source = source.rstrip() + regression + "\n"
+path.write_text(source, encoding="utf-8")
+PY
+    git add tests/test_tunic_audit_contract.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
