@@ -30,7 +30,7 @@ while [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; do
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     main_test="$(git show origin/main:tests/test_ci_configuration.py)"
     main_workflow="$(git show origin/main:.github/workflows/canonical-execution.yml)"
-    timeout_count="$(printf '%s\\n' "$main_workflow" | awk '/timeout-seconds:/ { count++ } END { print count+0 }')"
+    timeout_count="$(printf '%s\n' "$main_workflow" | awk '/timeout-seconds:/ { count++ } END { print count+0 }')"
     if [[ "$rebase_commit" != "a55b4422b1c258e65a4d1bc72f114b8710fba0b0" ]] ||
       [[ "$main_test" != *"pbd-realtime-diagnostic"* ]] ||
       [[ "$timeout_count" != "6" ]]; then
