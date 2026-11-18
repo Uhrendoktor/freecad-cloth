@@ -1,11 +1,11 @@
 name: PBD production tunic audit
-description: Run one fail-closed native PBD production audit for the OpenMP A/B experiment.
+description: Run one fail-closed native PBD production audit for the current projection-reuse versus full-step OpenMP experiment.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
     required: true
   mode:
-    description: Native execution mode, 0 for upstream baseline or 1 for persistent team reuse.
+    description: Native execution mode, 0 for current PR #2866 projection-local team reuse or 1 for full-step team reuse.
     required: true
   profile-name:
     description: Stable profile name (baseline-1, candidate-1, baseline-2, candidate-2).
@@ -40,11 +40,12 @@ runs:
           artifacts/freecad-realtime/**
         scene-report-command: ${{ inputs.collect-evidence == 'true' && 'python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated' || '' }}
         observation-root: docs/images/generated
-        observation-label: Paired native PBD OpenMP team-reuse tunic audit
+        observation-label: Paired native PBD full-step OpenMP team-reuse tunic audit
         observation-files: ${{ inputs.collect-evidence == 'true' && 'summary=scene-understanding.json;visual=scene-understanding.svg' || '' }}
         environment: |
           PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
-          CLOTH_PBD_OPENMP_TEAM_REUSE=${{ inputs.mode }}
+          CLOTH_PBD_OPENMP_TEAM_REUSE=1
+          CLOTH_PBD_OPENMP_STEP_TEAM_REUSE=${{ inputs.mode }}
           FREECAD_CLOTH_ANNY_FIT_STEPS=18
           CLOTH_PBD_SUBSTEPS=16
           CLOTH_PBD_COLLISION_VOXEL_MM=8.0
