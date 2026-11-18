@@ -641,7 +641,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
     assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_action
     assert "CLOTH_PBD_COLLISION_QUERY_WORKERS" in production_action
-    assert "inputs.mode" in production_action
+    assert "inputs.query-workers" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "if: always()" not in production_action
@@ -688,7 +688,6 @@ def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fi
     )
 
 
-
 def test_collision_query_worker_parallelism_is_limited_to_batched_exact_search() -> None:
     """Only the particle batch is parallel; stitch midpoint query stays serial and exact."""
     projector = (
@@ -705,7 +704,6 @@ def test_collision_query_worker_parallelism_is_limited_to_batched_exact_search()
     assert 'os.environ.get("CLOTH_PBD_COLLISION_QUERY_WORKERS", "1")' in backend
     assert "query_workers=projector_query_workers" in backend
     assert '"CLOTH_PBD_COLLISION_QUERY_WORKERS"' in profile
-
 
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
