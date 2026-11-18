@@ -686,6 +686,18 @@ def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fi
     )
 
 
+
+def test_full_step_openmp_experiment_keeps_projection_reuse_as_the_baseline() -> None:
+    """Use the current merged projection-reuse path in both full-step A/B arms."""
+    action = (ROOT / ".github" / "actions" / "pbd-tunic-audit" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    profile = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in action
+    assert "CLOTH_PBD_OPENMP_STEP_TEAM_REUSE=${{ inputs.mode }}" in action
+    assert '"CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"' in profile
+
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
     """Verify canonical tunic fixture matches validated start geometry contract."""
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
