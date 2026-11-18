@@ -2,6 +2,7 @@
 """Unit tests for position-level mesh collision projection."""
 
 import numpy as np
+import pytest
 
 from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.Collision import CollisionSurface
@@ -82,6 +83,69 @@ def test_projector_supports_reduced_preview_candidate_count() -> None:
         )[0]
         for point in projected
     )
+
+
+
+def test_projector_parallel_batch_query_matches_single_worker_results() -> None:
+    """Parallel exact KDTree queries preserve the single-worker projected result."""
+    surface = _cube_surface()
+    single = MeshCollisionProjector(surface, clearance_mm=2.0, query_workers=1)
+    parallel = MeshCollisionProjector(surface, clearance_mm=2.0, query_workers=4)
+    points = np.asarray(
+        ((-0.5, 50.0, 50.0), (0.5, 25.0, 50.0), (50.0, 50.0, 50.0), (150.0, 50.0, 50.0)),
+        dtype=np.float64,
+    )
+
+    single_positions, single_normals = single.project(points)
+    parallel_positions, parallel_normals = parallel.project(points)
+
+    assert np.allclose(parallel_positions, single_positions, atol=1e-12, rtol=0.0)
+    assert np.allclose(parallel_normals, single_normals, atol=1e-12, rtol=0.0)
+
+
+def test_projector_uses_configured_workers_only_for_batched_query(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The particle batch uses the configured count; scalar stitch midpoint stays serial."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0, query_workers=4)
+    original_tree = projector._tree
+    query_calls: list[tuple[tuple[int, ...], int]] = []
+
+    class RecordingTree:
+        def query(
+            self,
+            points: np.ndarray,
+            *,
+            k: int,
+            eps: float,
+            workers: int,
+        ) -> tuple[np.ndarray, np.ndarray]:
+            query_calls.append((np.asarray(points).shape, workers))
+            return original_tree.query(points, k=k, eps=eps, workers=workers)
+
+    monkeypatch.setattr(projector, "_tree", RecordingTree())
+    points = np.asarray(
+        ((-100.0, 50.0, 50.0), (200.0, 50.0, 50.0)),
+        dtype=np.float64,
+    )
+    contact_positions, contact_normals = projector.project(points)
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+    )
+
+    assert query_calls == [((3,), 1), ((1, 3), 4)]
+    assert np.allclose(stitched_positions[0], stitched_positions[1])
+    assert np.all(np.isfinite(stitched_normals))
+
+
+@pytest.mark.parametrize("workers", (0, -1, True))
+def test_projector_rejects_invalid_query_worker_counts(workers: int | bool) -> None:
+    """Workers must be a positive integer and cannot use SciPy's implicit all-CPU mode."""
+    with pytest.raises(ValueError, match="query workers must be a positive integer"):
+        MeshCollisionProjector(_cube_surface(), clearance_mm=2.0, query_workers=workers)
+
 
 
 def test_projector_enforces_clearance_and_leaves_distant_points_unchanged() -> None:
