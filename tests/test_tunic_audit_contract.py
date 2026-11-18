@@ -640,12 +640,13 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert 'timeout-seconds: "360"' in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
     assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_action
+    assert "CLOTH_PBD_STITCH_GROUP_CACHE" in production_action
     assert "inputs.stitch-cache" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "if: always()" not in production_action
-    assert "compare_pbd_openmp_team_reuse.py" in gui
-    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in gui
+    assert "compare_pbd_openmp_team_reuse.py --stitch-group-cache" in gui
+    assert "artifacts/pbd-stitch-group-cache/comparison.json" in gui
     report = gui[report_index:]
     for step_id in (
         "baseline_1_audit",
