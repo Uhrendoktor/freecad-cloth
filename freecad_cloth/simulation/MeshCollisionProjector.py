@@ -8,6 +8,7 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -240,12 +241,57 @@ class MeshCollisionProjector:
         return corrected, contact_normals
 
 
+@dataclass(frozen=True, slots=True)
+class StitchGroupTopology:
+    """Immutable connected components for a fixed set of sewn particle pairs."""
+
+    particle_count: int
+    groups: tuple[tuple[int, ...], ...]
+
+
+def build_stitch_group_topology(
+    stitches: Sequence[tuple[int, int]],
+    particle_count: int,
+) -> StitchGroupTopology:
+    """Build deterministic connected components for an immutable stitch graph.
+
+    Args:
+        stitches: Validated particle-index pairs that form the authored seam graph.
+        particle_count: Number of particles in the cloth system.
+
+    Returns:
+        Sorted, immutable particle-index components. Isolated particles are omitted.
+
+    Raises:
+        ValueError: If the particle count or any stitch index is invalid.
+    """
+    if isinstance(particle_count, bool) or not isinstance(particle_count, int) or particle_count < 0:
+        msg = "stitch topology particle count must be a non-negative integer"
+        raise ValueError(msg)
+
+    topology = (
+        build_stitch_group_topology(stitches, particle_count)
+        if stitch_topology is None
+        else stitch_topology
+    )
+    if topology.particle_count != particle_count:
+        msg = "stitch topology particle count does not match collision positions"
+        raise ValueError(msg)
+    groups = topology.groups
+    return StitchGroupTopology(
+        particle_count=particle_count,
+        groups=tuple(tuple(group) for group in groups.values()),
+    )
+
+
 def project_stitched_pairs(
     projector: MeshCollisionProjector,
     positions_mm: npt.ArrayLike,
     contact_normals: npt.ArrayLike,
     stitches: Sequence[tuple[int, int]],
     pinned_indices: Sequence[int] = (),
+    *,
+    stitch_topology: StitchGroupTopology | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Close stitch groups after contact projection, including near-shell residuals.
 
@@ -267,6 +313,7 @@ def project_stitched_pairs(
         contact_normals: Per-particle contact normals from the preceding projection.
         stitches: Particle-index pairs that must remain coincident after contact response.
         pinned_indices: Particle indices whose positions must not be reconciled.
+        stitch_topology: Optional precomputed immutable components for this stitch graph.
 
     Returns:
         Corrected positions and contact normals with eligible stitch groups reconciled.
