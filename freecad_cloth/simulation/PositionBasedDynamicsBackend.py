@@ -445,6 +445,17 @@ def _pbd_collision_config(environ: Mapping[str, str] | None = None) -> PBDCollis
     )
 
 
+
+def _pbd_stitch_group_cache_enabled(
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    """Return whether immutable stitch components are cached across backend steps."""
+    settings = os.environ if environ is None else environ
+    value = settings.get("CLOTH_PBD_STITCH_GROUP_CACHE", "1").strip()
+    if value not in {"0", "1"}:
+        raise ValueError("CLOTH_PBD_STITCH_GROUP_CACHE must be '0' or '1'")
+    return value == "1"
+
 def _pbd_substeps(environ: Mapping[str, str] | None = None) -> int:
     """Return validated solver substep count from runtime configuration.
 
@@ -691,6 +702,17 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._time = 0.0
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
+        self._stitch_group_cache_enabled = _pbd_stitch_group_cache_enabled()
+        self._stitch_group_topology = None
+        if self._stitch_group_cache_enabled:
+            from freecad_cloth.simulation.MeshCollisionProjector import (
+                build_stitch_group_topology,
+            )
+
+            self._stitch_group_topology = build_stitch_group_topology(
+                self._stitches,
+                self._particle_count,
+            )
         self._simulation_initialized = False
         self._build()
 
@@ -960,6 +982,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             outward_normals,
             self._stitches,
             self._pin_indices,
+            stitch_topology=self._stitch_group_topology,
         )
         moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
         pinned = set(self._pin_indices)
