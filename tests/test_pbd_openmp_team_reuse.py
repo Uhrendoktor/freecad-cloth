@@ -188,9 +188,9 @@ def test_team_reuse_rejects_unmatched_runner_or_solver_context() -> None:
 def test_team_reuse_rejects_wrong_native_mode_and_mismatched_grouping() -> None:
     """Each profile must identify its mode and preserve the native conflict-free groups."""
     baseline, candidate = _matched_profiles()
-    candidate[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
+    candidate[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"] = "0"
 
-    with pytest.raises(ValueError, match="unexpected CLOTH_PBD_OPENMP_TEAM_REUSE"):
+    with pytest.raises(ValueError, match="unexpected CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"):
         compare_profile_sets(baseline, candidate)
 
     baseline, candidate = _matched_profiles()
