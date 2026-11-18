@@ -287,7 +287,7 @@ def fitting_stage_status(simulation: _SimulationScene | None) -> tuple[str, bool
     """
     if simulation is None:
         return "No simulation scene selected.", False
-    simulation_scene = cast("_SimulationScene", simulation)
+    simulation_scene = simulation
     fitting = _fitting_scene(simulation_scene.Document)
     if fitting is None:
         return "Not arranged yet — use Arrange / Fit… to open the fitting stage.", False
@@ -323,7 +323,7 @@ def open_arrange_fit_from_simulation(simulation: _SimulationScene) -> _FittingSc
 
     app = cast("_FreeCADApplication", App)
     gui = cast("_FreeCADGui", Gui)
-    simulation_scene = cast("_SimulationScene", simulation)
+    simulation_scene = simulation
     doc = simulation_scene.Document or app.ActiveDocument
     if doc is None:
         msg = "open a document before opening Arrange / Fit"

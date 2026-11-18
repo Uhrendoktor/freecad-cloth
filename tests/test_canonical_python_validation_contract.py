@@ -6,7 +6,6 @@ import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
 
 import pytest
 
@@ -41,7 +40,7 @@ def _require_mapping(value: JsonValue, *, label: str) -> JsonObject:
     if not isinstance(value, dict):
         msg = f"{label} must be a dictionary"
         raise TypeError(msg)
-    return cast("JsonObject", value)
+    return value
 
 
 def test_collection_plugin_accepts_all_expected_modules() -> None:

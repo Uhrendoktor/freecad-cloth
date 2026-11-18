@@ -435,7 +435,7 @@ class _Preview:
             msg = "Realtime preview requires an initialized solver backend"
             raise RuntimeError(msg)
 
-        panels = cast("Sequence[_PreviewPanel]", self.scene.DrapePanels)
+        panels = self.scene.DrapePanels
         panel_triangles = cast("dict[str, Sequence[_Triangle]]", base.panel_triangles)
         mesh_preview = RealtimeMeshPreview(
             panels,

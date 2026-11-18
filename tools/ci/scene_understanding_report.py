@@ -1372,7 +1372,7 @@ def render_pattern_svg(report: JsonObject) -> str:
     for piece_number, raw_piece in enumerate(pieces[:2]):
         if isinstance(raw_piece, dict):
             pieces_rendered.extend(
-                _render_pattern_piece(cast("JsonObject", raw_piece), piece_number, armholes)
+                _render_pattern_piece(raw_piece, piece_number, armholes)
             )
     if not pieces_rendered:
         pieces_rendered.append(
@@ -1429,7 +1429,7 @@ def _render_fit_section(lines: list[str], report: JsonObject) -> None:
         for raw_finding in fit_findings:
             if not isinstance(raw_finding, dict):
                 continue
-            finding = cast("JsonObject", raw_finding)
+            finding = raw_finding
             lines.append(
                 f"- **WARNING — {finding.get('kind')}:** {finding.get('message')} "
                 f"({finding.get('observed_mm')} mm; heuristic review threshold "
@@ -1460,7 +1460,7 @@ def _render_geometry_issues(lines: list[str], report: JsonObject) -> None:
         for raw_issue in issues:
             if not isinstance(raw_issue, dict):
                 continue
-            issue = cast("JsonObject", raw_issue)
+            issue = raw_issue
             point = issue.get("point_local_mm")
             point_text = (
                 f"({float(point[0]):.3f}, {float(point[1]):.3f}) mm"
@@ -1511,7 +1511,7 @@ def _render_placement_section(lines: list[str], report: JsonObject) -> None:
             raw_panel = panels[side]
             if not isinstance(raw_panel, dict):
                 continue
-            panel = cast("JsonObject", raw_panel)
+            panel = raw_panel
             lines.append(
                 f"- **{side}:** panel origin Y = {panel.get('panel_origin_y_mm')} mm; "
                 f"clearance used = {panel.get('configured_clearance_mm')} mm; "
@@ -1539,7 +1539,7 @@ def _render_evidence_section(lines: list[str], report: JsonObject) -> None:
         for raw_image in image_records:
             if not isinstance(raw_image, dict):
                 continue
-            image = cast("JsonObject", raw_image)
+            image = raw_image
             lines.append(
                 f"- {image.get('path')} — {image.get('size_bytes')} bytes; "
                 f"SHA-256 hash: {image.get('sha256')}"

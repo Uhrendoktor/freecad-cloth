@@ -37,7 +37,7 @@ def _manifest_assets() -> tuple[JsonObject | None, list[str]]:
     assets = payload.get("assets")
     if not isinstance(assets, dict):
         return None, ["visual asset manifest must contain an assets object"]
-    return cast("JsonObject", assets), []
+    return assets, []
 
 
 def _production_configuration(

@@ -473,7 +473,7 @@ class DrapeTargetTaskPanel:
         """
         if self.doc is None:
             return None
-        document = cast("_FreeCADDocument", self.doc)
+        document = self.doc
         return document.getObject("DrapeTarget")
 
     def _populate_sources(self) -> None:
@@ -482,7 +482,7 @@ class DrapeTargetTaskPanel:
         self.source.clear()
         if self.doc is None:
             return
-        document = cast("_FreeCADDocument", self.doc)
+        document = self.doc
         for obj in document.Objects:
             if obj is self.target:
                 continue
@@ -504,7 +504,7 @@ class DrapeTargetTaskPanel:
             self.apply_button.setEnabled(False)
             return
         self._loading = True
-        target = cast("_DrapeTargetFeature", self.target)
+        target = self.target
         self.target_type.setCurrentText(str(getattr(target, "TargetType", "FreeCAD Geometry")))
         source_obj = getattr(target, "SourceObject", None)
         source_index = next(
@@ -575,7 +575,7 @@ class DrapeTargetTaskPanel:
         """Render status and invalidation details from the persisted target."""
         if self.target is None:
             return
-        target = cast("_DrapeTargetFeature", self.target)
+        target = self.target
         state = str(getattr(target, "TargetStatus", "unbuilt"))
         reason = str(getattr(target, "InvalidationReason", ""))
         message = f"Target status: {state}"
@@ -748,13 +748,13 @@ class DrapeTargetTaskPanel:
             return False
         if assign_target is None:
             assign_target = _assign_drape_target
-        target = cast("_DrapeTargetFeature", self.target)
+        target = self.target
         target.CollisionDeflection = self.deflection.value()
         target.CollisionThickness = self.thickness.value()
         target.Enabled = self.enabled.isChecked()
         assign_target(target, source, target_type)
         if self.doc is not None:
-            cast("_FreeCADDocument", self.doc).recompute()
+            self.doc.recompute()
         self._refresh_status()
         return True
 
@@ -777,7 +777,7 @@ class DrapeTargetTaskPanel:
         """
         if self._source_picker is not None:
             self._cancel_source_pick(update_status=False)
-        gui = cast("_FreeCADGui", self.Gui)
+        gui = self.Gui
         if gui.activeDocument() and gui.Control.activeDialog():
             gui.Control.closeDialog()
         return True
