@@ -599,7 +599,7 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     assert "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile, (
         'Contract failed: "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile'
     )
-    assert "artifacts/pbd-openmp-team-reuse/**" in gui, (
+    assert "artifacts/pbd-stitch-group-cache/**" in gui, (
         'Contract failed: "artifacts/pbd-openmp-team-reuse/**" in gui'
     )
 
@@ -639,7 +639,8 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
     assert 'timeout-seconds: "360"' in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
-    assert "inputs.mode" in production_action
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_action
+    assert "inputs.stitch-cache" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "if: always()" not in production_action
@@ -654,8 +655,8 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     ):
         assert f"steps.{step_id}.outcome" in report
     assert "::error title=Paired production audit failed" in report
-    assert "5% projection" in report
-    assert "non-regressing wall-time gates" in report
+    assert "10% stitch-stage" in report
+    assert "non-regressing production wall-time gates" in report
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
