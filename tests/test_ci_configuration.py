@@ -155,24 +155,26 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
         assert "id: " in step
         assert "image:" in step
     assert "id: baseline_1_audit" in production_tunic_steps[0]
-    assert 'mode: "0"' in production_tunic_steps[0]
+    assert 'query-workers: "1"' in production_tunic_steps[0]
     assert "profile-name: baseline-1" in production_tunic_steps[0]
     assert "id: candidate_1_audit" in production_tunic_steps[1]
-    assert 'mode: "1"' in production_tunic_steps[1]
+    assert 'query-workers: "4"' in production_tunic_steps[1]
     assert "profile-name: candidate-1" in production_tunic_steps[1]
     assert "id: baseline_2_audit" in production_tunic_steps[2]
+    assert 'query-workers: "1"' in production_tunic_steps[2]
     assert "profile-name: baseline-2" in production_tunic_steps[2]
     assert "id: candidate_2_audit" in production_tunic_steps[3]
+    assert 'query-workers: "4"' in production_tunic_steps[3]
     assert "profile-name: candidate-2" in production_tunic_steps[3]
     assert 'collect-evidence: "true"' in production_tunic_steps[3]
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
     assert 'timeout-seconds: "360"' in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
-    assert "inputs.mode" in production_action
+    assert "inputs.query-workers" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
-    assert "compare_pbd_openmp_team_reuse.py" in tunic_audit
-    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in tunic_audit
+    assert "compare_pbd_collision_query_workers.py" in tunic_audit
+    assert "artifacts/pbd-collision-query-workers/comparison.json" in tunic_audit
     assert "Report paired native production audit outcome" in tunic_audit
     for step_id in (
         "baseline_1_audit",
