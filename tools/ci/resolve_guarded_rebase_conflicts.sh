@@ -26,6 +26,23 @@ while [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; do
     if ! GIT_EDITOR=true git rebase --skip; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_ci_configuration.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    main_test="$(git show origin/main:tests/test_ci_configuration.py)"
+    main_workflow="$(git show origin/main:.github/workflows/canonical-execution.yml)"
+    timeout_count="$(printf '%s\\n' "$main_workflow" | awk '/timeout-seconds:/ { count++ } END { print count+0 }')"
+    if [[ "$rebase_commit" != "a55b4422b1c258e65a4d1bc72f114b8710fba0b0" ]] ||
+      [[ "$main_test" != *"pbd-realtime-diagnostic"* ]] ||
+      [[ "$timeout_count" != "6" ]]; then
+      echo "::error::Refusing to replace CI tests unless main's newer timeout contract is proven."
+      exit 1
+    fi
+    echo "::warning::Keeping main's timeout test; the replayed count belongs to an obsolete workflow snapshot."
+    git checkout --ours -- tests/test_ci_configuration.py
+    git add tests/test_ci_configuration.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
