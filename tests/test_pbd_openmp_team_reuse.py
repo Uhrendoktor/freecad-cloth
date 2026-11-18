@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Tests for the matched production pyPBD OpenMP team-reuse comparator."""
+"""Tests for matched pyPBD projection-local versus full-step OpenMP team reuse."""
 
 from __future__ import annotations
 
@@ -80,7 +80,8 @@ def _profile(
                 "OMP_DYNAMIC": "unset",
                 "OMP_PROC_BIND": "unset",
                 "OMP_WAIT_POLICY": "unset",
-                "CLOTH_PBD_OPENMP_TEAM_REUSE": mode,
+                "CLOTH_PBD_OPENMP_TEAM_REUSE": "1",
+                "CLOTH_PBD_OPENMP_STEP_TEAM_REUSE": mode,
             },
         },
         "pypbd_provenance": (
@@ -115,6 +116,15 @@ def test_matched_team_reuse_profiles_pass_both_measured_gates() -> None:
     assert result["production_wall_time_change_percent"] <= 0.0
     assert result["production_acceptance"] == "passed_all_four_runs"
 
+
+
+def test_full_step_mode_requires_current_projection_team_reuse_in_both_arms() -> None:
+    """Reject profiles that do not use the same current-best projection-team baseline."""
+    baseline, candidate = _matched_profiles()
+    baseline[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
+
+    with pytest.raises(ValueError, match="current projection-level team reuse must remain enabled"):
+        compare_profile_sets(baseline, candidate)
 
 def test_team_reuse_rejects_projection_gain_below_five_percent() -> None:
     """A candidate that misses the pre-registered projection gain fails closed."""
