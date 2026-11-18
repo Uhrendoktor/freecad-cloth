@@ -1658,10 +1658,10 @@ class AvatarPoseTaskPanel:
             if item is None:
                 continue
             self.joints.setCurrentItem(item)
-                bone = item.data(0, self.QtCore.Qt.UserRole)
-                if bone:
-                    self._select_joint_without_preview(str(bone))
-                return
+            bone = item.data(0, self.QtCore.Qt.UserRole)
+            if bone:
+                self._select_joint_without_preview(str(bone))
+            return
 
     def _joint_item_changed(
         self,
