@@ -58,9 +58,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     """Keep workflow wiring small and restrict conflict resolution to proven safe cases."""
     source = WORKFLOW.read_text(encoding="utf-8")
     rebase = _job_block(source, "guarded-rebase-pr")
-    resolver = (
-        ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh"
-    ).read_text(encoding="utf-8")
+    resolver = (ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh").read_text(
+        encoding="utf-8"
+    )
 
     assert "if ! git rebase origin/main; then" in rebase
     assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in rebase
