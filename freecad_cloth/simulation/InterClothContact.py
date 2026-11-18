@@ -10,44 +10,31 @@ exact global particle indices and preserves authored seams and pins.
 from __future__ import annotations
 
 import os
-import sys
 import time
 from collections.abc import Mapping, Sequence
-from typing import NamedTuple, TextIO
+from typing import NamedTuple
 
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial import KDTree
+
+from freecad_cloth.common.Diagnostics import emit_diagnostic
 
 type PointArray = npt.NDArray[np.float64]
 type TriangleArray = npt.NDArray[np.int64]
 type EdgeArray = npt.NDArray[np.int64]
 
 _CONTACT_MEASUREMENT_EPSILON_MM = 0.002
-_DIAGNOSTIC_STREAM: TextIO | None = None
-_DIAGNOSTIC_STREAM_PATH: str | None = None
 
 
 def _emit_contact_diagnostic(message: str) -> None:
     """Emit opt-in flushed contact-stage diagnostics for native acceptance runs."""
-    if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1":
-        return
-    line = f"{message}\n"
-    sys.stdout.write(line)
-    sys.stdout.flush()
-    path = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS_FILE")
-    if path is None:
-        return
-    global _DIAGNOSTIC_STREAM, _DIAGNOSTIC_STREAM_PATH
-    if path != _DIAGNOSTIC_STREAM_PATH:
-        if _DIAGNOSTIC_STREAM is not None:
-            _DIAGNOSTIC_STREAM.close()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        _DIAGNOSTIC_STREAM = open(path, "a", encoding="utf-8")
-        _DIAGNOSTIC_STREAM_PATH = path
-    if _DIAGNOSTIC_STREAM is not None:
-        _DIAGNOSTIC_STREAM.write(line)
-        _DIAGNOSTIC_STREAM.flush()
+    emit_diagnostic(
+        message,
+        enabled=os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1",
+    )
+
+
 
 
 class InterClothContactMetrics(NamedTuple):
@@ -965,7 +952,9 @@ def _measure_contacts(
                         target_center = positions[np.unique(target.triangles)].mean(axis=0)
                         for candidate_position in np.flatnonzero(residual):
                             edge_values = source.edges[source_edge_indices[candidate_position]]
-                            triangle_values = target.triangles[target_triangle_indices[candidate_position]]
+                            triangle_values = target.triangles[
+                                target_triangle_indices[candidate_position]
+                            ]
                             constraints.append(
                                 _MeasuredContact(
                                     (int(edge_values[0]), int(edge_values[1])),
@@ -1000,6 +989,31 @@ def _measure_contacts(
     return contact_count, maximum, tuple(constraints)
 
 
+def _validated_measurement_inputs(
+    positions_mm: npt.ArrayLike,
+    triangles_by_group: Mapping[str, Sequence[Sequence[int]]],
+    clearance_mm: float,
+) -> tuple[PointArray, float, dict[str, _SurfaceIndex]]:
+    """Validate a measurement request and index its independent garment groups."""
+    positions = np.asarray(positions_mm, dtype=np.float64)
+    clearance = float(clearance_mm)
+    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
+        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
+        raise ValueError(msg)
+    if not bool(np.isfinite(positions).all()):
+        msg = "inter-cloth positions must be finite"
+        raise ValueError(msg)
+    if not np.isfinite(clearance) or clearance <= 0.0:
+        msg = "inter-cloth clearance must be positive and finite"
+        raise ValueError(msg)
+    surfaces, _ = _index_garment_surfaces(
+        positions,
+        triangles_by_group,
+        operation="measurement",
+    )
+    return positions, clearance, surfaces
+
+
 def measure_inter_cloth_contacts(
     positions_mm: npt.ArrayLike,
     triangles_by_group: Mapping[str, Sequence[Sequence[int]]],
@@ -1025,18 +1039,11 @@ def measure_inter_cloth_contacts(
         ValueError: If positions, triangle indices, garment identities or clearance
             are invalid.
     """
-    positions = np.asarray(positions_mm, dtype=np.float64)
-    clearance = float(clearance_mm)
-    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
-        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
-        raise ValueError(msg)
-    if not bool(np.isfinite(positions).all()):
-        msg = "inter-cloth positions must be finite"
-        raise ValueError(msg)
-    if not np.isfinite(clearance) or clearance <= 0.0:
-        msg = "inter-cloth clearance must be positive and finite"
-        raise ValueError(msg)
-    surfaces, _ = _index_garment_surfaces(positions, triangles_by_group, operation="measurement")
+    positions, clearance, surfaces = _validated_measurement_inputs(
+        positions_mm,
+        triangles_by_group,
+        clearance_mm,
+    )
     contact_count, maximum, _constraints = _measure_contacts(positions, surfaces, clearance)
     return contact_count, maximum
 
@@ -1077,6 +1084,33 @@ def measure_inter_cloth_contacts_with_constraints(
     return _measure_contacts(positions, surfaces, clearance, collect_constraints=True)
 
 
+def _validated_projection_inputs(
+    positions_mm: npt.ArrayLike,
+    inverse_masses: npt.ArrayLike,
+    clearance_mm: float,
+) -> tuple[PointArray, PointArray, float]:
+    """Validate common particle, inverse-mass and clearance projection inputs."""
+    positions = np.asarray(positions_mm, dtype=np.float64)
+    masses = np.asarray(inverse_masses, dtype=np.float64)
+    clearance = float(clearance_mm)
+    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
+        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
+        raise ValueError(msg)
+    if masses.shape != (len(positions),):
+        msg = "inter-cloth inverse masses must match the particle count"
+        raise ValueError(msg)
+    if not bool(np.isfinite(positions).all() and np.isfinite(masses).all()):
+        msg = "inter-cloth positions and inverse masses must be finite"
+        raise ValueError(msg)
+    if bool(np.any(masses < 0.0)):
+        msg = "inter-cloth inverse masses cannot be negative"
+        raise ValueError(msg)
+    if not np.isfinite(clearance) or clearance <= 0.0:
+        msg = "inter-cloth clearance must be positive and finite"
+        raise ValueError(msg)
+    return positions, masses, clearance
+
+
 def project_measured_inter_cloth_contacts(
     positions_mm: npt.ArrayLike,
     inverse_masses: npt.ArrayLike,
@@ -1108,25 +1142,12 @@ def project_measured_inter_cloth_contacts(
     Raises:
         ValueError: If positions, inverse masses, clearance or relaxation are invalid.
     """
-    positions = np.asarray(positions_mm, dtype=np.float64)
-    masses = np.asarray(inverse_masses, dtype=np.float64)
-    clearance = float(clearance_mm)
+    positions, masses, clearance = _validated_projection_inputs(
+        positions_mm,
+        inverse_masses,
+        clearance_mm,
+    )
     alpha = float(relaxation)
-    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
-        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
-        raise ValueError(msg)
-    if masses.shape != (len(positions),):
-        msg = "inter-cloth inverse masses must match the particle count"
-        raise ValueError(msg)
-    if not bool(np.isfinite(positions).all() and np.isfinite(masses).all()):
-        msg = "inter-cloth positions and inverse masses must be finite"
-        raise ValueError(msg)
-    if bool(np.any(masses < 0.0)):
-        msg = "inter-cloth inverse masses cannot be negative"
-        raise ValueError(msg)
-    if not np.isfinite(clearance) or clearance <= 0.0:
-        msg = "inter-cloth clearance must be positive and finite"
-        raise ValueError(msg)
     if not np.isfinite(alpha) or not 0.0 < alpha <= 1.0:
         msg = "inter-cloth relaxation must be in (0, 1]"
         raise ValueError(msg)
@@ -1235,26 +1256,13 @@ def project_inter_cloth_contacts(
     Raises:
         ValueError: If geometry, group identity, masses, clearance or solver settings are invalid.
     """
-    positions = np.asarray(positions_mm, dtype=np.float64)
-    masses = np.asarray(inverse_masses, dtype=np.float64)
-    clearance = float(clearance_mm)
+    positions, masses, clearance = _validated_projection_inputs(
+        positions_mm,
+        inverse_masses,
+        clearance_mm,
+    )
     pass_count = int(iterations)
     alpha = float(relaxation)
-    if positions.ndim != 2 or positions.shape[1] != 3 or positions.shape[0] == 0:
-        msg = "inter-cloth positions must be a non-empty array with shape (N, 3)"
-        raise ValueError(msg)
-    if masses.shape != (len(positions),):
-        msg = "inter-cloth inverse masses must match the particle count"
-        raise ValueError(msg)
-    if not bool(np.isfinite(positions).all() and np.isfinite(masses).all()):
-        msg = "inter-cloth positions and inverse masses must be finite"
-        raise ValueError(msg)
-    if bool(np.any(masses < 0.0)):
-        msg = "inter-cloth inverse masses cannot be negative"
-        raise ValueError(msg)
-    if not np.isfinite(clearance) or clearance <= 0.0:
-        msg = "inter-cloth clearance must be positive and finite"
-        raise ValueError(msg)
     if pass_count < 1 or pass_count > 16:
         msg = "inter-cloth projection iterations must be between 1 and 16"
         raise ValueError(msg)

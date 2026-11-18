@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import sys
 import time
 from copy import deepcopy
 from typing import TYPE_CHECKING, Protocol, cast
@@ -17,6 +16,7 @@ from typing import TYPE_CHECKING, Protocol, cast
 import numpy as np
 import numpy.typing as npt
 
+from freecad_cloth.common.Diagnostics import emit_diagnostic
 from freecad_cloth.common.ValidationModels import (
     CollisionSurfaceInput,
     MeshArrays,
@@ -45,32 +45,9 @@ _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
 
 
-_DIAGNOSTIC_STREAM = None
-_DIAGNOSTIC_STREAM_PATH: str | None = None
-
-
 def _emit_diagnostic(message: str) -> None:
-    """Write one diagnostic line to stdout and the opt-in acceptance profile.
-
-    Args:
-        message: Structured status line emitted by the PBD adapter.
-    """
-    line = f"{message}\n"
-    sys.stdout.write(line)
-    sys.stdout.flush()
-    path = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS_FILE")
-    if path is None:
-        return
-    global _DIAGNOSTIC_STREAM, _DIAGNOSTIC_STREAM_PATH
-    if path != _DIAGNOSTIC_STREAM_PATH:
-        if _DIAGNOSTIC_STREAM is not None:
-            _DIAGNOSTIC_STREAM.close()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        _DIAGNOSTIC_STREAM = open(path, "a", encoding="utf-8")
-        _DIAGNOSTIC_STREAM_PATH = path
-    if _DIAGNOSTIC_STREAM is not None:
-        _DIAGNOSTIC_STREAM.write(line)
-        _DIAGNOSTIC_STREAM.flush()
+    """Write one diagnostic line using the shared diagnostic stream."""
+    emit_diagnostic(message)
 
 
 type FloatArray = npt.NDArray[np.float64]
@@ -1117,10 +1094,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._inter_cloth_metrics = None
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-        remaining_count, maximum_deficit, constraints = measure_inter_cloth_contacts_with_constraints(
-            positions_mm,
-            self._inter_cloth_groups,
-            clearance_mm=self._inter_cloth_clearance_mm,
+        remaining_count, maximum_deficit, constraints = (
+            measure_inter_cloth_contacts_with_constraints(
+                positions_mm,
+                self._inter_cloth_groups,
+                clearance_mm=self._inter_cloth_clearance_mm,
+            )
         )
         self._inter_cloth_residual_constraints = constraints
         if self._inter_cloth_metrics is None:
@@ -1139,7 +1118,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 max_penetration_after_mm=maximum_deficit,
             )
 
-    def _project_inter_cloth_residual_constraints(self):
+    def _project_inter_cloth_residual_constraints(self) -> InterClothContactMetrics | None:
         """Correct only the exact residual contacts from the latest measurement."""
         constraints = getattr(self, "_inter_cloth_residual_constraints", ())
         if not constraints:
