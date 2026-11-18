@@ -225,8 +225,8 @@ class AvatarTaskPanel:
         provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
         self.provider_source.setToolTip(
-            "Use the selected body or mesh as a surface-only target. Its skeleton and skin",
-            "weights are not imported."
+            "Use the selected body or mesh as a surface-only target. "
+            "Its skeleton and skin weights are not imported."
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
@@ -274,8 +274,8 @@ class AvatarTaskPanel:
             expanded=False,
         )
         self.scene_options_toggle.setToolTip(
-            "Provider selection, body-mass fitting, collision offset, landmarks, and",
-            "arrangement points."
+            "Provider selection, body-mass fitting, collision offset, landmarks, "
+            "and arrangement points."
         )
         content_layout.addWidget(scene_wrapper)
         content_layout.addStretch(1)
@@ -827,8 +827,8 @@ class AvatarTaskPanel:
         self.gender_slider.setSingleStep(1)
         self.gender_slider.setPageStep(10)
         self.gender_slider.setToolTip(
-            "Morphology blend: 0 feminine, 50 neutral, 100 masculine. This changes body",
-            "proportions, not identity."
+            "Morphology blend: 0 feminine, 50 neutral, 100 masculine. "
+            "This changes body proportions, not identity."
         )
         gender_row.addWidget(self.gender_slider, 1)
         gender_row.addWidget(QtWidgets.QLabel("M"))
