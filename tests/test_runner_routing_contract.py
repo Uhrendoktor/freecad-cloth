@@ -91,6 +91,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "make_scroll_area(content, QtWidgets)" in resolver
     assert "configure_form_layout(layout, QtWidgets)" in resolver
     assert "make_disclosure(title, content, QtCore, QtWidgets, *, expanded=False)" in resolver
+    assert '[[ "$conflicts" == "tests/test_tunic_audit_contract.py" ]]' in resolver
+    assert "2856b23e6fc14666c6ce36ce2f91e0b18fe95094" in resolver
+    assert "git checkout --ours -- tests/test_tunic_audit_contract.py" in resolver
+    assert "test_realtime_benchmark_reports_cpu_and_device_fallback_metrics()" in resolver
+    assert "from tests.support.freecad_arc_geometry import _native_curve_value" in resolver
+    assert "test_native_arc_evaluator_returns_validated_planar_coordinates()" in resolver
+    assert "Preserving mainline tunic profiling contracts" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
