@@ -84,7 +84,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git checkout --ours -- tools/ci/validate_ci_structure.py" in resolver
     assert 'ROOT / "tools/ci/pbd_constraint_group_profile.py",' in resolver
     assert 'PYRIGHT_EXPECTED_INCLUDE = (".",)' in resolver
-    assert "transplant only the exact strict-Pyright policy changes" in resolver
+    assert "transplanting only the exact strict-Pyright policy changes" in resolver
     assert '[[ "$conflicts" == "docs/developers/UI_STYLE_GUIDE.md" ]]' in resolver
     assert "67d656007deea6692d332e0954cb8aa1f99e92e6" in resolver
     assert "git checkout --ours -- docs/developers/UI_STYLE_GUIDE.md" in resolver
