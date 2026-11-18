@@ -1,5 +1,5 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Compare matched production profiles for the opt-in pyPBD team-reuse experiment."""
+"""Compare current projection-team reuse against full-step pyPBD team reuse."""
 
 from __future__ import annotations
 
@@ -18,7 +18,8 @@ EXPECTED_BACKEND_STEPS = 360
 EXPECTED_NATIVE_SUBSTEPS = 16
 EXPECTED_POSITION_ITERATIONS = 8
 MIN_PROJECTION_IMPROVEMENT = 0.05
-EXPERIMENT_ENVIRONMENT_KEY = "CLOTH_PBD_OPENMP_TEAM_REUSE"
+EXPERIMENT_ENVIRONMENT_KEY = "CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"
+BASELINE_ENVIRONMENT_KEY = "CLOTH_PBD_OPENMP_TEAM_REUSE"
 EXPERIMENT_MODULE_PREFIX = "/opt/pypbd-openmp-experiment/"
 RUNTIME_CONTEXT_KEYS = (
     "cpu_model",
@@ -130,6 +131,8 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
         runtime.get("thread_environment"),
         f"{label}.runtime_limits.thread_environment",
     )
+    if thread_environment.get(BASELINE_ENVIRONMENT_KEY) != "1":
+        raise ValueError(f"{label}: current projection-level team reuse must remain enabled in both modes")
     if thread_environment.get(EXPERIMENT_ENVIRONMENT_KEY) != expected_mode:
         raise ValueError(f"{label}: unexpected {EXPERIMENT_ENVIRONMENT_KEY} mode")
 
@@ -144,7 +147,7 @@ def _validate_profile(profile: JsonObject, expected_mode: str, label: str) -> No
 
 
 def _runtime_signature(profile: JsonObject) -> tuple[JsonValue, ...]:
-    """Return fixed runner/OpenMP context, excluding the intentional mode toggle."""
+    """Return fixed runner/OpenMP context, excluding only the full-step mode toggle."""
     runtime = _as_object(profile.get("runtime_limits"), "runtime_limits")
     environment = dict(
         _as_object(runtime.get("thread_environment"), "runtime_limits.thread_environment")
@@ -175,8 +178,8 @@ def compare_profile_sets(
     """Require two complete matched audits per mode and enforce both performance gates.
 
     Args:
-        baseline_profiles: Two upstream per-group production profiles (mode 0).
-        candidate_profiles: Two persistent-team production profiles (mode 1).
+        baseline_profiles: Two current PR #2866 projection-team-reuse profiles (mode 0).
+        candidate_profiles: Two full-step persistent-team profiles (mode 1).
 
     Returns:
         A JSON-safe comparison summary.
@@ -243,17 +246,17 @@ def compare_profile_sets(
     rejection_reasons: list[str] = []
     if projection_improvement < MIN_PROJECTION_IMPROVEMENT:
         rejection_reasons.append(
-            "persistent-team projection improvement is below 5%: "
+            "full-step team projection improvement is below 5%: "
             f"{projection_improvement * 100:.2f}%"
         )
     if wall_time_change > 0.0:
         rejection_reasons.append(
-            f"persistent-team median production wall time regressed: {wall_time_change * 100:.2f}%"
+            f"full-step team median production wall time regressed: {wall_time_change * 100:.2f}%"
         )
 
     return {
         "schema_version": 1,
-        "experiment": "pypbd-openmp-persistent-team",
+        "experiment": "pypbd-openmp-full-step-team",
         "pinned_source": "10a70bc146a97873dc3c8fef372f5217e010542e",
         "repetitions_per_mode": 2,
         "production_acceptance": "passed_all_four_runs",
