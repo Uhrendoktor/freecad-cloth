@@ -99,15 +99,22 @@ def _parse_inter_cloth_diagnostics(path: Path, expected_workers: int) -> JsonObj
         raise ValueError(f"{path}: incomplete inter-cloth timing telemetry")
     if observed_workers != {expected_workers}:
         raise ValueError(
-            f"{path}: expected query workers {expected_workers}, observed {sorted(observed_workers)}"
+            f"{path}: expected query workers {expected_workers}, "
+            f"observed {sorted(observed_workers)}"
         )
     if observed_eps != {0.0}:
         raise ValueError(f"{path}: query approximation epsilon changed from exact eps=0.0")
-    if any(
-        not math.isfinite(value) or value <= 0.0
-        for value in (query_seconds, projection_seconds, pass_seconds)
-    ):
+    required_totals = (query_seconds, projection_seconds, pass_seconds)
+    nonnegative_totals = (
+        filter_seconds,
+        closest_seconds,
+        correction_seconds,
+        direction_seconds,
+    )
+    if any(not math.isfinite(value) or value <= 0.0 for value in required_totals):
         raise ValueError(f"{path}: inter-cloth timing totals must be finite and positive")
+    if any(not math.isfinite(value) or value < 0.0 for value in nonnegative_totals):
+        raise ValueError(f"{path}: inter-cloth stage timings must be finite and non-negative")
 
     return {
         "query_seconds": query_seconds,
@@ -195,7 +202,12 @@ def _load_audit(root: Path, expected_workers: int) -> JsonObject:
     manifest_value = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest = _as_object(manifest_value, "layered outfit manifest")
     runtime = _as_object(manifest.get("runtime_context"), "manifest.runtime_context")
-    if runtime.get("inter_cloth_query_workers") != expected_workers:
+    worker_value = runtime.get("inter_cloth_query_workers")
+    if (
+        isinstance(worker_value, bool)
+        or not isinstance(worker_value, int)
+        or worker_value != expected_workers
+    ):
         raise ValueError(f"{root}: manifest does not record {expected_workers} query workers")
 
     checkpoints_value = manifest.get("checkpoints")
@@ -284,7 +296,11 @@ def compare_layered_query_worker_audits(
         for index, record in enumerate(baseline, 1)
     ]
     candidate_wall = [
-        _number(record.get("total_elapsed_ms"), f"candidate-{index}.total_elapsed_ms", positive=True)
+        _number(
+            record.get("total_elapsed_ms"),
+            f"candidate-{index}.total_elapsed_ms",
+            positive=True,
+        )
         for index, record in enumerate(candidate, 1)
     ]
 
