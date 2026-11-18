@@ -9,9 +9,6 @@ import numpy as np
 import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
-from tools.ci.compare_layered_intercloth_query_workers import (
-    _parse_inter_cloth_diagnostics,
-)
 from freecad_cloth.simulation.InterClothContact import (
     InterClothContactMetrics,
     _candidate_edge_triangle_pairs,
@@ -36,6 +33,9 @@ from tests.support.pbd_contact_helpers import (
     events,
     nearest_surface_distance,
     position_bounds,
+)
+from tools.ci.compare_layered_intercloth_query_workers import (
+    _parse_inter_cloth_diagnostics,
 )
 
 PBD_COLLISION_AXIS_COUNT = 3
@@ -353,7 +353,7 @@ def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
     """The paired comparator reads exact worker, broad-phase, and projection timings."""
     diagnostics = tmp_path / "inter-cloth-diagnostics.log"
     diagnostics.write_text(
-        "\\n".join(
+        "\n".join(
             (
                 "inter-cloth-broadphase raw=100 aabb=40 plane=10 workers=4 eps=0.0 query_s=0.1000 filter_s=0.0300",
                 "inter-cloth-direction-finish iteration=1 direction=0 candidates=100 plausible=10 exact_tests=10 active_constraints=5 query_s=0.10 filter_s=0.03 closest_s=0.20 correction_s=0.05 elapsed_s=0.40",
@@ -361,7 +361,7 @@ def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
                 "cloth-pbd-inter-cloth-projection-finish elapsed_s=0.75",
             )
         )
-        + "\\n",
+        + "\n",
         encoding="utf-8",
     )
 
@@ -377,6 +377,20 @@ def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
 
     with pytest.raises(ValueError, match="expected query workers 1"):
         _parse_inter_cloth_diagnostics(diagnostics, 1)
+
+
+def test_layered_intercloth_query_workers_are_isolated_to_radius_broad_phase() -> None:
+    """The body nearest-face projector remains on its serial exact query path."""
+    contact = (
+        ROOT / "freecad_cloth" / "simulation" / "InterClothContact.py"
+    ).read_text(encoding="utf-8")
+    body_projector = (
+        ROOT / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
+    ).read_text(encoding="utf-8")
+    assert "CLOTH_INTER_CLOTH_QUERY_WORKERS" in contact
+    assert "workers=query_workers" in contact
+    assert "eps=0.0,\n        workers=query_workers," in contact
+    assert "workers=1" in body_projector
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:
