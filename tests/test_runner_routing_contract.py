@@ -73,6 +73,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "tests/test_diagnostics_gui_contract.py" in resolver
     assert "tests/test_fitting_gui_status.py" in resolver
     assert "git rebase --skip" in resolver
+    assert '[[ "$conflicts" == "pyrightconfig.json" ]]' in resolver
+    assert "0f8ae7645c3c2fe6491dfe9b93477d28f047563b" in resolver
+    assert 'git show origin/main:pyrightconfig.json' in resolver
+    assert '"reportMissingImports": "none"' in resolver
+    assert 'git show "${rebase_commit}:pyrightconfig.json"' in resolver
+    assert 'git checkout --theirs -- pyrightconfig.json' in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
