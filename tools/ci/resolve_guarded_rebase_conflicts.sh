@@ -408,6 +408,40 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "897bfa8e14095ccfbb402b76e78a74378ccb3d72" ]] ||
+      ! git show origin/main:freecad_cloth/simulation/SimulationQualityRuntime.py | grep -Fq 'self._preview_mesh_publisher = None' ||
+      ! git show origin/main:freecad_cloth/simulation/SimulationQualityRuntime.py | grep -Fq 'obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""' ||
+      ! git show "$rebase_commit:freecad_cloth/simulation/SimulationQualityRuntime.py" | grep -Fq 'obj: Persisted simulation-quality feature restored by the FreeCAD document loader.'; then
+      echo "::error::Refusing SimulationQualityRuntime conflict outside the exact Ruff docstring-format commit and current-main preview-publisher implementation."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline preview-publisher behavior and applying only the exact Ruff docstring-close formatting."
+    git checkout --ours -- freecad_cloth/simulation/SimulationQualityRuntime.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/simulation/SimulationQualityRuntime.py")
+source = path.read_text(encoding="utf-8")
+old = '            obj: Persisted simulation-quality feature restored by the FreeCAD document loader."""\n'
+new = (
+    "            obj: Persisted simulation-quality feature restored by the FreeCAD document loader.\n"
+    '        """\n'
+)
+if source.count(old) != 1:
+    raise SystemExit("Expected exactly one unformatted restore docstring line; refusing transform.")
+if "self._preview_mesh_publisher = None" not in source:
+    raise SystemExit("Mainline preview-publisher reset was not preserved.")
+source = source.replace(old, new)
+if old in source or source.count(new) != 1:
+    raise SystemExit("Ruff docstring formatting transform did not produce one exact formatted block.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/simulation/SimulationQualityRuntime.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
