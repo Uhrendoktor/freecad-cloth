@@ -170,6 +170,28 @@ def _runtime_signature(
     return tuple(context)
 
 
+
+def _validate_matched_context(
+    records: list[tuple[JsonObject, str, str]],
+    experiment_environment_key: str = EXPERIMENT_ENVIRONMENT_KEY,
+) -> None:
+    """Require identical production settings, native groups, runner and build context."""
+    reference = records[0][0]
+    settings = reference.get("production_settings")
+    groups = reference.get("native_constraint_groups")
+    runtime = _runtime_signature(reference, experiment_environment_key)
+    for profile, _, label in records[1:]:
+        if profile.get("production_settings") != settings:
+            raise ValueError(f"{label}: production settings differ from the matched baseline")
+        if profile.get("native_constraint_groups") != groups:
+            raise ValueError(
+                f"{label}: native constraint grouping differs from the matched baseline"
+            )
+        if _runtime_signature(profile, experiment_environment_key) != runtime:
+            raise ValueError(
+                f"{label}: execution context differs (runner, OpenMP, or native build)"
+            )
+
 def _projection_total(profile: JsonObject, label: str) -> float:
     """Read the complete native projection total from one production profile."""
     timings = _as_object(
@@ -253,21 +275,7 @@ def compare_profile_sets(
     for profile, mode, label in records:
         _validate_profile(profile, mode, label)
 
-    reference = baseline_profiles[0]
-    settings = reference.get("production_settings")
-    groups = reference.get("native_constraint_groups")
-    runtime = _runtime_signature(reference)
-    for profile, _, label in records[1:]:
-        if profile.get("production_settings") != settings:
-            raise ValueError(f"{label}: production settings differ from the matched baseline")
-        if profile.get("native_constraint_groups") != groups:
-            raise ValueError(
-                f"{label}: native constraint grouping differs from the matched baseline"
-            )
-        if _runtime_signature(profile) != runtime:
-            raise ValueError(
-                f"{label}: execution context differs (runner, OpenMP, or native build)"
-            )
+    _validate_matched_context(records)
 
     baseline_projection = [
         _projection_total(profile, f"baseline-{index + 1}")
@@ -367,21 +375,7 @@ def compare_stitch_group_cache_profile_sets(
             required_environment={EXPERIMENT_ENVIRONMENT_KEY: "1"},
         )
 
-    reference = baseline_profiles[0]
-    settings = reference.get("production_settings")
-    groups = reference.get("native_constraint_groups")
-    runtime = _runtime_signature(reference, STITCH_GROUP_CACHE_ENVIRONMENT_KEY)
-    for profile, _, label in records[1:]:
-        if profile.get("production_settings") != settings:
-            raise ValueError(f"{label}: production settings differ from the matched baseline")
-        if profile.get("native_constraint_groups") != groups:
-            raise ValueError(
-                f"{label}: native constraint grouping differs from the matched baseline"
-            )
-        if _runtime_signature(profile, STITCH_GROUP_CACHE_ENVIRONMENT_KEY) != runtime:
-            raise ValueError(
-                f"{label}: execution context differs (runner, OpenMP, or native build)"
-            )
+    _validate_matched_context(records, STITCH_GROUP_CACHE_ENVIRONMENT_KEY)
 
     baseline_stitched = [
         _stitched_reconciliation_total(profile, f"baseline-{index + 1}")
