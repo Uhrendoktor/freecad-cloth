@@ -12,7 +12,6 @@ from typing import Protocol, Self, cast, override
 
 from freecad_cloth.simulation.SimulationObjects import (
     PIN_MODE_NAMES,
-    _PatternPieceDocumentObject,
     _write_mesh,
     resolve_pin_indices,
 )

@@ -35,6 +35,13 @@ class SimulationDocument(Protocol):
         ...
 
 
+class SimulationPatternPiece(FreeCADDocumentObjectProtocol, Protocol):
+    """Document-global pattern-piece identity consumed by simulation scenes."""
+
+    PieceId: str
+    PatternType: str
+
+
 class SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     """Complete persisted simulation scene contract shared by all workbench adapters."""
 
@@ -51,7 +58,7 @@ class SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     GravityX: float
     GravityY: float
     GravityZ: float
-    ClothPieces: Sequence[FreeCADDocumentObjectProtocol]
+    ClothPieces: Sequence[SimulationPatternPiece]
     DrapePanels: Sequence[FreeCADDocumentObjectProtocol]
     DrapeTarget: FreeCADDocumentObjectProtocol | None
     PinMode: str | list[str]

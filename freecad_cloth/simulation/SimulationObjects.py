@@ -10,7 +10,11 @@ from typing import TYPE_CHECKING, Protocol, Self, cast, override
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
-from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
+from freecad_cloth.simulation.simulation_protocols import (
+    SimulationDocument,
+    SimulationPatternPiece,
+    SimulationScene,
+)
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
@@ -73,7 +77,7 @@ class _MeshObjectKey(FreeCADDocumentObjectProtocol, Protocol):
         ...
 
 
-class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
+class _PatternPieceDocumentObject(SimulationPatternPiece, Protocol):
     """Persistent pattern-piece identity consumed by simulation scene construction."""
 
     PatternType: str

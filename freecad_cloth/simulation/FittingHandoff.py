@@ -15,6 +15,7 @@ from freecad_cloth.common.garment_document import (
     FreeCADDocumentObjectProtocol,
     FreeCADDocumentProtocol,
 )
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -142,18 +143,7 @@ class _FittingScene(Protocol):
     PiecePlacements: Sequence[str]
 
 
-class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
-    """Describe the simulation fields consumed or updated by this bridge."""
-
-    ClothPieces: Sequence[_PatternPiece]
-
-    @property
-    def Document(self) -> _FreeCADDocument | None:
-        """Return the owning document when the simulation scene is attached."""
-        ...
-
-    DrapeTarget: _DrapeTarget | None
-
+_SimulationScene = SimulationScene
 
 def _fitting_scene(doc: _FreeCADDocument | None) -> _FittingScene | None:
     """Find the document's persisted fitting scene.

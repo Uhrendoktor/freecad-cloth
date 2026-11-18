@@ -12,6 +12,7 @@ from freecad_cloth.common.garment_document import (
     FreeCADDocumentObjectProtocol,
     FreeCADDocumentProtocol,
 )
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 
 class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
@@ -26,16 +27,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         ...
 
 
-class _SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
-    """Simulation-scene properties owned by the canonical target model."""
-
-    @property
-    def Document(self) -> _FreeCADDocument:
-        """Return the owning native FreeCAD document."""
-        ...
-
-    DrapeTarget: _DrapeTarget | None
-
+_SimulationScene = SimulationScene
 
 class _DrapeTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Persistent target fields updated by the drape-target commands."""

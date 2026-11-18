@@ -9,7 +9,11 @@ from typing import TYPE_CHECKING, Protocol, cast
 from freecad_cloth.common.CommandAdapter import icon_for_command
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
-from freecad_cloth.simulation.simulation_protocols import SimulationDocument, SimulationScene
+from freecad_cloth.simulation.simulation_protocols import (
+    SimulationDocument,
+    SimulationPatternPiece,
+    SimulationScene,
+)
 
 if TYPE_CHECKING:
     from freecad_cloth.sewing.SeamOverlay import SeamOverlayController
@@ -29,11 +33,9 @@ class _FreeCADAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):
     ViewObject: _FreeCADViewObject
 
 
-class _PatternPieceFeature(FreeCADDocumentObjectProtocol, Protocol):
+class _PatternPieceFeature(SimulationPatternPiece, Protocol):
     """PatternPiece identity required when transferring pieces into a simulation."""
 
-    PieceId: str
-    PatternType: str
 
 
 class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
