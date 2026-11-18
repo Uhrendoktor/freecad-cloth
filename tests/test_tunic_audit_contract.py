@@ -697,7 +697,6 @@ def test_full_step_openmp_experiment_keeps_projection_reuse_as_the_baseline() ->
     assert '"CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"' in profile
 
 
-
 def test_full_step_projection_timer_stops_after_the_phase_barrier() -> None:
     """Include the persistent-team projection boundary barrier in the measured stage."""
     patch = (
@@ -711,7 +710,6 @@ def test_full_step_projection_timer_stops_after_the_phase_barrier() -> None:
         "+\t\t\t}"
     )
     assert measured_boundary in patch
-
 
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
