@@ -244,59 +244,59 @@ from pathlib import Path
 path = Path("tests/test_tunic_audit_contract.py")
 source = path.read_text(encoding="utf-8")
 curve_old = (
-    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n"
-    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
-    "\\n"
-    "\\n"
+    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\n"
+    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\n"
+    "\n"
+    "\n"
     "class _MalformedNativeArcCurve:"
 )
 curve_new = (
-    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n"
-    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
-    "\\n"
-    "    def value(self, parameter_value: float) -> _NativeArcPoint:\\n"
-    "        return self.valueAt(parameter_value)\\n"
-    "\\n"
-    "\\n"
+    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\n"
+    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\n"
+    "\n"
+    "    def value(self, parameter_value: float) -> _NativeArcPoint:\n"
+    "        return self.valueAt(parameter_value)\n"
+    "\n"
+    "\n"
     "class _MalformedNativeArcCurve:"
 )
 malformed_old = (
-    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n'
-    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
-    '        setattr(point, "x", "invalid")\\n'
-    "        return point\\n"
-    "\\n"
-    "\\n"
+    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\n'
+    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\n"
+    '        setattr(point, "x", "invalid")\n'
+    "        return point\n"
+    "\n"
+    "\n"
     "def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:"
 )
 malformed_new = (
-    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n'
-    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
-    '        setattr(point, "x", "invalid")\\n'
-    "        return point\\n"
-    "\\n"
-    "    def value(self, parameter_value: float) -> _NativeArcPoint:\\n"
-    "        return self.valueAt(parameter_value)\\n"
-    "\\n"
-    "\\ndef test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:"
+    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\n'
+    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\n"
+    '        setattr(point, "x", "invalid")\n'
+    "        return point\n"
+    "\n"
+    "    def value(self, parameter_value: float) -> _NativeArcPoint:\n"
+    "        return self.valueAt(parameter_value)\n"
+    "\n"
+    "\ndef test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:"
 )
 old_loop = (
-    "    for curve in (\\n"
-    "        _MalformedNativeArcCurve(),\\n"
-    "    ):\\n"
-    "        try:\\n"
-    "            _native_curve_value(curve, 2.5)\\n"
-    "        except TypeError as error:\\n"
-    '            assert "numeric x/y" in str(error)\\n'
-    "        else:\\n"
+    "    for curve in (\n"
+    "        _MalformedNativeArcCurve(),\n"
+    "    ):\n"
+    "        try:\n"
+    "            _native_curve_value(curve, 2.5)\n"
+    "        except TypeError as error:\n"
+    '            assert "numeric x/y" in str(error)\n'
+    "        else:\n"
     '            raise AssertionError("malformed native point coordinates must be rejected")'
 )
 new_direct = (
-    "    try:\\n"
-    "        _native_curve_value(_MalformedNativeArcCurve(), 2.5)\\n"
-    "    except TypeError as error:\\n"
-    '        assert "numeric x/y" in str(error)\\n'
-    "    else:\\n"
+    "    try:\n"
+    "        _native_curve_value(_MalformedNativeArcCurve(), 2.5)\n"
+    "    except TypeError as error:\n"
+    '        assert "numeric x/y" in str(error)\n'
+    "    else:\n"
     '        raise AssertionError("malformed native point coordinates must be rejected")'
 )
 for old, new, label in (
