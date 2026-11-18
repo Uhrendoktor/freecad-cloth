@@ -705,15 +705,6 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._particle_count = len(self._initial.particles)
         self._stitch_group_cache_enabled = _pbd_stitch_group_cache_enabled()
         self._stitch_group_topology: StitchGroupTopology | None = None
-        if self._stitch_group_cache_enabled:
-            from freecad_cloth.simulation.MeshCollisionProjector import (
-                build_stitch_group_topology,
-            )
-
-            self._stitch_group_topology = build_stitch_group_topology(
-                self._stitches,
-                self._particle_count,
-            )
         self._simulation_initialized = False
         self._build()
 
@@ -814,6 +805,16 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 # An open or inconsistently oriented target still uses the native
                 # collision path; signed position projection requires a closed mesh.
                 _emit_diagnostic(f"cloth-pbd-position-projection disabled reason={exc}")
+
+            if self._collision_projector is not None and self._stitch_group_cache_enabled:
+                from freecad_cloth.simulation.MeshCollisionProjector import (
+                    build_stitch_group_topology,
+                )
+
+                self._stitch_group_topology = build_stitch_group_topology(
+                    self._stitches,
+                    self._particle_count,
+                )
 
         cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
         global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
