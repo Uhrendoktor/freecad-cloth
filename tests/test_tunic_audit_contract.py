@@ -697,20 +697,19 @@ def test_full_step_openmp_experiment_keeps_projection_reuse_as_the_baseline() ->
     assert '"CLOTH_PBD_OPENMP_STEP_TEAM_REUSE"' in profile
 
 
-def test_full_step_projection_timer_stops_after_the_phase_barrier() -> None:
-    """Include the persistent-team projection boundary barrier in the measured stage."""
+def test_full_step_projection_timer_closes_before_the_velocity_phase() -> None:
+    """Keep velocity work behind the master-thread projection timer close."""
     patch = (
         ROOT / "docker" / "freecad-ci" / "patches" / "pypbd-openmp-team-reuse.patch"
     ).read_text(encoding="utf-8")
-    measured_boundary = (
-        "+\t\t\t#pragma omp barrier\n"
+    projection_boundary = (
         "+\t\t\t#pragma omp master\n"
         "+\t\t\t{\n"
         "+\t\t\t\tSTOP_TIMING_AVG;\n"
-        "+\t\t\t}"
+        "+\t\t\t}\n"
+        "+\t\t\t#pragma omp barrier"
     )
-    assert measured_boundary in patch
-
+    assert projection_boundary in patch
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
     """Verify canonical tunic fixture matches validated start geometry contract."""
