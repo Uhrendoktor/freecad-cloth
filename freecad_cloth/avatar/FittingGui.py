@@ -11,7 +11,9 @@ import contextlib
 import math
 from collections.abc import Callable
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, TypeVar, cast
+
+from freecad_cloth.avatar.coin_protocols import CoinModule, CoinSeparator, CoinVector3
 
 from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
@@ -26,6 +28,57 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
 if TYPE_CHECKING:
     from PySide2 import QtCore as _QT_TYPE_QtCore
     from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
+
+type Point3 = tuple[float, float, float]
+type ScreenPoint = tuple[float, float]
+type RGBColor = tuple[float, float, float]
+
+
+class _ScreenPointCandidate(Protocol):
+    """Projected point exposing the screen coordinates used by nearest-anchor search."""
+
+    @property
+    def X(self) -> float:
+        """Return horizontal screen or document coordinate."""
+        ...
+
+    @property
+    def Y(self) -> float:
+        """Return vertical screen or document coordinate."""
+        ...
+
+
+class _ArrangementPoint(Protocol):
+    """Persisted arrangement-point fields consumed by snap and rotation helpers."""
+
+    @property
+    def X(self) -> float:
+        """Return the anchor X coordinate in document space."""
+        ...
+
+    @property
+    def Y(self) -> float:
+        """Return the anchor Y coordinate in document space."""
+        ...
+
+    @property
+    def Offset(self) -> float:
+        """Return the anchor height offset in document space."""
+        ...
+
+    @property
+    def RotationZ(self) -> float:
+        """Return the anchor's authored Z rotation in degrees."""
+        ...
+
+    @property
+    def WrapDirection(self) -> str:
+        """Return the direction in which the garment should wrap around the anchor."""
+        ...
+
+
+_ScreenPointT = TypeVar("_ScreenPointT", bound=_ScreenPointCandidate)
 
 
 class _ViewVector(Protocol):
@@ -112,7 +165,7 @@ def _modules():
     return App, Gui, QtCore, QtWidgets
 
 
-def coin_position_to_screen(position, viewport_height):
+def coin_position_to_screen(position: Sequence[float], viewport_height: float) -> ScreenPoint:
     """Convert Coin's bottom-left-origin event point to top-left screen coordinates.
 
     Args:
@@ -125,7 +178,11 @@ def coin_position_to_screen(position, viewport_height):
     return float(position[0]), float(viewport_height) - float(position[1])
 
 
-def nearest_arrangement_point(position, points, max_distance):
+def nearest_arrangement_point(
+    position: ScreenPoint,
+    points: Sequence[_ScreenPointT],
+    max_distance: float,
+) -> _ScreenPointT | None:
     """Find the closest 2D arrangement point within a maximum screen distance.
 
     The helper is GUI-neutral so snap behavior can be tested without importing FreeCAD.
@@ -139,7 +196,7 @@ def nearest_arrangement_point(position, points, max_distance):
         Nearest candidate object, or None if every point lies outside the limit.
     """
     px, py = float(position[0]), float(position[1])
-    best = None
+    best: _ScreenPointT | None = None
     best_distance = float(max_distance)
     for point in points:
         dx = float(point.X) - px
@@ -154,7 +211,7 @@ def nearest_arrangement_point(position, points, max_distance):
 class SimpleScreenPoint:
     """GUI-neutral screen-space adapter for a persistent arrangement point."""
 
-    def __init__(self, x, y, source):
+    def __init__(self, x: float, y: float, source: _ArrangementPoint) -> None:
         """Wrap screen-space coordinates while retaining their source anchor.
 
         Args:
@@ -167,7 +224,7 @@ class SimpleScreenPoint:
         self.source = source
 
 
-def arrangement_rotation(point):
+def arrangement_rotation(point: _ArrangementPoint) -> float:
     """Return the Z rotation implied by an arrangement point wrap direction.
 
     Args:
@@ -185,7 +242,7 @@ def arrangement_rotation(point):
     }.get(str(getattr(point, "WrapDirection", "front")), base)
 
 
-def _xray_overlay(coin, name):
+def _xray_overlay(coin: CoinModule, name: str) -> CoinSeparator:
     """Create a Coin overlay that is not occluded by model geometry.
 
     Args:
@@ -204,7 +261,7 @@ def _xray_overlay(coin, name):
     return overlay
 
 
-def _xray_marker(coin, position, color_rgb):
+def _xray_marker(coin: CoinModule, position: Point3, color_rgb: RGBColor) -> CoinSeparator:
     """Create a depth-independent tri-plane ring centered at a world-space point.
 
     Three orthogonal rings ensure at least one ring retains a clear projected
@@ -235,7 +292,7 @@ def _xray_marker(coin, position, color_rgb):
     glyph.addChild(draw_style)
     glyph.addChild(color)
 
-    def add_polyline(points):
+    def add_polyline(points: Sequence[CoinVector3]) -> None:
         """Append one local-space polyline to the marker glyph.
 
         Args:

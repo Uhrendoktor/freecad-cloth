@@ -28,7 +28,7 @@ class _CoinRotation(Protocol):
 
 
 type CoinCoordinates = tuple[float, float, float]
-type CoinFieldSequenceValue = int | CoinCoordinates
+type CoinFieldSequenceValue = int | CoinCoordinates | _CoinVector3
 type CoinFieldValue = str | int | float | bool | CoinCoordinates | _CoinVector3 | _CoinRotation
 
 
@@ -68,6 +68,10 @@ class _CoinNode(Protocol):
 class _CoinSeparator(_CoinNode, Protocol):
     """Coin separator node supporting the scene graph operations used here."""
 
+    def getName(self) -> _CoinName:
+        """Return the native Coin node name."""
+        ...
+
     def setName(self, name: str) -> None:
         """Assign a stable diagnostic name to this node."""
         ...
@@ -92,6 +96,16 @@ class _CoinDepthBuffer(_CoinNode, Protocol):
 
     test: bool
     write: bool
+
+    def getField(self, name: str) -> _CoinField:
+        """Return the named writable depth-buffer field."""
+        ...
+
+
+class _CoinSphere(_CoinNode, Protocol):
+    """Coin sphere used as the center point of the snap glyph."""
+
+    radius: float
 
 
 class _CoinDrawStyle(_CoinNode, Protocol):
@@ -282,6 +296,7 @@ class _CoinModule(Protocol):
     SoLocation2Event: _CoinEventType
     SoSeparator: Callable[[], _CoinSeparator]
     SoDepthBuffer: Callable[[], _CoinDepthBuffer]
+    SoSphere: Callable[[], _CoinSphere]
     SoDrawStyle: Callable[[], _CoinDrawStyle]
     SoBaseColor: Callable[[], _CoinBaseColor]
     SoCoordinate3: Callable[[], _CoinCoordinate3]
@@ -302,6 +317,7 @@ CoinEventCallback = _CoinEventCallback
 CoinModule = _CoinModule
 CoinNode = _CoinNode
 CoinSeparator = _CoinSeparator
+CoinSphere = _CoinSphere
 CoinTransform = _CoinTransform
 CoinType = _CoinType
 CoinVector3 = _CoinVector3
