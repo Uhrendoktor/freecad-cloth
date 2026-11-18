@@ -43,6 +43,75 @@ while [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; do
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tools/ci/validate_ci_structure.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "0e5acdf6bf06f40babe20a3b8afac1ac455c92be" ]] ||
+      ! git show origin/main:tools/ci/validate_ci_structure.py | grep -Fq 'ROOT / "tools/ci/pbd_constraint_group_profile.py",' ||
+      ! git show "${rebase_commit}:tools/ci/validate_ci_structure.py" | grep -Fq 'PYRIGHT_EXPECTED_INCLUDE = (".",)' ||
+      ! git show "${rebase_commit}:tools/ci/validate_ci_structure.py" | grep -Fq 'config.get("typeCheckingMode") != "strict"'; then
+      echo "::error::Refusing a CI-structure conflict outside the verified strict-Pyright migration commit and current-main PBD helper contract."
+      exit 1
+    fi
+    echo "::warning::Preserving main's PBD diagnostic helper and transplanting only the exact strict-Pyright policy changes."
+    git checkout --ours -- tools/ci/validate_ci_structure.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tools/ci/validate_ci_structure.py")
+source = path.read_text(encoding="utf-8")
+start_marker = "# Stage semantic type checking deliberately:"
+end_marker = "QUALITY_RUNNER_COMMANDS = "
+if source.count(start_marker) != 1 or source.count(end_marker) != 1:
+    raise SystemExit("Unexpected Pyright inventory structure; refusing manual transplant.")
+start = source.index(start_marker)
+end = source.index(end_marker, start)
+strict_profile = (
+    "# One strict Pyright profile covers the repository root; new tracked modules need no opt-in.\n"
+    'PYRIGHT_EXPECTED_INCLUDE = (".",)\n'
+    "PYRIGHT_EXPECTED_EXCLUDE: tuple[str, ...] = ()\n"
+    "PYRIGHT_EXPECTED_STRICT: tuple[str, ...] = ()\n\n"
+)
+source = source[:start] + strict_profile + source[end:]
+
+replacements = {
+    '"""Require the reviewed staged Pyright inventory and prevent accidental scope drift.':
+        '"""Require strict Pyright analysis to cover the repository\'s complete Python tree.',
+    'added_modules: New production modules to check against the selected inventory.':
+        'added_modules: New production modules to check against the repository-wide scope.',
+    'Returns:\n        Contract violations describing changes to the reviewed scope or uncovered modules.':
+        'Returns:\n        Contract violations describing any narrowed scope or disabled diagnostics.',
+    '<Pyright include scope differs from the reviewed inventory>':
+        '<Pyright include scope must cover the entire repository root>',
+    '<Pyright exclude scope differs from the reviewed inventory>':
+        '<Pyright must not exclude repository source paths>',
+    '<Pyright strict scope differs from the reviewed simulation core>':
+        '<Pyright strict mode must apply globally, not through a path subset>',
+    'if config.get("typeCheckingMode") != "standard":\n        violations.append("<Pyright default mode must remain standard outside the strict core>")':
+        'if config.get("typeCheckingMode") != "strict":\n        violations.append("<Pyright typeCheckingMode must be strict>")',
+    'if config.get("reportMissingImports", "none") != "none":\n        violations.append("<Pyright missing-import policy differs from the reviewed host boundary>")':
+        'if config.get("reportMissingImports", "error") != "error":\n        violations.append("<Pyright missing-import diagnostics must be blocking>")',
+    'if config.get("reportMissingModuleSource", "none") != "none":\n        violations.append(\n            "<Pyright missing-module-source policy differs from the reviewed host boundary>"\n        )':
+        'if config.get("reportMissingModuleSource", "error") != "error":\n        violations.append("<Pyright missing-module-source diagnostics must be blocking>")',
+    '<new Python module is outside Pyright include/exclude scope: {path}>':
+        '<new Python module is outside strict Pyright coverage: {path}>',
+    '"""Require the curated ty core profile to fail on warning-level diagnostics.':
+        '"""Require every ty diagnostic to be blocking for the complete tracked Python inventory.',
+}
+for old, new in replacements.items():
+    count = source.count(old)
+    if count != 1:
+        raise SystemExit(f"Expected exactly one occurrence for transplant anchor; found {count}: {old[:90]}")
+    source = source.replace(old, new)
+if 'ROOT / "tools/ci/pbd_constraint_group_profile.py",' not in source:
+    raise SystemExit("Mainline PBD diagnostic helper requirement was not preserved.")
+if 'PYRIGHT_EXPECTED_INCLUDE = (".",)' not in source or '"typeCheckingMode") != "strict"' not in source:
+    raise SystemExit("Strict Pyright profile transplant is incomplete.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add tools/ci/validate_ci_structure.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1

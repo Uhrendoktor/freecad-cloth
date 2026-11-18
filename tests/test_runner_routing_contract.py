@@ -79,6 +79,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert '"reportMissingImports": "none"' in resolver
     assert 'git show "${rebase_commit}:pyrightconfig.json"' in resolver
     assert "git checkout --theirs -- pyrightconfig.json" in resolver
+    assert '[[ "$conflicts" == "tools/ci/validate_ci_structure.py" ]]' in resolver
+    assert "0e5acdf6bf06f40babe20a3b8afac1ac455c92be" in resolver
+    assert "git checkout --ours -- tools/ci/validate_ci_structure.py" in resolver
+    assert 'ROOT / "tools/ci/pbd_constraint_group_profile.py",' in resolver
+    assert 'PYRIGHT_EXPECTED_INCLUDE = (".",)' in resolver
+    assert "transplant only the exact strict-Pyright policy changes" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
