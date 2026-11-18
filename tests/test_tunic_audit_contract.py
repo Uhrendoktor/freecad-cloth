@@ -646,7 +646,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "if: always()" not in production_action
-    assert "compare_pbd_collision_query_workers.py" in gui
+    assert "compare_pbd_openmp_team_reuse.py --collision-query-workers" in gui
     assert "artifacts/pbd-collision-query-workers/comparison.json" in gui
     report = gui[report_index:]
     for step_id in (
