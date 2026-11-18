@@ -32,7 +32,7 @@ inputs:
     required: false
     default: ""
   timeout-seconds:
-    description: Hard FreeCAD/container command timeout in seconds (maximum 360); defaults to 120.
+    description: Hard FreeCAD/container command timeout in seconds (maximum 600); defaults to 120.
     required: false
     default: "120"
   environment:
@@ -108,6 +108,7 @@ runs:
         SCENE_REPORT_COMMAND: ${{ inputs.scene-report-command }}
         OBSERVATION_COMMIT_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
         OBSERVATION_TEST_SCRIPT: ${{ inputs.test-script }}
+        OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}
         OBSERVATION_IMAGE: ${{ inputs.image }}
       run: bash -lc "$SCENE_REPORT_COMMAND"
 

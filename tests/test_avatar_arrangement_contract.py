@@ -52,6 +52,7 @@ def test_arrangement_map_rejects_invalid_record_shapes_and_values() -> None:
     """Accept only records with five fields, three coordinates, and valid metadata."""
     records = (
         _StringRecord("neck|1,2,3|front|0|"),
+        _StringRecord("hip|1447.5,0,987.25|front|0|"),
         _StringRecord("chest|1,2|front|0|"),
         _StringRecord("waist|1,2,3|up|0|"),
         _StringRecord("hip|1,2,3|front|not-a-number|"),
@@ -59,7 +60,7 @@ def test_arrangement_map_rejects_invalid_record_shapes_and_values() -> None:
     )
     mapped = arrangement_point_map(records)
     require(
-        condition=mapped == {"neck": "1,2,3"},
+        condition=mapped == {"neck": "1,2,3", "hip": "1447.5,0,987.25"},
         message="Malformed arrangement metadata must be omitted from the point map.",
     )
 

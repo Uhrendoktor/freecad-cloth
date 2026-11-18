@@ -95,6 +95,8 @@ GROUPS = {
         "tests/test_fitting_handoff_command_registration.py",
         "tests/test_fitting_gui_status.py",
         "tests/test_diagnostics_gui_contract.py",
+        "tests/test_diagnostics_gui_contract.py",
+        "tests/test_fitting_gui_status.py",
     ),
     "pytest": (
         "tests/test_side_tasks.py",
@@ -117,6 +119,7 @@ GROUPS = {
         "tests/test_workbench_icons.py",
         "tests/test_tunic_audit_contract.py",
         "tests/test_scene_understanding_report.py",
+        "tests/test_layered_outfit_manifest.py",
         "tests/test_readme_visual_contract.py",
         "tests/test_sketcher_bootstrap_contract.py",
         "tests/test_canonical_python_validation_contract.py",

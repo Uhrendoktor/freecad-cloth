@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import sys
+import time
 from copy import deepcopy
 from typing import TYPE_CHECKING, Protocol, cast
 
@@ -32,24 +33,44 @@ if TYPE_CHECKING:
 
     from freecad_cloth.shared.Collision import CollisionSurface
     from freecad_cloth.simulation.ClothSolver import ClothSystem
+    from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
+_MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES = 2
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
 _PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
 
 
+_DIAGNOSTIC_STREAM = None
+_DIAGNOSTIC_STREAM_PATH: str | None = None
+
+
 def _emit_diagnostic(message: str) -> None:
-    """Write one diagnostic line and flush it for CI log consumers.
+    """Write one diagnostic line to stdout and the opt-in acceptance profile.
 
     Args:
         message: Structured status line emitted by the PBD adapter.
     """
-    sys.stdout.write(f"{message}\n")
+    line = f"{message}\n"
+    sys.stdout.write(line)
     sys.stdout.flush()
+    path = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS_FILE")
+    if path is None:
+        return
+    global _DIAGNOSTIC_STREAM, _DIAGNOSTIC_STREAM_PATH
+    if path != _DIAGNOSTIC_STREAM_PATH:
+        if _DIAGNOSTIC_STREAM is not None:
+            _DIAGNOSTIC_STREAM.close()
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        _DIAGNOSTIC_STREAM = open(path, "a", encoding="utf-8")
+        _DIAGNOSTIC_STREAM_PATH = path
+    if _DIAGNOSTIC_STREAM is not None:
+        _DIAGNOSTIC_STREAM.write(line)
+        _DIAGNOSTIC_STREAM.flush()
 
 
 type FloatArray = npt.NDArray[np.float64]
@@ -610,6 +631,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         stitches: Iterable[tuple[int, int]] = (),
         collision_surface: CollisionSurface | None = None,
         collision_mode: str = "mesh",
+        inter_cloth_groups: Mapping[str, Sequence[tuple[int, int, int]]] | None = None,
+        inter_cloth_clearance_mm: float = 1.0,
     ) -> None:
         """Initialize the native PBD model, constraints, and optional collision surface.
 
@@ -620,6 +643,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             stitches: Particle-index pairs to constrain as sewn together.
             collision_surface: Optional triangle mesh used as the immutable collision target.
             collision_mode: The collision representation, currently required to be mesh.
+            inter_cloth_groups: Independent garment group IDs mapped to global triangle indices.
+            inter_cloth_clearance_mm: Minimum requested separation between garment groups.
 
         Raises:
             RuntimeError: Raised when the native pyPBD binding is unavailable.
@@ -688,9 +713,28 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._collision_configured_tolerance_mm: float | None = None
         self._collision_effective_tolerance_mm: float | None = None
         self._collision_projector: object | None = None
+        self._inter_cloth_groups = {
+            str(group_id): tuple(
+                tuple(int(index) for index in triangle) for triangle in group_triangles
+            )
+            for group_id, group_triangles in (inter_cloth_groups or {}).items()
+        }
+        if self._inter_cloth_groups and len(self._inter_cloth_groups) < 2:
+            msg = "inter-cloth contact needs at least two independent garment groups"
+            raise ValueError(msg)
+        self._inter_cloth_clearance_mm = float(inter_cloth_clearance_mm)
+        if self._inter_cloth_groups and (
+            not np.isfinite(self._inter_cloth_clearance_mm) or self._inter_cloth_clearance_mm <= 0.0
+        ):
+            msg = "inter-cloth clearance must be positive and finite"
+            raise ValueError(msg)
+        self._particle_count = len(self._initial.particles)
+        self._inter_cloth_metrics: InterClothContactMetrics | None = None
+        self._inter_cloth_metrics_before_body_projection: InterClothContactMetrics | None = None
+        self._inter_cloth_residual_constraints = ()
+        self._inter_cloth_inverse_masses = np.ones(self._particle_count, dtype=np.float64)
         self._time = 0.0
         self._substeps = _pbd_substeps()
-        self._particle_count = len(self._initial.particles)
         self._simulation_initialized = False
         self._build()
 
@@ -844,6 +888,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             RuntimeError: Raised when native PBD changes the cloth particle ordering.
             ValueError: Raised when pin indices or cloth stiffness values are invalid.
         """
+        self._inter_cloth_metrics = None
         self._sim, self._model = self._new_simulation()
         points = [_to_pbd_position(p.position()) for p in self._initial.particles]
         indices = [index for triangle in self._triangles for index in triangle]
@@ -865,6 +910,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if invalid_pins:
             msg = f"pin index outside system: {invalid_pins!r}"
             raise ValueError(msg)
+        self._inter_cloth_inverse_masses.fill(1.0)
+        if pin_indices:
+            self._inter_cloth_inverse_masses[np.fromiter(pin_indices, dtype=np.int64)] = 0.0
         for index in range(self._particle_count):
             particles.setMass(index, 0.0 if index in pin_indices else 1.0)
 
@@ -961,6 +1009,26 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._stitches,
             self._pin_indices,
         )
+        self._apply_position_corrections(particles, positions_mm, corrected_mm, outward_normals)
+
+    def _apply_position_corrections(
+        self,
+        particles: _NativePBDParticles,
+        positions_mm: FloatArray,
+        corrected_mm: FloatArray,
+        correction_directions: FloatArray,
+        *,
+        skip_zero_directions: bool = False,
+    ) -> None:
+        """Apply projected positions and remove velocity into contact normals.
+
+        Args:
+            particles: Native PBD particle collection receiving corrected values.
+            positions_mm: Original particle positions in FreeCAD millimetres.
+            corrected_mm: Projected particle positions in FreeCAD millimetres.
+            correction_directions: Per-particle outward or separation directions.
+            skip_zero_directions: Preserve velocity when a contact direction is zero.
+        """
         moved_indices = np.flatnonzero(np.linalg.norm(corrected_mm - positions_mm, axis=1) > 1e-7)
         pinned = set(self._pin_indices)
         for raw_index in moved_indices:
@@ -975,13 +1043,198 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     dtype=np.float64,
                 ),
             )
-            # Velocity coordinates use the same PBD (X, Z, Y) axis permutation.
-            normal = outward_normals[index]
+            normal = correction_directions[index]
+            if skip_zero_directions and float(np.linalg.norm(normal)) <= 1e-10:
+                continue
             normal_pbd = np.asarray((normal[0], normal[2], normal[1]), dtype=np.float64)
             velocity = np.asarray(particles.getVelocity(index), dtype=np.float64)
             inward_speed = float(np.dot(velocity, normal_pbd))
             if inward_speed < 0.0:
                 particles.setVelocity(index, velocity - inward_speed * normal_pbd)
+
+    def _project_inter_cloth_positions(self) -> None:
+        """Separate independent garment groups after each native PBD timestep.
+
+        Contact is projected in world millimetres after the native solver pass.
+        The same correction directions are used to remove inward normal velocity,
+        preventing the next frame from immediately re-entering the opposing cloth.
+        """
+        if len(self._inter_cloth_groups) < 2:
+            self._inter_cloth_metrics = None
+            return
+
+        from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            self._inter_cloth_metrics = None
+            self._inter_cloth_residual_constraints = ()
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        # _build sets every movable particle mass to 1 and every pin to 0.
+        # Cache the equivalent inverse masses instead of crossing the pyPBD
+        # binding once per particle on every interactive frame.
+        inverse_masses = self._inter_cloth_inverse_masses
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+            _emit_diagnostic(
+                "cloth-pbd-inter-cloth-start "
+                f"particles={len(positions_mm)} "
+                + " ".join(
+                    f"group={group_id}:triangles={len(triangles)}"
+                    for group_id, triangles in sorted(self._inter_cloth_groups.items())
+                )
+            )
+        corrected_mm, contact_directions, metrics = project_inter_cloth_contacts(
+            positions_mm,
+            self._inter_cloth_groups,
+            inverse_masses,
+            clearance_mm=self._inter_cloth_clearance_mm,
+            stitches=self._stitches,
+            iterations=1,
+            # The authoritative residual is measured once after the final body
+            # projection below; do not repeat the same broad/narrow phase here.
+            measure_residual=False,
+        )
+        self._apply_position_corrections(
+            particles, positions_mm, corrected_mm, contact_directions, skip_zero_directions=True
+        )
+        self._inter_cloth_metrics = metrics
+
+    def _measure_inter_cloth_residual(self) -> None:
+        """Refresh residual garment contact after the final avatar projection."""
+        if len(self._inter_cloth_groups) < 2:
+            self._inter_cloth_metrics = None
+            self._inter_cloth_residual_constraints = ()
+            return
+        from freecad_cloth.simulation.InterClothContact import (
+            measure_inter_cloth_contacts_with_constraints,
+        )
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            self._inter_cloth_metrics = None
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        remaining_count, maximum_deficit, constraints = measure_inter_cloth_contacts_with_constraints(
+            positions_mm,
+            self._inter_cloth_groups,
+            clearance_mm=self._inter_cloth_clearance_mm,
+        )
+        self._inter_cloth_residual_constraints = constraints
+        if self._inter_cloth_metrics is None:
+            from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
+
+            self._inter_cloth_metrics = InterClothContactMetrics(
+                0,
+                0,
+                remaining_count,
+                0.0,
+                maximum_deficit,
+            )
+        else:
+            self._inter_cloth_metrics = self._inter_cloth_metrics._replace(
+                remaining_contact_count=remaining_count,
+                max_penetration_after_mm=maximum_deficit,
+            )
+
+    def _project_inter_cloth_residual_constraints(self):
+        """Correct only the exact residual contacts from the latest measurement."""
+        constraints = getattr(self, "_inter_cloth_residual_constraints", ())
+        if not constraints:
+            return None
+
+        from freecad_cloth.simulation.InterClothContact import (
+            project_measured_inter_cloth_contacts,
+        )
+
+        particles = self._model.getParticles()
+        native_vertices = np.asarray(particles.getVertices(), dtype=np.float64)
+        if native_vertices.size == 0:
+            return None
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        corrected_mm, contact_directions, metrics = project_measured_inter_cloth_contacts(
+            positions_mm,
+            self._inter_cloth_inverse_masses,
+            constraints,
+            clearance_mm=self._inter_cloth_clearance_mm,
+            stitches=self._stitches,
+            relaxation=1.0,
+        )
+        self._apply_position_corrections(
+            particles,
+            positions_mm,
+            corrected_mm,
+            contact_directions,
+            skip_zero_directions=True,
+        )
+        self._inter_cloth_metrics = metrics
+        _emit_diagnostic(
+            f"cloth-pbd-targeted-contact-repair constraints={len(constraints)} "
+            f"contacts={metrics.contact_count} corrected={metrics.corrected_particle_count}"
+        )
+        return metrics
+
+    def _resolve_inter_cloth_body_contacts(self) -> None:
+        """Reconcile bounded cloth/body contact corrections until both remain clear.
+
+        The final mannequin projection can move one garment into another. Apply a
+        bounded inter-cloth/body correction cycle only when the authoritative
+        post-body measurement reports residual garment contact.
+        """
+        self._measure_inter_cloth_residual()
+        aggregate = self._inter_cloth_metrics
+        if aggregate is None:
+            return
+
+        for pass_index in range(_MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES):
+            if aggregate.remaining_contact_count <= 0:
+                break
+
+            correction = self._project_inter_cloth_residual_constraints()
+            if correction is None:
+                break
+            self._project_collision_positions()
+            self._measure_inter_cloth_residual()
+            measured = self._inter_cloth_metrics
+            if measured is None:
+                break
+            _emit_diagnostic(
+                f"cloth-pbd-contact-reconcile-pass={pass_index + 1} "
+                f"residual={measured.remaining_contact_count} "
+                f"maximum_mm={measured.max_penetration_after_mm:.4f}"
+            )
+
+            self._inter_cloth_metrics = measured._replace(
+                contact_count=aggregate.contact_count + correction.contact_count,
+                corrected_particle_count=(
+                    aggregate.corrected_particle_count + correction.corrected_particle_count
+                ),
+                max_penetration_before_mm=max(
+                    aggregate.max_penetration_before_mm,
+                    correction.max_penetration_before_mm,
+                ),
+            )
+            aggregate = self._inter_cloth_metrics
+
+    @property
+    def inter_cloth_metrics(self) -> InterClothContactMetrics | None:
+        """Return the latest measured contact projection result for the garment groups.
+
+        Returns:
+            The latest contact metrics, or None before a projection has completed.
+        """
+        return self._inter_cloth_metrics
+
+    @property
+    def inter_cloth_metrics_before_body_projection(self) -> InterClothContactMetrics | None:
+        """Return contact metrics immediately before the final mannequin projection.
+
+        Returns:
+            Metrics after inter-cloth projection, before the final body-shell correction.
+        """
+        return self._inter_cloth_metrics_before_body_projection
 
     def step(
         self,
@@ -1036,8 +1289,49 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             self._pbd.TimeStepController.MAX_ITERATIONS_V,
             int(iterations),
         )
+        diagnostics = os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1"
+        stage_started = time.perf_counter()
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-native-step-start particles={self._particle_count} dt={float(dt):.6f}"
+            )
         timestep.step(self._model)
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-native-step-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        self._inter_cloth_metrics_before_body_projection = None
+        stage_started = time.perf_counter()
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-first-body-projection-start")
         self._project_collision_positions()
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-first-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        stage_started = time.perf_counter()
+        self._project_inter_cloth_positions()
+        self._inter_cloth_metrics_before_body_projection = self._inter_cloth_metrics
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-inter-cloth-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        # Cross-cloth response can push fabric back toward the avatar, so preserve
+        # the authoritative body shell after the garment-group projection.
+        stage_started = time.perf_counter()
+        if diagnostics:
+            _emit_diagnostic("cloth-pbd-final-body-projection-start")
+        self._project_collision_positions()
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-final-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
+        stage_started = time.perf_counter()
+        self._resolve_inter_cloth_body_contacts()
+        if diagnostics:
+            _emit_diagnostic(
+                f"cloth-pbd-residual-measure-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
+            )
         self._time += float(dt)
 
     def reset(self) -> None:
