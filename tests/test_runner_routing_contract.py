@@ -84,7 +84,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git checkout --ours -- tools/ci/validate_ci_structure.py" in resolver
     assert 'ROOT / "tools/ci/pbd_constraint_group_profile.py",' in resolver
     assert 'PYRIGHT_EXPECTED_INCLUDE = (".",)' in resolver
-    assert "transplant only the exact strict-Pyright policy changes" in resolver
+    assert "transplanting only the exact strict-Pyright policy changes" in resolver
     assert '[[ "$conflicts" == "docs/developers/UI_STYLE_GUIDE.md" ]]' in resolver
     assert "67d656007deea6692d332e0954cb8aa1f99e92e6" in resolver
     assert "git checkout --ours -- docs/developers/UI_STYLE_GUIDE.md" in resolver
@@ -111,7 +111,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "from pathlib import Path" in resolver
     assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
     assert "sys.stdout.write(" in resolver
-    assert "removing only the obsolete pytest root bootstrap" in resolver
+    assert "removing only the bootstrap for pytest execution" in resolver
     assert '[[ "$conflicts" == "tests/test_simulation_gui.py" ]]' in resolver
     assert "ffd9acf1e6e06794ded282037216e1db0449775c" in resolver
     assert "d94c75f1fe15f978a3c5be15d3068ac46e59e96a" in resolver
