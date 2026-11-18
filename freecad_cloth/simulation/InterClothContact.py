@@ -594,6 +594,10 @@ def _candidate_edge_triangle_pairs(
     )
     candidate_count = int(np.sum(counts))
     if candidate_count == 0:
+        _emit_contact_diagnostic(
+            f"inter-cloth-broadphase raw=0 aabb=0 plane=0 workers={query_workers} eps=0.0 "
+            f"query_s={query_seconds:.4f} filter_s=0.0000"
+        )
         empty = np.empty(0, dtype=np.int64)
         return empty, empty.copy(), 0, query_seconds, 0.0
 
