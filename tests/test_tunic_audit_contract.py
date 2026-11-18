@@ -599,8 +599,8 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
     assert "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile, (
         'Contract failed: "/opt/pypbd-openmp-experiment/provenance.txt" in dockerfile'
     )
-    assert "artifacts/pbd-openmp-team-reuse/**" in gui, (
-        'Contract failed: "artifacts/pbd-openmp-team-reuse/**" in gui'
+    assert "artifacts/pbd-collision-query-workers/**" in gui, (
+        'Contract failed: "artifacts/pbd-collision-query-workers/**" in gui'
     )
 
 
@@ -639,12 +639,14 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
     assert 'timeout-seconds: "360"' in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
+    assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_action
+    assert "CLOTH_PBD_COLLISION_QUERY_WORKERS" in production_action
     assert "inputs.mode" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "if: always()" not in production_action
-    assert "compare_pbd_openmp_team_reuse.py" in gui
-    assert "artifacts/pbd-openmp-team-reuse/comparison.json" in gui
+    assert "compare_pbd_collision_query_workers.py" in gui
+    assert "artifacts/pbd-collision-query-workers/comparison.json" in gui
     report = gui[report_index:]
     for step_id in (
         "baseline_1_audit",
@@ -654,8 +656,8 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     ):
         assert f"steps.{step_id}.outcome" in report
     assert "::error title=Paired production audit failed" in report
-    assert "5% projection" in report
-    assert "non-regressing wall-time gates" in report
+    assert "10% projector-stage" in report
+    assert "non-regressing production wall-time gates" in report
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )
@@ -684,6 +686,26 @@ def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fi
     assert wrapper.index("_load_openmp_experiment_binding()") < wrapper.index(
         'runpy.run_path(str(SOURCE), run_name="__main__")'
     )
+
+
+
+def test_collision_query_worker_parallelism_is_limited_to_batched_exact_search() -> None:
+    """Only the particle batch is parallel; stitch midpoint query stays serial and exact."""
+    projector = (
+        ROOT / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
+    ).read_text(encoding="utf-8")
+    backend = (
+        ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
+    ).read_text(encoding="utf-8")
+    profile = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
+    assert "workers=self._query_workers" in projector
+    assert "eps=0.0,\n            workers=self._query_workers," in projector
+    stitched = projector.split("def project_stitched_pairs(", 1)[1]
+    assert "eps=0.0,\n            workers=1," in stitched
+    assert 'os.environ.get("CLOTH_PBD_COLLISION_QUERY_WORKERS", "1")' in backend
+    assert "query_workers=projector_query_workers" in backend
+    assert '"CLOTH_PBD_COLLISION_QUERY_WORKERS"' in profile
+
 
 
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
