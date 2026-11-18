@@ -252,6 +252,20 @@ def compare_layered_query_worker_audits(
             audit["signature"],
             label=f"{label}.matched_context_and_physics",
         )
+        reference_diagnostics = _as_object(
+            baseline[0].get("diagnostics"), "baseline-1.diagnostics"
+        )
+        audit_diagnostics = _as_object(audit.get("diagnostics"), f"{label}.diagnostics")
+        for key in (
+            "raw_candidate_pairs",
+            "aabb_candidate_pairs",
+            "plane_candidate_pairs",
+            "broadphase_samples",
+            "projection_samples",
+            "pass_samples",
+        ):
+            if audit_diagnostics.get(key) != reference_diagnostics.get(key):
+                raise ValueError(f"{label}: exact contact candidate/work counts changed ({key})")
 
     def metric_samples(records_to_measure: list[JsonObject], key: str) -> list[float]:
         """Extract one positive timing or wall-time sample from each audit."""
@@ -265,8 +279,14 @@ def compare_layered_query_worker_audits(
     candidate_query = metric_samples(candidate, "query_seconds")
     baseline_projection = metric_samples(baseline, "inter_cloth_projection_seconds")
     candidate_projection = metric_samples(candidate, "inter_cloth_projection_seconds")
-    baseline_wall = metric_samples(baseline, "total_elapsed_ms")
-    candidate_wall = metric_samples(candidate, "total_elapsed_ms")
+    baseline_wall = [
+        _number(record.get("total_elapsed_ms"), f"baseline-{index}.total_elapsed_ms", positive=True)
+        for index, record in enumerate(baseline, 1)
+    ]
+    candidate_wall = [
+        _number(record.get("total_elapsed_ms"), f"candidate-{index}.total_elapsed_ms", positive=True)
+        for index, record in enumerate(candidate, 1)
+    ]
 
     baseline_query_median = median(baseline_query)
     candidate_query_median = median(candidate_query)
