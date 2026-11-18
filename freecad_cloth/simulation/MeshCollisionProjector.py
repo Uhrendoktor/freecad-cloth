@@ -366,7 +366,6 @@ class MeshCollisionProjector:
         return corrected, contact_normals
 
 
-
 def project_stitched_pairs(
     projector: MeshCollisionProjector,
     positions_mm: npt.ArrayLike,
