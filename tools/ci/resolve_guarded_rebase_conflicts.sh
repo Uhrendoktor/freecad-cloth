@@ -26,6 +26,23 @@ while [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; do
     if ! GIT_EDITOR=true git rebase --skip; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "pyrightconfig.json" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "0f8ae7645c3c2fe6491dfe9b93477d28f047563b" ]] ||
+      ! git show origin/main:pyrightconfig.json | grep -Fq '"typeCheckingMode": "standard"' ||
+      ! git show origin/main:pyrightconfig.json | grep -Fq '"reportMissingImports": "none"' ||
+      ! git show "${rebase_commit}:pyrightconfig.json" | grep -Fq '"typeCheckingMode": "strict"' ||
+      ! git show "${rebase_commit}:pyrightconfig.json" | grep -Fq '    "."' ||
+      git show "${rebase_commit}:pyrightconfig.json" | grep -Fq '"exclude":'; then
+      echo "::error::Refusing a Pyright config conflict outside the verified repository-wide strict-profile commit."
+      exit 1
+    fi
+    echo "::warning::Taking the exact repository-wide strict Pyright profile while replaying its original expansion commit."
+    git checkout --theirs -- pyrightconfig.json
+    git add pyrightconfig.json
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
