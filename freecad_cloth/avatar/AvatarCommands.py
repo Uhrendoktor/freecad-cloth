@@ -368,13 +368,13 @@ def _legacy_pose_data(payload: str) -> JsonObject | None:
         return None
     if not isinstance(decoded, dict):
         return None
-    stored_data = cast("JsonObject", decoded)
+    stored_data = decoded
     if not _is_legacy_pose_schema(stored_data):
         return None
     stored_pose_data = stored_data.get("pose", {})
     if not isinstance(stored_pose_data, dict):
         return None
-    return cast("JsonObject", stored_pose_data)
+    return stored_pose_data
 
 
 def _migrate_legacy_pose_angles(
@@ -425,12 +425,12 @@ def _stored_avatar_shape_parameters(
     decoded = cast("JsonValue", json.loads(payload))
     if not isinstance(decoded, dict):
         return {}, {}, {}, None
-    decoded_object = cast("JsonObject", decoded)
+    decoded_object = decoded
     if _is_legacy_pose_schema(decoded_object):
         return {}, {}, {}, None
     stored_parameters = AvatarParameters.from_json(payload)
     shape_values = decoded_object.get("shape", {})
-    shape_payload = cast("JsonObject", shape_values) if isinstance(shape_values, dict) else {}
+    shape_payload = shape_values if isinstance(shape_values, dict) else {}
     return (
         shape_payload,
         dict(stored_parameters.phenotype_overrides),
@@ -869,10 +869,7 @@ def create_avatar(
 
     app = cast("_FreeCADApplication", App)
 
-    doc = cast(
-        "_FreeCADDocument",
-        doc or app.ActiveDocument or _application_new_document(app, "ClothSewing"),
-    )
+    doc = doc or app.ActiveDocument or _application_new_document(app, "ClothSewing"),
     obj = _avatar(doc)
     if obj is None:
         obj = _document_add_object(doc, "Mesh::Feature", object_name)
@@ -908,7 +905,7 @@ def apply_avatar_parameters(
     Returns:
         The updated avatar feature after derived collision and fitting links refresh.
     """
-    typed_obj = cast("_AvatarFeature", obj)
+    typed_obj = obj
     obj = _rebuild(
         typed_obj,
         params=params,

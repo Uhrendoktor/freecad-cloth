@@ -517,10 +517,10 @@ def _edge_points(
     placement = getattr(piece, "Placement", None)
     if placement is not None:
         native_placement = cast("_NativePlacement", placement)
-        return native_placement.multVec(cast("_NativePoint", local0)), native_placement.multVec(
-            cast("_NativePoint", local1)
+        return native_placement.multVec(local0), native_placement.multVec(
+            local1
         )
-    return cast("_NativePoint", local0), cast("_NativePoint", local1)
+    return local0, local1
 
 
 def _resolved_edge(
@@ -588,7 +588,7 @@ def _edge_samples(
     placement = getattr(piece, "Placement", None)
     result = []
     for x_value, y_value in samples:
-        vector = cast("_NativePoint", vector_factory(float(x_value), float(y_value), float(z)))
+        vector = vector_factory(float(x_value), float(y_value), float(z))
         result.append(
             cast("_NativePlacement", placement).multVec(vector)
             if placement is not None and transform_to_world

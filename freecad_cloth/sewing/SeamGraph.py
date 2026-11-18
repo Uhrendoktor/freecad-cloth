@@ -9,7 +9,6 @@ compatibility adapter, not a second seam representation.
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import field, replace
 from math import isfinite
-from typing import cast
 
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
@@ -416,7 +415,7 @@ class SeamGraph:
         if len(values) < 2:
             msg = f"mesh edge {piece_id}:{edge_index} needs at least two vertices"
             raise ValueError(msg)
-        return cast("tuple[int, ...]", values)
+        return values
 
 
 def _sample_indices(values: Sequence[int], start: float, end: float, count: int) -> list[int]:

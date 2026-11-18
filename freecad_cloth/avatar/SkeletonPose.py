@@ -200,7 +200,7 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
     if not isinstance(decoded, dict):
         msg = "mannequin joint pose JSON must be an object"
         raise TypeError(msg)
-    data = cast("dict[str, JSONValue]", decoded)
+    data = decoded
     if type(data.get("schema_version")) is not int or data["schema_version"] != 1:
         msg = "unsupported mannequin joint-pose schema version"
         raise ValueError(msg)
@@ -211,13 +211,13 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
     if not isinstance(joints, dict):
         msg = "mannequin joint pose JSON must contain a joints object"
         raise TypeError(msg)
-    joint_values = cast("dict[str, JSONValue]", joints)
+    joint_values = joints
     rotations: list[JointRotation] = []
     for bone, values in joint_values.items():
         if not isinstance(values, dict):
             msg = f"joint pose for {bone} must be an object"
             raise TypeError(msg)
-        axes = cast("dict[str, JSONValue]", values)
+        axes = values
         rotations.append(
             JointRotation(
                 bone,

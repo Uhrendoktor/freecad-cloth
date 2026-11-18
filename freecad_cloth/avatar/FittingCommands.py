@@ -396,7 +396,7 @@ def _anchor_records(scene: _FittingSceneFeature) -> dict[str, JsonObject]:
                 continue
             name = str(decoded.get("name", ""))
             if name:
-                result[name] = cast("JsonObject", decoded)
+                result[name] = decoded
         except (AttributeError, TypeError, ValueError):
             continue
     return result
@@ -534,7 +534,7 @@ def _mesh_topology_from_parts(
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
     faces = tuple(
-        tuple(int(cast("SupportsInt | str | bytes", index)) for index in face) for face in triangles
+        tuple(int(index) for index in face) for face in triangles
     )
     return _validated_mesh_topology(points, faces)
 
@@ -1378,7 +1378,7 @@ def refresh_avatar_anchor_positions(
     Returns:
         Names of arrangement points whose persisted positions were refreshed.
     """
-    typed_document = cast("_FittingDocument", document)
+    typed_document = document
     scene = _scene(typed_document)
     target = typed_document.getObject("DrapeTarget")
     if scene is None or getattr(target, "SourceObject", None) is not avatar:
@@ -1701,7 +1701,7 @@ def add_selected_pattern_pieces() -> _FittingSceneFeature:
         home_by_id.setdefault(value.piece_id, value)
     scene.PatternPieces = sorted(
         set(list(scene.PatternPieces) + pieces),
-        key=lambda piece: str(cast("_PatternPieceRef", piece).PieceId),
+        key=lambda piece: str(piece.PieceId),
     )
     scene.PiecePlacements = [by_id[k].to_string() for k in sorted(by_id)]
     scene.HomePlacements = [home_by_id[k].to_string() for k in sorted(home_by_id)]
@@ -2207,7 +2207,7 @@ def create_arrangement_anchor(
     except (AttributeError, RuntimeError, TypeError, ValueError):
         local = cast("_NativeVector", world)
 
-    local_vector = cast("_NativeVector", local)
+    local_vector = local
     local_coords = (float(local_vector.x), float(local_vector.y), float(local_vector.z))
     anchor: JsonObject = {
         "name": str(name),
@@ -2227,7 +2227,7 @@ def create_arrangement_anchor(
             world = target.Placement.multVec(local_vector)
         except (AttributeError, RuntimeError, TypeError, ValueError):
             world = local_vector
-        world_vector = cast("_NativeVector", world)
+        world_vector = world
         coords = (float(world_vector.x), float(world_vector.y), float(world_vector.z))
 
     from freecad_cloth.avatar.AvatarFitting import ArrangementPoint

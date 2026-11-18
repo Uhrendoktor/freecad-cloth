@@ -197,8 +197,8 @@ def set_drape_target_source(
         raise ValueError(msg)
     from freecad_cloth.simulation.DrapeTarget import assign_drape_target, create_drape_target
 
-    typed_scene = cast("_SimulationScene", scene)
-    doc = cast("_FreeCADDocument", typed_scene.Document)
+    typed_scene = scene
+    doc = typed_scene.Document
     target = cast(
         "_DrapeTarget | None",
         getattr(typed_scene, "DrapeTarget", None) or _target(doc),
@@ -243,7 +243,7 @@ def create_drape_target_from_selection(
 
     doc = cast("_FreeCADDocument", App.ActiveDocument or App.newDocument("ClothDrape"))
     source = _selected_source()
-    target = cast("_DrapeTarget | None", _target(doc))
+    target = _target(doc)
     if target is None:
         target = cast(
             "_DrapeTarget",
@@ -275,7 +275,7 @@ def create_mannequin_drape_target() -> _DrapeTarget:
 
     doc = cast("_FreeCADDocument", App.ActiveDocument or App.newDocument("ClothDrape"))
     mannequin = _get_document_object(doc, "ClothAvatar") or create_avatar()
-    target = cast("_DrapeTarget | None", _target(doc))
+    target = _target(doc)
     if target is None:
         target = cast(
             "_DrapeTarget",
@@ -363,7 +363,7 @@ def set_drape_target_enabled(
     if doc is None:
         msg = "create a drape target first"
         raise ValueError(msg)
-    target = cast("_DrapeTarget | None", _target(doc))
+    target = _target(doc)
     if target is None:
         msg = "create a drape target first"
         raise ValueError(msg)
