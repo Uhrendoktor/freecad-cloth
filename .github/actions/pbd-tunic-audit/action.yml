@@ -1,5 +1,5 @@
 name: PBD production tunic audit
-description: Run one fail-closed native PBD production audit for the OpenMP A/B experiment.
+description: Run one fail-closed PBD production audit for the stitch-topology cache A/B experiment.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
