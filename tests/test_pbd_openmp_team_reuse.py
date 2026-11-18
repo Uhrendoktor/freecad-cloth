@@ -8,7 +8,10 @@ from copy import deepcopy
 import pytest
 
 from freecad_cloth.common.JsonTypes import JsonObject
-from tools.ci.compare_pbd_openmp_team_reuse import compare_profile_sets
+from tools.ci.compare_pbd_openmp_team_reuse import (
+    compare_collision_query_worker_profile_sets,
+    compare_profile_sets,
+)
 
 
 def _profile(
@@ -102,6 +105,93 @@ def _matched_profiles() -> tuple[list[JsonObject], list[JsonObject]]:
         _profile("1", projection_ms=10400.0, wall_ms=20200.0),
     ]
     return baseline, candidate
+
+
+def _collision_query_profile(
+    workers: int,
+    *,
+    projector_ms: float,
+    wall_ms: float,
+) -> JsonObject:
+    """Build one production profile for the exact mesh-query worker comparison."""
+    profile = _profile("1", projection_ms=11000.0, wall_ms=wall_ms)
+    profile["runtime_limits"]["thread_environment"]["CLOTH_PBD_COLLISION_QUERY_WORKERS"] = str(
+        workers
+    )
+    profile["python_backend_stage_timings"] = {
+        "mesh_collision_projector": {
+            "samples": 360,
+            "total_ms": projector_ms,
+        }
+    }
+    return profile
+
+
+def _matched_collision_query_profiles() -> tuple[list[JsonObject], list[JsonObject]]:
+    """Return matched worker profiles with a passing projector-stage improvement."""
+    baseline = [
+        _collision_query_profile(1, projector_ms=2300.0, wall_ms=20400.0),
+        _collision_query_profile(1, projector_ms=2250.0, wall_ms=20300.0),
+    ]
+    candidate = [
+        _collision_query_profile(4, projector_ms=1950.0, wall_ms=20300.0),
+        _collision_query_profile(4, projector_ms=1900.0, wall_ms=20200.0),
+    ]
+    return baseline, candidate
+
+
+def test_collision_query_worker_profiles_pass_both_measured_gates() -> None:
+    """Four workers must improve projector time by >=10% without wall regression."""
+    baseline, candidate = _matched_collision_query_profiles()
+
+    result = compare_collision_query_worker_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "passed"
+    assert result["mesh_collision_projector_improvement_percent"] >= 10.0
+    assert result["production_wall_time_change_percent"] <= 0.0
+    assert result["production_acceptance"] == "passed_all_four_runs"
+
+
+def test_collision_query_workers_reject_projector_gain_below_ten_percent() -> None:
+    """A small exact-query speedup cannot pass the registered 10% stage gate."""
+    baseline, candidate = _matched_collision_query_profiles()
+    candidate = [
+        _collision_query_profile(4, projector_ms=2150.0, wall_ms=20300.0),
+        _collision_query_profile(4, projector_ms=2160.0, wall_ms=20200.0),
+    ]
+
+    result = compare_collision_query_worker_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "rejected"
+    assert any("below 10%" in reason for reason in result["rejection_reasons"])
+
+
+def test_collision_query_workers_reject_wall_regression_and_unmatched_context() -> None:
+    """Projector gains cannot hide slower full production or different OpenMP settings."""
+    baseline, candidate = _matched_collision_query_profiles()
+    candidate = [
+        _collision_query_profile(4, projector_ms=1800.0, wall_ms=20600.0),
+        _collision_query_profile(4, projector_ms=1850.0, wall_ms=20700.0),
+    ]
+
+    result = compare_collision_query_worker_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "rejected"
+    assert any("wall time regressed" in reason for reason in result["rejection_reasons"])
+
+    baseline, candidate = _matched_collision_query_profiles()
+    candidate[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
+    with pytest.raises(ValueError, match="CLOTH_PBD_OPENMP_TEAM_REUSE must remain 1"):
+        compare_collision_query_worker_profile_sets(baseline, candidate)
+
+
+def test_collision_query_workers_reject_incomplete_projector_timing() -> None:
+    """All 360 per-backend-step projector timing samples must be present."""
+    baseline, candidate = _matched_collision_query_profiles()
+    candidate[0]["python_backend_stage_timings"]["mesh_collision_projector"]["samples"] = 359
+
+    with pytest.raises(ValueError, match="mesh collision projector timing sample count is incomplete"):
+        compare_collision_query_worker_profile_sets(baseline, candidate)
 
 
 def test_matched_team_reuse_profiles_pass_both_measured_gates() -> None:
