@@ -389,22 +389,22 @@ jobs:
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_2_audit
         with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
-      - name: Compare matched native production profiles
+      - name: Compare exact KDTree query-worker production profiles
         id: compare_paired_profiles
         shell: bash
         run: |
-          python3 tools/ci/compare_pbd_openmp_team_reuse.py \
-            --baseline-1 artifacts/pbd-openmp-team-reuse/baseline-1.json \
-            --baseline-2 artifacts/pbd-openmp-team-reuse/baseline-2.json \
-            --candidate-1 artifacts/pbd-openmp-team-reuse/candidate-1.json \
-            --candidate-2 artifacts/pbd-openmp-team-reuse/candidate-2.json \
-            --output artifacts/pbd-openmp-team-reuse/comparison.json
+          python3 tools/ci/compare_pbd_collision_query_workers.py \
+            --baseline-1 artifacts/pbd-collision-query-workers/baseline-1.json \
+            --baseline-2 artifacts/pbd-collision-query-workers/baseline-2.json \
+            --candidate-1 artifacts/pbd-collision-query-workers/candidate-1.json \
+            --candidate-2 artifacts/pbd-collision-query-workers/candidate-2.json \
+            --output artifacts/pbd-collision-query-workers/comparison.json
       - name: Upload matched PBD experiment profiles
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: pbd-openmp-team-reuse-comparison
-          path: artifacts/pbd-openmp-team-reuse/**
+          name: pbd-collision-query-workers-comparison
+          path: artifacts/pbd-collision-query-workers/**
           if-no-files-found: error
       - name: Report paired native production audit outcome
         if: always()
@@ -423,7 +423,7 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+          echo "::notice title=Exact KDTree query-worker experiment::All four production audits passed; exact KDTree query-worker comparison met the 10% projector-stage and non-regressing production wall-time gates."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
