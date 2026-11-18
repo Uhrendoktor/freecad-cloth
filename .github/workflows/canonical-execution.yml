@@ -379,16 +379,16 @@ jobs:
           image: ${{ env.FREECAD_PBD_IMAGE }}
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", query-workers: "1", profile-name: baseline-1}
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", query-workers: "4", profile-name: candidate-1}
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", query-workers: "1", profile-name: baseline-2}
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", query-workers: "4", profile-name: candidate-2, collect-evidence: "true"}
       - name: Compare exact KDTree query-worker production profiles
         id: compare_paired_profiles
         shell: bash
