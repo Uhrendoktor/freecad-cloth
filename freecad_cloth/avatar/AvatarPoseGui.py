@@ -1229,7 +1229,8 @@ class AvatarPoseTaskPanel:
             box.setPrefix(f"{axis.upper()} ")
             box.setKeyboardTracking(False)
             box.setToolTip(
-                f"Exact local {axis.upper()} rotation in degrees. Focus this field to highlight its viewport ring."
+                f"Exact local {axis.upper()} rotation in degrees. Focus this field to",
+                "highlight its matching viewport ring."
             )
             box.setProperty("clothPoseAxis", axis)
             self.precision_fields[axis] = box

@@ -892,7 +892,8 @@ class AvatarDimensionController:
                 self._drag_item_label = None
                 self.refresh()
                 self.panel._set_status(
-                    "Measurement staged. The linked field shows the exact value; Apply & Rebuild commits it.",
+                    "Measurement staged. The linked field shows the exact value;",
+                    "Apply & Rebuild commits it.",
                     state="success",
                 )
             return
