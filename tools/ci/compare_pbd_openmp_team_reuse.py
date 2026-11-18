@@ -171,6 +171,41 @@ def _runtime_signature(
     return tuple(context)
 
 
+
+
+def _validate_matched_context(
+    baseline_profiles: list[JsonObject],
+    candidate_profiles: list[JsonObject],
+    experiment_environment_key: str = EXPERIMENT_ENVIRONMENT_KEY,
+) -> None:
+    """Require matched production settings, grouping, runner, and native build context."""
+    reference = baseline_profiles[0]
+    settings = reference.get("production_settings")
+    groups = reference.get("native_constraint_groups")
+    runtime = _runtime_signature(reference, experiment_environment_key)
+    matched_profiles = [
+        *(
+            (profile, f"baseline-{index + 1}")
+            for index, profile in enumerate(baseline_profiles[1:], 1)
+        ),
+        *(
+            (profile, f"candidate-{index + 1}")
+            for index, profile in enumerate(candidate_profiles)
+        ),
+    ]
+    for profile, label in matched_profiles:
+        if profile.get("production_settings") != settings:
+            raise ValueError(f"{label}: production settings differ from the matched baseline")
+        if profile.get("native_constraint_groups") != groups:
+            raise ValueError(
+                f"{label}: native constraint grouping differs from the matched baseline"
+            )
+        if _runtime_signature(profile, experiment_environment_key) != runtime:
+            raise ValueError(
+                f"{label}: execution context differs (runner, OpenMP, or native build)"
+            )
+
+
 def _projection_total(profile: JsonObject, label: str) -> float:
     """Read the complete native projection total from one production profile."""
     timings = _as_object(
@@ -287,21 +322,9 @@ def compare_collision_query_worker_profile_sets(
             required_environment={"CLOTH_PBD_OPENMP_TEAM_REUSE": "1"},
         )
 
-    reference = baseline_profiles[0]
-    settings = reference.get("production_settings")
-    groups = reference.get("native_constraint_groups")
-    runtime = _runtime_signature(reference, COLLISION_QUERY_ENVIRONMENT_KEY)
-    for profile, _, label in records[1:]:
-        if profile.get("production_settings") != settings:
-            raise ValueError(f"{label}: production settings differ from the matched baseline")
-        if profile.get("native_constraint_groups") != groups:
-            raise ValueError(
-                f"{label}: native constraint grouping differs from the matched baseline"
-            )
-        if _runtime_signature(profile, COLLISION_QUERY_ENVIRONMENT_KEY) != runtime:
-            raise ValueError(
-                f"{label}: execution context differs (runner, OpenMP, or native build)"
-            )
+    _validate_matched_context(
+        baseline_profiles, candidate_profiles, COLLISION_QUERY_ENVIRONMENT_KEY
+    )
 
     baseline_projector = _profile_stage_totals(
         baseline_profiles, "baseline", _mesh_collision_projector_total
@@ -386,21 +409,7 @@ def compare_profile_sets(
     for profile, mode, label in records:
         _validate_profile(profile, mode, label)
 
-    reference = baseline_profiles[0]
-    settings = reference.get("production_settings")
-    groups = reference.get("native_constraint_groups")
-    runtime = _runtime_signature(reference)
-    for profile, _, label in records[1:]:
-        if profile.get("production_settings") != settings:
-            raise ValueError(f"{label}: production settings differ from the matched baseline")
-        if profile.get("native_constraint_groups") != groups:
-            raise ValueError(
-                f"{label}: native constraint grouping differs from the matched baseline"
-            )
-        if _runtime_signature(profile) != runtime:
-            raise ValueError(
-                f"{label}: execution context differs (runner, OpenMP, or native build)"
-            )
+    _validate_matched_context(baseline_profiles, candidate_profiles)
 
     baseline_projection = _profile_stage_totals(baseline_profiles, "baseline", _projection_total)
     candidate_projection = _profile_stage_totals(candidate_profiles, "candidate", _projection_total)
