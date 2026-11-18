@@ -716,8 +716,6 @@ for required in (
     "from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol",
     "class _ComboBoxProtocol(Protocol):",
     "def currentData(self) -> object: ...",
-    "def findData(self, userData: object) -> int: ...",
-    "def setCurrentIndex(self, index: int) -> None: ...",
     "class _TopologyRepairViewportPicker:",
     "def _begin_viewport_pick(",
     "def _cancel_viewport_pick(",
