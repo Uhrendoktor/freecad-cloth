@@ -224,6 +224,99 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_tunic_audit_contract.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "ba252a0a385e61f6fb7d0e2a2321e073d3d874a5" ]] ||
+      ! git show origin/main:tests/test_tunic_audit_contract.py | grep -Fq 'def test_realtime_benchmark_reports_cpu_and_device_fallback_metrics()' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'setattr(point, "x", "invalid")' ||
+      git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def value(self, parameter_value: float)' ||
+      ! git show "${rebase_commit}:tests/test_tunic_audit_contract.py" | grep -Fq 'def value(self, parameter_value: float)' ||
+      ! git show "${rebase_commit}:tests/test_tunic_audit_contract.py" | grep -Fq 'try:'; then
+      echo "::error::Refusing a native-curve protocol conflict outside the exact follow-up commit and expected pre-protocol test state."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline tunic audits and applying only the native-curve protocol test refinements."
+    git checkout --ours -- tests/test_tunic_audit_contract.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tests/test_tunic_audit_contract.py")
+source = path.read_text(encoding="utf-8")
+curve_old = (
+    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n"
+    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
+    "\\n"
+    "\\n"
+    "class _MalformedNativeArcCurve:"
+)
+curve_new = (
+    "    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n"
+    "        return _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
+    "\\n"
+    "    def value(self, parameter_value: float) -> _NativeArcPoint:\\n"
+    "        return self.valueAt(parameter_value)\\n"
+    "\\n"
+    "\\n"
+    "class _MalformedNativeArcCurve:"
+)
+malformed_old = (
+    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n'
+    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
+    '        setattr(point, "x", "invalid")\\n'
+    "        return point\\n"
+    "\\n"
+    "\\n"
+    "def test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:"
+)
+malformed_new = (
+    '    def valueAt(self, parameter_value: float) -> _NativeArcPoint:\\n'
+    "        point = _NativeArcPoint(parameter_value, parameter_value + 1.0)\\n"
+    '        setattr(point, "x", "invalid")\\n'
+    "        return point\\n"
+    "\\n"
+    "    def value(self, parameter_value: float) -> _NativeArcPoint:\\n"
+    "        return self.valueAt(parameter_value)\\n"
+    "\\n"
+    "\\ndef test_native_arc_evaluator_returns_validated_planar_coordinates() -> None:"
+)
+old_loop = (
+    "    for curve in (\\n"
+    "        _MalformedNativeArcCurve(),\\n"
+    "    ):\\n"
+    "        try:\\n"
+    "            _native_curve_value(curve, 2.5)\\n"
+    "        except TypeError as error:\\n"
+    '            assert "numeric x/y" in str(error)\\n'
+    "        else:\\n"
+    '            raise AssertionError("malformed native point coordinates must be rejected")'
+)
+new_direct = (
+    "    try:\\n"
+    "        _native_curve_value(_MalformedNativeArcCurve(), 2.5)\\n"
+    "    except TypeError as error:\\n"
+    '        assert "numeric x/y" in str(error)\\n'
+    "    else:\\n"
+    '        raise AssertionError("malformed native point coordinates must be rejected")'
+)
+for old, new, label in (
+    (curve_old, curve_new, "native curve value fallback"),
+    (malformed_old, malformed_new, "malformed curve value fallback"),
+    (old_loop, new_direct, "single malformed curve assertion"),
+):
+    if source.count(old) != 1:
+        raise SystemExit(f"Expected exactly one {label} anchor; refusing protocol transplant.")
+    source = source.replace(old, new)
+if source.count("def value(self, parameter_value: float)") != 2:
+    raise SystemExit("Expected exactly two native curve value fallbacks after transplant.")
+if "for curve in (" in source[source.index("def test_native_arc_evaluator_returns_validated_planar_coordinates()"):]:
+    raise SystemExit("Singleton loop remains after protocol transplant.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add tests/test_tunic_audit_contract.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
