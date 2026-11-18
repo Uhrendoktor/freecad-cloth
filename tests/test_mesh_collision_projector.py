@@ -11,6 +11,9 @@ from freecad_cloth.simulation.MeshCollisionProjector import (
     MeshCollisionProjector,
     project_stitched_pairs,
 )
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+    _collision_query_workers_from_environment,
+)
 from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 
 
@@ -145,6 +148,26 @@ def test_projector_rejects_invalid_query_worker_counts(workers: int | bool) -> N
     """Workers must be a positive integer and cannot use SciPy's implicit all-CPU mode."""
     with pytest.raises(ValueError, match="query workers must be a positive integer"):
         MeshCollisionProjector(_cube_surface(), clearance_mm=2.0, query_workers=workers)
+
+
+def test_collision_query_worker_environment_defaults_to_one_and_validates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The production default stays serial; explicit positive values are respected."""
+    monkeypatch.delenv("CLOTH_PBD_COLLISION_QUERY_WORKERS", raising=False)
+    assert _collision_query_workers_from_environment() == 1
+
+    monkeypatch.setenv("CLOTH_PBD_COLLISION_QUERY_WORKERS", "4")
+    assert _collision_query_workers_from_environment() == 4
+
+    monkeypatch.setenv("CLOTH_PBD_COLLISION_QUERY_WORKERS", "0")
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        _collision_query_workers_from_environment()
+
+    monkeypatch.setenv("CLOTH_PBD_COLLISION_QUERY_WORKERS", "many")
+    with pytest.raises(ValueError, match="must be a positive integer"):
+        _collision_query_workers_from_environment()
+
 
 def test_projector_enforces_clearance_and_leaves_distant_points_unchanged() -> None:
     surface = _cube_surface()
