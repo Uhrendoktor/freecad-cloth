@@ -104,6 +104,14 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git show HEAD:tests/test_tunic_audit_contract.py" in resolver
     assert "def value(self, parameter_value: float)" in resolver
     assert "_MalformedNativeArcCurve()" in resolver
+    assert '[[ "$conflicts" == "tests/test_simulation_gui.py" ]]' in resolver
+    assert "ffd9acf1e6e06794ded282037216e1db0449775c" in resolver
+    assert "git checkout --ours -- tests/test_simulation_gui.py" in resolver
+    assert "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d()" in resolver
+    assert "from pathlib import Path" in resolver
+    assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
+    assert "sys.stdout.write(" in resolver
+    assert "removing only the obsolete pytest root bootstrap" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
