@@ -32,6 +32,7 @@ if TYPE_CHECKING:
 
     from freecad_cloth.shared.Collision import CollisionSurface
     from freecad_cloth.simulation.ClothSolver import ClothSystem
+    from freecad_cloth.simulation.MeshCollisionProjector import StitchGroupTopology
 
 _MM = 1000.0
 _PBD_SUBSTEPS_DEFAULT = 1
@@ -703,7 +704,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._substeps = _pbd_substeps()
         self._particle_count = len(self._initial.particles)
         self._stitch_group_cache_enabled = _pbd_stitch_group_cache_enabled()
-        self._stitch_group_topology = None
+        self._stitch_group_topology: StitchGroupTopology | None = None
         if self._stitch_group_cache_enabled:
             from freecad_cloth.simulation.MeshCollisionProjector import (
                 build_stitch_group_topology,
