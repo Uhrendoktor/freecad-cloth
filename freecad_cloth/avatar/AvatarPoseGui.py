@@ -1220,13 +1220,19 @@ class AvatarPoseTaskPanel:
         precision_widget = QtWidgets.QWidget()
         precision_layout = QtWidgets.QHBoxLayout(precision_widget)
         precision_layout.setContentsMargins(0, 0, 0, 0)
-        precision_layout.setSpacing(4)
+        precision_layout.setSpacing(2)
         for axis in ("x", "y", "z"):
             box = QtWidgets.QDoubleSpinBox()
             box.setRange(-180.0, 180.0)
             box.setDecimals(1)
             box.setSuffix("°")
             box.setPrefix(f"{axis.upper()} ")
+            box.setSizePolicy(
+                QtWidgets.QSizePolicy.Ignored,
+                QtWidgets.QSizePolicy.Fixed,
+            )
+            box.setMinimumWidth(0)
+            box.setMaximumWidth(94)
             box.setKeyboardTracking(False)
             box.setToolTip(
                 f"Exact local {axis.upper()} rotation in degrees. Focus this field to "
@@ -1284,7 +1290,8 @@ class AvatarPoseTaskPanel:
 
         from freecad_cloth.common.UiDesign import make_scroll_area
 
-        root.addWidget(make_scroll_area(scroll_content, QtWidgets), 1)
+        self.scroll_area = make_scroll_area(scroll_content, QtWidgets)
+        root.addWidget(self.scroll_area, 1)
         self.joint_list_widget = joint_list_widget
         self.joint_list_widget.setVisible(False)
         self.joint_list_toggle.toggled.connect(self._toggle_joint_list)
