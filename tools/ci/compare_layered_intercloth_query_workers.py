@@ -18,7 +18,7 @@ EXPECTED_CANDIDATE_WORKERS = 4
 MIN_QUERY_IMPROVEMENT = 0.10
 MIN_INTER_CLOTH_IMPROVEMENT = 0.05
 EXPECTED_CHECKPOINTS = (1, 15, 60)
-_FIELD_PATTERN = re.compile(r"([a-z_]+)=([^\\s]+)")
+_FIELD_PATTERN = re.compile(r"([a-z_]+)=([^\s]+)")
 
 
 def _as_object(value: JsonValue, label: str) -> JsonObject:
