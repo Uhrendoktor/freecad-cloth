@@ -112,6 +112,38 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "docs/developers/UI_STYLE_GUIDE.md" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "67d656007deea6692d332e0954cb8aa1f99e92e6" ]] ||
+      ! git show origin/main:docs/developers/UI_STYLE_GUIDE.md | grep -Fq 'make_scroll_area(content, QtWidgets)' ||
+      ! git show origin/main:docs/developers/UI_STYLE_GUIDE.md | grep -Fq 'configure_form_layout(layout, QtWidgets)' ||
+      ! git show origin/main:docs/developers/UI_STYLE_GUIDE.md | grep -Fq 'make_disclosure(title, content, QtCore, QtWidgets, expanded=False)' ||
+      ! git show "${rebase_commit}:docs/developers/UI_STYLE_GUIDE.md" | grep -Fq 'make_disclosure(title, content, QtCore, QtWidgets, *, expanded=False)'; then
+      echo "::error::Refusing a UI guide conflict outside the verified keyword-only disclosure documentation commit and mainline helper additions."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline UI guidance and applying only the verified keyword-only disclosure signature."
+    git checkout --ours -- docs/developers/UI_STYLE_GUIDE.md
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("docs/developers/UI_STYLE_GUIDE.md")
+source = path.read_text(encoding="utf-8")
+old = "- make_disclosure(title, content, QtCore, QtWidgets, expanded=False) uses a checkable Qt tool button to hide/show a settings container while preserving contained widgets and values."
+new = "- make_disclosure(title, content, QtCore, QtWidgets, *, expanded=False) uses a checkable Qt tool button to hide/show a settings container while preserving contained widgets and values."
+if source.count(old) != 1:
+    raise SystemExit("Expected exactly one old disclosure signature; refusing documentation transplant.")
+if source.count("make_scroll_area(content, QtWidgets)") != 1:
+    raise SystemExit("Mainline scroll-area guidance is missing or duplicated.")
+if source.count("configure_form_layout(layout, QtWidgets)") != 1:
+    raise SystemExit("Mainline form-layout guidance is missing or duplicated.")
+source = source.replace(old, new)
+path.write_text(source, encoding="utf-8")
+PY
+    git add docs/developers/UI_STYLE_GUIDE.md
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
