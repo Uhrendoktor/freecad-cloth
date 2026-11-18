@@ -632,7 +632,7 @@ class SkeletonPoseController:
         self._axis_draggers = {}
         self._gizmo_dragging = False
 
-    def highlight_axis(self, axis):
+    def highlight_axis(self, axis: str | None) -> None:
         """Emphasize the ring linked to a focused numeric angle field.
 
         Args:
@@ -1242,7 +1242,11 @@ class AvatarPoseTaskPanel:
         self.precision_widget.setVisible(True)
 
         class _PoseAxisFocusFilter(QtCore.QObject):
-            def eventFilter(filter_self, watched, event):
+            def eventFilter(
+                filter_self,
+                watched: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+                event: _QT_TYPE_QtCore.QEvent,
+            ) -> bool:
                 """Highlight the rotation ring linked to the focused angle field."""
                 axis = watched.property("clothPoseAxis")
                 if event.type() == QtCore.QEvent.FocusIn:

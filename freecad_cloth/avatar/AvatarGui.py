@@ -326,15 +326,23 @@ class AvatarTaskPanel:
         self._dimension_controller = None
         self._focused_measurement_key = None
         self._hovered_measurement_key = None
+
         class _MeasurementFocusFilter(QtCore.QObject):
-            def eventFilter(filter_self, watched, event):
+            def eventFilter(
+                filter_self,
+                watched: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+                event: _QT_TYPE_QtCore.QEvent,
+            ) -> bool:
                 """Link numeric focus to the matching viewport dimension control."""
                 key = watched.property("clothDimensionKey")
                 if event.type() == QtCore.QEvent.FocusIn:
                     self._set_measurement_focus(str(key) if key else None)
-                elif event.type() == QtCore.QEvent.FocusOut:
-                    if key and self._focused_measurement_key == str(key):
-                        self._set_measurement_focus(None)
+                elif (
+                    event.type() == QtCore.QEvent.FocusOut
+                    and key
+                    and self._focused_measurement_key == str(key)
+                ):
+                    self._set_measurement_focus(None)
                 return False
 
         self._measurement_focus_filter = _MeasurementFocusFilter(self.form)
@@ -400,15 +408,9 @@ class AvatarTaskPanel:
                     "Apply & Rebuild commits the staged value."
                 )
             elif key in self.FIT_TARGETS:
-                tooltip = (
-                    "Fitting target in millimetres. Apply & Rebuild uses this value when",
-                    "fitting the mannequin."
-                )
+                tooltip = "Fitting target in millimetres. Apply & Rebuild uses this value when fitting the mannequin."
             else:
-                tooltip = (
-                    "Stored garment measurement in millimetres. Editable here; it is not an",
-                    "independent body-fit constraint."
-                )
+                tooltip = "Stored garment measurement in millimetres. Editable here; it is not an independent body-fit constraint."
             box.setToolTip(tooltip)
             label_widget = QtWidgets.QLabel(label)
             label_widget.setToolTip(tooltip)

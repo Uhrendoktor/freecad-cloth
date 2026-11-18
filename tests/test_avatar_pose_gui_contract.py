@@ -55,7 +55,7 @@ def test_pose_mode_uses_canonical_pose_and_skeleton_catalogues():
     assert tuple(bone for bone, _label in CONTROLLABLE_JOINTS) == CONTROLLABLE_BONES
 
 
-def test_pose_mode_keeps_xyz_fields_visible_and_bidirectionally_linked():
+def test_pose_mode_keeps_xyz_fields_visible_and_bidirectionally_linked() -> None:
     """Keep exact angle controls visible and expose field-to-ring highlighting."""
     assert callable(AvatarPoseTaskPanel._set_rotation_axis_highlight)
     assert callable(SkeletonPoseController.highlight_axis)

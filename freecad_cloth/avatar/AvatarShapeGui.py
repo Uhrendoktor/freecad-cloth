@@ -11,6 +11,118 @@ from __future__ import annotations
 
 import contextlib
 import math
+from collections.abc import Sequence
+from types import ModuleType
+from typing import TYPE_CHECKING, Literal, Protocol, TypedDict
+
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.avatar_protocols import AvatarParametersProtocol
+
+
+_Vector3 = tuple[float, float, float]
+_Segment = tuple[_Vector3, _Vector3]
+_ScreenPoint = tuple[float, float]
+
+
+class _MeasurementBoxProtocol(Protocol):
+    """Numeric field methods used by viewport measurement handles."""
+
+    def value(self) -> float:
+        """Return the current staged numeric value."""
+        ...
+
+    def setValue(self, value: float) -> None:
+        """Set a staged numeric value."""
+        ...
+
+
+class _AvatarPanelProtocol(Protocol):
+    """Minimum avatar task-panel surface used by dimension gizmos."""
+
+    App: ModuleType
+    Gui: ModuleType
+    avatar: object | None
+    _boxes: dict[str, _MeasurementBoxProtocol]
+
+    def _provider_id(self) -> str:
+        """Return the active avatar provider identifier."""
+        ...
+
+    def _staged_parameters(self) -> AvatarParametersProtocol:
+        """Return the current validated staged avatar parameters."""
+        ...
+
+    def _set_measurement_hover(self, key: str | None) -> None:
+        """Highlight one measurement field during viewport hover."""
+        ...
+
+    def _focus_measurement(self, key: str) -> None:
+        """Focus the numeric field linked to a clicked viewport handle."""
+        ...
+
+    def _set_status(self, message: str, *, state: str = "info") -> None:
+        """Show a staged interaction status."""
+        ...
+
+
+class _CoinMouseEventProtocol(Protocol):
+    """Mouse event surface exposed by Coin callback wrappers."""
+
+    def getPosition(self) -> tuple[int, int]:
+        """Return the viewport pointer position."""
+        ...
+
+    def getState(self) -> int:
+        """Return the mouse-button transition state."""
+        ...
+
+    def getButton(self) -> int:
+        """Return the button that generated the event."""
+        ...
+
+
+class _CoinEventCallbackProtocol(Protocol):
+    """Coin callback wrapper operations used by the dimension controller."""
+
+    def getEvent(self) -> _CoinMouseEventProtocol:
+        """Return the active Coin mouse event."""
+        ...
+
+    def setHandled(self) -> None:
+        """Mark a mouse event as handled by the dimension controller."""
+        ...
+
+
+class _RingDimensionSpec(TypedDict):
+    """Dimension marker and circle geometry for a circumference field."""
+
+    key: str
+    label: str
+    shape: Literal["ring"]
+    center: _Vector3
+    normal: _Vector3
+    radial: _Vector3
+    radius: float
+    point: _Vector3
+    axis: _Vector3
+    multiplier: float
+    bounds: tuple[float, float]
+
+
+class _LineDimensionSpec(TypedDict):
+    """Dimension marker and line geometry for a linear field."""
+
+    key: str
+    label: str
+    shape: Literal["line"]
+    line: _Segment
+    point: _Vector3
+    axis: _Vector3
+    multiplier: float
+    bounds: tuple[float, float]
+
+
+_DimensionSpec = _RingDimensionSpec | _LineDimensionSpec
 
 
 class AvatarDimensionController:
@@ -20,7 +132,7 @@ class AvatarDimensionController:
     RING_SEGMENTS = 64
     DRAG_AXIS_LENGTH = 100.0
 
-    def __init__(self, panel):
+    def __init__(self, panel: _AvatarPanelProtocol) -> None:
         """Create the dimension overlay state for the supplied avatar task panel.
 
         Args:
@@ -45,7 +157,7 @@ class AvatarDimensionController:
         self.error = None
 
     @staticmethod
-    def _coin():
+    def _coin() -> ModuleType:
         """Load the FreeCAD Coin/Pivy bindings lazily.
 
         Returns:
@@ -56,7 +168,7 @@ class AvatarDimensionController:
         return coin
 
     @staticmethod
-    def _unit(vector):
+    def _unit(vector: _Vector3) -> _Vector3:
         """Return a normalized three-dimensional vector, or a stable fallback.
 
         Args:
@@ -71,7 +183,7 @@ class AvatarDimensionController:
         return tuple(float(value) / length for value in vector)
 
     @staticmethod
-    def _add(left, right):
+    def _add(left: _Vector3, right: _Vector3) -> _Vector3:
         """Add two three-dimensional vectors.
 
         Args:
@@ -84,7 +196,7 @@ class AvatarDimensionController:
         return tuple(float(left[i]) + float(right[i]) for i in range(3))
 
     @staticmethod
-    def _subtract(left, right):
+    def _subtract(left: _Vector3, right: _Vector3) -> _Vector3:
         """Subtract one three-dimensional vector from another.
 
         Args:
@@ -97,7 +209,7 @@ class AvatarDimensionController:
         return tuple(float(left[i]) - float(right[i]) for i in range(3))
 
     @staticmethod
-    def _scale(vector, amount):
+    def _scale(vector: _Vector3, amount: float) -> _Vector3:
         """Scale a three-dimensional vector by a scalar.
 
         Args:
@@ -110,7 +222,7 @@ class AvatarDimensionController:
         return tuple(float(value) * float(amount) for value in vector)
 
     @staticmethod
-    def _dot(left, right):
+    def _dot(left: _Vector3, right: _Vector3) -> float:
         """Return the dot product of two three-dimensional vectors.
 
         Args:
@@ -123,7 +235,7 @@ class AvatarDimensionController:
         return sum(float(left[i]) * float(right[i]) for i in range(3))
 
     @staticmethod
-    def _cross(left, right):
+    def _cross(left: _Vector3, right: _Vector3) -> _Vector3:
         """Return the cross product of two three-dimensional vectors.
 
         Args:
@@ -140,7 +252,7 @@ class AvatarDimensionController:
         )
 
     @classmethod
-    def _orthogonal_radial(cls, normal, hint):
+    def _orthogonal_radial(cls, normal: _Vector3, hint: _Vector3) -> _Vector3:
         """Choose a stable radial vector perpendicular to a ring's body axis.
 
         Args:
@@ -158,7 +270,7 @@ class AvatarDimensionController:
         return cls._unit(projected)
 
     @classmethod
-    def _midpoint(cls, segment):
+    def _midpoint(cls, segment: _Segment) -> _Vector3:
         """Return the midpoint of one skeleton head/tail segment.
 
         Args:
@@ -170,7 +282,7 @@ class AvatarDimensionController:
         return cls._scale(cls._add(segment[0], segment[1]), 0.5)
 
     @classmethod
-    def _lerp(cls, start, end, factor):
+    def _lerp(cls, start: _Vector3, end: _Vector3, factor: float) -> _Vector3:
         """Interpolate a point along a skeleton segment.
 
         Args:
@@ -184,7 +296,7 @@ class AvatarDimensionController:
         return cls._add(start, cls._scale(cls._subtract(end, start), factor))
 
     @classmethod
-    def _trunk_landmarks(cls, pelvis, chest):
+    def _trunk_landmarks(cls, pelvis: _Vector3, chest: _Vector3) -> dict[str, _Vector3]:
         """Place torso guides along the actual pelvis-to-chest rig span.
 
         Adjacent spine-bone endpoints can be the same authored joint. Interpolate
@@ -208,7 +320,14 @@ class AvatarDimensionController:
         }
 
     @classmethod
-    def _ring_points(cls, center, normal, radial, radius, segments=RING_SEGMENTS):
+    def _ring_points(
+        cls,
+        center: _Vector3,
+        normal: _Vector3,
+        radial: _Vector3,
+        radius: float,
+        segments: int = RING_SEGMENTS,
+    ) -> tuple[_Vector3, ...]:
         """Create a closed circle perpendicular to a measured body/limb axis.
 
         Args:
@@ -237,7 +356,7 @@ class AvatarDimensionController:
         points.append(points[0])
         return tuple(points)
 
-    def _build_anchor_segments(self):
+    def _build_anchor_segments(self) -> None:
         """Read anatomically authored joint positions from the current fitted avatar rig.
 
         Returns:
@@ -253,11 +372,7 @@ class AvatarDimensionController:
             msg = "the fitted mannequin skeleton has no usable measurement landmarks"
             raise RuntimeError(msg)
         self._anchor_segments = segments
-        feet = [
-            segment[1]
-            for name, segment in segments.items()
-            if name in {"foot.L", "foot.R"}
-        ]
+        feet = [segment[1] for name, segment in segments.items() if name in {"foot.L", "foot.R"}]
         points = [point for segment in segments.values() for point in segment]
         base_z = min((point[2] for point in feet), default=min(point[2] for point in points))
         base_x = sum(point[0] for point in feet) / len(feet) if feet else 0.0
@@ -267,7 +382,7 @@ class AvatarDimensionController:
         top_z = max((point[2] for point in head), default=max(point[2] for point in points))
         self._rig_height = max(1.0, float(top_z) - float(base_z))
 
-    def _scaled_segments(self, target_height):
+    def _scaled_segments(self, target_height: float) -> dict[str, _Segment]:
         """Scale cached rig landmarks around the foot plane to the staged body height.
 
         Args:
@@ -279,7 +394,7 @@ class AvatarDimensionController:
         ratio = float(target_height) / self._rig_height
         base = self._base_point
 
-        def transform(point):
+        def transform(point: _Vector3) -> _Vector3:
             """Scale one landmark around the avatar's foot-plane origin."""
             return self._add(base, self._scale(self._subtract(point, base), ratio))
 
@@ -288,7 +403,7 @@ class AvatarDimensionController:
             for name, segment in self._anchor_segments.items()
         }
 
-    def _screen_position(self, point):
+    def _screen_position(self, point: _Vector3) -> _ScreenPoint:
         """Project a FreeCAD-space point into viewport coordinates with a top-left origin.
 
         Args:
@@ -301,7 +416,7 @@ class AvatarDimensionController:
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
-    def activate(self):
+    def activate(self) -> bool:
         """Install the transient surface guides and viewport callbacks.
 
         Returns:
@@ -340,7 +455,7 @@ class AvatarDimensionController:
             self.deactivate()
             return False
 
-    def deactivate(self):
+    def deactivate(self) -> None:
         """Remove the overlay and every event callback owned by this controller."""
         view = self.view
         if view is not None:
@@ -369,7 +484,15 @@ class AvatarDimensionController:
         self._drag_item_label = None
         self.panel._set_measurement_hover(None)
 
-    def _add_line(self, coin, points, color, width=1.4, *, depth_test=False):
+    def _add_line(
+        self,
+        coin: ModuleType,
+        points: Sequence[_Vector3],
+        color: _Vector3,
+        width: float = 1.4,
+        *,
+        depth_test: bool = False,
+    ) -> None:
         """Add a transient line with an explicit mesh depth-test policy.
 
         Args:
@@ -398,7 +521,9 @@ class AvatarDimensionController:
         separator.addChild(line)
         self.overlay.addChild(separator)
 
-    def _add_marker(self, coin, point, color, size):
+    def _add_marker(
+        self, coin: ModuleType, point: _Vector3, color: _Vector3, size: float
+    ) -> None:
         """Draw an always-pickable foreground marker at a dimensional handle.
 
         Args:
@@ -426,7 +551,9 @@ class AvatarDimensionController:
         marker.addChild(points)
         self.overlay.addChild(marker)
 
-    def _add_label(self, coin, point, label, color):
+    def _add_label(
+        self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3
+    ) -> None:
         """Draw the one-line value tooltip for the currently linked dimension.
 
         Args:
@@ -453,7 +580,7 @@ class AvatarDimensionController:
         separator.addChild(text)
         self.overlay.addChild(separator)
 
-    def _specs(self, *, force=False):
+    def _specs(self, *, force: bool = False) -> tuple[_DimensionSpec, ...]:
         """Build current handle geometry from staged values and fitted rig landmarks.
 
         Args:
@@ -470,11 +597,11 @@ class AvatarDimensionController:
         height = float(measurements["height"])
         segments = self._scaled_segments(height)
 
-        def segment(name):
+        def segment(name: str) -> _Segment | None:
             """Return one transformed bone segment or None when the rig omits it."""
             return segments.get(name)
 
-        def midpoint(name):
+        def midpoint(name: str) -> _Vector3 | None:
             """Return one transformed bone midpoint or None when unavailable."""
             value = segment(name)
             return None if value is None else self._midpoint(value)
@@ -484,9 +611,15 @@ class AvatarDimensionController:
         neck = midpoint("neck01") or chest
         body_axis = self._unit(self._subtract(neck, pelvis))
         trunk_centers = self._trunk_landmarks(pelvis, chest)
-        specs = []
+        specs: list[_DimensionSpec] = []
 
-        def add_ring(key, label, center, normal, radial_hint):
+        def add_ring(
+            key: str,
+            label: str,
+            center: _Vector3 | None,
+            normal: _Vector3,
+            radial_hint: _Vector3,
+        ) -> None:
             """Append a value-scaled circumference guide around an authored rig point."""
             if center is None:
                 return
@@ -577,9 +710,7 @@ class AvatarDimensionController:
                     forearm_axis,
                     self._subtract(elbow_center, chest),
                 )
-                wrist_center = (
-                    self._midpoint(wrist) if wrist is not None else forearm[1]
-                )
+                wrist_center = self._midpoint(wrist) if wrist is not None else forearm[1]
                 add_ring(
                     "wrist",
                     f"{side_label} wrist",
@@ -641,11 +772,7 @@ class AvatarDimensionController:
                     }
                 )
 
-        feet = [
-            segments[name][1]
-            for name in ("foot.L", "foot.R")
-            if name in segments
-        ]
+        feet = [segments[name][1] for name in ("foot.L", "foot.R") if name in segments]
         base = self._base_point
         if feet:
             base = (
@@ -669,7 +796,7 @@ class AvatarDimensionController:
         )
         return tuple(specs)
 
-    def refresh(self, *, force=False):
+    def refresh(self, *, force: bool = False) -> None:
         """Redraw value-driven handles and mesh-occluded guide rings.
 
         Args:
@@ -730,7 +857,7 @@ class AvatarDimensionController:
             # Numeric controls remain usable if a host FreeCAD build lacks a Coin API.
             return
 
-    def set_field_focus(self, key):
+    def set_field_focus(self, key: str | None) -> None:
         """Highlight the matching viewport control while its numeric field has focus.
 
         Args:
@@ -739,7 +866,7 @@ class AvatarDimensionController:
         self._field_key = None if key is None else str(key)
         self.refresh()
 
-    def _screen_axis(self, item):
+    def _screen_axis(self, item: _DimensionSpec) -> _ScreenPoint:
         """Return the screen-space direction used to manipulate one handle.
 
         Args:
@@ -761,7 +888,7 @@ class AvatarDimensionController:
         return (end[0] - origin[0], end[1] - origin[1])
 
     @staticmethod
-    def _distance(point_a, point_b):
+    def _distance(point_a: _ScreenPoint, point_b: _ScreenPoint) -> float:
         """Return Euclidean viewport distance in pixels.
 
         Args:
@@ -773,7 +900,7 @@ class AvatarDimensionController:
         """
         return math.hypot(point_a[0] - point_b[0], point_a[1] - point_b[1])
 
-    def _pick(self, screen):
+    def _pick(self, screen: _ScreenPoint) -> _DimensionSpec | None:
         """Pick the nearest dimension marker, rejecting clicks away from controls.
 
         Args:
@@ -825,7 +952,7 @@ class AvatarDimensionController:
         low, high = bounds
         return max(float(low), min(float(high), float(current) + delta_world * multiplier))
 
-    def _location_event(self, event_callback):
+    def _location_event(self, event_callback: _CoinEventCallbackProtocol) -> None:
         """Track dimension hover and update the value while a handle is dragged.
 
         Args:
@@ -837,11 +964,7 @@ class AvatarDimensionController:
         screen = (float(position[0]), float(size[1] - position[1]))
         if self._drag_key is not None:
             item = next(
-                (
-                    part
-                    for part in self._specs()
-                    if part["label"] == self._drag_item_label
-                ),
+                (part for part in self._specs() if part["label"] == self._drag_item_label),
                 None,
             )
             if item is None or self._last_screen is None:
@@ -874,7 +997,7 @@ class AvatarDimensionController:
             self.panel._set_measurement_hover(key)
             self.refresh()
 
-    def _mouse_event(self, event_callback):
+    def _mouse_event(self, event_callback: _CoinEventCallbackProtocol) -> None:
         """Start or end a direct measurement drag from a visible viewport marker.
 
         Args:
@@ -892,7 +1015,7 @@ class AvatarDimensionController:
                 self._drag_item_label = None
                 self.refresh()
                 self.panel._set_status(
-                    "Measurement staged. The linked field shows the exact value;",
+                    "Measurement staged. The linked field shows the exact value; "
                     "Apply & Rebuild commits it.",
                     state="success",
                 )

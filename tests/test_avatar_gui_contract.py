@@ -214,7 +214,7 @@ def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
 
 def test_viewport_dimension_field_keys_are_canonical() -> None:
     """Keep every viewport-linked field inside the model's canonical measurement set."""
-    assert AvatarTaskPanel.VIEWPORT_DIMENSION_KEYS <= set(DEFAULT_MEASUREMENTS)
+    assert set(DEFAULT_MEASUREMENTS) >= AvatarTaskPanel.VIEWPORT_DIMENSION_KEYS
 
 
 def test_measurement_properties_are_generated_from_model_measurements() -> None:
