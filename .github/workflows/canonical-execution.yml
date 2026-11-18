@@ -393,7 +393,7 @@ jobs:
         id: compare_paired_profiles
         shell: bash
         run: |
-          python3 tools/ci/compare_pbd_collision_query_workers.py \
+          python3 tools/ci/compare_pbd_openmp_team_reuse.py --collision-query-workers \
             --baseline-1 artifacts/pbd-collision-query-workers/baseline-1.json \
             --baseline-2 artifacts/pbd-collision-query-workers/baseline-2.json \
             --candidate-1 artifacts/pbd-collision-query-workers/candidate-1.json \
