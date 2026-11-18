@@ -7,7 +7,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from typing import Protocol, SupportsFloat, SupportsInt, cast
+from typing import Protocol, SupportsFloat, SupportsInt, cast, override
 
 from freecad_cloth.common.garment_document import (
     FreeCADDocumentObjectProtocol,
@@ -71,6 +71,7 @@ class _NativeShapeEdge(Protocol):
 class _StringConvertible(Protocol):
     """Text conversion exposed by native FreeCAD surface implementations."""
 
+    @override
     def __str__(self) -> str:
         """Return the textual description of the native surface."""
         ...
@@ -1358,6 +1359,7 @@ class _FittingDocument(FreeCADDocumentProtocol, Protocol):
         """
         ...
 
+    @override
     def recompute(self, /) -> int | None:
         """Recompute features and document dependencies after property updates."""
         ...

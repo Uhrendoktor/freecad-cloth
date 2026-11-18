@@ -11,7 +11,7 @@ import hashlib
 import os
 import sys
 from copy import deepcopy
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, cast, override
 
 import numpy as np
 import numpy.typing as npt
@@ -180,6 +180,7 @@ class _NativePBDTimeStep(Protocol):
         """
         ...
 
+    @override
     def step(self, model: _NativePBDModel) -> None:
         """Advance the supplied native model by one solver time step.
 
@@ -267,6 +268,7 @@ class _NativePBDSimulation(Protocol):
         """
         ...
 
+    @override
     def reset(self) -> None:
         """Reset the current simulation before releasing and rebuilding its model."""
         ...
@@ -694,6 +696,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._simulation_initialized = False
         self._build()
 
+    @override
     @property
     def solver_collision_surface(self) -> CollisionSurface | None:
         """Return the exact collision surface registered with PositionBasedDynamics.
@@ -703,6 +706,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """
         return self._collision_surface
 
+    @override
     @property
     def time(self) -> float:
         """Return elapsed simulation time in seconds.
@@ -1045,6 +1049,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._time = 0.0
         self._build()
 
+    @override
     def pin(self, indices: Iterable[int]) -> None:
         """Replace the pinned particle indices and rebuild from the original input model.
 
@@ -1057,6 +1062,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._time = 0.0
         self._build()
 
+    @override
     def set_stitches(
         self,
         pairs: Iterable[tuple[int, int]],
@@ -1105,6 +1111,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """
         return self._positions_snapshot()
 
+    @override
     def positions(self) -> tuple[tuple[float, float, float], ...]:
         """Return current cloth particle positions in FreeCAD millimetres.
 
@@ -1113,6 +1120,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """
         return self._positions_snapshot()[0]
 
+    @override
     def finite(self) -> bool:
         """Return whether all solver coordinates remain finite and bounded.
 

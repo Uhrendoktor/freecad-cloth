@@ -8,7 +8,7 @@ non-GUI tests can import the package outside a FreeCAD process.
 import importlib
 from collections.abc import Callable, Iterable
 from contextlib import suppress
-from typing import Protocol, cast
+from typing import Protocol, cast, override
 
 try:
     import FreeCADGui as Gui
@@ -19,6 +19,7 @@ except ImportError:  # pragma: no cover - exercised outside FreeCAD
 class _CommandIdentifier(Protocol):
     """Value that can be normalized into a stable FreeCAD command name."""
 
+    @override
     def __str__(self) -> str:
         """Return the command identifier's text representation."""
         ...

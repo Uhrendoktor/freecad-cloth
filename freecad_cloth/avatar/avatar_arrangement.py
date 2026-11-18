@@ -9,7 +9,7 @@ anchor foundation needed by later CLO-like garment placement interactions.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, override
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 class _StringConvertible(Protocol):
     """Record values whose string representation carries serialized metadata."""
 
+    @override
     def __str__(self) -> str:
         """Return the serialized representation of the record.
 

@@ -2,7 +2,7 @@
 """Transient Coin3D mesh presentation for interactive cloth preview frames."""
 
 from collections.abc import Sequence
-from typing import Protocol, cast
+from typing import Protocol, cast, override
 
 type _Position = tuple[float, float, float]
 type _Triangle = tuple[int, int, int]
@@ -11,6 +11,7 @@ type _Triangle = tuple[int, int, int]
 class _CoinNode(Protocol):
     """Common opaque node accepted by the Coin3D scenegraph."""
 
+    @override
     def __repr__(self) -> str: ...
 
 
