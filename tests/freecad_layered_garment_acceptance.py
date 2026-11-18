@@ -746,10 +746,14 @@ def run_acceptance() -> None:
             min(float(vertex[1]) for vertex in shirt_body_samples)
             + max(float(vertex[1]) for vertex in shirt_body_samples)
         )
-        shirt_radius_y = 0.5 * (
-            max(float(vertex[1]) for vertex in shirt_body_samples)
-            - min(float(vertex[1]) for vertex in shirt_body_samples)
-        ) + 28.0
+        shirt_radius_y = (
+            0.5
+            * (
+                max(float(vertex[1]) for vertex in shirt_body_samples)
+                - min(float(vertex[1]) for vertex in shirt_body_samples)
+            )
+            + 28.0
+        )
         _log(
             "shirt-body-envelope samples=%d radius_x_mm=%.3f radius_y_mm=%.3f center_y_mm=%.3f"
             % (
