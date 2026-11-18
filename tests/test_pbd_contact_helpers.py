@@ -355,8 +355,15 @@ def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
     diagnostics.write_text(
         "\n".join(
             (
-                "inter-cloth-broadphase raw=100 aabb=40 plane=10 workers=4 eps=0.0 query_s=0.1000 filter_s=0.0300",
-                "inter-cloth-direction-finish iteration=1 direction=0 candidates=100 plausible=10 exact_tests=10 active_constraints=5 query_s=0.10 filter_s=0.03 closest_s=0.20 correction_s=0.05 elapsed_s=0.40",
+                (
+                    "inter-cloth-broadphase raw=100 aabb=40 plane=10 workers=4 "
+                    "eps=0.0 query_s=0.1000 filter_s=0.0300"
+                ),
+                (
+                    "inter-cloth-direction-finish iteration=1 direction=0 candidates=100 "
+                    "plausible=10 exact_tests=10 active_constraints=5 query_s=0.10 "
+                    "filter_s=0.03 closest_s=0.20 correction_s=0.05 elapsed_s=0.40"
+                ),
                 "inter-cloth-pass-finish iteration=1 contacts=5 moved=3 index_s=0.01 elapsed_s=0.50",
                 "cloth-pbd-inter-cloth-projection-finish elapsed_s=0.75",
             )
