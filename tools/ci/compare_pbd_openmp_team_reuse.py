@@ -10,7 +10,10 @@ from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING
 
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 EXPECTED_SCENE_STEPS = 90
@@ -182,6 +185,28 @@ def _projection_total(profile: JsonObject, label: str) -> float:
     )
     return _finite_number(projection.get("total_ms"), f"{label}.projection.total_ms")
 
+def _profile_stage_totals(
+    profiles: list[JsonObject],
+    label: str,
+    total_getter: Callable[[JsonObject, str], float],
+) -> list[float]:
+    """Collect the same named stage total for each matched production profile."""
+    return [
+        total_getter(profile, f"{label}-{index + 1}")
+        for index, profile in enumerate(profiles)
+    ]
+
+
+def _production_wall_totals(profiles: list[JsonObject], label: str) -> list[float]:
+    """Collect the full production wall time for each matched profile."""
+    return [
+        _finite_number(
+            profile.get("elapsed_production_ms"),
+            f"{label}-{index + 1}.elapsed_production_ms",
+        )
+        for index, profile in enumerate(profiles)
+    ]
+
 
 def _matched_timing_metrics(
     baseline_stage: list[float],
@@ -208,9 +233,7 @@ def _matched_timing_metrics(
             f"{stage_improvement * 100:.2f}%"
         )
     if wall_time_change > 0.0:
-        rejection_reasons.append(
-            f"{wall_regression_label}: {wall_time_change * 100:.2f}%"
-        )
+        rejection_reasons.append(f"{wall_regression_label}: {wall_time_change * 100:.2f}%")
     return (
         baseline_stage_median,
         candidate_stage_median,
@@ -233,9 +256,7 @@ def _mesh_collision_projector_total(profile: JsonObject, label: str) -> float:
     samples = _integer(projector.get("samples"), f"{label}.mesh_collision_projector.samples")
     if samples != EXPECTED_BACKEND_STEPS:
         raise ValueError(f"{label}: mesh collision projector timing sample count is incomplete")
-    return _finite_number(
-        projector.get("total_ms"), f"{label}.mesh_collision_projector.total_ms"
-    )
+    return _finite_number(projector.get("total_ms"), f"{label}.mesh_collision_projector.total_ms")
 
 
 def compare_collision_query_worker_profile_sets(
@@ -285,22 +306,14 @@ def compare_collision_query_worker_profile_sets(
                 f"{label}: execution context differs (runner, OpenMP, or native build)"
             )
 
-    baseline_projector = [
-        _mesh_collision_projector_total(profile, f"baseline-{index + 1}")
-        for index, profile in enumerate(baseline_profiles)
-    ]
-    candidate_projector = [
-        _mesh_collision_projector_total(profile, f"candidate-{index + 1}")
-        for index, profile in enumerate(candidate_profiles)
-    ]
-    baseline_wall = [
-        _finite_number(profile.get("elapsed_production_ms"), f"baseline-{i}.elapsed_production_ms")
-        for i, profile in enumerate(baseline_profiles, 1)
-    ]
-    candidate_wall = [
-        _finite_number(profile.get("elapsed_production_ms"), f"candidate-{i}.elapsed_production_ms")
-        for i, profile in enumerate(candidate_profiles, 1)
-    ]
+    baseline_projector = _profile_stage_totals(
+        baseline_profiles, "baseline", _mesh_collision_projector_total
+    )
+    candidate_projector = _profile_stage_totals(
+        candidate_profiles, "candidate", _mesh_collision_projector_total
+    )
+    baseline_wall = _production_wall_totals(baseline_profiles, "baseline")
+    candidate_wall = _production_wall_totals(candidate_profiles, "candidate")
 
     (
         baseline_median_projector,
@@ -392,22 +405,14 @@ def compare_profile_sets(
                 f"{label}: execution context differs (runner, OpenMP, or native build)"
             )
 
-    baseline_projection = [
-        _projection_total(profile, f"baseline-{index + 1}")
-        for index, profile in enumerate(baseline_profiles)
-    ]
-    candidate_projection = [
-        _projection_total(profile, f"candidate-{index + 1}")
-        for index, profile in enumerate(candidate_profiles)
-    ]
-    baseline_wall = [
-        _finite_number(profile.get("elapsed_production_ms"), f"baseline-{i}.elapsed_production_ms")
-        for i, profile in enumerate(baseline_profiles, 1)
-    ]
-    candidate_wall = [
-        _finite_number(profile.get("elapsed_production_ms"), f"candidate-{i}.elapsed_production_ms")
-        for i, profile in enumerate(candidate_profiles, 1)
-    ]
+    baseline_projection = _profile_stage_totals(
+        baseline_profiles, "baseline", _projection_total
+    )
+    candidate_projection = _profile_stage_totals(
+        candidate_profiles, "candidate", _projection_total
+    )
+    baseline_wall = _production_wall_totals(baseline_profiles, "baseline")
+    candidate_wall = _production_wall_totals(candidate_profiles, "candidate")
 
     (
         baseline_median_projection,
