@@ -391,7 +391,7 @@ jobs:
       - uses: ./.github/actions/pbd-tunic-audit
         id: candidate_2_audit
         with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
-      - name: Compare matched native production profiles
+      - name: Compare current projection reuse against full-step native profiles
         id: compare_paired_profiles
         shell: bash
         run: |
@@ -425,7 +425,7 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+          echo "::notice title=Native OpenMP full-step team-reuse experiment::All four production audits passed; full-step team comparison beat the current projection-reuse baseline by at least 5% with no production wall-time regression."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
