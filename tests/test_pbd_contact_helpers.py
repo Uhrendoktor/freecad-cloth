@@ -381,11 +381,12 @@ def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
 
 def test_layered_intercloth_query_workers_are_isolated_to_radius_broad_phase() -> None:
     """The body nearest-face projector remains on its serial exact query path."""
+    repository_root = Path(__file__).resolve().parents[1]
     contact = (
-        ROOT / "freecad_cloth" / "simulation" / "InterClothContact.py"
+        repository_root / "freecad_cloth" / "simulation" / "InterClothContact.py"
     ).read_text(encoding="utf-8")
     body_projector = (
-        ROOT / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
+        repository_root / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
     ).read_text(encoding="utf-8")
     assert "CLOTH_INTER_CLOTH_QUERY_WORKERS" in contact
     assert "workers=query_workers" in contact
