@@ -284,7 +284,7 @@ class _PoseGuiAdapter:
         return cast("_PoseGuiDocument | None", self._module.activeDocument())
 
 
-def _modules() -> tuple[_PoseApplicationAdapter, _PoseGuiAdapter, _QT_TYPE_QtCore, _QT_TYPE_QtWidgets]:
+def _modules() -> tuple[_PoseApplicationAdapter, _PoseGuiAdapter, ModuleType, ModuleType]:
     """Load FreeCAD, GUI, Qt and Coin modules only when Pose Mode is opened.
 
     Returns:
@@ -1379,8 +1379,8 @@ class AvatarPoseTaskPanel:
         App, Gui, QtCore, QtWidgets = _modules()
         self.App: _PoseApplication = App
         self.Gui: _PoseGui = Gui
-        self.QtCore: _QT_TYPE_QtCore = QtCore
-        self.QtWidgets: _QT_TYPE_QtWidgets = QtWidgets
+        self.QtCore: ModuleType = QtCore
+        self.QtWidgets: ModuleType = QtWidgets
         self.avatar: _PoseAvatarFeature | None = self._find_avatar() if avatar is None else avatar
         self.form: _QWidget = QtWidgets.QWidget()
         self.form.setObjectName("ClothAvatarPoseTaskPanel")

@@ -118,7 +118,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
         ...
 
 
-class _AvatarFeature(FreeCADDocumentObjectProtocol, _AvatarFeatureView, Protocol):
+class _AvatarFeature(AvatarParametersFeatureProtocol, _AvatarFeatureView, Protocol):
     """Dynamic FreeCAD avatar properties used by its command lifecycle."""
 
     Label: str
