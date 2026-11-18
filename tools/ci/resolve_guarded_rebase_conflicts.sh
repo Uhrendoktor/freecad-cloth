@@ -442,7 +442,176 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
-  else
+  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepair.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "c8588e857cb46cd2e7e5f8eee829518a2cbffee0" ]] ||
+      ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepair.py | grep -Fq 'def current_edge_candidate_for_sketch_index(' ||
+      ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepair.py | grep -Fq 'from freecad_cloth.common.JsonTypes import JsonObject' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/SeamReference.py" | grep -Fq 'class EdgeRecord(TypedDict):' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/SeamReference.py" | grep -Fq 'provenance: _ProvenanceValue'; then
+      echo "::error::Refusing a topology-repair conflict outside the exact protocol migration commit, current-main viewport helper, and required EdgeRecord contract."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline Sketcher viewport-edge resolution and transplanting only the exact typed topology-repair contracts."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepair.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/pattern/PatternTopologyRepair.py")
+source = path.read_text(encoding="utf-8")
+
+import_anchor = "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+imports = (
+    "from collections.abc import Iterable, Sequence\n"
+    "from typing import Protocol, TypeVar, cast\n\n"
+)
+if source.count(import_anchor) != 1:
+    raise SystemExit("Expected one mainline FreeCAD protocol import anchor.")
+if "from collections.abc import Iterable, Sequence" in source:
+    raise SystemExit("Topology typing imports already exist; refusing duplicate transplant.")
+source = source.replace(import_anchor, imports + import_anchor, 1)
+
+seam_import_anchor = (
+    "from freecad_cloth.pattern.SeamReference import (\n"
+    "    ChangedEdgeReference,\n"
+)
+seam_import_replacement = (
+    "from freecad_cloth.pattern.SeamReference import (\n"
+    "    ChangedEdgeReference,\n"
+    "    EdgeRecord,\n"
+)
+if source.count(seam_import_anchor) != 1:
+    raise SystemExit("Expected exact SeamReference import anchor.")
+source = source.replace(seam_import_anchor, seam_import_replacement, 1)
+
+class_anchor = (
+    'class InvalidRepairTarget(TopologyRepairError):\n'
+    '    """The selected replacement edge cannot be resolved on the seam piece."""\n'
+)
+protocols = '''
+
+class PatternPieceFeatureProtocol(Protocol):
+    """Minimal native pattern-piece identity required by seam repair."""
+
+    PieceId: str
+
+
+class SeamFeatureProtocol(Protocol):
+    """Native seam properties updated by an explicit topology repair."""
+
+    PatternA: PatternPieceFeatureProtocol
+    PatternB: PatternPieceFeatureProtocol
+    EdgeAId: str
+    EdgeASignature: str
+    EdgeA: int
+    EdgeBId: str
+    EdgeBSignature: str
+    EdgeB: int
+
+    def touch(self) -> None: ...
+
+
+class DocumentTransactionProtocol(Protocol):
+    """FreeCAD document transaction surface used by the repair operation."""
+
+    Objects: Sequence[object]
+
+    def openTransaction(self, label: str) -> None: ...
+
+    def recompute(self) -> None: ...
+
+    def commitTransaction(self) -> None: ...
+
+    def abortTransaction(self) -> None: ...
+
+
+_RepairSeam = TypeVar("_RepairSeam")
+'''
+if source.count(class_anchor) != 1 or "class PatternPieceFeatureProtocol" in source:
+    raise SystemExit("Expected unique insertion point for topology protocols.")
+source = source.replace(class_anchor, class_anchor + protocols, 1)
+
+signature_replacements = (
+    ("def seam_reference_status(seam, side):",
+     "def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:"),
+    ("def invalid_seam_sides(doc):",
+     "def invalid_seam_sides(\n    doc: DocumentTransactionProtocol,\n) -> list[tuple[SeamFeatureProtocol, str, str]]:"),
+    ("def current_edge_candidates(seam, side):",
+     "def current_edge_candidates(seam: object, side: str) -> list[EdgeRecord]:"),
+    ("def validate_repair_target(seam, side, edge_id):",
+     "def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:"),
+    ("def build_repair_plan(repairs):",
+     "def build_repair_plan(\n    repairs: Iterable[tuple[_RepairSeam, str, str]],\n) -> list[tuple[_RepairSeam, str, EdgeRecord]]:"),
+    ("def apply_repair_plan(doc, repairs):",
+     "def apply_repair_plan(\n    doc: DocumentTransactionProtocol,\n    repairs: Iterable[tuple[SeamFeatureProtocol, str, str]],\n) -> list[tuple[SeamFeatureProtocol, str, EdgeRecord]]:"),
+)
+for old, new in signature_replacements:
+    if source.count(old) != 1:
+        raise SystemExit(f"Expected one topology signature anchor: {old}")
+    source = source.replace(old, new, 1)
+
+invalid_old = (
+    "    result = []\n"
+    '    for obj in getattr(doc, "Objects", ()):\n'
+    '        if getattr(obj, "SeamId", None) is None:\n'
+    "            continue\n"
+    '        for side in ("A", "B"):\n'
+    "            valid, reason = seam_reference_status(obj, side)\n"
+    "            if not valid:\n"
+    "                result.append((obj, side, reason))\n"
+)
+invalid_new = (
+    "    result: list[tuple[SeamFeatureProtocol, str, str]] = []\n"
+    "    for obj in doc.Objects:\n"
+    '        if getattr(obj, "SeamId", None) is None:\n'
+    "            continue\n"
+    '        for side in ("A", "B"):\n'
+    "            valid, reason = seam_reference_status(obj, side)\n"
+    "            if not valid:\n"
+    "                # SeamId marks a native seam feature with the properties in this protocol.\n"
+    "                result.append((cast(SeamFeatureProtocol, obj), side, reason))\n"
+)
+if source.count(invalid_old) != 1:
+    raise SystemExit("Expected one current-main invalid_seam_sides body.")
+source = source.replace(invalid_old, invalid_new, 1)
+
+plan_old = "    plan = []\n    seen = set()\n"
+plan_new = (
+    "    plan: list[tuple[_RepairSeam, str, EdgeRecord]] = []\n"
+    "    seen: set[tuple[int, str]] = set()\n"
+)
+if source.count(plan_old) != 1:
+    raise SystemExit("Expected one current-main repair-plan local initializer.")
+source = source.replace(plan_old, plan_new, 1)
+
+if source.count('record.get("provenance")') != 2:
+    raise SystemExit("Expected exactly two optional provenance lookups in repair application.")
+source = source.replace('record.get("provenance")', 'record["provenance"]')
+
+# Keep the mainline viewport picker and its JsonObject return contract intact.
+for required in (
+    "from freecad_cloth.common.JsonTypes import JsonObject",
+    "from freecad_cloth.pattern.PatternObjects import _edge_records, _native_edge_record_for_sketch_index",
+    "def current_edge_candidate_for_sketch_index(",
+    "record = _native_edge_record_for_sketch_index(piece, int(edge_index))",
+    "def seam_reference_status(seam: object, side: str) -> tuple[bool, str]:",
+    "def invalid_seam_sides(",
+    "def current_edge_candidates(seam: object, side: str) -> list[EdgeRecord]:",
+    "def validate_repair_target(seam: object, side: str, edge_id: str) -> EdgeRecord:",
+    "def build_repair_plan(",
+    "def apply_repair_plan(",
+    "class DocumentTransactionProtocol(Protocol):",
+):
+    if required not in source:
+        raise SystemExit(f"Transplanted topology contract missing: {required}")
+if source.count("record[\"provenance\"]") != 2:
+    raise SystemExit("Required provenance access was not applied exactly twice.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepair.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi  else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
   fi
