@@ -2266,6 +2266,7 @@ def _run_production_tunic_drape(
             "OMP_THREAD_LIMIT",
             "OMP_WAIT_POLICY",
             "CLOTH_PBD_OPENMP_TEAM_REUSE",
+            "CLOTH_PBD_COLLISION_QUERY_WORKERS",
             "GOMP_SPINCOUNT",
             "OPENBLAS_NUM_THREADS",
             "MKL_NUM_THREADS",
