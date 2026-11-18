@@ -128,6 +128,19 @@ class AvatarTaskPanel:
             "sleeve_length",
         }
     )
+    MEASUREMENT_DISPLAY_LABELS: ClassVar[dict[str, str]] = {
+        "neck": "Neck",
+        "shoulder": "Shoulder",
+        "chest": "Chest",
+        "torso": "Torso",
+        "front_waist": "Front W.",
+        "back_waist": "Back waist",
+        "crotch_length": "Crotch",
+        "shirt_length": "Shirt",
+        "back_neck_to_waist": "Back N–W",
+        "stomach": "Stomach",
+        "sleeve_length": "Sleeve",
+    }
     PROVIDERS = (
         ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
         (
@@ -411,9 +424,10 @@ class AvatarTaskPanel:
                 tooltip = "Fitting target in millimetres. Apply & Rebuild uses this value when fitting the mannequin."
             else:
                 tooltip = "Stored garment measurement in millimetres. Editable here; it is not an independent body-fit constraint."
-            box.setToolTip(tooltip)
-            label_widget = QtWidgets.QLabel(label)
-            label_widget.setToolTip(tooltip)
+            full_tooltip = f"{label}: {tooltip}"
+            box.setToolTip(full_tooltip)
+            label_widget = QtWidgets.QLabel(self.MEASUREMENT_DISPLAY_LABELS.get(key, label))
+            label_widget.setToolTip(full_tooltip)
             label_widget.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
             row, pair = divmod(index, 2)
             column = pair * 2

@@ -208,6 +208,14 @@ def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
             assert abs(AvatarDimensionController._dot(offset, axis)) < 1e-7
 
 
+def test_measurement_display_labels_are_compact_and_model_backed() -> None:
+    """Keep two-up measurement rows compact without losing full tooltip names."""
+    labels = AvatarTaskPanel.MEASUREMENT_DISPLAY_LABELS
+    assert set(labels) <= set(DEFAULT_MEASUREMENTS)
+    assert all(1 <= len(label) <= 10 for label in labels.values())
+    assert {"neck", "shoulder", "sleeve_length", "back_neck_to_waist"} <= set(labels)
+
+
 def test_viewport_dimension_field_keys_are_canonical() -> None:
     """Keep every viewport-linked field inside the model's canonical measurement set."""
     assert set(DEFAULT_MEASUREMENTS) >= AvatarTaskPanel.VIEWPORT_DIMENSION_KEYS
