@@ -641,6 +641,7 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
     assert "CLOTH_PBD_OPENMP_TEAM_REUSE=1" in production_action
     assert "CLOTH_PBD_COLLISION_QUERY_WORKERS" in production_action
+    assert "  query-workers:" in production_action
     assert "inputs.query-workers" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
