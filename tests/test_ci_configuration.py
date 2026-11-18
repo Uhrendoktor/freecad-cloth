@@ -273,7 +273,7 @@ def test_pbd_validation_tag_hashes_the_native_experiment_patch() -> None:
     patch = b"void TimeStepController::positionConstraintProjection() {}\n"
     expected_manifest = (
         f"{sha256(dockerfile).hexdigest()}  docker/freecad-ci/Dockerfile\n"
-        f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-stitch-group-cache.patch\n"
+        f"{sha256(patch).hexdigest()}  docker/freecad-ci/patches/pypbd-openmp-team-reuse.patch\n"
     ).encode()
 
     assert (
