@@ -173,7 +173,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "inputs.query-workers" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
-    assert "compare_pbd_collision_query_workers.py" in tunic_audit
+    assert "compare_pbd_openmp_team_reuse.py --collision-query-workers" in tunic_audit
     assert "artifacts/pbd-collision-query-workers/comparison.json" in tunic_audit
     assert "Report paired native production audit outcome" in tunic_audit
     for step_id in (
