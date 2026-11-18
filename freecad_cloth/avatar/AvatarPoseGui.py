@@ -1,9 +1,9 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused 3D posing UI for the merged Cloth mannequin skeleton.
 
-PoseMode is intentionally separate from the anthropometric avatar editor. The
-task panel keeps only essential posing aids visible while the viewport carries
-the primary manipulation. Exact Euler entry is retained behind a precision drawer.
+Pose Mode is intentionally separate from the anthropometric avatar editor. The
+task panel keeps the selected joint, presets, symmetry, snapping, and exact XYZ
+entry compactly available while the viewport carries the primary manipulation.
 """
 
 from __future__ import annotations
@@ -175,9 +175,9 @@ class _NativeGizmoHandle:
 class SkeletonPoseController:
     """Viewport overlay and Coin3D rotation controller for mannequin joints."""
 
-    GIZMO_SIZE = 75.0
-    BONE_PICK_RADIUS = 12.0
-    JOINT_PICK_RADIUS = 20.0
+    GIZMO_SIZE = 88.0
+    BONE_PICK_RADIUS = 16.0
+    JOINT_PICK_RADIUS = 24.0
 
     def __init__(self, panel):
         """Create the viewport overlay state for the supplied pose panel.
@@ -207,6 +207,7 @@ class SkeletonPoseController:
         self.gizmo_style = None
         self.gizmo_style_error = None
         self._native_dragger = None
+        self._axis_draggers = {}
         self._active_gizmo_axis = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
@@ -628,7 +629,19 @@ class SkeletonPoseController:
         self.gizmo_style = None
         self.gizmo_style_error = None
         self._native_dragger = None
+        self._axis_draggers = {}
         self._gizmo_dragging = False
+
+    def highlight_axis(self, axis: str | None) -> None:
+        """Emphasize the ring linked to a focused numeric angle field.
+
+        Args:
+            axis: Lowercase x/y/z axis key, or None to restore the semantic palette.
+        """
+        for name, dragger in self._axis_draggers.items():
+            color = ACTIVE_COLOR if axis == name.lower() else POSE_AXIS_COLORS[name]
+            with contextlib.suppress(AttributeError, RuntimeError, TypeError):
+                dragger.color.setValue(*color)
 
     def _configure_axis_rotation_dragger(self, coin, dragger, rgb, geometry_scale):
         """Configure one native FreeCAD rotation ring with cone tips and a pivot sphere.
@@ -741,6 +754,9 @@ class SkeletonPoseController:
                     )
                     return False
 
+                # Keep each orientation transform scoped to its own axis branch.
+                # Coin state otherwise leaks from X into Y and Z when siblings share a parent.
+                axis_branch = coin.SoSeparator()
                 axis_transform = coin.SoTransform()
                 axis_transform.rotation.setValue(
                     coin.SbRotation(
@@ -748,7 +764,7 @@ class SkeletonPoseController:
                         coin.SbVec3f(*world_axis),
                     )
                 )
-                getattr(separator, _COIN_ADD_CHILD_METHOD)(axis_transform)
+                axis_branch.addChild(axis_transform)
 
                 if not self._configure_axis_rotation_dragger(
                     coin,
@@ -759,8 +775,10 @@ class SkeletonPoseController:
                     return False
 
                 dragger.setName("ClothPoseRotation" + axis_name)
-                getattr(separator, _COIN_ADD_CHILD_METHOD)(dragger)
+                axis_branch.addChild(dragger)
+                getattr(separator, _COIN_ADD_CHILD_METHOD)(axis_branch)
                 draggers.append(dragger)
+                self._axis_draggers[axis_name] = dragger
                 dragger.addStartCallback(self._gizmo_start)
                 dragger.addMotionCallback(self._gizmo_motion)
                 dragger.addFinishCallback(self._gizmo_finish)
@@ -800,6 +818,7 @@ class SkeletonPoseController:
         getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(separator)
         self.gizmo_mode = "trackball-fallback"
         self._native_dragger = None
+        self._axis_draggers = {}
         gizmo.addStartCallback(self._gizmo_start)
         gizmo.addMotionCallback(self._gizmo_motion)
         gizmo.addFinishCallback(self._gizmo_finish)
@@ -871,6 +890,8 @@ class SkeletonPoseController:
             "ClothPoseRotationY": (0.0, 1.0, 0.0),
             "ClothPoseRotationZ": (0.0, 0.0, 1.0),
         }.get(name)
+        if name.endswith(("X", "Y", "Z")):
+            self.panel._set_rotation_axis_highlight(name[-1].lower())
 
         dragger.rotation.setValue(
             self._coin().SbVec3f(0.0, 0.0, 1.0),
@@ -946,6 +967,7 @@ class SkeletonPoseController:
         self._gizmo_dragging = False
         self.base_rotation = None
         self._active_gizmo_axis = None
+        self.panel._set_rotation_axis_highlight(None)
         if self.selected_bone:
             self.panel._set_status(
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
@@ -1177,46 +1199,71 @@ class AvatarPoseTaskPanel:
         self.selected_label.setProperty("clothRole", "subtitle")
         selected_layout.addWidget(self.selected_label)
 
-        self.instruction_label = QtWidgets.QLabel(
-            "Click a bone to select it. Drag a colored ring to rotate that axis."
+        self.instruction_label = QtWidgets.QLabel("3D axis rings · exact XYZ values below")
+        self.instruction_label.setProperty("clothRole", "hint")
+        self.instruction_label.setToolTip(
+            "Select a bone in the viewport or Joint list. Drag the red X, green Y, or blue Z ring; "
+            "the matching numeric field is highlighted while you edit."
         )
-        self.instruction_label.setWordWrap(True)
         selected_layout.addWidget(self.instruction_label)
 
-        axis_row = QtWidgets.QHBoxLayout()
-        self._angle_labels = {}
-        for axis in ("x", "y", "z"):
-            value = QtWidgets.QLabel(f"{axis.upper()} 0°")
-            value.setAlignment(QtCore.Qt.AlignCenter)
-            axis_row.addWidget(value, 1)
-            self._angle_labels[axis] = value
-        selected_layout.addLayout(axis_row)
-
+        axis_editor_row = QtWidgets.QHBoxLayout()
         self.precision = QtWidgets.QToolButton()
-        self.precision.setText("Exact angles…")
-        self.precision.setCheckable(True)
-        self.precision.setChecked(False)
-        self.precision.setArrowType(QtCore.Qt.RightArrow)
-        self.precision.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
-        selected_layout.addWidget(self.precision)
+        self.precision.setText("XYZ")
+        self.precision.setAutoRaise(True)
+        self.precision.setToolTip(
+            "Exact local joint rotation around X, Y, and Z. These numeric controls stay visible."
+        )
+        axis_editor_row.addWidget(self.precision)
 
         self.precision_fields = {}
         precision_widget = QtWidgets.QWidget()
         precision_layout = QtWidgets.QHBoxLayout(precision_widget)
         precision_layout.setContentsMargins(0, 0, 0, 0)
+        precision_layout.setSpacing(2)
         for axis in ("x", "y", "z"):
             box = QtWidgets.QDoubleSpinBox()
             box.setRange(-180.0, 180.0)
             box.setDecimals(1)
             box.setSuffix("°")
             box.setPrefix(f"{axis.upper()} ")
+            box.setSizePolicy(
+                QtWidgets.QSizePolicy.Ignored,
+                QtWidgets.QSizePolicy.Fixed,
+            )
+            box.setMinimumWidth(0)
+            box.setMaximumWidth(94)
+            box.setKeyboardTracking(False)
+            box.setToolTip(
+                f"Exact local {axis.upper()} rotation in degrees. Focus this field to "
+                "highlight its matching viewport ring.",
+            )
+            box.setProperty("clothPoseAxis", axis)
             self.precision_fields[axis] = box
             precision_layout.addWidget(box)
             box.valueChanged.connect(lambda value, axis=axis: self._precision_changed(axis, value))
-        selected_layout.addWidget(precision_widget)
+        axis_editor_row.addWidget(precision_widget, 1)
+        selected_layout.addLayout(axis_editor_row)
         self.precision_widget = precision_widget
-        self.precision_widget.setVisible(False)
-        self.precision.toggled.connect(self._toggle_precision)
+        self.precision_widget.setVisible(True)
+
+        class _PoseAxisFocusFilter(QtCore.QObject):
+            def eventFilter(
+                filter_self,
+                watched: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+                event: _QT_TYPE_QtCore.QEvent,
+            ) -> bool:
+                """Highlight the rotation ring linked to the focused angle field."""
+                axis = watched.property("clothPoseAxis")
+                if event.type() == QtCore.QEvent.FocusIn:
+                    self._set_rotation_axis_highlight(str(axis) if axis else None)
+                elif event.type() == QtCore.QEvent.FocusOut:
+                    self._set_rotation_axis_highlight(None)
+                return False
+
+        self._pose_axis_focus_filter = _PoseAxisFocusFilter(self.form)
+        for box in self.precision_fields.values():
+            box.installEventFilter(self._pose_axis_focus_filter)
         scroll_layout.addWidget(selected)
 
         joint_toggle_row = QtWidgets.QHBoxLayout()
@@ -1243,7 +1290,8 @@ class AvatarPoseTaskPanel:
 
         from freecad_cloth.common.UiDesign import make_scroll_area
 
-        root.addWidget(make_scroll_area(scroll_content, QtWidgets), 1)
+        self.scroll_area = make_scroll_area(scroll_content, QtWidgets)
+        root.addWidget(self.scroll_area, 1)
         self.joint_list_widget = joint_list_widget
         self.joint_list_widget.setVisible(False)
         self.joint_list_toggle.toggled.connect(self._toggle_joint_list)
@@ -1449,19 +1497,35 @@ class AvatarPoseTaskPanel:
         return JOINT_LABELS.get(str(bone), str(bone))
 
     def _set_axis_value(self, axis, value):
-        """Update the staged value for the requested rotation axis.
+        """Update the always-visible numeric value for one rotation axis.
 
         Args:
             axis: Canonical axis key, one of x, y, or z.
             value: Rotation angle in degrees shown in the precision control.
         """
-        value = float(value)
-        label = self._angle_labels[axis]
         precision = self.precision_fields[axis]
-        label.setText(f"{axis.upper()} {value:.1f}°")
         precision.blockSignals(True)
-        precision.setValue(value)
+        precision.setValue(float(value))
         precision.blockSignals(False)
+
+    def _set_rotation_axis_highlight(self, axis: str | None) -> None:
+        """Highlight a numeric angle field and its matching viewport rotation ring.
+
+        Args:
+            axis: Canonical axis key, or None when no angle field is active.
+        """
+        active = None if axis is None else str(axis).lower()
+        for key, box in self.precision_fields.items():
+            linked = key == active
+            box.setProperty("clothViewportLinked", linked)
+            style = box.style()
+            if style is not None:
+                style.unpolish(box)
+                style.polish(box)
+            box.update()
+        controller = getattr(self, "controller", None)
+        if controller is not None:
+            controller.highlight_axis(active)
 
     def _precision_changed(self, axis, value):
         """Apply the precision setting to the active joint rotation.
@@ -1688,15 +1752,12 @@ class AvatarPoseTaskPanel:
         self._set_status("Pose reset to the selected preset baseline.")
 
     def _toggle_precision(self, expanded):
-        """Expand or collapse the precision controls without changing pose data.
+        """Keep numeric rotation controls visible in the compact selected-joint editor.
 
         Args:
-            expanded: Whether the precision control drawer should be expanded.
+            expanded: Ignored legacy drawer state; numeric XYZ inputs remain visible.
         """
-        self.precision.setArrowType(
-            self.QtCore.Qt.DownArrow if expanded else self.QtCore.Qt.RightArrow
-        )
-        self.precision_widget.setVisible(bool(expanded))
+        self.precision_widget.setVisible(True)
 
     def _toggle_joint_list(self, expanded):
         """Expand or collapse the skeleton joint list.

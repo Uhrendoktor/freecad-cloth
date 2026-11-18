@@ -66,6 +66,13 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
     for method in (
         "_add_shape_group",
         "_update_shape_labels",
+        "_set_shape_controls",
+        "_gender_percent_changed",
+        "_breast_percent_changed",
+        "_gender_profile_changed",
+        "_set_measurement_focus",
+        "_set_measurement_hover",
+        "_focus_measurement",
         "_update_shape_enabled",
         "_staged_parameters",
         "_apply",
@@ -140,6 +147,80 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
         )
         == 1800.0
     )
+
+
+def test_trunk_dimension_landmarks_are_distinct_on_the_rig_span() -> None:
+    """Keep chest, underbust, waist and hip guides separated along the skeleton."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+
+    pelvis = (-12.0, 8.0, 910.0)
+    chest = (24.0, -4.0, 1420.0)
+    landmarks = AvatarDimensionController._trunk_landmarks(pelvis, chest)
+    ordered = (
+        landmarks["hip"],
+        landmarks["high_hip"],
+        landmarks["waist"],
+        landmarks["stomach"],
+        landmarks["underbust"],
+        landmarks["chest"],
+    )
+    assert ordered[0] == pelvis
+    assert ordered[-1] == chest
+    distances = tuple(
+        math.dist(ordered[index], ordered[index + 1]) for index in range(len(ordered) - 1)
+    )
+    assert all(distance > 1.0 for distance in distances)
+    axis = AvatarDimensionController._unit(
+        tuple(chest[index] - pelvis[index] for index in range(3))
+    )
+    for point, factor in zip(
+        ordered,
+        (0.0, 0.18, 0.40, 0.60, 0.80, 1.0),
+        strict=True,
+    ):
+        offset = tuple(point[index] - pelvis[index] for index in range(3))
+        projected = AvatarDimensionController._dot(offset, axis)
+        expected = factor * math.dist(pelvis, chest)
+        assert math.isclose(projected, expected, abs_tol=1e-7)
+
+
+def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
+    """Keep limb and trunk guide rings circular for arbitrary skeleton axes."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+
+    for normal, radial in (
+        ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0)),
+        ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)),
+    ):
+        center = (15.0, -7.0, 23.0)
+        points = AvatarDimensionController._ring_points(
+            center,
+            normal,
+            radial,
+            42.5,
+            segments=32,
+        )
+        assert len(points) == 33
+        assert points[0] == points[-1]
+        axis = AvatarDimensionController._unit(normal)
+        for point in points[:-1]:
+            offset = tuple(point[index] - center[index] for index in range(3))
+            assert math.isclose(math.dist(point, center), 42.5, abs_tol=1e-7)
+            assert abs(AvatarDimensionController._dot(offset, axis)) < 1e-7
+
+
+def test_measurement_display_labels_are_compact_and_model_backed() -> None:
+    """Keep two-up measurement rows compact without losing full tooltip names."""
+    labels = AvatarTaskPanel.MEASUREMENT_DISPLAY_LABELS
+    assert set(labels) == set(DEFAULT_MEASUREMENTS)
+    assert all(1 <= len(label) <= 7 for label in labels.values())
+    assert {"neck", "shoulder", "sleeve_length", "back_neck_to_waist"} <= set(labels)
+
+
+def test_viewport_dimension_field_keys_are_canonical() -> None:
+    """Keep every viewport-linked field inside the model's canonical measurement set."""
+    assert set(DEFAULT_MEASUREMENTS) >= AvatarTaskPanel.VIEWPORT_DIMENSION_KEYS
 
 
 def test_measurement_properties_are_generated_from_model_measurements() -> None:

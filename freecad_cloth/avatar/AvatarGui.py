@@ -107,6 +107,55 @@ class AvatarTaskPanel:
         ("shirt_length", "Shirt length"),
         ("back_neck_to_waist", "Back neck to waist"),
     )
+    VIEWPORT_DIMENSION_KEYS = frozenset(
+        {
+            "height",
+            "neck",
+            "shoulder",
+            "chest",
+            "underbust",
+            "stomach",
+            "waist",
+            "high_hip",
+            "hip",
+            "upper_arm",
+            "elbow",
+            "wrist",
+            "thigh",
+            "knee",
+            "calf",
+            "ankle",
+            "sleeve_length",
+        }
+    )
+    MEASUREMENT_DISPLAY_LABELS: ClassVar[dict[str, str]] = {
+        "height": "Ht",
+        "neck": "Neck",
+        "shoulder": "Sh",
+        "chest": "Chest",
+        "underbust": "U/B",
+        "stomach": "Stom",
+        "waist": "Waist",
+        "high_hip": "H-Hip",
+        "hip": "Hip",
+        "upper_arm": "Arm",
+        "elbow": "Elb",
+        "wrist": "Wrist",
+        "thigh": "Thigh",
+        "knee": "Knee",
+        "calf": "Calf",
+        "ankle": "Ank",
+        "sleeve_length": "Sleeve",
+        "inseam": "Inseam",
+        "torso": "Torso",
+        "front_waist": "F.W",
+        "back_waist": "B.W",
+        "crotch_length": "Crotch",
+        "front_rise": "F.Rise",
+        "back_rise": "B.Rise",
+        "shirt_length": "Shirt",
+        "back_neck_to_waist": "B.N-W",
+    }
     PROVIDERS = (
         ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
         (
@@ -118,6 +167,13 @@ class AvatarTaskPanel:
     def __init__(self, avatar=None):
         """Build the avatar editor and bind its staged controls to the feature."""
         App, Gui, QtWidgets = _modules()
+        if TYPE_CHECKING:
+            QtCore = _QT_TYPE_QtCore
+        else:
+            try:
+                from PySide import QtCore
+            except ImportError:
+                from PySide2 import QtCore
         self.App, self.Gui = App, Gui
         self.avatar = avatar or self._find_avatar()
         self.form = QtWidgets.QWidget()
@@ -125,7 +181,7 @@ class AvatarTaskPanel:
         root = QtWidgets.QVBoxLayout(self.form)
 
         title_row = QtWidgets.QHBoxLayout()
-        title = QtWidgets.QLabel("Parametric Human Mannequin")
+        title = QtWidgets.QLabel("Avatar · shape & dimensions")
         title.setProperty("clothRole", "title")
         title_row.addWidget(title)
         title_row.addStretch(1)
@@ -135,15 +191,15 @@ class AvatarTaskPanel:
         # pane's minimum width is controlled by the editor, not by its heading.
         action_row = QtWidgets.QHBoxLayout()
         self.dimension_gizmo_toggle = QtWidgets.QToolButton()
-        self.dimension_gizmo_toggle.setText("3D Dimensions")
+        self.dimension_gizmo_toggle.setText("Dimensions")
         self.dimension_gizmo_toggle.setCheckable(True)
         self.dimension_gizmo_toggle.setChecked(True)
         self.dimension_gizmo_toggle.setToolTip(
-            "Show transient viewport handles for height, shoulder breadth, chest, waist and hip. "
-            "Drag a handle to stage a dimension; Apply & Rebuild commits it."
+            "Show rig-aligned guides and draggable handles for torso, neck, arms, wrists and legs. "
+            "Each handle edits its linked millimetre field; Apply & Rebuild commits it."
         )
         action_row.addWidget(self.dimension_gizmo_toggle)
-        self.pose_mode_button = QtWidgets.QPushButton("3D Pose Mode…")
+        self.pose_mode_button = QtWidgets.QPushButton("Pose")
         self.pose_mode_button.setToolTip(
             "Open the focused mannequin posing editor. Use the 3D rotation gizmo "
             "instead of typing joint angles."
@@ -156,6 +212,8 @@ class AvatarTaskPanel:
         scroll.setWidgetResizable(True)
         content = QtWidgets.QWidget()
         content_layout = QtWidgets.QVBoxLayout(content)
+        content_layout.setContentsMargins(4, 4, 4, 4)
+        content_layout.setSpacing(4)
         self._boxes = {}
         self._measurement_groups = []
         self._advanced_controls_built = False
@@ -165,12 +223,16 @@ class AvatarTaskPanel:
         self._advanced_rows = []
         self._advanced_groups = []
         self._add_shape_group(content_layout)
-        self._add_mass_target_group(content_layout)
         self._add_measurement_group(content_layout, "Body measurements", self.BODY)
         self._add_measurement_group(content_layout, "Proportions", self.PROPORTIONS)
         self._add_advanced_group(content_layout)
 
-        provider = QtWidgets.QGroupBox("Avatar provider")
+        scene_options = QtWidgets.QWidget()
+        scene_layout = QtWidgets.QVBoxLayout(scene_options)
+        scene_layout.setContentsMargins(0, 0, 0, 0)
+        scene_layout.setSpacing(4)
+
+        provider = QtWidgets.QGroupBox("Avatar source")
         provider_layout = QtWidgets.QVBoxLayout(provider)
         self._provider_ids = [key for key, _label in self.PROVIDERS]
         self.provider_group = QtWidgets.QButtonGroup(self.form)
@@ -191,18 +253,18 @@ class AvatarTaskPanel:
         provider_layout.addLayout(provider_row)
         self.provider_source = QtWidgets.QPushButton("Use selected FreeCAD object")
         self.provider_source.setToolTip(
-            "Select an imported body or mesh in the 3D view. This uses its surface only; "
-            "the source skeleton, skin weights, and animation are not imported."
+            "Use the selected body or mesh as a surface-only target. "
+            "Its skeleton and skin weights are not imported.",
         )
         self.provider_source_label = QtWidgets.QLabel("Source: none")
         self.provider_source_label.setWordWrap(True)
         provider_layout.addWidget(self.provider_source)
         provider_layout.addWidget(self.provider_source_label)
-        content_layout.addWidget(provider)
+        scene_layout.addWidget(provider)
 
         display = QtWidgets.QGroupBox("Display")
         display_layout = QtWidgets.QFormLayout(display)
-        from freecad_cloth.common.UiDesign import configure_form_layout
+        from freecad_cloth.common.UiDesign import configure_form_layout, make_disclosure
 
         configure_form_layout(display_layout, QtWidgets)
         self.skin_offset = QtWidgets.QDoubleSpinBox()
@@ -215,7 +277,7 @@ class AvatarTaskPanel:
         )
         display_layout.addRow("Collision / skin offset", self.skin_offset)
         display_layout.addRow(self.show_measurements)
-        content_layout.addWidget(display)
+        scene_layout.addWidget(display)
 
         arrangement = QtWidgets.QGroupBox("Arrangement points")
         arrangement_layout = QtWidgets.QVBoxLayout(arrangement)
@@ -225,14 +287,28 @@ class AvatarTaskPanel:
         )
         self.arrangement_points.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         arrangement_layout.addWidget(self.arrangement_points)
-        content_layout.addWidget(arrangement)
+        scene_layout.addWidget(arrangement)
 
         self.landmarks = QtWidgets.QLabel()
         self.landmarks.setWordWrap(True)
         self.landmarks.setObjectName("ClothAvatarLandmarks")
-        content_layout.addWidget(self.landmarks)
+        scene_layout.addWidget(self.landmarks)
+        self._add_mass_target_group(scene_layout)
+        scene_wrapper, self.scene_options_toggle = make_disclosure(
+            "Avatar source & scene",
+            scene_options,
+            QtCore,
+            QtWidgets,
+            expanded=False,
+        )
+        self.scene_options_toggle.setToolTip(
+            "Provider selection, body-mass fitting, collision offset, landmarks, "
+            "and arrangement points.",
+        )
+        content_layout.addWidget(scene_wrapper)
         content_layout.addStretch(1)
         scroll.setWidget(content)
+        self.scroll = scroll
         root.addWidget(scroll, 1)
 
         controls = QtWidgets.QHBoxLayout()
@@ -266,6 +342,9 @@ class AvatarTaskPanel:
         self.pose_mode_button.clicked.connect(self._open_pose_mode)
         self.gender_slider.valueChanged.connect(self._shape_changed)
         self.breast_slider.valueChanged.connect(self._shape_changed)
+        self.gender_percent.valueChanged.connect(self._gender_percent_changed)
+        self.breast_percent.valueChanged.connect(self._breast_percent_changed)
+        self.gender_profile_combo.currentIndexChanged.connect(self._gender_profile_changed)
         self.dimension_gizmo_toggle.toggled.connect(self._toggle_dimension_gizmo)
         self.mass_target_enabled.toggled.connect(self._mass_target_toggled)
         self.mass_target.valueChanged.connect(self._staged_changed)
@@ -273,6 +352,31 @@ class AvatarTaskPanel:
         self.advanced_search.textChanged.connect(self._filter_advanced_parameters)
         self.reset_advanced_button.clicked.connect(self._reset_advanced_parameters)
         self._dimension_controller = None
+        self._focused_measurement_key = None
+        self._hovered_measurement_key = None
+
+        class _MeasurementFocusFilter(QtCore.QObject):
+            def eventFilter(
+                filter_self,
+                watched: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+                event: _QT_TYPE_QtCore.QEvent,
+            ) -> bool:
+                """Link numeric focus to the matching viewport dimension control."""
+                key = watched.property("clothDimensionKey")
+                if event.type() == QtCore.QEvent.FocusIn:
+                    self._set_measurement_focus(str(key) if key else None)
+                elif (
+                    event.type() == QtCore.QEvent.FocusOut
+                    and key
+                    and self._focused_measurement_key == str(key)
+                ):
+                    self._set_measurement_focus(None)
+                return False
+
+        self._measurement_focus_filter = _MeasurementFocusFilter(self.form)
+        for box in self._boxes.values():
+            box.installEventFilter(self._measurement_focus_filter)
+        self._update_measurement_link_highlights()
         self._update_shape_enabled()
 
         from freecad_cloth.common.UiDesign import apply_panel_style
@@ -301,30 +405,44 @@ class AvatarTaskPanel:
         return next((o for o in doc.Objects if getattr(o, "AvatarType", "") == "ClothAvatar"), None)
 
     def _add_measurement_group(self, parent, title, fields):
-        """Add a labeled group of measurement controls to the supplied layout."""
+        """Add a compact, two-up grid of fully editable millimetre measurements."""
         _, _, QtWidgets = _modules()
-        group = QtWidgets.QGroupBox(title)
-        layout = QtWidgets.QFormLayout(group)
-        from freecad_cloth.common.UiDesign import configure_form_layout
+        from freecad_cloth.avatar.AvatarModel import LIMITS
 
-        configure_form_layout(layout, QtWidgets)
-        for key, label in fields:
+        group = QtWidgets.QGroupBox(title)
+        layout = QtWidgets.QGridLayout(group)
+        layout.setContentsMargins(7, 8, 7, 7)
+        layout.setHorizontalSpacing(8)
+        layout.setVerticalSpacing(3)
+        for index, (key, label) in enumerate(fields):
             box = QtWidgets.QDoubleSpinBox()
-            box.setRange(1.0, 3000.0)
+            low, high = LIMITS[key]
+            box.setRange(float(low), float(high))
             box.setDecimals(1)
+            box.setSingleStep(1.0)
             box.setSuffix(" mm")
-            if key in self.FIT_TARGETS:
+            box.setKeyboardTracking(False)
+            box.setProperty("clothDimensionKey", key)
+            if key in self.VIEWPORT_DIMENSION_KEYS:
                 tooltip = (
-                    "Target in millimetres. The Anny/clad-body fitting objective constrains "
-                    "this dimension when the mannequin is rebuilt."
+                    "Editable in millimetres here or from its linked viewport handle. "
+                    "Apply & Rebuild commits the staged value."
                 )
+            elif key in self.FIT_TARGETS:
+                tooltip = "Fitting target in millimetres. Apply & Rebuild uses this value when fitting the mannequin."
             else:
-                tooltip = (
-                    "Stored in millimetres for garment reference and derived landmarks. "
-                    "This value is not an independent constraint in the current body-surface fit."
-                )
-            box.setToolTip(tooltip)
-            layout.addRow(label, box)
+                tooltip = "Stored garment measurement in millimetres. Editable here; it is not an independent body-fit constraint."
+            full_tooltip = f"{label}: {tooltip}"
+            box.setPrefix(f"{self.MEASUREMENT_DISPLAY_LABELS[key]} ")
+            box.setSizePolicy(
+                QtWidgets.QSizePolicy.Ignored,
+                QtWidgets.QSizePolicy.Fixed,
+            )
+            box.setMinimumWidth(0)
+            box.setToolTip(full_tooltip)
+            row, column = divmod(index, 2)
+            layout.addWidget(box, row, column)
+            layout.setColumnStretch(column, 1)
             self._boxes[key] = box
         parent.addWidget(group)
         self._measurement_groups.append(group)
@@ -405,7 +523,7 @@ class AvatarTaskPanel:
         help_text = QtWidgets.QLabel(
             "Advanced values override the fitted shape. Phenotypes use range 0 to 1; "
             "body morphs use -1 to 1. "
-            "Primary Gender blend and Breast fullness remain in Body shape."
+            "The continuous body profile and breast-fullness controls remain on the main page."
         )
         help_text.setWordWrap(True)
         advanced_layout.addWidget(help_text)
@@ -698,11 +816,7 @@ class AvatarTaskPanel:
         self._staged_changed()
 
     def _add_shape_group(self, parent):
-        """Build compact macro-shape controls; precise dimensions stay below.
-
-        Args:
-            parent: Parent Qt layout that receives the shape controls.
-        """
+        """Build compact body-profile controls with slider, preset, and numeric paths."""
         _, _, QtWidgets = _modules()
         if TYPE_CHECKING:
             QtCore = _QT_TYPE_QtCore
@@ -712,38 +826,51 @@ class AvatarTaskPanel:
             except ImportError:
                 from PySide2 import QtCore
 
-        group = QtWidgets.QGroupBox("Body shape")
-        layout = QtWidgets.QFormLayout(group)
-        from freecad_cloth.common.UiDesign import configure_form_layout
+        group = QtWidgets.QGroupBox("Body profile")
+        layout = QtWidgets.QVBoxLayout(group)
+        layout.setContentsMargins(7, 8, 7, 7)
+        layout.setSpacing(3)
 
-        configure_form_layout(layout, QtWidgets)
+        profile_row = QtWidgets.QHBoxLayout()
+        self.gender_profile_combo = QtWidgets.QComboBox()
+        self.gender_profile_combo.addItems(("Custom blend", "Feminine", "Neutral", "Masculine"))
+        self.gender_profile_combo.setToolTip(
+            "Choose a named starting profile, then refine it with the slider or exact percentage."
+        )
+        profile_row.addWidget(self.gender_profile_combo)
+        self.gender_value = QtWidgets.QLabel("50% · Neutral")
+        self.gender_value.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+        profile_row.addWidget(self.gender_value)
+        layout.addLayout(profile_row)
 
         gender_row = QtWidgets.QHBoxLayout()
-        gender_row.addWidget(QtWidgets.QLabel("Feminine"))
+        gender_row.addWidget(QtWidgets.QLabel("F"))
         self.gender_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.gender_slider.setRange(0, 100)
         self.gender_slider.setSingleStep(1)
         self.gender_slider.setPageStep(10)
         self.gender_slider.setToolTip(
-            "Blend body proportions from feminine (0) through neutral (50) to masculine (100)."
+            "Morphology blend: 0 feminine, 50 neutral, 100 masculine. "
+            "This changes body proportions, not identity.",
         )
         gender_row.addWidget(self.gender_slider, 1)
-        gender_row.addWidget(QtWidgets.QLabel("Masculine"))
-        gender_container = QtWidgets.QWidget()
-        gender_container.setLayout(gender_row)
-        self.gender_value = QtWidgets.QLabel("Neutral")
-        self.gender_value.setMinimumWidth(64)
-        self.gender_value.setAlignment(QtCore.Qt.AlignRight)
-        gender_wrapper = QtWidgets.QWidget()
-        gender_layout = QtWidgets.QVBoxLayout(gender_wrapper)
-        gender_layout.setContentsMargins(0, 0, 0, 0)
-        gender_layout.setSpacing(2)
-        gender_layout.addWidget(gender_container)
-        gender_layout.addWidget(self.gender_value, 0, QtCore.Qt.AlignRight)
-        layout.addRow("Gender blend", gender_wrapper)
+        gender_row.addWidget(QtWidgets.QLabel("M"))
+        self.gender_percent = QtWidgets.QDoubleSpinBox()
+        self.gender_percent.setRange(0.0, 100.0)
+        self.gender_percent.setDecimals(0)
+        self.gender_percent.setSuffix("%")
+        self.gender_percent.setMaximumWidth(76)
+        self.gender_percent.setKeyboardTracking(False)
+        self.gender_percent.setToolTip(
+            "Exact morphology blend in percent. Type a value instead of dragging the slider."
+        )
+        gender_row.addWidget(self.gender_percent)
+        layout.addLayout(gender_row)
 
         breast_row = QtWidgets.QHBoxLayout()
-        breast_row.addWidget(QtWidgets.QLabel("Less"))
+        breast_label = QtWidgets.QLabel("Breast fullness")
+        breast_label.setToolTip("Additional front projection beyond the neutral base shape.")
+        breast_row.addWidget(breast_label)
         self.breast_slider = QtWidgets.QSlider(QtCore.Qt.Horizontal)
         self.breast_slider.setRange(0, 100)
         self.breast_slider.setSingleStep(1)
@@ -752,17 +879,18 @@ class AvatarTaskPanel:
             "Stage additional breast projection from the neutral base shape (0-100%)."
         )
         breast_row.addWidget(self.breast_slider, 1)
-        breast_row.addWidget(QtWidgets.QLabel("More"))
-        breast_container = QtWidgets.QWidget()
-        breast_container.setLayout(breast_row)
+        self.breast_percent = QtWidgets.QDoubleSpinBox()
+        self.breast_percent.setRange(0.0, 100.0)
+        self.breast_percent.setDecimals(0)
+        self.breast_percent.setSuffix("%")
+        self.breast_percent.setMaximumWidth(76)
+        self.breast_percent.setKeyboardTracking(False)
+        self.breast_percent.setToolTip("Enter breast fullness precisely from 0 to 100 percent.")
+        breast_row.addWidget(self.breast_percent)
+        layout.addLayout(breast_row)
+
         self.breast_value = QtWidgets.QLabel("0%")
-        self.breast_value.setMinimumWidth(64)
-        breast_value_row = QtWidgets.QHBoxLayout()
-        breast_value_row.addWidget(breast_container, 1)
-        breast_value_row.addWidget(self.breast_value)
-        breast_wrapper = QtWidgets.QWidget()
-        breast_wrapper.setLayout(breast_value_row)
-        layout.addRow("Breast fullness", breast_wrapper)
+        self.breast_value.setVisible(False)
         parent.addWidget(group)
         self.shape_group = group
 
@@ -795,15 +923,10 @@ class AvatarTaskPanel:
             box.blockSignals(True)
             box.setValue(float(getattr(self.avatar, self.PROPERTY_MAP[key])))
             box.blockSignals(False)
-        self.gender_slider.blockSignals(True)
-        self.gender_slider.setValue(
-            round(100.0 * float(getattr(self.avatar, AVATAR_SHAPE_PROPERTY_MAP["gender"], 0.5)))
+        self._set_shape_controls(
+            float(getattr(self.avatar, AVATAR_SHAPE_PROPERTY_MAP["gender"], 0.5)),
+            float(getattr(self.avatar, "BreastSize", 0.0)),
         )
-        self.gender_slider.blockSignals(False)
-        self.breast_slider.blockSignals(True)
-        self.breast_slider.setValue(round(100.0 * float(getattr(self.avatar, "BreastSize", 0.0))))
-        self.breast_slider.blockSignals(False)
-        self._update_shape_labels()
         current_provider = str(getattr(self.avatar, "AvatarProviderId", "makehuman-hm08"))
         if current_provider not in self.provider_buttons:
             current_provider = "makehuman-hm08"
@@ -882,22 +1005,108 @@ class AvatarTaskPanel:
         self.provider_source_label.setText(text)
         self.provider_source.setEnabled(self._provider_id() == "freecad-geometry")
 
+    def _set_shape_controls(self, gender: float, breast: float) -> None:
+        """Synchronize all visible representations of the stored shape values."""
+        values = (
+            (self.gender_slider, round(float(gender) * 100.0)),
+            (self.gender_percent, round(float(gender) * 100.0)),
+            (self.breast_slider, round(float(breast) * 100.0)),
+            (self.breast_percent, round(float(breast) * 100.0)),
+        )
+        for widget, value in values:
+            widget.blockSignals(True)
+            widget.setValue(value)
+            widget.blockSignals(False)
+        self._update_shape_labels()
+
     def _update_shape_labels(self):
-        """Keep slider readouts explicit, including the neutral gender midpoint."""
+        """Keep named body-profile choices and the current numeric blend in sync."""
         value = int(self.gender_slider.value())
+        profile_index = {0: 1, 50: 2, 100: 3}.get(value, 0)
+        self.gender_profile_combo.blockSignals(True)
+        self.gender_profile_combo.setCurrentIndex(profile_index)
+        self.gender_profile_combo.blockSignals(False)
         if value == 50:
             label = "Neutral"
-        elif value < 50:
-            label = f"Feminine {100 - value * 2}%"
+        elif value == 0:
+            label = "Feminine"
+        elif value == 100:
+            label = "Masculine"
         else:
-            label = f"Masculine {(value - 50) * 2}%"
+            label = "Custom"
         self.gender_value.setText(label)
         self.breast_value.setText(f"{int(self.breast_slider.value())}%")
 
     def _shape_changed(self, _value=None):
         """Refresh shape controls after a slider value changes."""
+        self.gender_percent.blockSignals(True)
+        self.gender_percent.setValue(float(self.gender_slider.value()))
+        self.gender_percent.blockSignals(False)
+        self.breast_percent.blockSignals(True)
+        self.breast_percent.setValue(float(self.breast_slider.value()))
+        self.breast_percent.blockSignals(False)
         self._update_shape_labels()
         self._staged_changed()
+
+    def _gender_percent_changed(self, value: float) -> None:
+        """Stage an exact morphology blend entered through the numeric control."""
+        self.gender_slider.blockSignals(True)
+        self.gender_slider.setValue(int(round(float(value))))
+        self.gender_slider.blockSignals(False)
+        self._shape_changed()
+
+    def _breast_percent_changed(self, value: float) -> None:
+        """Stage exact breast fullness entered through the numeric control."""
+        self.breast_slider.blockSignals(True)
+        self.breast_slider.setValue(int(round(float(value))))
+        self.breast_slider.blockSignals(False)
+        self._shape_changed()
+
+    def _gender_profile_changed(self, index: int) -> None:
+        """Apply a named profile while retaining the custom continuous blend."""
+        profile_values = {1: 0, 2: 50, 3: 100}
+        if int(index) not in profile_values:
+            return
+        self.gender_slider.blockSignals(True)
+        self.gender_slider.setValue(profile_values[int(index)])
+        self.gender_slider.blockSignals(False)
+        self._shape_changed()
+
+    def _set_measurement_focus(self, key: str | None) -> None:
+        """Link a focused numeric measurement to its transient viewport control."""
+        self._focused_measurement_key = key
+        self._update_measurement_link_highlights()
+        if self._dimension_controller is not None:
+            self._dimension_controller.set_field_focus(key)
+
+    def _set_measurement_hover(self, key: str | None) -> None:
+        """Highlight the matching numeric field while a viewport handle is hovered."""
+        self._hovered_measurement_key = key
+        self._update_measurement_link_highlights()
+
+    def _update_measurement_link_highlights(self) -> None:
+        """Style linked numeric inputs without changing the host application's palette."""
+        active = {self._focused_measurement_key, self._hovered_measurement_key}
+        active.discard(None)
+        for key, box in self._boxes.items():
+            linked = key in active
+            if bool(box.property("clothViewportLinked")) == linked:
+                continue
+            box.setProperty("clothViewportLinked", linked)
+            style = box.style()
+            if style is not None:
+                style.unpolish(box)
+                style.polish(box)
+            box.update()
+
+    def _focus_measurement(self, key: str) -> None:
+        """Focus and reveal the numeric field linked to a clicked viewport handle."""
+        box = self._boxes.get(str(key))
+        if box is None:
+            return
+        self.scroll.ensureWidgetVisible(box)
+        box.setFocus()
+        self._set_measurement_focus(str(key))
 
     def _update_shape_enabled(self):
         """Disable MakeHuman-only controls for geometry-only provider surfaces."""
@@ -1020,7 +1229,7 @@ class AvatarTaskPanel:
         self._refresh_status("Mannequin rebuilt from applied persistent parameters.")
         self._update_shape_enabled()
         if self._dimension_controller is not None:
-            self._dimension_controller.refresh()
+            self._dimension_controller.refresh(force=True)
         return True
 
     def _update_arrangement_points(self):

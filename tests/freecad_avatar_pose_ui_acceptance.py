@@ -149,6 +149,12 @@ def _capture_pose_screen(path, panel, view):
         window.activateWindow()
     _events()
 
+    scroll_area = getattr(panel, "scroll_area", None)
+    if scroll_area is None:
+        raise RuntimeError("Pose Mode does not expose its task-panel scroll area")
+    if scroll_area.horizontalScrollBar().maximum() > 0:
+        raise RuntimeError("Pose Mode XYZ controls overflow the task panel horizontally")
+
     view.viewIsometric()
     view.fitAll()
     panel.controller.select_joint("upperarm01.L")

@@ -49,6 +49,18 @@ The references are design inputs, not templates to copy wholesale. The useful pa
 7. **Reuse familiar controls.** Native labels, spin boxes, combo boxes, checkboxes, tables and checkable tool buttons are preferred over bespoke widgets. Introduce a specialized control only where it materially improves interaction, such as a 3D dragger.
 8. **Use one visual vocabulary.** Shared spacing, headings, status blocks, primary-action emphasis and disclosure behavior should feel consistent without forcing the whole FreeCAD application into a Cloth theme.
 
+## Avatar editor interaction pattern
+
+The avatar editor is the compact reference implementation for linked panel/viewport editing:
+
+- Keep every canonical measurement available as a labeled numeric field, arranged in a two-up grid at normal task-panel widths. Use the model's authoritative LIMITS for the field range.
+- Offer a continuous body-profile slider, named starting profiles, and direct percentage entry. A preset is a convenience, not a replacement for the continuous value or the individual anthropometric measurements.
+- Build viewport dimension handles from the fitted skeleton landmarks, not fixed fractions of total height. Circumference rings scale from the live measurement value and use depth-tested line guides so the mannequin hides the back half; a small foreground marker preserves a reliable pick target.
+- Keep the numeric field and viewport handle linked in both directions. Hovering a handle highlights its field, clicking it focuses and reveals the field, and focusing a field emphasizes the matching handle. Tooltips/hover labels carry the detailed explanation; labels remain visible on the controls themselves.
+- Pose Mode presents X, Y, and Z rotations together. Each axis ring has its own scoped transform branch, uses the conventional red/green/blue identity, and highlights the matching numeric control during drag or keyboard entry. The skeleton remains selectable in the viewport and through the optional joint list.
+
+These rules make the avatar editor denser without hiding its essential editing paths. Advanced provider/scene controls may be disclosed, but no supported measurement or precision rotation may be removed.
+
 ## Layout and typography
 
 - Task panels target the FreeCAD-recommended compact width (~360 px), but must flex with window size, high-DPI scaling, font metrics and translated labels. Do not set fixed control widths unless data entry requires them.

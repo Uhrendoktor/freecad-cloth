@@ -310,6 +310,10 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {
     border: 1px solid palette(highlight);
 }
+QDoubleSpinBox[clothViewportLinked="true"] {
+    border: 2px solid palette(highlight);
+    background-color: palette(alternate-base);
+}
 QCheckBox {
     spacing: 6px;
 }
