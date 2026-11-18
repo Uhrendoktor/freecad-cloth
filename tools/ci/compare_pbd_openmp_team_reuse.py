@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 import json
 import math
 from pathlib import Path
@@ -12,8 +13,6 @@ from typing import TYPE_CHECKING
 
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 
 EXPECTED_SCENE_STEPS = 90
@@ -185,16 +184,14 @@ def _projection_total(profile: JsonObject, label: str) -> float:
     )
     return _finite_number(projection.get("total_ms"), f"{label}.projection.total_ms")
 
+
 def _profile_stage_totals(
     profiles: list[JsonObject],
     label: str,
     total_getter: Callable[[JsonObject, str], float],
 ) -> list[float]:
     """Collect the same named stage total for each matched production profile."""
-    return [
-        total_getter(profile, f"{label}-{index + 1}")
-        for index, profile in enumerate(profiles)
-    ]
+    return [total_getter(profile, f"{label}-{index + 1}") for index, profile in enumerate(profiles)]
 
 
 def _production_wall_totals(profiles: list[JsonObject], label: str) -> list[float]:
@@ -243,6 +240,7 @@ def _matched_timing_metrics(
         wall_time_change,
         rejection_reasons,
     )
+
 
 def _mesh_collision_projector_total(profile: JsonObject, label: str) -> float:
     """Read the complete batched mesh-projector timing from one production profile."""
@@ -405,12 +403,8 @@ def compare_profile_sets(
                 f"{label}: execution context differs (runner, OpenMP, or native build)"
             )
 
-    baseline_projection = _profile_stage_totals(
-        baseline_profiles, "baseline", _projection_total
-    )
-    candidate_projection = _profile_stage_totals(
-        candidate_profiles, "candidate", _projection_total
-    )
+    baseline_projection = _profile_stage_totals(baseline_profiles, "baseline", _projection_total)
+    candidate_projection = _profile_stage_totals(candidate_profiles, "candidate", _projection_total)
     baseline_wall = _production_wall_totals(baseline_profiles, "baseline")
     candidate_wall = _production_wall_totals(candidate_profiles, "candidate")
 
