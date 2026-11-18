@@ -278,12 +278,7 @@ class MeshCollisionProjector:
             w = (d00 * d21 - d01 * d20) / safe_denominator
             u = 1.0 - v - w
             projected_plane = a + v[:, :, None] * ab + w[:, :, None] * ac
-            barycentric_inside = (
-                (u >= -1e-10)
-                & (v >= -1e-10)
-                & (w >= -1e-10)
-                & (denominator > 1e-18)
-            )
+            barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
 
             edge_ab = ab
             edge_bc = c - b
