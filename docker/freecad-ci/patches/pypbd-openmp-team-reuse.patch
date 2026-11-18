@@ -33,8 +33,19 @@ diff --git a/CMakeLists.txt b/CMakeLists.txt
 +		endif ()
 +	endif()
  endif()
+
+diff --git a/Simulation/TimeStepController.h b/Simulation/TimeStepController.h
+--- a/Simulation/TimeStepController.h
++++ b/Simulation/TimeStepController.h
+@@ -32,6 +32,7 @@
+ 		virtual void initParameters();
+ 		
+ 		void positionConstraintProjection(SimulationModel &model);
++		void stepSubstepsWithPersistentOpenMPTeam(SimulationModel &model, const Real h);
+ 		void velocityConstraintProjection(SimulationModel &model);
  
  
+
 diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.cpp
 --- a/Simulation/TimeStepController.cpp
 +++ b/Simulation/TimeStepController.cpp
@@ -47,9 +58,252 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
  #include "PositionBasedDynamics/PositionBasedDynamics.h"
  #include "Utils/Timing.h"
  
-@@ -267,34 +269,91 @@
+@@ -90,6 +92,11 @@
+ 
+ 	Real h = hOld / (Real)m_subSteps;
+ 	tm->setTimeStepSize(h);
++	const char *stepTeamReuseSetting = std::getenv("CLOTH_PBD_OPENMP_STEP_TEAM_REUSE");
++	const bool reuseStepOpenMPTeam = stepTeamReuseSetting != nullptr && std::strcmp(stepTeamReuseSetting, "1") == 0;
++	if (reuseStepOpenMPTeam)
++		stepSubstepsWithPersistentOpenMPTeam(model, h);
++	else
+ 	for (unsigned int step = 0; step < m_subSteps; step++)
+ 	{
+ 		#pragma omp parallel if(numBodies > MIN_PARALLEL_SIZE) default(shared)
+@@ -240,6 +247,218 @@
+ 	STOP_TIMING_AVG;
+ }
+ 
++
++void TimeStepController::stepSubstepsWithPersistentOpenMPTeam(SimulationModel &model, const Real h)
++{
++	SimulationModel::RigidBodyVector &rb = model.getRigidBodies();
++	ParticleData &pd = model.getParticles();
++	OrientationData &od = model.getOrientations();
++	SimulationModel::ConstraintVector &constraints = model.getConstraints();
++	SimulationModel::ConstraintGroupVector &groups = model.getConstraintGroups();
++	SimulationModel::ParticleSolidContactConstraintVector &particleTetContacts = model.getParticleSolidContactConstraints();
++	const int numBodies = (int)rb.size();
++
++	// Keep one OpenMP team alive from integration through projection and velocity
++	// updates for every native substep. The barriers retain the upstream phase,
++	// conflict-free group, solver-iteration, and contact ordering.
++	#pragma omp parallel default(shared)
++	{
++		for (unsigned int step = 0; step < m_subSteps; step++)
++		{
++			if (numBodies > MIN_PARALLEL_SIZE)
++			{
++				#pragma omp for schedule(static) nowait
++				for (int i = 0; i < numBodies; i++)
++				{
++					rb[i]->getLastPosition() = rb[i]->getOldPosition();
++					rb[i]->getOldPosition() = rb[i]->getPosition();
++					TimeIntegration::semiImplicitEuler(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getVelocity(), rb[i]->getAcceleration());
++					rb[i]->getLastRotation() = rb[i]->getOldRotation();
++					rb[i]->getOldRotation() = rb[i]->getRotation();
++					TimeIntegration::semiImplicitEulerRotation(h, rb[i]->getMass(), rb[i]->getInertiaTensorW(), rb[i]->getInertiaTensorInverseW(), rb[i]->getRotation(), rb[i]->getAngularVelocity(), rb[i]->getTorque());
++					rb[i]->rotationUpdated();
++				}
++
++				#pragma omp for schedule(static)
++				for (int i = 0; i < (int)pd.size(); i++)
++				{
++					pd.getLastPosition(i) = pd.getOldPosition(i);
++					pd.getOldPosition(i) = pd.getPosition(i);
++					TimeIntegration::semiImplicitEuler(h, pd.getMass(i), pd.getPosition(i), pd.getVelocity(i), pd.getAcceleration(i));
++				}
++
++				#pragma omp for schedule(static)
++				for (int i = 0; i < (int)od.size(); i++)
++				{
++					od.getLastQuaternion(i) = od.getOldQuaternion(i);
++					od.getOldQuaternion(i) = od.getQuaternion(i);
++					TimeIntegration::semiImplicitEulerRotation(h, od.getMass(i), od.getMass(i) * Matrix3r::Identity(), od.getInvMass(i) * Matrix3r::Identity(), od.getQuaternion(i), od.getVelocity(i), Vector3r(0,0,0));
++				}
++			}
++			else
++			{
++				// Upstream disables parallel integration when there are no large
++				// rigid-body sets. Preserve its serial particle/orientation path.
++				#pragma omp master
++				{
++					for (int i = 0; i < numBodies; i++)
++					{
++						rb[i]->getLastPosition() = rb[i]->getOldPosition();
++						rb[i]->getOldPosition() = rb[i]->getPosition();
++						TimeIntegration::semiImplicitEuler(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getVelocity(), rb[i]->getAcceleration());
++						rb[i]->getLastRotation() = rb[i]->getOldRotation();
++						rb[i]->getOldRotation() = rb[i]->getRotation();
++						TimeIntegration::semiImplicitEulerRotation(h, rb[i]->getMass(), rb[i]->getInertiaTensorW(), rb[i]->getInertiaTensorInverseW(), rb[i]->getRotation(), rb[i]->getAngularVelocity(), rb[i]->getTorque());
++						rb[i]->rotationUpdated();
++					}
++
++					for (int i = 0; i < (int)pd.size(); i++)
++					{
++						pd.getLastPosition(i) = pd.getOldPosition(i);
++						pd.getOldPosition(i) = pd.getPosition(i);
++						TimeIntegration::semiImplicitEuler(h, pd.getMass(i), pd.getPosition(i), pd.getVelocity(i), pd.getAcceleration(i));
++					}
++
++					for (int i = 0; i < (int)od.size(); i++)
++					{
++						od.getLastQuaternion(i) = od.getOldQuaternion(i);
++						od.getOldQuaternion(i) = od.getQuaternion(i);
++						TimeIntegration::semiImplicitEulerRotation(h, od.getMass(i), od.getMass(i) * Matrix3r::Identity(), od.getInvMass(i) * Matrix3r::Identity(), od.getQuaternion(i), od.getVelocity(i), Vector3r(0,0,0));
++					}
++				}
++				#pragma omp barrier
++			}
++
++			#pragma omp master
++			{
++				START_TIMING("position constraints projection");
++				m_iterations = 0;
++				model.initConstraintGroups();
++				for (auto & constraint : constraints)
++					constraint->initConstraintBeforeProjection(model);
++			}
++			#pragma omp barrier
++
++			while (m_iterations < m_maxIterations)
++			{
++				for (unsigned int group = 0; group < groups.size(); group++)
++				{
++					const int groupSize = (int)groups[group].size();
++					if (groupSize > MIN_PARALLEL_SIZE)
++					{
++						#pragma omp for schedule(static)
++						for (int i = 0; i < groupSize; i++)
++						{
++							const unsigned int constraintIndex = groups[group][i];
++							constraints[constraintIndex]->updateConstraint(model);
++							constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++						}
++					}
++					else
++					{
++						#pragma omp master
++						{
++							for (int i = 0; i < groupSize; i++)
++							{
++								const unsigned int constraintIndex = groups[group][i];
++								constraints[constraintIndex]->updateConstraint(model);
++								constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
++							}
++						}
++						#pragma omp barrier
++					}
++				}
++
++				#pragma omp master
++				{
++					for (unsigned int i = 0; i < particleTetContacts.size(); i++)
++						particleTetContacts[i].solvePositionConstraint(model, m_iterations);
++					m_iterations++;
++				}
++				#pragma omp barrier
++			}
++
++			#pragma omp master
++			{
++				STOP_TIMING_AVG;
++			}
++			#pragma omp barrier
++
++			if (numBodies > MIN_PARALLEL_SIZE)
++			{
++				#pragma omp for schedule(static) nowait
++				for (int i = 0; i < numBodies; i++)
++				{
++					if (m_velocityUpdateMethod == 0)
++					{
++						TimeIntegration::velocityUpdateFirstOrder(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getOldPosition(), rb[i]->getVelocity());
++						TimeIntegration::angularVelocityUpdateFirstOrder(h, rb[i]->getMass(), rb[i]->getRotation(), rb[i]->getOldRotation(), rb[i]->getAngularVelocity());
++					}
++					else
++					{
++						TimeIntegration::velocityUpdateSecondOrder(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getOldPosition(), rb[i]->getLastPosition(), rb[i]->getVelocity());
++						TimeIntegration::angularVelocityUpdateSecondOrder(h, rb[i]->getMass(), rb[i]->getRotation(), rb[i]->getOldRotation(), rb[i]->getLastRotation(), rb[i]->getAngularVelocity());
++					}
++				}
++
++				#pragma omp for schedule(static)
++				for (int i = 0; i < (int)pd.size(); i++)
++				{
++					if (m_velocityUpdateMethod == 0)
++						TimeIntegration::velocityUpdateFirstOrder(h, pd.getMass(i), pd.getPosition(i), pd.getOldPosition(i), pd.getVelocity(i));
++					else
++						TimeIntegration::velocityUpdateSecondOrder(h, pd.getMass(i), pd.getPosition(i), pd.getOldPosition(i), pd.getLastPosition(i), pd.getVelocity(i));
++				}
++
++				#pragma omp for schedule(static)
++				for (int i = 0; i < (int)od.size(); i++)
++				{
++					if (m_velocityUpdateMethod == 0)
++						TimeIntegration::angularVelocityUpdateFirstOrder(h, od.getMass(i), od.getQuaternion(i), od.getOldQuaternion(i), od.getVelocity(i));
++					else
++						TimeIntegration::angularVelocityUpdateSecondOrder(h, od.getMass(i), od.getQuaternion(i), od.getOldQuaternion(i), od.getLastQuaternion(i), od.getVelocity(i));
++				}
++			}
++			else
++			{
++				#pragma omp master
++				{
++					for (int i = 0; i < numBodies; i++)
++					{
++						if (m_velocityUpdateMethod == 0)
++						{
++							TimeIntegration::velocityUpdateFirstOrder(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getOldPosition(), rb[i]->getVelocity());
++							TimeIntegration::angularVelocityUpdateFirstOrder(h, rb[i]->getMass(), rb[i]->getRotation(), rb[i]->getOldRotation(), rb[i]->getAngularVelocity());
++						}
++						else
++						{
++							TimeIntegration::velocityUpdateSecondOrder(h, rb[i]->getMass(), rb[i]->getPosition(), rb[i]->getOldPosition(), rb[i]->getLastPosition(), rb[i]->getVelocity());
++							TimeIntegration::angularVelocityUpdateSecondOrder(h, rb[i]->getMass(), rb[i]->getRotation(), rb[i]->getOldRotation(), rb[i]->getLastRotation(), rb[i]->getAngularVelocity());
++						}
++					}
++
++					for (int i = 0; i < (int)pd.size(); i++)
++					{
++						if (m_velocityUpdateMethod == 0)
++							TimeIntegration::velocityUpdateFirstOrder(h, pd.getMass(i), pd.getPosition(i), pd.getOldPosition(i), pd.getVelocity(i));
++						else
++							TimeIntegration::velocityUpdateSecondOrder(h, pd.getMass(i), pd.getPosition(i), pd.getOldPosition(i), pd.getLastPosition(i), pd.getVelocity(i));
++					}
++
++					for (int i = 0; i < (int)od.size(); i++)
++					{
++						if (m_velocityUpdateMethod == 0)
++							TimeIntegration::angularVelocityUpdateFirstOrder(h, od.getMass(i), od.getQuaternion(i), od.getOldQuaternion(i), od.getVelocity(i));
++						else
++							TimeIntegration::angularVelocityUpdateSecondOrder(h, od.getMass(i), od.getQuaternion(i), od.getOldQuaternion(i), od.getLastQuaternion(i), od.getVelocity(i));
++					}
++				}
++				#pragma omp barrier
++			}
++		}
++	}
++}
++
+ void TimeStepController::reset()
+ {
+ 	m_iterations = 0;
+@@ -255,42 +474,90 @@
+ 	// init constraint groups if necessary
+ 	model.initConstraintGroups();
+ 
+-	SimulationModel::RigidBodyVector &rb = model.getRigidBodies();
+ 	SimulationModel::ConstraintVector &constraints = model.getConstraints();
+ 	SimulationModel::ConstraintGroupVector &groups = model.getConstraintGroups();
+-	SimulationModel::RigidBodyContactConstraintVector &contacts = model.getRigidBodyContactConstraints();
+ 	SimulationModel::ParticleSolidContactConstraintVector &particleTetContacts = model.getParticleSolidContactConstraints();
+ 
+ 	// init constraints for this time step if necessary
+ 	for (auto & constraint : constraints)
+-	{
  		constraint->initConstraintBeforeProjection(model);
- 	}
+-	}
  
 -	while (m_iterations < m_maxIterations)
 +	const char *teamReuseSetting = std::getenv("CLOTH_PBD_OPENMP_TEAM_REUSE");
@@ -72,13 +326,13 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +				#pragma omp parallel if(groupSize > MIN_PARALLEL_SIZE) default(shared)
  				{
 -					const unsigned int constraintIndex = groups[group][i];
+-
+-					constraints[constraintIndex]->updateConstraint(model);
+-					constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 +					#pragma omp for schedule(static)
 +					for (int i = 0; i < groupSize; i++)
 +					{
 +						const unsigned int constraintIndex = groups[group][i];
- 
--					constraints[constraintIndex]->updateConstraint(model);
--					constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 +						constraints[constraintIndex]->updateConstraint(model);
 +						constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 +					}
@@ -86,9 +340,7 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
  			}
 +
 +			for (unsigned int i = 0; i < particleTetContacts.size(); i++)
-+			{
 +				particleTetContacts[i].solvePositionConstraint(model, m_iterations);
-+			}
 +
 +			m_iterations++;
  		}
@@ -96,9 +348,10 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +	}
  
 -		for (unsigned int i = 0; i < particleTetContacts.size(); i++)
-+	// Reuse one team for all ordered groups and solver iterations. Every large
-+	// group keeps the upstream static work split and an end-of-group barrier.
-+	// Small groups and particle-solid contacts remain serial on the master thread.
++	// Current best: reuse one team for all ordered groups and solver iterations
++	// within this projection invocation. The full-step experiment extends its
++	// lifetime across the integration, projection and velocity phases of all
++	// native substeps in stepSubstepsWithPersistentOpenMPTeam().
 +	#pragma omp parallel default(shared)
 +	{
 +		while (m_iterations < m_maxIterations)
@@ -114,8 +367,6 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +					for (int i = 0; i < groupSize; i++)
 +					{
 +						const unsigned int constraintIndex = groups[group][i];
- 
--		m_iterations++;
 +						constraints[constraintIndex]->updateConstraint(model);
 +						constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 +					}
@@ -127,7 +378,6 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +						for (int i = 0; i < groupSize; i++)
 +						{
 +							const unsigned int constraintIndex = groups[group][i];
-+
 +							constraints[constraintIndex]->updateConstraint(model);
 +							constraints[constraintIndex]->solvePositionConstraint(model, m_iterations);
 +						}
@@ -135,13 +385,12 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
 +					#pragma omp barrier
 +				}
 +			}
-+
+ 
+-		m_iterations++;
 +			#pragma omp master
 +			{
 +				for (unsigned int i = 0; i < particleTetContacts.size(); i++)
-+				{
 +					particleTetContacts[i].solvePositionConstraint(model, m_iterations);
-+				}
 +				m_iterations++;
 +			}
 +			#pragma omp barrier
@@ -149,7 +398,3 @@ diff --git a/Simulation/TimeStepController.cpp b/Simulation/TimeStepController.c
  	}
  }
  
--
- void TimeStepController::velocityConstraintProjection(SimulationModel &model)
- {
- 	m_iterationsV = 0;
