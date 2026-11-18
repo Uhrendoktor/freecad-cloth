@@ -27,7 +27,7 @@ class _CoinRotation(Protocol):
 
 type CoinCoordinates = tuple[float, float, float]
 type CoinFieldSequenceValue = int | CoinCoordinates
-type CoinFieldValue = int | float | bool | CoinCoordinates | _CoinVector3 | _CoinRotation
+type CoinFieldValue = str | int | float | bool | CoinCoordinates | _CoinVector3 | _CoinRotation
 
 
 class _CoinField(Protocol):
@@ -121,6 +121,18 @@ class _CoinPointSet(_CoinNode, Protocol):
     """Coin point-set node with a writable point count."""
 
     numPoints: int
+
+
+class _CoinTranslation(_CoinNode, Protocol):
+    """Coin translation node exposing its writable translation field."""
+
+    translation: _CoinField
+
+
+class _CoinText2(_CoinNode, Protocol):
+    """Coin screen-space text node exposing its writable text field."""
+
+    string: _CoinField
 
 
 class _CoinTransform(_CoinNode, Protocol):
@@ -228,6 +240,7 @@ class _CoinMouseButtonEventType(_CoinEventType, Protocol):
     """Mouse event class with the press and primary-button constants."""
 
     DOWN: int
+    UP: int
     BUTTON1: int
 
 
@@ -250,6 +263,10 @@ class _CoinEvent(Protocol):
 class _CoinEventCallback(Protocol):
     """Callback wrapper that exposes its current native Coin event."""
 
+    def setHandled(self) -> None:
+        """Mark the native event as handled by the current callback."""
+        ...
+
     def getEvent(self) -> _CoinEvent:
         """Return the event associated with this callback invocation."""
         ...
@@ -268,6 +285,8 @@ class _CoinModule(Protocol):
     SoCoordinate3: Callable[[], _CoinCoordinate3]
     SoLineSet: Callable[[], _CoinLineSet]
     SoPointSet: Callable[[], _CoinPointSet]
+    SoTranslation: Callable[[], _CoinTranslation]
+    SoText2: Callable[[], _CoinText2]
     SoTransform: Callable[[], _CoinTransform]
     SoTrackballDragger: Callable[[], _CoinDynamicDragger]
     SbVec3f: Callable[..., _CoinVector3]
