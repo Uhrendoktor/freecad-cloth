@@ -55,6 +55,12 @@ def test_pose_mode_uses_canonical_pose_and_skeleton_catalogues():
     assert tuple(bone for bone, _label in CONTROLLABLE_JOINTS) == CONTROLLABLE_BONES
 
 
+def test_pose_mode_keeps_xyz_fields_visible_and_bidirectionally_linked():
+    """Keep exact angle controls visible and expose field-to-ring highlighting."""
+    assert callable(AvatarPoseTaskPanel._set_rotation_axis_highlight)
+    assert callable(SkeletonPoseController.highlight_axis)
+
+
 def test_pose_mode_helpers_are_runtime_importable_without_freecad_gui():
     import freecad_cloth.avatar.AvatarPoseGui as pose_gui
 
@@ -76,7 +82,10 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     assert "ClothPoseRotationX" in source
     assert "ClothPoseRotationY" in source
     assert "ClothPoseRotationZ" in source
+    assert "axis_branch = coin.SoSeparator()" in source
+    assert "axis_branch.addChild(dragger)" in source
     assert "coin.SoTrackballDragger()" in source
+    assert "self.precision_widget.setVisible(True)" in source
 
 
 def test_avatar_panel_initializes_preset_loading_guard_before_loading():

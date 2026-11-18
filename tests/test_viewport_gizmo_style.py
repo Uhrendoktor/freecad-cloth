@@ -6,6 +6,8 @@ from pathlib import Path
 
 from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
+    DIMENSION_GUIDE_COLOR,
+    DIMENSION_GUIDE_LINE_WIDTH,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
     RIG_ACTIVE_JOINT_POINT_SIZE,
@@ -74,6 +76,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
     colors = (
         *POSE_AXIS_COLORS.values(),
         ACTIVE_COLOR,
+        DIMENSION_GUIDE_COLOR,
         JOINT_COLOR,
         SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
@@ -102,6 +105,9 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     )
     assert ROTATION_RING_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Rotation ring radius must be positive."
+    )
+    assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
+        "Dimension guide line width must be positive."
     )
     assert SNAP_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, "Snap line width must be positive."
     assert SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE, (
@@ -133,6 +139,10 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "RIG_PASSIVE_COLOR",
             "RIG_EDITABLE_COLOR",
             "ROTATION_GIZMO_SCALE",
+        },
+        "freecad_cloth/avatar/AvatarShapeGui.py": {
+            "DIMENSION_GUIDE_COLOR",
+            "DIMENSION_GUIDE_LINE_WIDTH",
         },
         "freecad_cloth/avatar/FittingGui.py": {
             "SNAP_TARGET_COLOR",

@@ -66,6 +66,13 @@ def test_avatar_panel_exposes_the_public_task_panel_protocol():
     for method in (
         "_add_shape_group",
         "_update_shape_labels",
+        "_set_shape_controls",
+        "_gender_percent_changed",
+        "_breast_percent_changed",
+        "_gender_profile_changed",
+        "_set_measurement_focus",
+        "_set_measurement_hover",
+        "_focus_measurement",
         "_update_shape_enabled",
         "_staged_parameters",
         "_apply",
@@ -140,6 +147,32 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
         )
         == 1800.0
     )
+
+
+def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
+    """Keep limb and trunk guide rings circular for arbitrary skeleton axes."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+
+    for normal, radial in (
+        ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0)),
+        ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0)),
+        ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)),
+    ):
+        center = (15.0, -7.0, 23.0)
+        points = AvatarDimensionController._ring_points(
+            center,
+            normal,
+            radial,
+            42.5,
+            segments=32,
+        )
+        assert len(points) == 33
+        assert points[0] == points[-1]
+        axis = AvatarDimensionController._unit(normal)
+        for point in points[:-1]:
+            offset = tuple(point[index] - center[index] for index in range(3))
+            assert math.isclose(math.dist(point, center), 42.5, abs_tol=1e-7)
+            assert abs(AvatarDimensionController._dot(offset, axis)) < 1e-7
 
 
 def test_measurement_properties_are_generated_from_model_measurements() -> None:

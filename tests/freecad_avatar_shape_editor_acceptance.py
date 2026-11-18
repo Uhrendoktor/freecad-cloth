@@ -452,10 +452,17 @@ def run():
         shape_recorder.start()
         try:
             shape_recorder.hold(500)
-            panel.gender_slider.setValue(20)
-            panel.breast_slider.setValue(65)
+            panel.gender_slider.setValue(25)
+            panel.gender_profile_combo.setCurrentIndex(3)
+            if panel.gender_slider.value() != 100:
+                raise RuntimeError("named Masculine profile did not stage a 100% blend")
+            panel.gender_percent.setValue(20)
+            panel.breast_slider.setValue(40)
+            panel.breast_percent.setValue(65)
             _events()
             shape_recorder.hold(650)
+            if panel.gender_slider.value() != 20 or panel.breast_slider.value() != 65:
+                raise RuntimeError("numeric shape inputs did not synchronize their sliders")
             staged = panel._staged_parameters()
             if abs(staged.gender - 0.20) > 1e-6 or abs(staged.breast_size - 0.65) > 1e-6:
                 msg = "body shape sliders did not stage their expected values"

@@ -1,9 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
-"""Transient viewport dimension handles for the staged mannequin editor.
+"""Transient, rig-aligned measurement controls for the staged mannequin editor.
 
-The handles only edit staged task-panel values. They are Coin3D overlay nodes,
-never FreeCAD document objects, and their callbacks are removed when the editor
-closes so they cannot interfere with the independent 3D Pattern Pen tool.
+Measurement handles follow the current mannequin skeleton and reuse the task
+panel's canonical numeric fields. Surface guide rings depth-test against the
+avatar mesh; their compact pick markers remain accessible in the foreground.
+The overlay is transient Coin3D UI and never creates document objects.
 """
 
 from __future__ import annotations
@@ -13,13 +14,18 @@ import math
 
 
 class AvatarDimensionController:
-    """Show and drag measurement handles in the active FreeCAD viewport."""
+    """Show and drag staged anthropometric measurements in the FreeCAD viewport."""
 
-    HIT_RADIUS = 24.0
+    HIT_RADIUS = 28.0
     RING_SEGMENTS = 64
     DRAG_AXIS_LENGTH = 100.0
 
     def __init__(self, panel):
+        """Create the dimension overlay state for the supplied avatar task panel.
+
+        Args:
+            panel: Avatar task panel that owns the staged measurements and numeric fields.
+        """
         self.panel = panel
         self.App = panel.App
         self.Gui = panel.Gui
@@ -31,61 +37,252 @@ class AvatarDimensionController:
         self._drag_key = None
         self._last_screen = None
         self._hover_key = None
+        self._field_key = None
+        self._drag_item_label = None
+        self._anchor_segments = {}
+        self._base_point = (0.0, 0.0, 0.0)
+        self._rig_height = 1.0
         self.error = None
 
     @staticmethod
     def _coin():
-        """Load the FreeCAD Coin/Pivy bindings lazily."""
+        """Load the FreeCAD Coin/Pivy bindings lazily.
+
+        Returns:
+            The Coin module exposed by the installed Pivy runtime.
+        """
         from pivy import coin
 
         return coin
 
+    @staticmethod
+    def _unit(vector):
+        """Return a normalized three-dimensional vector, or a stable fallback.
+
+        Args:
+            vector: Three-dimensional vector to normalize.
+
+        Returns:
+            Unit vector in the supplied direction, or the positive Z axis when degenerate.
+        """
+        length = math.sqrt(sum(float(value) ** 2 for value in vector))
+        if length <= 1e-9:
+            return (0.0, 0.0, 1.0)
+        return tuple(float(value) / length for value in vector)
+
+    @staticmethod
+    def _add(left, right):
+        """Add two three-dimensional vectors.
+
+        Args:
+            left: First vector.
+            right: Second vector.
+
+        Returns:
+            Component-wise vector sum.
+        """
+        return tuple(float(left[i]) + float(right[i]) for i in range(3))
+
+    @staticmethod
+    def _subtract(left, right):
+        """Subtract one three-dimensional vector from another.
+
+        Args:
+            left: Vector from which the second vector is subtracted.
+            right: Vector subtracted from the first vector.
+
+        Returns:
+            Component-wise vector difference.
+        """
+        return tuple(float(left[i]) - float(right[i]) for i in range(3))
+
+    @staticmethod
+    def _scale(vector, amount):
+        """Scale a three-dimensional vector by a scalar.
+
+        Args:
+            vector: Vector to scale.
+            amount: Scalar applied to each component.
+
+        Returns:
+            Scaled three-dimensional vector.
+        """
+        return tuple(float(value) * float(amount) for value in vector)
+
+    @staticmethod
+    def _dot(left, right):
+        """Return the dot product of two three-dimensional vectors.
+
+        Args:
+            left: First vector.
+            right: Second vector.
+
+        Returns:
+            Scalar dot product.
+        """
+        return sum(float(left[i]) * float(right[i]) for i in range(3))
+
+    @staticmethod
+    def _cross(left, right):
+        """Return the cross product of two three-dimensional vectors.
+
+        Args:
+            left: First vector.
+            right: Second vector.
+
+        Returns:
+            Three-dimensional cross product.
+        """
+        return (
+            float(left[1]) * float(right[2]) - float(left[2]) * float(right[1]),
+            float(left[2]) * float(right[0]) - float(left[0]) * float(right[2]),
+            float(left[0]) * float(right[1]) - float(left[1]) * float(right[0]),
+        )
+
+    @classmethod
+    def _orthogonal_radial(cls, normal, hint):
+        """Choose a stable radial vector perpendicular to a ring's body axis.
+
+        Args:
+            normal: Direction along the measured body or limb segment.
+            hint: Preferred outward/front direction.
+
+        Returns:
+            Unit radial vector in the plane perpendicular to the supplied normal.
+        """
+        axis = cls._unit(normal)
+        projected = cls._subtract(hint, cls._scale(axis, cls._dot(hint, axis)))
+        if math.sqrt(cls._dot(projected, projected)) <= 1e-8:
+            reference = (0.0, 1.0, 0.0) if abs(axis[1]) < 0.8 else (1.0, 0.0, 0.0)
+            projected = cls._cross(axis, reference)
+        return cls._unit(projected)
+
+    @classmethod
+    def _midpoint(cls, segment):
+        """Return the midpoint of one skeleton head/tail segment.
+
+        Args:
+            segment: Pair of three-dimensional head and tail positions.
+
+        Returns:
+            Midpoint in avatar model coordinates.
+        """
+        return cls._scale(cls._add(segment[0], segment[1]), 0.5)
+
+    @classmethod
+    def _lerp(cls, start, end, factor):
+        """Interpolate a point along a skeleton segment.
+
+        Args:
+            start: First endpoint.
+            end: Second endpoint.
+            factor: Interpolation fraction between zero and one.
+
+        Returns:
+            Interpolated three-dimensional point.
+        """
+        return cls._add(start, cls._scale(cls._subtract(end, start), factor))
+
+    @classmethod
+    def _ring_points(cls, center, normal, radial, radius, segments=RING_SEGMENTS):
+        """Create a closed circle perpendicular to a measured body/limb axis.
+
+        Args:
+            center: Ring center in mannequin model coordinates.
+            normal: Unit normal defining the ring plane.
+            radial: Preferred in-plane radial direction.
+            radius: Ring radius in millimetres.
+            segments: Number of evenly spaced line segments.
+
+        Returns:
+            Closed sequence of three-dimensional points suitable for Coin SoLineSet.
+        """
+        axis = cls._unit(normal)
+        first = cls._orthogonal_radial(axis, radial)
+        second = cls._unit(cls._cross(axis, first))
+        points = [
+            cls._add(
+                center,
+                cls._add(
+                    cls._scale(first, float(radius) * math.cos(2.0 * math.pi * index / segments)),
+                    cls._scale(second, float(radius) * math.sin(2.0 * math.pi * index / segments)),
+                ),
+            )
+            for index in range(segments)
+        ]
+        points.append(points[0])
+        return tuple(points)
+
+    def _build_anchor_segments(self):
+        """Read anatomically authored joint positions from the current fitted avatar rig.
+
+        Returns:
+            Mapping of bone identifiers to transformed head/tail coordinates.
+
+        Raises:
+            RuntimeError: If the avatar does not expose a usable skeleton.
+        """
+        from freecad_cloth.avatar.AvatarPoseGui import skeleton_world_segments
+
+        segments, _joints = skeleton_world_segments(self.panel._staged_parameters())
+        if not segments:
+            msg = "the fitted mannequin skeleton has no usable measurement landmarks"
+            raise RuntimeError(msg)
+        self._anchor_segments = segments
+        feet = [
+            segment[1]
+            for name, segment in segments.items()
+            if name in {"foot.L", "foot.R"}
+        ]
+        points = [point for segment in segments.values() for point in segment]
+        base_z = min((point[2] for point in feet), default=min(point[2] for point in points))
+        base_x = sum(point[0] for point in feet) / len(feet) if feet else 0.0
+        base_y = sum(point[1] for point in feet) / len(feet) if feet else 0.0
+        self._base_point = (float(base_x), float(base_y), float(base_z))
+        head = segments.get("head")
+        top_z = max((point[2] for point in head), default=max(point[2] for point in points))
+        self._rig_height = max(1.0, float(top_z) - float(base_z))
+
+    def _scaled_segments(self, target_height):
+        """Scale cached rig landmarks around the foot plane to the staged body height.
+
+        Args:
+            target_height: Current staged height in millimetres.
+
+        Returns:
+            Skeleton segments scaled to match the numeric height target.
+        """
+        ratio = float(target_height) / self._rig_height
+        base = self._base_point
+
+        def transform(point):
+            """Scale one landmark around the avatar's foot-plane origin."""
+            return self._add(base, self._scale(self._subtract(point, base), ratio))
+
+        return {
+            name: (transform(segment[0]), transform(segment[1]))
+            for name, segment in self._anchor_segments.items()
+        }
+
     def _screen_position(self, point):
-        """Project one FreeCAD-space point into the viewport's top-left origin."""
+        """Project a FreeCAD-space point into viewport coordinates with a top-left origin.
+
+        Args:
+            point: Three-dimensional model-space point.
+
+        Returns:
+            Two-dimensional screen coordinate.
+        """
         projected = self.view.getPointOnScreen(self.App.Vector(*point))
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
-    def _specs(self):
-        """Return visible dimension handles derived from staged numeric values."""
-        from freecad_cloth.avatar.AvatarModel import LIMITS
-
-        params = self.panel._staged_parameters()
-        m = params.measurements
-        height = float(m["height"])
-        specs = [
-            ("height", "Height", (0.0, 0.0, height), (0.0, 0.0, 1.0), 1.0),
-            (
-                "shoulder",
-                "Shoulder",
-                (float(m["shoulder"]) / 2.0, 0.0, height * 0.77),
-                (1.0, 0.0, 0.0),
-                2.0,
-            ),
-        ]
-        for key, label, level in (
-            ("chest", "Chest", 0.69),
-            ("waist", "Waist", 0.58),
-            ("hip", "Hip", 0.50),
-        ):
-            radius = float(m[key]) / (2.0 * math.pi)
-            specs.append(
-                (key, label, (radius, 0.0, height * level), (1.0, 0.0, 0.0), 2.0 * math.pi)
-            )
-        return tuple(
-            {
-                "key": key,
-                "label": label,
-                "point": point,
-                "axis": axis,
-                "multiplier": multiplier,
-                "bounds": LIMITS[key],
-            }
-            for key, label, point, axis, multiplier in specs
-        )
-
     def activate(self):
-        """Install the transient overlay and viewport callbacks; return success."""
+        """Install the transient surface guides and viewport callbacks.
+
+        Returns:
+            True when the dimension controls were installed successfully.
+        """
         if self.view is not None:
             return True
         if self.panel.avatar is None or self.panel._provider_id() != "makehuman-hm08":
@@ -103,6 +300,7 @@ class AvatarDimensionController:
             depth.test = False
             depth.write = False
             self.overlay.addChild(depth)
+            self._build_anchor_segments()
             self.scene_graph.addChild(self.overlay)
             self.mouse_callback = self.view.addEventCallbackPivy(
                 coin.SoMouseButtonEvent.getClassTypeId(), self._mouse_event
@@ -110,7 +308,7 @@ class AvatarDimensionController:
             self.location_callback = self.view.addEventCallbackPivy(
                 coin.SoLocation2Event.getClassTypeId(), self._location_event
             )
-            self.refresh()
+            self.refresh(force=True)
             self.error = None
             return True
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
@@ -143,10 +341,24 @@ class AvatarDimensionController:
         self._drag_key = None
         self._last_screen = None
         self._hover_key = None
+        self._field_key = None
+        self._drag_item_label = None
+        self.panel._set_measurement_hover(None)
 
-    def _add_line(self, coin, points, color, width=1.4):
-        """Add a single depth-independent polyline to the transient overlay."""
+    def _add_line(self, coin, points, color, width=1.4, *, depth_test=False):
+        """Add a transient line with an explicit mesh depth-test policy.
+
+        Args:
+            coin: Pivy Coin module supplying scene-graph types.
+            points: Ordered model-space line vertices.
+            color: Normalized RGB line color.
+            width: Line width in viewport pixels.
+            depth_test: True to let the mannequin occlude the guide line.
+        """
         separator = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = bool(depth_test)
+        depth.write = False
         draw = coin.SoDrawStyle()
         draw.lineWidth = float(width)
         base = coin.SoBaseColor()
@@ -155,30 +367,305 @@ class AvatarDimensionController:
         coordinates.point.setValues(0, len(points), points)
         line = coin.SoLineSet()
         line.numVertices.setValue(len(points))
+        separator.addChild(depth)
         separator.addChild(draw)
         separator.addChild(base)
         separator.addChild(coordinates)
         separator.addChild(line)
         self.overlay.addChild(separator)
 
+    def _add_marker(self, coin, point, color, size):
+        """Draw an always-pickable foreground marker at a dimensional handle.
+
+        Args:
+            coin: Pivy Coin module supplying scene-graph types.
+            point: Three-dimensional handle position.
+            color: Normalized RGB marker color.
+            size: Marker diameter in viewport pixels.
+        """
+        marker = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        draw = coin.SoDrawStyle()
+        draw.pointSize = float(size)
+        base = coin.SoBaseColor()
+        base.rgb = color
+        coordinates = coin.SoCoordinate3()
+        coordinates.point.setValues(0, 1, [point])
+        points = coin.SoPointSet()
+        points.numPoints = 1
+        marker.addChild(depth)
+        marker.addChild(draw)
+        marker.addChild(base)
+        marker.addChild(coordinates)
+        marker.addChild(points)
+        self.overlay.addChild(marker)
+
     def _add_label(self, coin, point, label, color):
-        """Add an always-visible short name adjacent to a dimension handle."""
+        """Draw the one-line value tooltip for the currently linked dimension.
+
+        Args:
+            coin: Pivy Coin module supplying scene-graph types.
+            point: World-space label origin.
+            label: Concise measurement name and current value.
+            color: Normalized RGB text color.
+        """
         separator = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
         translation = coin.SoTranslation()
         translation.translation.setValue(
-            coin.SbVec3f(float(point[0] + 18.0), float(point[1]), float(point[2] + 10.0))
+            coin.SbVec3f(float(point[0] + 15.0), float(point[1]), float(point[2] + 12.0))
         )
         base = coin.SoBaseColor()
         base.rgb = color
         text = coin.SoText2()
         text.string.setValue(str(label))
+        separator.addChild(depth)
         separator.addChild(translation)
         separator.addChild(base)
         separator.addChild(text)
         self.overlay.addChild(separator)
 
-    def refresh(self):
-        """Redraw dimensions from current staged values without adding document objects."""
+    def _specs(self, *, force=False):
+        """Build current handle geometry from staged values and fitted rig landmarks.
+
+        Args:
+            force: Recompute the skeleton anchors from the current staged avatar.
+
+        Returns:
+            All visible measurement handles, including paired left/right limb controls.
+        """
+        if force or not self._anchor_segments:
+            self._build_anchor_segments()
+        from freecad_cloth.avatar.AvatarModel import LIMITS
+
+        measurements = self.panel._staged_parameters().measurements
+        height = float(measurements["height"])
+        segments = self._scaled_segments(height)
+
+        def segment(name):
+            """Return one transformed bone segment or None when the rig omits it."""
+            return segments.get(name)
+
+        def midpoint(name):
+            """Return one transformed bone midpoint or None when unavailable."""
+            value = segment(name)
+            return None if value is None else self._midpoint(value)
+
+        pelvis = midpoint("spine05") or self._base_point
+        chest = midpoint("spine03") or pelvis
+        neck = midpoint("neck01") or chest
+        body_axis = self._unit(self._subtract(neck, pelvis))
+        spine_upper = segment("spine03")
+        spine_lower = segment("spine05")
+        if spine_upper is None:
+            spine_upper = (chest, neck)
+        if spine_lower is None:
+            spine_lower = (pelvis, chest)
+        trunk_gap_start = spine_upper[1]
+        trunk_gap_end = spine_lower[0]
+        trunk_centers = {
+            "chest": chest,
+            "underbust": self._lerp(trunk_gap_start, trunk_gap_end, 0.20),
+            "stomach": self._lerp(trunk_gap_start, trunk_gap_end, 0.45),
+            "waist": self._lerp(trunk_gap_start, trunk_gap_end, 0.68),
+            "high_hip": spine_lower[0],
+            "hip": pelvis,
+        }
+        specs = []
+
+        def add_ring(key, label, center, normal, radial_hint):
+            """Append a value-scaled circumference guide around an authored rig point."""
+            if center is None:
+                return
+            axis = self._unit(normal)
+            radial = self._orthogonal_radial(axis, radial_hint)
+            radius = float(measurements[key]) / (2.0 * math.pi)
+            point = self._add(center, self._scale(radial, radius))
+            specs.append(
+                {
+                    "key": key,
+                    "label": label,
+                    "shape": "ring",
+                    "center": center,
+                    "normal": axis,
+                    "radial": radial,
+                    "radius": radius,
+                    "point": point,
+                    "axis": radial,
+                    "multiplier": 2.0 * math.pi,
+                    "bounds": LIMITS[key],
+                }
+            )
+
+        # The trunk landmarks are actual spine/neck joints, not percentages of total height.
+        add_ring("neck", "Neck", neck, body_axis, (0.0, 1.0, 0.0))
+        for key, label in (
+            ("chest", "Chest / bust"),
+            ("underbust", "Underbust"),
+            ("stomach", "Stomach"),
+            ("waist", "Waist"),
+            ("high_hip", "High hip"),
+            ("hip", "Hip"),
+        ):
+            add_ring(key, label, trunk_centers[key], body_axis, (0.0, 1.0, 0.0))
+
+        shoulder_left = segment("upperarm01.L")
+        shoulder_right = segment("upperarm01.R")
+        if shoulder_left is not None and shoulder_right is not None:
+            left_point = shoulder_left[0]
+            right_point = shoulder_right[0]
+            center = self._midpoint((left_point, right_point))
+            span_axis = self._unit(self._subtract(right_point, left_point))
+            if span_axis[0] < 0.0:
+                span_axis = self._scale(span_axis, -1.0)
+            half_width = float(measurements["shoulder"]) / 2.0
+            endpoints = (
+                self._subtract(center, self._scale(span_axis, half_width)),
+                self._add(center, self._scale(span_axis, half_width)),
+            )
+            specs.append(
+                {
+                    "key": "shoulder",
+                    "label": "Shoulder breadth",
+                    "shape": "line",
+                    "line": endpoints,
+                    "point": endpoints[1],
+                    "axis": span_axis,
+                    "multiplier": 2.0,
+                    "bounds": LIMITS["shoulder"],
+                }
+            )
+
+        # Limb circumference fields are shared between sides; either ring edits the same value.
+        for side, side_label in (("L", "Left"), ("R", "Right")):
+            arm = segment(f"upperarm01.{side}")
+            forearm = segment(f"lowerarm01.{side}")
+            wrist = segment(f"wrist.{side}")
+            thigh = segment(f"upperleg01.{side}")
+            lower_leg = segment(f"lowerleg01.{side}")
+            foot = segment(f"foot.{side}")
+
+            if arm is not None:
+                arm_center = self._midpoint(arm)
+                add_ring(
+                    "upper_arm",
+                    f"{side_label} upper arm",
+                    arm_center,
+                    self._subtract(arm[1], arm[0]),
+                    self._subtract(arm_center, chest),
+                )
+            if forearm is not None:
+                elbow_center = forearm[0]
+                forearm_axis = self._subtract(forearm[1], forearm[0])
+                add_ring(
+                    "elbow",
+                    f"{side_label} elbow",
+                    elbow_center,
+                    forearm_axis,
+                    self._subtract(elbow_center, chest),
+                )
+                wrist_center = (
+                    self._midpoint(wrist) if wrist is not None else forearm[1]
+                )
+                add_ring(
+                    "wrist",
+                    f"{side_label} wrist",
+                    wrist_center,
+                    forearm_axis,
+                    self._subtract(wrist_center, chest),
+                )
+            if thigh is not None:
+                thigh_center = self._midpoint(thigh)
+                add_ring(
+                    "thigh",
+                    f"{side_label} thigh",
+                    thigh_center,
+                    self._subtract(thigh[1], thigh[0]),
+                    self._subtract(thigh_center, pelvis),
+                )
+            if lower_leg is not None:
+                lower_axis = self._subtract(lower_leg[1], lower_leg[0])
+                add_ring(
+                    "knee",
+                    f"{side_label} knee",
+                    lower_leg[0],
+                    lower_axis,
+                    self._subtract(lower_leg[0], pelvis),
+                )
+                add_ring(
+                    "calf",
+                    f"{side_label} calf",
+                    self._midpoint(lower_leg),
+                    lower_axis,
+                    self._subtract(self._midpoint(lower_leg), pelvis),
+                )
+                ankle_center = foot[0] if foot is not None else lower_leg[1]
+                add_ring(
+                    "ankle",
+                    f"{side_label} ankle",
+                    ankle_center,
+                    lower_axis,
+                    self._subtract(ankle_center, pelvis),
+                )
+
+            if arm is not None and forearm is not None:
+                sleeve_start = arm[0]
+                sleeve_direction = self._unit(self._subtract(forearm[1], sleeve_start))
+                sleeve_end = self._add(
+                    sleeve_start,
+                    self._scale(sleeve_direction, float(measurements["sleeve_length"])),
+                )
+                specs.append(
+                    {
+                        "key": "sleeve_length",
+                        "label": f"{side_label} sleeve length",
+                        "shape": "line",
+                        "line": (sleeve_start, sleeve_end),
+                        "point": sleeve_end,
+                        "axis": sleeve_direction,
+                        "multiplier": 1.0,
+                        "bounds": LIMITS["sleeve_length"],
+                    }
+                )
+
+        feet = [
+            segments[name][1]
+            for name in ("foot.L", "foot.R")
+            if name in segments
+        ]
+        base = self._base_point
+        if feet:
+            base = (
+                sum(point[0] for point in feet) / len(feet),
+                sum(point[1] for point in feet) / len(feet),
+                min(point[2] for point in feet),
+            )
+        height_point = self._add(base, (0.0, 0.0, height))
+        specs.insert(
+            0,
+            {
+                "key": "height",
+                "label": "Height",
+                "shape": "line",
+                "line": (base, height_point),
+                "point": height_point,
+                "axis": (0.0, 0.0, 1.0),
+                "multiplier": 1.0,
+                "bounds": LIMITS["height"],
+            },
+        )
+        return tuple(specs)
+
+    def refresh(self, *, force=False):
+        """Redraw value-driven handles and mesh-occluded guide rings.
+
+        Args:
+            force: Recompute the rig landmarks after a committed avatar rebuild.
+        """
         if self.view is None or self.scene_graph is None or self.overlay is None:
             return
         try:
@@ -187,93 +674,71 @@ class AvatarDimensionController:
                 self.overlay.removeChild(1)
             from freecad_cloth.shared.ViewportGizmoStyle import (
                 ACTIVE_COLOR,
-                RIG_PASSIVE_COLOR,
-                SNAP_TARGET_COLOR,
+                DIMENSION_GUIDE_COLOR,
+                DIMENSION_GUIDE_LINE_WIDTH,
+                RIG_EDITABLE_COLOR,
             )
 
-            specs = self._specs()
-            by_key = {item["key"]: item for item in specs}
-            m = self.panel._staged_parameters().measurements
-            height = float(m["height"])
-            self._add_line(
-                coin,
-                ((0.0, 0.0, 0.0), (0.0, 0.0, height)),
-                RIG_PASSIVE_COLOR,
-                1.6,
-            )
-            shoulder = float(m["shoulder"]) / 2.0
-            self._add_line(
-                coin,
-                ((-shoulder, 0.0, height * 0.77), (shoulder, 0.0, height * 0.77)),
-                RIG_PASSIVE_COLOR,
-                1.6,
-            )
-            for key in ("chest", "waist", "hip"):
-                handle = by_key[key]["point"]
-                radius = float(m[key]) / (2.0 * math.pi)
-                level = handle[2]
-                ring = [
-                    (
-                        radius * math.cos(2.0 * math.pi * index / self.RING_SEGMENTS),
-                        radius * math.sin(2.0 * math.pi * index / self.RING_SEGMENTS),
-                        level,
-                    )
-                    for index in range(self.RING_SEGMENTS)
-                ]
-                ring.append(ring[0])
-                color = (
-                    ACTIVE_COLOR
-                    if self._hover_key == key or self._drag_key == key
-                    else SNAP_TARGET_COLOR
-                )
-                self._add_line(coin, ring, color, 2.4 if color == ACTIVE_COLOR else 1.5)
-
+            specs = self._specs(force=force)
+            measurements = self.panel._staged_parameters().measurements
+            active_keys = {self._hover_key, self._field_key}
+            active_keys.discard(None)
             for item in specs:
                 key = item["key"]
-                point = item["point"]
-                color = (
-                    ACTIVE_COLOR
-                    if self._hover_key == key or self._drag_key == key
-                    else SNAP_TARGET_COLOR
-                )
-                self._add_line(
+                color = ACTIVE_COLOR if key in active_keys else DIMENSION_GUIDE_COLOR
+                width = DIMENSION_GUIDE_LINE_WIDTH + (0.8 if key in active_keys else 0.0)
+                if item["shape"] == "ring":
+                    points = self._ring_points(
+                        item["center"],
+                        item["normal"],
+                        item["radial"],
+                        item["radius"],
+                        self.RING_SEGMENTS,
+                    )
+                    self._add_line(coin, points, color, width, depth_test=True)
+                else:
+                    self._add_line(
+                        coin,
+                        item["line"],
+                        RIG_EDITABLE_COLOR if key not in active_keys else ACTIVE_COLOR,
+                        width,
+                        depth_test=True,
+                    )
+                self._add_marker(
                     coin,
-                    (
-                        point,
-                        (
-                            point[0] + item["axis"][0] * 26.0,
-                            point[1] + item["axis"][1] * 26.0,
-                            point[2] + item["axis"][2] * 26.0,
-                        ),
-                    ),
-                    color,
-                    2.4,
+                    item["point"],
+                    ACTIVE_COLOR if key in active_keys else RIG_EDITABLE_COLOR,
+                    12.0 if key in active_keys else 8.0,
                 )
-                marker = coin.SoSeparator()
-                draw = coin.SoDrawStyle()
-                draw.pointSize = 11.0 if color == ACTIVE_COLOR else 8.0
-                base = coin.SoBaseColor()
-                base.rgb = color
-                coord = coin.SoCoordinate3()
-                coord.point.setValues(0, 1, [point])
-                points = coin.SoPointSet()
-                points.numPoints = 1
-                marker.addChild(draw)
-                marker.addChild(base)
-                marker.addChild(coord)
-                marker.addChild(points)
-                self.overlay.addChild(marker)
-                value = float(m["height"]) if key == "height" else float(m[key])
-                label = item["label"]
-                if self._hover_key == key or self._drag_key == key:
-                    label = f"{label}  {value:.0f} mm"
-                self._add_label(coin, point, label, color)
+                if key in active_keys:
+                    self._add_label(
+                        coin,
+                        item["point"],
+                        f"{item['label']}  {float(measurements[key]):.1f} mm",
+                        ACTIVE_COLOR,
+                    )
         except (AttributeError, RuntimeError, TypeError, ValueError):
-            # Numeric fields remain available if a FreeCAD build lacks a Coin API.
+            # Numeric controls remain usable if a host FreeCAD build lacks a Coin API.
             return
 
+    def set_field_focus(self, key):
+        """Highlight the matching viewport control while its numeric field has focus.
+
+        Args:
+            key: Canonical measurement key, or None when no linked field is focused.
+        """
+        self._field_key = None if key is None else str(key)
+        self.refresh()
+
     def _screen_axis(self, item):
-        """Return the screen-space direction corresponding to the handle's world axis."""
+        """Return the screen-space direction used to manipulate one handle.
+
+        Args:
+            item: Dimension handle description from _specs.
+
+        Returns:
+            Projected two-dimensional axis vector.
+        """
         point = item["point"]
         axis = item["axis"]
         origin = self._screen_position(point)
@@ -288,11 +753,26 @@ class AvatarDimensionController:
 
     @staticmethod
     def _distance(point_a, point_b):
-        """Return Euclidean viewport distance in pixels."""
+        """Return Euclidean viewport distance in pixels.
+
+        Args:
+            point_a: First screen-space point.
+            point_b: Second screen-space point.
+
+        Returns:
+            Distance in viewport pixels.
+        """
         return math.hypot(point_a[0] - point_b[0], point_a[1] - point_b[1])
 
     def _pick(self, screen):
-        """Pick the nearest dimension handle, rejecting clicks away from controls."""
+        """Pick the nearest dimension marker, rejecting clicks away from controls.
+
+        Args:
+            screen: Mouse position in top-left-origin viewport coordinates.
+
+        Returns:
+            Nearest handle description within the pick radius, or None.
+        """
         best = None
         distance = self.HIT_RADIUS
         for item in self._specs():
@@ -312,7 +792,19 @@ class AvatarDimensionController:
         bounds: tuple[float, float],
         axis_length: float = 100.0,
     ) -> float:
-        """Convert a viewport drag into a clamped millimetre measurement."""
+        """Convert viewport motion into a clamped millimetre measurement.
+
+        Args:
+            current: Current staged measurement value.
+            delta_screen: Pointer movement since the previous event.
+            projected_axis: Screen projection of the world-space drag axis.
+            multiplier: Circumference or bilateral-width conversion multiplier.
+            bounds: Minimum and maximum values from the avatar measurement model.
+            axis_length: World-space length represented by the projected axis.
+
+        Returns:
+            Updated measurement clamped to its authoritative model limits.
+        """
         denominator = projected_axis[0] ** 2 + projected_axis[1] ** 2
         if denominator <= 1e-8:
             return float(current)
@@ -325,13 +817,24 @@ class AvatarDimensionController:
         return max(float(low), min(float(high), float(current) + delta_world * multiplier))
 
     def _location_event(self, event_callback):
-        """Track handle hover and apply motion while the user drags a dimension."""
+        """Track dimension hover and update the value while a handle is dragged.
+
+        Args:
+            event_callback: Coin callback exposing the current mouse position.
+        """
         event = event_callback.getEvent()
         position = event.getPosition()
         size = self.view.getSize()
         screen = (float(position[0]), float(size[1] - position[1]))
         if self._drag_key is not None:
-            item = next((part for part in self._specs() if part["key"] == self._drag_key), None)
+            item = next(
+                (
+                    part
+                    for part in self._specs()
+                    if part["label"] == self._drag_item_label
+                ),
+                None,
+            )
             if item is None or self._last_screen is None:
                 return
             try:
@@ -359,10 +862,15 @@ class AvatarDimensionController:
         key = None if picked is None else picked["key"]
         if key != self._hover_key:
             self._hover_key = key
+            self.panel._set_measurement_hover(key)
             self.refresh()
 
     def _mouse_event(self, event_callback):
-        """Start or end a staged dimension drag from a visible handle."""
+        """Start or end a direct measurement drag from a visible viewport marker.
+
+        Args:
+            event_callback: Coin callback exposing the mouse-button event.
+        """
         coin = self._coin()
         event = event_callback.getEvent()
         position = event.getPosition()
@@ -372,9 +880,11 @@ class AvatarDimensionController:
             if self._drag_key is not None:
                 self._drag_key = None
                 self._last_screen = None
+                self._drag_item_label = None
                 self.refresh()
-                self.panel._refresh_status(
-                    "Dimension drag staged. Apply & Rebuild commits it; Cancel discards it."
+                self.panel._set_status(
+                    "Measurement staged. The linked field shows the exact value; Apply & Rebuild commits it.",
+                    state="success",
                 )
             return
         if (
@@ -387,13 +897,15 @@ class AvatarDimensionController:
         if item is None:
             return
         self._drag_key = item["key"]
+        self._drag_item_label = item["label"]
         self._last_screen = screen
         self._hover_key = item["key"]
+        self.panel._set_measurement_hover(item["key"])
+        self.panel._focus_measurement(item["key"])
         self.refresh()
-        self.panel.status.setText(
-            "Dragging {} — release to stage the value; Apply & Rebuild commits it.".format(
-                item["label"].lower()
-            )
+        self.panel._set_status(
+            f"Dragging {item['label'].lower()} — release to stage the value.",
+            state="info",
         )
         with contextlib.suppress(AttributeError, RuntimeError):
             event_callback.setHandled()
