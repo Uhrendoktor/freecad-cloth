@@ -711,6 +711,7 @@ def test_full_step_projection_timer_closes_before_the_velocity_phase() -> None:
     )
     assert projection_boundary in patch
 
+
 def test_canonical_tunic_fixture_matches_validated_start_geometry() -> None:
     """Verify canonical tunic fixture matches validated start geometry contract."""
     audit = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
