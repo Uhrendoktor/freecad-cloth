@@ -182,15 +182,15 @@ def _projection_total(profile: JsonObject, label: str) -> float:
     )
     return _finite_number(projection.get("total_ms"), f"{label}.projection.total_ms")
 
-
-
 def _mesh_collision_projector_total(profile: JsonObject, label: str) -> float:
     """Read the complete batched mesh-projector timing from one production profile."""
     stages = _as_object(
         profile.get("python_backend_stage_timings"),
         f"{label}.python_backend_stage_timings",
     )
-    projector = _as_object(stages.get("mesh_collision_projector"), f"{label}.mesh_collision_projector")
+    projector = _as_object(
+        stages.get("mesh_collision_projector"), f"{label}.mesh_collision_projector"
+    )
     samples = _integer(projector.get("samples"), f"{label}.mesh_collision_projector.samples")
     if samples != EXPECTED_BACKEND_STEPS:
         raise ValueError(f"{label}: mesh collision projector timing sample count is incomplete")
@@ -212,8 +212,14 @@ def compare_collision_query_worker_profile_sets(
         raise ValueError("exactly two one-worker and two four-worker profiles are required")
 
     records = [
-        *((profile, "1", f"baseline-{index + 1}") for index, profile in enumerate(baseline_profiles)),
-        *((profile, "4", f"candidate-{index + 1}") for index, profile in enumerate(candidate_profiles)),
+        *(
+            (profile, "1", f"baseline-{index + 1}")
+            for index, profile in enumerate(baseline_profiles)
+        ),
+        *(
+            (profile, "4", f"candidate-{index + 1}")
+            for index, profile in enumerate(candidate_profiles)
+        ),
     ]
     for profile, workers, label in records:
         _validate_profile(
