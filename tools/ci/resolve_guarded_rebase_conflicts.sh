@@ -316,6 +316,49 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_simulation_gui.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "ffd9acf1e6e06794ded282037216e1db0449775c" ]] ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'from pathlib import Path' ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))' ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'def test_simulation_scene_selectors_highlight_the_selected_objects_in_3d()' ||
+      ! git show "$rebase_commit:tests/test_simulation_gui.py" | grep -Fq 'from freecad_cloth.simulation.SimulationGui import SimulationTaskPanel' ||
+      git show "$rebase_commit:tests/test_simulation_gui.py" | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))'; then
+      echo "::error::Refusing a simulation GUI bootstrap conflict outside the exact cleanup commit and expected mainline viewport-test state."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline simulation viewport tests and removing only the obsolete pytest root bootstrap."
+    git checkout --ours -- tests/test_simulation_gui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("tests/test_simulation_gui.py")
+source = path.read_text(encoding="utf-8")
+path_import = "from pathlib import Path\n"
+bootstrap = "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n"
+if source.count(path_import) != 1 or source.count(bootstrap) != 1:
+    raise SystemExit("Expected exactly one obsolete pathlib import and pytest root bootstrap.")
+if "from types import SimpleNamespace" not in source:
+    raise SystemExit("Mainline simulation viewport fixture imports are missing.")
+if "def test_simulation_scene_selectors_highlight_the_selected_objects_in_3d() -> None:" not in source:
+    raise SystemExit("Mainline viewport-selection regression test is missing.")
+if "sys.stdout.write(" not in source or "import sys\n" not in source:
+    raise SystemExit("The remaining sys import is needed by the test script entry point.")
+source = source.replace(path_import, "")
+source = source.replace(bootstrap, "")
+old_spacing = "from unittest.mock import patch\n\n\nfrom freecad_cloth.simulation.SimulationGui import SimulationTaskPanel"
+new_spacing = "from unittest.mock import patch\n\nfrom freecad_cloth.simulation.SimulationGui import SimulationTaskPanel"
+if source.count(old_spacing) != 1:
+    raise SystemExit("Unexpected simulation GUI import spacing after bootstrap removal.")
+source = source.replace(old_spacing, new_spacing)
+if "from pathlib import Path" in source or "sys.path.insert(" in source:
+    raise SystemExit("Pytest root bootstrap remains after cleanup.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add tests/test_simulation_gui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
