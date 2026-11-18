@@ -691,12 +691,12 @@ def test_openmp_experiment_preloads_the_source_built_binding_before_the_tunic_fi
 
 def test_collision_query_worker_parallelism_is_limited_to_batched_exact_search() -> None:
     """Only the particle batch is parallel; stitch midpoint query stays serial and exact."""
-    projector = (
-        ROOT / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py"
-    ).read_text(encoding="utf-8")
-    backend = (
-        ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py"
-    ).read_text(encoding="utf-8")
+    projector = (ROOT / "freecad_cloth" / "simulation" / "MeshCollisionProjector.py").read_text(
+        encoding="utf-8"
+    )
+    backend = (ROOT / "freecad_cloth" / "simulation" / "PositionBasedDynamicsBackend.py").read_text(
+        encoding="utf-8"
+    )
     profile = (ROOT / "tests" / "freecad_screenshot_source.py").read_text(encoding="utf-8")
     assert "workers=self._query_workers" in projector
     assert "eps=0.0,\n            workers=self._query_workers," in projector
