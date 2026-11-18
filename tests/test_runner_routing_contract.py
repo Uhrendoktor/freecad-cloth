@@ -130,6 +130,17 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert (
         "Ruff docstring formatting transform did not produce one exact formatted block." in resolver
     )
+    assert '[[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepair.py" ]]' in resolver
+    assert "c8588e857cb46cd2e7e5f8eee829518a2cbffee0" in resolver
+    assert "git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepair.py" in resolver
+    assert "def current_edge_candidate_for_sketch_index(" in resolver
+    assert "from freecad_cloth.common.JsonTypes import JsonObject" in resolver
+    assert "class PatternPieceFeatureProtocol(Protocol)" in resolver
+    assert "class SeamFeatureProtocol(Protocol)" in resolver
+    assert "class DocumentTransactionProtocol(Protocol)" in resolver
+    assert "class EdgeRecord(TypedDict):" in resolver
+    assert 'record["provenance"]' in resolver
+    assert "Preserving mainline Sketcher viewport-edge resolution" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
