@@ -647,7 +647,7 @@ def _candidate_edge_triangle_pairs(
     filter_seconds = time.perf_counter() - filter_started
     _emit_contact_diagnostic(
         f"inter-cloth-broadphase raw={candidate_count} aabb={aabb_candidate_count} "
-        f"plane={plane_candidate_count} workers={query_workers} "
+        f"plane={plane_candidate_count} workers={query_workers} eps=0.0 "
         f"query_s={query_seconds:.4f} filter_s={filter_seconds:.4f}"
     )
     return (
