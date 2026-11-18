@@ -43,6 +43,8 @@ class MeshCollisionProjector:
         self.clearance_mm = float(clearance_mm)
         self._vertices = np.asarray(surface.vertices, dtype=np.float64)
         self._triangles = np.asarray(surface.triangles, dtype=np.int64).reshape((-1, 3))
+        self._source_vertices = surface.vertices
+        self._source_triangles = surface.triangles
         # Points beyond the mesh AABB expanded by clearance cannot be inside or
         # touching its clearance shell, so they need no nearest-triangle query.
         self._bounds_min = self._vertices.min(axis=0) - self.clearance_mm
@@ -99,6 +101,65 @@ class MeshCollisionProjector:
             np.linalg.norm(triangles - self._centroids[:, None, :], axis=2).max()
         )
         self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
+
+    def _nearest_surface_point(
+        self, point: npt.NDArray[np.float64]
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Return the exact nearest point and outward face normal over the full surface."""
+        triangles = self._vertices[self._triangles]
+        a, b, c = triangles[:, 0], triangles[:, 1], triangles[:, 2]
+        ab, ac = b - a, c - a
+        ap = point[None, :] - a
+        d00 = np.einsum("ij,ij->i", ab, ab)
+        d01 = np.einsum("ij,ij->i", ab, ac)
+        d11 = np.einsum("ij,ij->i", ac, ac)
+        d20 = np.einsum("ij,ij->i", ap, ab)
+        d21 = np.einsum("ij,ij->i", ap, ac)
+        denominator = d00 * d11 - d01 * d01
+        safe_denominator = np.where(np.abs(denominator) > 1e-18, denominator, 1.0)
+        v = (d11 * d20 - d01 * d21) / safe_denominator
+        w = (d00 * d21 - d01 * d20) / safe_denominator
+        u = 1.0 - v - w
+        projected_plane = a + v[:, None] * ab + w[:, None] * ac
+        barycentric_inside = (
+            (u >= -1e-10)
+            & (v >= -1e-10)
+            & (w >= -1e-10)
+            & (denominator > 1e-18)
+        )
+
+        def closest_on_edge(
+            start: npt.NDArray[np.float64],
+            edge: npt.NDArray[np.float64],
+        ) -> npt.NDArray[np.float64]:
+            start_to_point = point[None, :] - start
+            edge_length_squared = np.einsum("ij,ij->i", edge, edge)
+            parameter = np.divide(
+                np.einsum("ij,ij->i", start_to_point, edge),
+                edge_length_squared,
+                out=np.zeros_like(edge_length_squared),
+                where=edge_length_squared > 1e-18,
+            )
+            return start + np.clip(parameter, 0.0, 1.0)[:, None] * edge
+
+        edge_points = np.stack(
+            (
+                closest_on_edge(a, ab),
+                closest_on_edge(b, c - b),
+                closest_on_edge(c, a - c),
+            ),
+            axis=1,
+        )
+        edge_delta = point[None, None, :] - edge_points
+        edge_distances = np.einsum("ned,ned->ne", edge_delta, edge_delta)
+        edge_indices = np.argmin(edge_distances, axis=1)
+        rows = np.arange(len(triangles))
+        closest_edge = edge_points[rows, edge_indices]
+        closest = np.where(barycentric_inside[:, None], projected_plane, closest_edge)
+        delta = point[None, :] - closest
+        distance_squared = np.einsum("ij,ij->i", delta, delta)
+        nearest_index = int(np.argmin(distance_squared))
+        return closest[nearest_index].copy(), self._normals[nearest_index].copy()
 
     def project(
         self, points_mm: npt.ArrayLike
@@ -224,19 +285,49 @@ class MeshCollisionProjector:
         outward = self._normals[nearest_face_slots]
         signed_distance = np.einsum("nd,nd->n", active_points - nearest_points, outward)
         needs_projection = signed_distance < self.clearance_mm - 1e-8
+        active_corrected = active_points.copy()
+        active_normals = np.zeros_like(active_points)
         if bool(np.any(needs_projection)):
-            active_corrected = active_points.copy()
-            active_normals = np.zeros_like(active_points)
-            # Correct only the signed normal distance. Snapping directly to a
-            # triangle edge/vertex removes tangential displacement and can collapse
-            # neighboring cloth faces when multiple particles share a closest edge.
+            # Preserve tangential offsets for ordinary exterior shell contacts.
             correction_mm = self.clearance_mm - signed_distance[needs_projection]
             correction = correction_mm[:, None] * outward[needs_projection]
             active_corrected[needs_projection] = active_points[needs_projection] + correction
             active_normals[needs_projection] = outward[needs_projection]
-            corrected[active_point_indices] = active_corrected
-            contact_normals[active_point_indices] = active_normals
 
+        # A nearest-centroid candidate can land on a triangle edge at a concavity.
+        # Its face normal may point into another part of the solid, so normal-only
+        # projection can leave an interior particle embedded. Inspect only ambiguous
+        # edge/positive-side candidates, then use an exact full-surface nearest point
+        # for those actually inside the closed target.
+        ambiguous = (~barycentric_inside[row_indices, nearest_candidate]) | (signed_distance >= 0.0)
+        ambiguous_indices = np.flatnonzero(ambiguous)
+        if ambiguous_indices.size:
+            from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+
+            inside = points_inside_closed_mesh(
+                tuple(
+                    tuple(float(value) for value in point)
+                    for point in active_points[ambiguous_indices]
+                ),
+                self._source_vertices,
+                self._source_triangles,
+            )
+            for offset, is_inside in enumerate(inside):
+                if not is_inside:
+                    continue
+                point_index = int(ambiguous_indices[offset])
+                nearest_point, face_normal = self._nearest_surface_point(active_points[point_index])
+                direction = nearest_point - active_points[point_index]
+                direction_length = float(np.linalg.norm(direction))
+                if direction_length <= 1e-10:
+                    direction = face_normal
+                else:
+                    direction /= direction_length
+                active_corrected[point_index] = nearest_point + self.clearance_mm * direction
+                active_normals[point_index] = direction
+
+        corrected[active_point_indices] = active_corrected
+        contact_normals[active_point_indices] = active_normals
         return corrected, contact_normals
 
 

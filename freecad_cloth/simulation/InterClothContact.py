@@ -1167,46 +1167,84 @@ def project_measured_inter_cloth_contacts(
         ):
             nearest_by_edge[item.source_edge] = item
 
-    correction_sum = np.zeros_like(original)
-    correction_count = np.zeros(len(original), dtype=np.int64)
-    contacts = 0
+    stitch_clusters = _stitch_clusters(len(original), stitches)
+    current = original.copy()
+    contacted_edges: set[tuple[int, int]] = set()
     maximum = 0.0
-    for item in nearest_by_edge.values():
-        contact, penetration = _accumulate_edge_triangle(
-            original,
-            item.source_edge,
-            item.target_triangle,
-            masses,
-            clearance,
-            item.source_center,
-            item.target_center,
-            item.fallback_sign,
-            correction_sum,
-            correction_count,
-            closest_geometry=item.closest_geometry,
-        )
-        contacts += int(contact)
-        if contact:
+    passes = 0
+    for pass_index in range(16):
+        pass_contacts = 0
+        for item in nearest_by_edge.values():
+            closest_geometry = _closest_segment_triangle(
+                current[item.source_edge[0]],
+                current[item.source_edge[1]],
+                current[list(item.target_triangle)],
+            )
+            correction_sum = np.zeros_like(current)
+            correction_count = np.zeros(len(current), dtype=np.int64)
+            contact, penetration = _accumulate_edge_triangle(
+                current,
+                item.source_edge,
+                item.target_triangle,
+                masses,
+                clearance,
+                item.source_center,
+                item.target_center,
+                item.fallback_sign,
+                correction_sum,
+                correction_count,
+                closest_geometry=closest_geometry,
+            )
+            if not contact:
+                continue
+            pass_contacts += 1
+            contacted_edges.add(item.source_edge)
             maximum = max(maximum, penetration)
 
-    corrections = correction_sum.copy()
-    correction_lengths = np.linalg.norm(corrections, axis=1)
-    correction_scales = np.minimum(
-        1.0,
-        clearance / np.maximum(correction_lengths, 1e-12),
-    )
-    corrections *= correction_scales[:, None]
-    _share_sewn_corrections(corrections, masses, _stitch_clusters(len(original), stitches))
-    current = original + alpha * corrections
+            corrections = correction_sum
+            correction_lengths = np.linalg.norm(corrections, axis=1)
+            correction_scales = np.minimum(
+                1.0,
+                clearance / np.maximum(correction_lengths, 1e-12),
+            )
+            corrections *= correction_scales[:, None]
+            _share_sewn_corrections(corrections, masses, stitch_clusters)
+            current += alpha * corrections
+
+        passes = pass_index + 1
+        if pass_contacts == 0:
+            break
+
+    remaining = 0
+    maximum_after = 0.0
+    for item in nearest_by_edge.values():
+        closest_geometry = _closest_segment_triangle(
+            current[item.source_edge[0]],
+            current[item.source_edge[1]],
+            current[list(item.target_triangle)],
+        )
+        deficit = clearance - float(np.linalg.norm(closest_geometry[0] - closest_geometry[1]))
+        if deficit > _CONTACT_MEASUREMENT_EPSILON_MM:
+            remaining += 1
+            maximum_after = max(maximum_after, deficit)
+
     movement = np.linalg.norm(current - original, axis=1)
     moved = movement > 1e-8
     corrected_count = int(np.count_nonzero(moved))
     directions = np.zeros_like(current)
     directions[moved] = (current[moved] - original[moved]) / movement[moved, None]
-    metrics = InterClothContactMetrics(contacts, corrected_count, 0, maximum, 0.0)
+    metrics = InterClothContactMetrics(
+        len(contacted_edges),
+        corrected_count,
+        remaining,
+        maximum,
+        maximum_after,
+    )
     _emit_contact_diagnostic(
         f"inter-cloth-targeted-repair constraints={len(constraints)} "
-        f"selected={len(nearest_by_edge)} contacts={contacts} moved={corrected_count}"
+        f"selected={len(nearest_by_edge)} passes={passes} "
+        f"contacts={len(contacted_edges)} moved={corrected_count} "
+        f"remaining={remaining} maximum_after_mm={maximum_after:.4f}"
     )
     return current, directions, metrics
 

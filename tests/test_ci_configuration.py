@@ -150,7 +150,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/pbd-tunic-audit")[
         1:
     ]
-    assert workflow.count("timeout-seconds:") == 7
+    assert workflow.count("timeout-seconds:") == 6
     assert workflow.count('timeout-seconds: "240"') == 1
     assert workflow.count('timeout-seconds: "360"') == 3
     assert "matrix.group == 'core' && 360 || 120" in workflow
@@ -1111,7 +1111,7 @@ def test_pr_simulation_evidence_uses_layered_outfit_acceptance_artifact() -> Non
     publisher = (ROOT / "tools" / "ci" / "publish_pr_simulation_evidence.py").read_text(
         encoding="utf-8"
     )
-    job = workflow.split("  publish-pr-simulation-evidence:\\n", maxsplit=1)[1].split(
+    job = workflow.split("  publish-pr-simulation-evidence:\n", maxsplit=1)[1].split(
         "\n  find-validation-artifacts:", maxsplit=1
     )[0]
 
