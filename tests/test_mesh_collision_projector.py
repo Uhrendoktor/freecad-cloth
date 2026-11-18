@@ -87,6 +87,7 @@ def test_projector_supports_reduced_preview_candidate_count() -> None:
         for point in projected
     )
 
+
 def test_projector_parallel_batch_query_matches_single_worker_results() -> None:
     """Parallel exact KDTree queries preserve the single-worker projected result."""
     surface = _cube_surface()
