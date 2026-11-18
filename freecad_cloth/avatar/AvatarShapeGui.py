@@ -184,6 +184,30 @@ class AvatarDimensionController:
         return cls._add(start, cls._scale(cls._subtract(end, start), factor))
 
     @classmethod
+    def _trunk_landmarks(cls, pelvis, chest):
+        """Place torso guides along the actual pelvis-to-chest rig span.
+
+        Adjacent spine-bone endpoints can be the same authored joint. Interpolate
+        between the pelvis and chest control landmarks instead, so every torso
+        circumference has a distinct, stable position.
+
+        Args:
+            pelvis: Fitted pelvis control point.
+            chest: Fitted chest control point.
+
+        Returns:
+            Named trunk circumference centres from lower hip through chest.
+        """
+        return {
+            "hip": pelvis,
+            "high_hip": cls._lerp(pelvis, chest, 0.18),
+            "waist": cls._lerp(pelvis, chest, 0.40),
+            "stomach": cls._lerp(pelvis, chest, 0.60),
+            "underbust": cls._lerp(pelvis, chest, 0.80),
+            "chest": chest,
+        }
+
+    @classmethod
     def _ring_points(cls, center, normal, radial, radius, segments=RING_SEGMENTS):
         """Create a closed circle perpendicular to a measured body/limb axis.
 
@@ -459,22 +483,7 @@ class AvatarDimensionController:
         chest = midpoint("spine03") or pelvis
         neck = midpoint("neck01") or chest
         body_axis = self._unit(self._subtract(neck, pelvis))
-        spine_upper = segment("spine03")
-        spine_lower = segment("spine05")
-        if spine_upper is None:
-            spine_upper = (chest, neck)
-        if spine_lower is None:
-            spine_lower = (pelvis, chest)
-        trunk_gap_start = spine_upper[1]
-        trunk_gap_end = spine_lower[0]
-        trunk_centers = {
-            "chest": chest,
-            "underbust": self._lerp(trunk_gap_start, trunk_gap_end, 0.20),
-            "stomach": self._lerp(trunk_gap_start, trunk_gap_end, 0.45),
-            "waist": self._lerp(trunk_gap_start, trunk_gap_end, 0.68),
-            "high_hip": spine_lower[0],
-            "hip": pelvis,
-        }
+        trunk_centers = self._trunk_landmarks(pelvis, chest)
         specs = []
 
         def add_ring(key, label, center, normal, radial_hint):

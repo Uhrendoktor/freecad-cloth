@@ -149,6 +149,43 @@ def test_viewport_dimension_handle_drag_math_is_scaled_and_clamped():
     )
 
 
+def test_trunk_dimension_landmarks_are_distinct_on_the_rig_span() -> None:
+    """Keep chest, underbust, waist and hip guides separated along the skeleton."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+
+    pelvis = (-12.0, 8.0, 910.0)
+    chest = (24.0, -4.0, 1420.0)
+    landmarks = AvatarDimensionController._trunk_landmarks(pelvis, chest)
+    ordered = (
+        landmarks["hip"],
+        landmarks["high_hip"],
+        landmarks["waist"],
+        landmarks["stomach"],
+        landmarks["underbust"],
+        landmarks["chest"],
+    )
+    assert ordered[0] == pelvis
+    assert ordered[-1] == chest
+    distances = tuple(
+        math.dist(ordered[index], ordered[index + 1])
+        for index in range(len(ordered) - 1)
+    )
+    assert all(distance > 1.0 for distance in distances)
+    axis = AvatarDimensionController._unit(
+        tuple(chest[index] - pelvis[index] for index in range(3))
+    )
+    assert all(
+        abs(
+            AvatarDimensionController._dot(
+                tuple(point[index] - pelvis[index] for index in range(3)),
+                axis,
+            )
+            - factor * math.dist(pelvis, chest)
+        ) < 1e-7
+        for point, factor in zip(ordered, (0.0, 0.18, 0.40, 0.60, 0.80, 1.0), strict=True)
+    )
+
+
 def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
     """Keep limb and trunk guide rings circular for arbitrary skeleton axes."""
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
