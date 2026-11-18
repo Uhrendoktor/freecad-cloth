@@ -54,19 +54,26 @@ def test_one_canonical_workflow() -> None:
     assert "workflow_run:" not in shared
 
 
-def test_guarded_rebase_resolves_only_the_non_runtime_agent_plan_conflict() -> None:
-    """Retain current main planning state while failing closed on every other rebase conflict."""
+def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
+    """Keep workflow wiring small and restrict conflict resolution to proven safe cases."""
     source = WORKFLOW.read_text(encoding="utf-8")
     rebase = _job_block(source, "guarded-rebase-pr")
+    resolver = (
+        ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh"
+    ).read_text(encoding="utf-8")
 
     assert "if ! git rebase origin/main; then" in rebase
-    assert 'conflicts="$(git diff --name-only --diff-filter=U)"' in rebase
-    assert 'if [ "$conflicts" != ".agent/PLANS.md" ]' in rebase
-    assert "git checkout --ours -- .agent/PLANS.md" in rebase
-    assert "git add .agent/PLANS.md" in rebase
-    assert "GIT_EDITOR=true git rebase --continue" in rebase
+    assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in rebase
     assert "git merge-base --is-ancestor origin/main HEAD" in rebase
     assert "git push --force-with-lease=" in rebase
+    assert '[[ "$conflicts" == ".agent/PLANS.md" ]]' in resolver
+    assert "git checkout --ours -- .agent/PLANS.md" in resolver
+    assert '[[ "$conflicts" == "tools/ci/python_validation.py" ]]' in resolver
+    assert "fb53561e133e531d418a61d35620c8bf9fe31ceb" in resolver
+    assert "tests/test_diagnostics_gui_contract.py" in resolver
+    assert "tests/test_fitting_gui_status.py" in resolver
+    assert "git rebase --skip" in resolver
+    assert "Unsupported rebase conflict" in resolver
 
 
 def test_pull_requests_are_trusted_before_using_the_configured_hosted_runner() -> None:
