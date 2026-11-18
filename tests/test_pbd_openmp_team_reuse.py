@@ -117,14 +117,15 @@ def test_matched_team_reuse_profiles_pass_both_measured_gates() -> None:
     assert result["production_acceptance"] == "passed_all_four_runs"
 
 
-
 def test_full_step_mode_requires_current_projection_team_reuse_in_both_arms() -> None:
     """Reject profiles that do not use the same current-best projection-team baseline."""
     baseline, candidate = _matched_profiles()
-    baseline[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
+    baseline_environment = baseline[0]["runtime_limits"]["thread_environment"]
+    baseline_environment["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
 
     with pytest.raises(ValueError, match="current projection-level team reuse must remain enabled"):
         compare_profile_sets(baseline, candidate)
+
 
 def test_team_reuse_rejects_projection_gain_below_five_percent() -> None:
     """A candidate that misses the pre-registered projection gain fails closed."""
