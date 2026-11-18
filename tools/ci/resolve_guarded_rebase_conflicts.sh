@@ -657,12 +657,8 @@ protocol_anchor = (
 protocol_block = (
     "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n\n"
     "class _ComboBoxProtocol(Protocol):\n"
-    "    \"\"\"Qt combo-box methods consumed by topology repair and viewport picking.\"\"\"\n\n"
     "    def addItem(self, text: str, userData: object = None) -> None: ...\n\n"
     "    def currentData(self) -> object: ...\n\n"
-    "    def count(self) -> int: ...\n\n"
-    "    def findData(self, userData: object) -> int: ...\n\n"
-    "    def setCurrentIndex(self, index: int) -> None: ...\n\n\n"
     "def _gui_modules()"
 )
 if source.count(protocol_anchor) != 1 or "class _ComboBoxProtocol(Protocol)" in source:
