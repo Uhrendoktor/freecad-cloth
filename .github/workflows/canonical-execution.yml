@@ -93,10 +93,8 @@ jobs:
             exit 1
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
-          if ! git rebase origin/main; then # only the non-runtime agent plan file is auto-resolved
-            conflicts="$(git diff --name-only --diff-filter=U)"
-            if [ "$conflicts" != ".agent/PLANS.md" ]; then echo "::error::Unsupported rebase conflict; aborting."; exit 1; fi
-            git checkout --ours -- .agent/PLANS.md && git add .agent/PLANS.md && GIT_EDITOR=true git rebase --continue
+          if ! git rebase origin/main; then
+            bash tools/ci/resolve_guarded_rebase_conflicts.sh
           fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
