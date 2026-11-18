@@ -98,6 +98,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "from tests.support.freecad_arc_geometry import _native_curve_value" in resolver
     assert "test_native_arc_evaluator_returns_validated_planar_coordinates()" in resolver
     assert "Preserving mainline tunic profiling contracts" in resolver
+    assert '[[ "$conflicts" == "tests/test_tunic_audit_contract.py" ]]' in resolver
+    assert "ba252a0a385e61f6fb7d0e2a2321e073d3d874a5" in resolver
+    assert "native-curve protocol test refinements" in resolver
+    assert "git show HEAD:tests/test_tunic_audit_contract.py" in resolver
+    assert "def value(self, parameter_value: float)" in resolver
+    assert "_MalformedNativeArcCurve()" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
