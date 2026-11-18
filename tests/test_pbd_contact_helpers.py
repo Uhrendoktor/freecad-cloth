@@ -8,6 +8,9 @@ import numpy as np
 import pytest
 
 from freecad_cloth.shared.Collision import CollisionSurface
+from tools.ci.compare_layered_intercloth_query_workers import (
+    _parse_inter_cloth_diagnostics,
+)
 from freecad_cloth.simulation.InterClothContact import (
     InterClothContactMetrics,
     _candidate_edge_triangle_pairs,
@@ -341,6 +344,38 @@ def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_proje
         single_metrics.max_penetration_after_mm,
         abs=1e-8,
     )
+
+
+def test_layered_inter_cloth_diagnostics_capture_workers_and_stage_timings(
+    tmp_path: Path,
+) -> None:
+    """The paired comparator reads exact worker, broad-phase, and projection timings."""
+    diagnostics = tmp_path / "inter-cloth-diagnostics.log"
+    diagnostics.write_text(
+        "\\n".join(
+            (
+                "inter-cloth-broadphase raw=100 aabb=40 plane=10 workers=4 eps=0.0 query_s=0.1000 filter_s=0.0300",
+                "inter-cloth-direction-finish iteration=1 direction=0 candidates=100 plausible=10 exact_tests=10 active_constraints=5 query_s=0.10 filter_s=0.03 closest_s=0.20 correction_s=0.05 elapsed_s=0.40",
+                "inter-cloth-pass-finish iteration=1 contacts=5 moved=3 index_s=0.01 elapsed_s=0.50",
+                "cloth-pbd-inter-cloth-projection-finish elapsed_s=0.75",
+            )
+        )
+        + "\\n",
+        encoding="utf-8",
+    )
+
+    metrics = _parse_inter_cloth_diagnostics(diagnostics, 4)
+
+    assert metrics["query_seconds"] == pytest.approx(0.1)
+    assert metrics["filter_seconds"] == pytest.approx(0.03)
+    assert metrics["closest_seconds"] == pytest.approx(0.2)
+    assert metrics["correction_seconds"] == pytest.approx(0.05)
+    assert metrics["inter_cloth_projection_seconds"] == pytest.approx(0.75)
+    assert metrics["raw_candidate_pairs"] == 100
+    assert metrics["broadphase_samples"] == 1
+
+    with pytest.raises(ValueError, match="expected query workers 1"):
+        _parse_inter_cloth_diagnostics(diagnostics, 1)
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:
