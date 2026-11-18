@@ -1,42 +1,34 @@
-# Reuse one OpenMP team in native PBD constraint projection
+# Benchmark parallel exact KDTree query workers in cloth collision projection
 
-## Goal
+## Objective and hypothesis
 
-Measure whether a single persistent OpenMP team reduces the overhead of native pyPBD position-constraint projection without changing solver ordering, physical behavior, or the default production runtime.
+Measure whether four workers for the batched exact nearest-centroid query reduce production mesh collision projector time. The strongest alternative is that the KDTree batch is too small and scheduling overhead offsets any parallel-query gain.
 
-## Design constraints
+## Scope and invariant boundaries
 
-- Pin PositionBasedDynamics to `10a70bc146a97873dc3c8fef372f5217e010542e`.
-- Keep the installed `pyPBD==2.2.2` wheel as the normal runtime; the source-built experiment extension is isolated under `/opt/pypbd-openmp-experiment`.
-- Keep the experiment opt-in through `CLOTH_PBD_OPENMP_TEAM_REUSE=1`; mode 0 retains the upstream per-group implementation.
-- Preserve conflict-free group order, the strict `groupSize > 64` parallel threshold, static scheduling for eligible groups, synchronization between groups and iterations, and serial particle-solid contact solving.
-- Do not change solver defaults, thread count, timestep, substeps, collision configuration, constraints, geometry, or physical/visual acceptance gates.
+- Keep the installed `pyPBD==2.2.2` runtime as normal; use the existing isolated source-built pyPBD validation extension only for the canonical production audit.
+- Keep `CLOTH_PBD_OPENMP_TEAM_REUSE=1` in both A/B arms (the merged PR #2866 path).
+- Baseline: `CLOTH_PBD_COLLISION_QUERY_WORKERS=1`; candidate: `=4`.
+- Apply the variable only to the vectorized particle-batch query in `MeshCollisionProjector.project()`. The stitched-pair scalar midpoint queries remain at `workers=1`.
+- Preserve `eps=0.0`, Euclidean metric, candidate count, triangle refinement, collision clearance, candidate triangles, geometry, solver, time step, native substeps/iterations, stitches, pins, and all physical/visual acceptance gates.
+- Exact output equivalence between one and four query workers is covered by focused projector tests.
+- Record the environment value in every production profile; the comparator allows only that one value to differ.
 
-## Implementation
+## Measurement and acceptance
 
-- The pinned patch adds a Python-only native build option and the opt-in persistent-team projection path.
-- The validation image builds the extension separately, records source/patch/binary provenance, and includes both the Dockerfile and experiment patch in its immutable image identity.
-- The production audit wrapper loads the extension by absolute path and rejects an accidental import of the installed wheel.
-- Four matched production runs (baseline, candidate, baseline, candidate) write profiles; a fail-closed comparator checks completion, all seven gates, identical runtime/build context and production settings, at least 5% median projection improvement, and no production wall-time regression.
-- The experiment and comparator have focused regression tests. The normal realtime preview remains a separate diagnostic.
+Use the existing canonical workflow and four sequential matched production audits: baseline, candidate, baseline, candidate. Do not add another workflow.
 
-## Measured result
+Every audit must complete 90/90 scene steps and 360/360 backend steps and pass all seven existing physical/visual gates. The comparator must require identical runtime/build/runner context, production settings, constraint grouping, and native pyPBD provenance.
 
-On the exact implementation head `5b4b2a75d73a7e3deb6add7a34134efcaeb4ae37`, full-validation run [#44172920333, attempt 2](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/44172920333) completed successfully: 25 jobs passed, 5 conditional jobs were skipped, and none failed. All four production audits completed 90/90 scene steps and 360/360 backend steps, and all seven physical/visual gates passed in each run.
+Accept only when median `mesh_collision_projector` time improves by at least 10% and median full-production wall time does not regress. The projector timing must contain exactly 360 samples per audit. Any incomplete audit, failed physical/visual gate, context mismatch, sub-threshold improvement, or production wall-time regression rejects the candidate. Do not weaken thresholds or alter physical/numerical settings after seeing results.
 
-The matched two-repetition comparison passed with no rejection reasons:
+## Current implementation
 
-- Median native position projection: 13,366.52 ms baseline vs 12,050.67 ms candidate (**9.84% faster**).
-- Median full production wall time: 21,306.37 ms baseline vs 19,934.39 ms candidate (**6.44% lower**).
-
-All four profiles used the pinned source-built extension with matching source, patch, and binary provenance. The installed wheel remains the normal runtime, and no production solver settings were changed.
-
-## Integration status
-
-- PR [#2862](https://github.com/Uhrendoktor/freecad-cloth/pull/2862), the read-only production constraint-group profiler, was merged into `main` at `1a01537581fb25467e1b651dfad1ac4d4d8fe16d`.
-- PR [#2866](https://github.com/Uhrendoktor/freecad-cloth/pull/2866) has been retargeted to `main`. It is no longer stacked on an open PR.
-- The current exact-head full-validation check after this integration/documentation update is the final merge gate. Do not merge unless it completes successfully and the fail-closed production comparison passes.
+- The worker count is defaulted to one and passed only to the batch `KDTree.query` call.
+- Runtime profiling records `CLOTH_PBD_COLLISION_QUERY_WORKERS`.
+- The comparison helper reuses the existing fail-closed production-profile validation and compares the isolated projector stage plus total production wall time.
+- The source-built pyPBD image and standard installed runtime are unchanged.
 
 ## Falsifier
 
-Reject the experiment if any audit is incomplete, any physical/visual gate fails, build/runtime contexts differ, median projection improvement is below 5%, or median full-production wall time regresses. Do not compensate by changing solver or physical parameters.
+If the measured projector stage does not improve by at least 10%, conclude that parallel exact centroid queries are not a useful optimization at this batch size. Do not extend the worker count to scalar stitch queries or tune other parameters as an unmeasured workaround.
