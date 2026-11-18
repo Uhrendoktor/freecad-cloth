@@ -7,7 +7,7 @@ inputs:
     required: true
   mode:
     description: >-
-      Query-worker mode, 0 for one worker or 1 for four workers on the batched exact KDTree query.
+      Number of workers for the batched exact KDTree query (1 baseline, 4 candidate).
     required: true
   profile-name:
     description: Stable profile name (baseline-1, candidate-1, baseline-2, candidate-2).
@@ -49,7 +49,7 @@ runs:
         environment: |
           PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
           CLOTH_PBD_OPENMP_TEAM_REUSE=1
-          CLOTH_PBD_COLLISION_QUERY_WORKERS=${{ inputs.mode == '0' && '1' || '4' }}
+          CLOTH_PBD_COLLISION_QUERY_WORKERS=${{ inputs.query-workers }}
           FREECAD_CLOTH_ANNY_FIT_STEPS=18
           CLOTH_PBD_SUBSTEPS=16
           CLOTH_PBD_COLLISION_VOXEL_MM=8.0
