@@ -171,8 +171,6 @@ def _runtime_signature(
     return tuple(context)
 
 
-
-
 def _validate_matched_context(
     baseline_profiles: list[JsonObject],
     candidate_profiles: list[JsonObject],
@@ -188,10 +186,7 @@ def _validate_matched_context(
             (profile, f"baseline-{index + 1}")
             for index, profile in enumerate(baseline_profiles[1:], 1)
         ),
-        *(
-            (profile, f"candidate-{index + 1}")
-            for index, profile in enumerate(candidate_profiles)
-        ),
+        *((profile, f"candidate-{index + 1}") for index, profile in enumerate(candidate_profiles)),
     ]
     for profile, label in matched_profiles:
         if profile.get("production_settings") != settings:
