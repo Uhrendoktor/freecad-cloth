@@ -141,6 +141,15 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "class EdgeRecord(TypedDict):" in resolver
     assert 'record["provenance"]' in resolver
     assert "Preserving mainline Sketcher viewport-edge resolution" in resolver
+    assert '[[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]' in resolver
+    assert "bfe0121970b5eae29bfd16be705cfae86c27d636" in resolver
+    assert "git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py" in resolver
+    assert "class _TopologyRepairViewportPicker:" in resolver
+    assert "self.rows.append((seam, side, combo, pick_button))" in resolver
+    assert "class _ComboBoxProtocol(Protocol)" in resolver
+    assert "def currentData(self) -> object: ..." in resolver
+    assert "repairs: list[tuple[SeamFeatureProtocol, str, str]] = [" in resolver
+    assert "Preserving mainline viewport picker lifecycle" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
