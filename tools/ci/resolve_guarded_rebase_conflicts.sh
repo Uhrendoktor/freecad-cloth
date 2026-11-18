@@ -611,6 +611,132 @@ PY
     git add freecad_cloth/pattern/PatternTopologyRepair.py
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "bfe0121970b5eae29bfd16be705cfae86c27d636" ]] ||
+      ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
+      ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def _begin_viewport_pick(' ||
+      ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows.append((seam, side, combo, pick_button))' ||
+      ! git show "$rebase_commit:pyproject.toml" | grep -Fq '"currentData",' ||
+      ! git show "$rebase_commit:tests/support/ruff_contract.py" | grep -Fq '"currentData",'; then
+      echo "::error::Refusing topology GUI conflict outside the exact task-panel typing commit and current-main viewport-picker contract."
+      exit 1
+    fi
+    echo "::warning::Preserving mainline viewport picker lifecycle and typing the expanded repair-panel row contract."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+source = path.read_text(encoding="utf-8")
+
+typing_import = "from typing import TYPE_CHECKING\n"
+if source.count(typing_import) != 1:
+    raise SystemExit("Expected one TYPE_CHECKING import anchor.")
+source = source.replace(typing_import, "from typing import TYPE_CHECKING, Protocol\n", 1)
+
+typing_block = (
+    "if TYPE_CHECKING:\n"
+    "    from types import ModuleType\n\n"
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+)
+typed_block = (
+    "if TYPE_CHECKING:\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+    "    from types import ModuleType\n\n"
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+)
+if source.count(typing_block) != 1:
+    raise SystemExit("Expected exact current-main TYPE_CHECKING import block.")
+source = source.replace(typing_block, typed_block, 1)
+
+protocol_anchor = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n\n"
+    "def _gui_modules()"
+)
+protocol_block = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n\n"
+    "class _ComboBoxProtocol(Protocol):\n"
+    "    \"\"\"Qt combo-box methods consumed by topology repair and viewport picking.\"\"\"\n\n"
+    "    def addItem(self, text: str, userData: object = None) -> None: ...\n\n"
+    "    def currentData(self) -> object: ...\n\n"
+    "    def count(self) -> int: ...\n\n"
+    "    def findData(self, userData: object) -> int: ...\n\n"
+    "    def setCurrentIndex(self, index: int) -> None: ...\n\n\n"
+    "def _gui_modules()"
+)
+if source.count(protocol_anchor) != 1 or "class _ComboBoxProtocol(Protocol)" in source:
+    raise SystemExit("Expected unique combo-box protocol insertion point.")
+source = source.replace(protocol_anchor, protocol_block, 1)
+
+signature_replacements = (
+    ("    def __init__(self, doc):", "    def __init__(self, doc: object) -> None:"),
+    ("    def accept(self):", "    def accept(self) -> bool:"),
+    ("    def reject(self):", "    def reject(self) -> bool:"),
+    ("    def getStandardButtons(self):", "    def getStandardButtons(self) -> int:"),
+    ("def show_topology_repair_task(doc):",
+     "def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:"),
+)
+for old, new in signature_replacements:
+    if source.count(old) != 1:
+        raise SystemExit(f"Expected one topology GUI signature anchor: {old}")
+    source = source.replace(old, new, 1)
+
+rows_old = "        self.rows = []\n"
+rows_new = (
+    "        self.rows: list[\n"
+    "            tuple[\n"
+    "                SeamFeatureProtocol,\n"
+    "                str,\n"
+    "                _ComboBoxProtocol,\n"
+    "                _QT_TYPE_QtWidgets.QPushButton,\n"
+    "            ]\n"
+    "        ] = []\n"
+)
+if source.count(rows_old) != 1:
+    raise SystemExit("Expected one mainline four-column repair-row initializer.")
+source = source.replace(rows_old, rows_new, 1)
+
+repairs_old = (
+    "        repairs = [\n"
+    "            (seam, side, combo.currentData())\n"
+    "            for seam, side, combo, _pick_button in self.rows\n"
+    "            if combo.currentData()\n"
+    "        ]\n"
+)
+repairs_new = (
+    "        repairs: list[tuple[SeamFeatureProtocol, str, str]] = [\n"
+    "            (seam, side, str(combo.currentData()))\n"
+    "            for seam, side, combo, _pick_button in self.rows\n"
+    "            if combo.currentData()\n"
+    "        ]\n"
+)
+if source.count(repairs_old) != 1:
+    raise SystemExit("Expected one current-main four-field repair selection comprehension.")
+source = source.replace(repairs_old, repairs_new, 1)
+
+# The latest viewport-picker behavior must remain present and the row remains four fields.
+for required in (
+    "from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol",
+    "class _ComboBoxProtocol(Protocol):",
+    "def currentData(self) -> object: ...",
+    "def findData(self, userData: object) -> int: ...",
+    "def setCurrentIndex(self, index: int) -> None: ...",
+    "class _TopologyRepairViewportPicker:",
+    "def _begin_viewport_pick(",
+    "def _cancel_viewport_pick(",
+    "self.rows.append((seam, side, combo, pick_button))",
+    "for seam, side, combo, _pick_button in self.rows",
+    "repairs: list[tuple[SeamFeatureProtocol, str, str]] = [",
+    "def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:",
+):
+    if required not in source:
+        raise SystemExit(f"Topology GUI protocol transplant incomplete: {required}")
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi  else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
