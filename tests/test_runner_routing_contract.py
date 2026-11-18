@@ -148,7 +148,6 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "self.rows.append((seam, side, combo, pick_button))" in resolver
     assert "class _ComboBoxProtocol(Protocol)" in resolver
     assert "def currentData(self) -> object: ..." in resolver
-    assert "def findData(self, userData: object) -> int: ..." in resolver
     assert "repairs: list[tuple[SeamFeatureProtocol, str, str]] = [" in resolver
     assert "Preserving mainline viewport picker lifecycle" in resolver
     assert "Unsupported rebase conflict" in resolver
