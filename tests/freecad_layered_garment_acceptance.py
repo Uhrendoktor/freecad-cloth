@@ -735,7 +735,9 @@ def run_acceptance() -> None:
             if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shirt_top_z + 30.0
         ]
         if len(shirt_body_samples) < 100:
-            raise RuntimeError("authoritative mannequin surface has insufficient shirt-height samples")
+            raise RuntimeError(
+                "authoritative mannequin surface has insufficient shirt-height samples"
+            )
         shirt_radius_x = max(
             radius_x,
             max(abs(float(vertex[0]) - center_x) for vertex in shirt_body_samples) + 28.0,
