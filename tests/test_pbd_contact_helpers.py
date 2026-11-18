@@ -13,6 +13,7 @@ from freecad_cloth.simulation.InterClothContact import (
     _candidate_edge_triangle_pairs,
     _closest_segment_triangle,
     _closest_segment_triangles_batch,
+    _inter_cloth_query_workers_from_environment,
     _surface_index,
     measure_inter_cloth_contacts,
     measure_inter_cloth_contacts_with_constraints,
@@ -255,6 +256,98 @@ def test_inter_cloth_aabb_broad_phase_keeps_every_exact_near_contact() -> None:
                 assert (edge_index, triangle_index) in retained, (
                     "AABB broad phase dropped an edge/triangle pair within clearance"
                 )
+
+
+def test_inter_cloth_query_workers_default_to_one_and_validate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The contact broad phase stays serial by default and rejects invalid worker counts."""
+    monkeypatch.delenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", raising=False)
+    assert _inter_cloth_query_workers_from_environment() == 1
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "4")
+    assert _inter_cloth_query_workers_from_environment() == 4
+
+    for invalid in ("0", "-1", "many"):
+        monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", invalid)
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            _inter_cloth_query_workers_from_environment()
+
+
+def test_inter_cloth_parallel_radius_queries_preserve_exact_candidates_and_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Four-worker exact KDTree broad phase must retain candidates and physical results."""
+    positions, groups = _parallel_cloth_groups(offset_mm=0.25)
+    points = np.asarray(positions, dtype=np.float64)
+    source = _surface_index(points, np.asarray(groups["shirt"], dtype=np.int64))
+    target = _surface_index(points, np.asarray(groups["skirt"], dtype=np.int64))
+    query_calls: list[dict[str, object]] = []
+    tree_type = type(target.triangle_tree)
+    original_query = tree_type.query_ball_point
+
+    def recording_query(
+        tree: object,
+        *args: object,
+        **kwargs: object,
+    ) -> object:
+        """Record actual SciPy worker arguments while retaining the real exact query."""
+        query_calls.append(dict(kwargs))
+        return original_query(tree, *args, **kwargs)
+
+    monkeypatch.setattr(tree_type, "query_ball_point", recording_query)
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "1")
+    single_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
+    single_pairs = set(
+        zip(
+            single_candidates[0].tolist(),
+            single_candidates[1].tolist(),
+            strict=True,
+        )
+    )
+    single_positions, _single_directions, single_metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=16,
+    )
+
+    monkeypatch.setenv("CLOTH_INTER_CLOTH_QUERY_WORKERS", "4")
+    parallel_candidates = _candidate_edge_triangle_pairs(source, target, 1.0)
+    parallel_pairs = set(
+        zip(
+            parallel_candidates[0].tolist(),
+            parallel_candidates[1].tolist(),
+            strict=True,
+        )
+    )
+    parallel_positions, _parallel_directions, parallel_metrics = project_inter_cloth_contacts(
+        positions,
+        groups,
+        (1.0,) * len(positions),
+        clearance_mm=1.0,
+        iterations=16,
+    )
+
+    assert single_pairs == parallel_pairs
+    assert query_calls
+    assert all(call.get("eps") == 0.0 for call in query_calls)
+    assert any(call.get("workers") == 1 for call in query_calls)
+    assert any(call.get("workers") == 4 for call in query_calls)
+    np.testing.assert_allclose(parallel_positions, single_positions, rtol=0.0, atol=1e-8)
+    assert parallel_metrics.contact_count == single_metrics.contact_count
+    assert parallel_metrics.corrected_particle_count == single_metrics.corrected_particle_count
+    assert parallel_metrics.remaining_contact_count == single_metrics.remaining_contact_count
+    assert parallel_metrics.max_penetration_before_mm == pytest.approx(
+        single_metrics.max_penetration_before_mm,
+        abs=1e-8,
+    )
+    assert parallel_metrics.max_penetration_after_mm == pytest.approx(
+        single_metrics.max_penetration_after_mm,
+        abs=1e-8,
+    )
 
 
 def test_inter_cloth_projection_separates_parallel_independent_surfaces() -> None:
