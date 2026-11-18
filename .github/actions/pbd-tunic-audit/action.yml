@@ -5,7 +5,7 @@ inputs:
   image:
     description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
     required: true
-  mode:
+  query-workers:
     description: >-
       Number of workers for the batched exact KDTree query (1 baseline, 4 candidate).
     required: true
