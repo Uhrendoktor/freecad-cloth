@@ -84,8 +84,6 @@ def test_projector_supports_reduced_preview_candidate_count() -> None:
         for point in projected
     )
 
-
-
 def test_projector_parallel_batch_query_matches_single_worker_results() -> None:
     """Parallel exact KDTree queries preserve the single-worker projected result."""
     surface = _cube_surface()
@@ -103,7 +101,9 @@ def test_projector_parallel_batch_query_matches_single_worker_results() -> None:
     assert np.allclose(parallel_normals, single_normals, atol=1e-12, rtol=0.0)
 
 
-def test_projector_uses_configured_workers_only_for_batched_query(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_projector_uses_configured_workers_only_for_batched_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The particle batch uses the configured count; scalar stitch midpoint stays serial."""
     projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0, query_workers=4)
     original_tree = projector._tree
@@ -145,8 +145,6 @@ def test_projector_rejects_invalid_query_worker_counts(workers: int | bool) -> N
     """Workers must be a positive integer and cannot use SciPy's implicit all-CPU mode."""
     with pytest.raises(ValueError, match="query workers must be a positive integer"):
         MeshCollisionProjector(_cube_surface(), clearance_mm=2.0, query_workers=workers)
-
-
 
 def test_projector_enforces_clearance_and_leaves_distant_points_unchanged() -> None:
     surface = _cube_surface()
