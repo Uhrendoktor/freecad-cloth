@@ -269,15 +269,41 @@ def build_stitch_group_topology(
         msg = "stitch topology particle count must be a non-negative integer"
         raise ValueError(msg)
 
-    topology = (
-        build_stitch_group_topology(stitches, particle_count)
-        if stitch_topology is None
-        else stitch_topology
-    )
-    if topology.particle_count != particle_count:
-        msg = "stitch topology particle count does not match collision positions"
-        raise ValueError(msg)
-    groups = topology.groups
+    parent = list(range(particle_count))
+    rank = [0] * particle_count
+    touched: set[int] = set()
+
+    def find(index: int) -> int:
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        root_left, root_right = find(left), find(right)
+        if root_left == root_right:
+            return
+        if rank[root_left] < rank[root_right]:
+            root_left, root_right = root_right, root_left
+        parent[root_right] = root_left
+        if rank[root_left] == rank[root_right]:
+            rank[root_left] += 1
+
+    for raw_left, raw_right in stitches:
+        left, right = int(raw_left), int(raw_right)
+        if not 0 <= left < particle_count or not 0 <= right < particle_count:
+            msg = "stitch pair index is outside the collision position array"
+            raise ValueError(msg)
+        if left == right:
+            continue
+        touched.add(left)
+        touched.add(right)
+        union(left, right)
+
+    groups: dict[int, list[int]] = {}
+    for index in sorted(touched):
+        groups.setdefault(find(index), []).append(index)
+
     return StitchGroupTopology(
         particle_count=particle_count,
         groups=tuple(tuple(group) for group in groups.values()),
@@ -338,40 +364,15 @@ def project_stitched_pairs(
         msg = "pinned index is outside the collision position array"
         raise ValueError(msg)
 
-    parent = list(range(particle_count))
-    rank = [0] * particle_count
-    touched: set[int] = set()
-
-    def find(index: int) -> int:
-        while parent[index] != index:
-            parent[index] = parent[parent[index]]
-            index = parent[index]
-        return index
-
-    def union(left: int, right: int) -> None:
-        root_left, root_right = find(left), find(right)
-        if root_left == root_right:
-            return
-        if rank[root_left] < rank[root_right]:
-            root_left, root_right = root_right, root_left
-        parent[root_right] = root_left
-        if rank[root_left] == rank[root_right]:
-            rank[root_left] += 1
-
-    for raw_left, raw_right in stitches:
-        left, right = int(raw_left), int(raw_right)
-        if not 0 <= left < particle_count or not 0 <= right < particle_count:
-            msg = "stitch pair index is outside the collision position array"
-            raise ValueError(msg)
-        if left == right:
-            continue
-        touched.add(left)
-        touched.add(right)
-        union(left, right)
-
-    groups: dict[int, list[int]] = {}
-    for index in sorted(touched):
-        groups.setdefault(find(index), []).append(index)
+    topology = (
+        build_stitch_group_topology(stitches, particle_count)
+        if stitch_topology is None
+        else stitch_topology
+    )
+    if topology.particle_count != particle_count:
+        msg = "stitch topology particle count does not match collision positions"
+        raise ValueError(msg)
+    groups = topology.groups
 
     eligible_groups: list[list[int]] = []
     shared_points: list[npt.NDArray[np.float64]] = []
