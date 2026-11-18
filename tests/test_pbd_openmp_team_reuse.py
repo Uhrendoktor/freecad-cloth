@@ -190,7 +190,9 @@ def test_collision_query_workers_reject_incomplete_projector_timing() -> None:
     baseline, candidate = _matched_collision_query_profiles()
     candidate[0]["python_backend_stage_timings"]["mesh_collision_projector"]["samples"] = 359
 
-    with pytest.raises(ValueError, match="mesh collision projector timing sample count is incomplete"):
+    with pytest.raises(
+        ValueError, match="mesh collision projector timing sample count is incomplete"
+    ):
         compare_collision_query_worker_profile_sets(baseline, candidate)
 
 
