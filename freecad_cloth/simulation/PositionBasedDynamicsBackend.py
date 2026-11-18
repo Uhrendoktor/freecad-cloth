@@ -42,6 +42,18 @@ _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
 
 
+def _collision_query_workers_from_environment() -> int:
+    """Return the exact nearest-neighbour worker count for mesh contact projection."""
+    raw_workers = os.environ.get("CLOTH_PBD_COLLISION_QUERY_WORKERS", "1")
+    try:
+        workers = int(raw_workers)
+    except ValueError as exc:
+        raise ValueError("CLOTH_PBD_COLLISION_QUERY_WORKERS must be a positive integer") from exc
+    if workers < 1:
+        raise ValueError("CLOTH_PBD_COLLISION_QUERY_WORKERS must be a positive integer")
+    return workers
+
+
 def _emit_diagnostic(message: str) -> None:
     """Write one diagnostic line and flush it for CI log consumers.
 
@@ -772,6 +784,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         # resolve reliably through native contacts; projecting them can overcorrect
         # deeply intersecting points and create long mesh spikes.
         if self._collision_projector is None and len(collision_surface.triangles) >= 1000:
+            projector_query_workers = _collision_query_workers_from_environment()
             try:
                 from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
 
@@ -780,10 +793,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     collision_surface,
                     clearance_mm=effective_tolerance_mm,
                     candidate_count=projector_candidate_count,
+                    query_workers=projector_query_workers,
                 )
                 _emit_diagnostic(
                     "cloth-pbd-position-projection ready "
                     f"clearance_mm={effective_tolerance_mm:.2f} "
+                    f"query_workers={projector_query_workers} "
                     "candidate_triangles="
                     f"{min(projector_candidate_count, len(collision_surface.triangles))}"
                 )
