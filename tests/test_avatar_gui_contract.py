@@ -175,6 +175,11 @@ def test_dimension_ring_basis_is_orthogonal_and_value_scaled() -> None:
             assert abs(AvatarDimensionController._dot(offset, axis)) < 1e-7
 
 
+def test_viewport_dimension_field_keys_are_canonical() -> None:
+    """Keep every viewport-linked field inside the model's canonical measurement set."""
+    assert AvatarTaskPanel.VIEWPORT_DIMENSION_KEYS <= set(DEFAULT_MEASUREMENTS)
+
+
 def test_measurement_properties_are_generated_from_model_measurements() -> None:
     """Ensure every canonical measurement has the corresponding persisted property."""
     expected = {

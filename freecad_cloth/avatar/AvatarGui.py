@@ -107,6 +107,27 @@ class AvatarTaskPanel:
         ("shirt_length", "Shirt length"),
         ("back_neck_to_waist", "Back neck to waist"),
     )
+    VIEWPORT_DIMENSION_KEYS = frozenset(
+        {
+            "height",
+            "neck",
+            "shoulder",
+            "chest",
+            "underbust",
+            "stomach",
+            "waist",
+            "high_hip",
+            "hip",
+            "upper_arm",
+            "elbow",
+            "wrist",
+            "thigh",
+            "knee",
+            "calf",
+            "ankle",
+            "sleeve_length",
+        }
+    )
     PROVIDERS = (
         ("makehuman-hm08", "Anny parametric body (MakeHuman-compatible rig)"),
         (
@@ -371,9 +392,14 @@ class AvatarTaskPanel:
             box.setSuffix(" mm")
             box.setKeyboardTracking(False)
             box.setProperty("clothDimensionKey", key)
-            if key in self.FIT_TARGETS:
+            if key in self.VIEWPORT_DIMENSION_KEYS:
                 tooltip = (
-                    "Fitting target in millimetres. Editable here or from its linked viewport handle."
+                    "Editable in millimetres here or from its linked viewport handle. "
+                    "Apply & Rebuild commits the staged value."
+                )
+            elif key in self.FIT_TARGETS:
+                tooltip = (
+                    "Fitting target in millimetres. Apply & Rebuild uses this value when fitting the mannequin."
                 )
             else:
                 tooltip = (
