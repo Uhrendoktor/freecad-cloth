@@ -393,7 +393,7 @@ jobs:
         id: compare_paired_profiles
         shell: bash
         run: |
-          python3 tools/ci/compare_pbd_openmp_team_reuse.py \
+          python3 tools/ci/compare_pbd_openmp_team_reuse.py --stitch-group-cache \
             --baseline-1 artifacts/pbd-stitch-group-cache/baseline-1.json \
             --baseline-2 artifacts/pbd-stitch-group-cache/baseline-2.json \
             --candidate-1 artifacts/pbd-stitch-group-cache/candidate-1.json \
@@ -423,7 +423,7 @@ jobs:
               exit 1
             fi
           done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 10% stitch-stage and non-regressing wall-time gates."
+          echo "::notice title=Stitch component topology cache experiment::All four production audits passed; matched profile comparison satisfied the 10% stitch-stage and non-regressing wall-time gates."
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
