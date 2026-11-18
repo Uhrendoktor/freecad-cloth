@@ -19,6 +19,8 @@ from freecad_cloth.shared.Collision import CollisionSurface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from freecad_cloth.simulation.DrapeVisualSanity import Point3
+
 
 class MeshCollisionProjector:
     """Project points to the exterior clearance shell of a closed triangle mesh."""
@@ -121,12 +123,7 @@ class MeshCollisionProjector:
         w = (d00 * d21 - d01 * d20) / safe_denominator
         u = 1.0 - v - w
         projected_plane = a + v[:, None] * ab + w[:, None] * ac
-        barycentric_inside = (
-            (u >= -1e-10)
-            & (v >= -1e-10)
-            & (w >= -1e-10)
-            & (denominator > 1e-18)
-        )
+        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
 
         def closest_on_edge(
             start: npt.NDArray[np.float64],
@@ -160,6 +157,47 @@ class MeshCollisionProjector:
         distance_squared = np.einsum("ij,ij->i", delta, delta)
         nearest_index = int(np.argmin(distance_squared))
         return closest[nearest_index].copy(), self._normals[nearest_index].copy()
+
+    def _project_inside_points(
+        self,
+        points: npt.NDArray[np.float64],
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Correct only particles confirmed inside the closed collision surface.
+
+        Args:
+            points: Candidate particle positions in world millimetres.
+
+        Returns:
+            Corrected positions and outward correction directions. Exterior points
+            are returned unchanged with zero directions.
+        """
+        if len(points) == 0:
+            return points.copy(), np.zeros_like(points)
+        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+
+        query_points: tuple[Point3, ...] = tuple(
+            (float(point[0]), float(point[1]), float(point[2])) for point in points
+        )
+        inside = points_inside_closed_mesh(
+            query_points,
+            self._source_vertices,
+            self._source_triangles,
+        )
+        corrected = points.copy()
+        directions = np.zeros_like(points)
+        for index, is_inside in enumerate(inside):
+            if not is_inside:
+                continue
+            nearest_point, face_normal = self._nearest_surface_point(points[index])
+            direction = nearest_point - points[index]
+            direction_length = float(np.linalg.norm(direction))
+            if direction_length <= 1e-10:
+                direction = face_normal
+            else:
+                direction /= direction_length
+            corrected[index] = nearest_point + self.clearance_mm * direction
+            directions[index] = direction
+        return corrected, directions
 
     def project(
         self, points_mm: npt.ArrayLike
@@ -217,8 +255,17 @@ class MeshCollisionProjector:
         active = (centroid_distances[:, 0] <= self._search_radius_mm) | (
             closest_plane_signed_distance < 0.0
         )
-        if not bool(np.any(active)):
-            return corrected, contact_normals
+        unresolved_point_indices = candidate_point_indices[~active]
+        if bool(np.any(active)):
+    
+        if unresolved_point_indices.size:
+            unresolved_corrected, unresolved_normals = self._project_inside_points(
+                points[unresolved_point_indices]
+            )
+            corrected[unresolved_point_indices] = unresolved_corrected
+            contact_normals[unresolved_point_indices] = unresolved_normals
+        return corrected, contact_normals
+
         active_point_indices = candidate_point_indices[active]
         active_points = candidate_points[active]
         active_candidate_ids = candidate_ids[active]
@@ -302,29 +349,11 @@ class MeshCollisionProjector:
         ambiguous = (~barycentric_inside[row_indices, nearest_candidate]) | (signed_distance >= 0.0)
         ambiguous_indices = np.flatnonzero(ambiguous)
         if ambiguous_indices.size:
-            from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
-
-            inside = points_inside_closed_mesh(
-                tuple(
-                    tuple(float(value) for value in point)
-                    for point in active_points[ambiguous_indices]
-                ),
-                self._source_vertices,
-                self._source_triangles,
+            inside_corrected, inside_normals = self._project_inside_points(
+                active_points[ambiguous_indices]
             )
-            for offset, is_inside in enumerate(inside):
-                if not is_inside:
-                    continue
-                point_index = int(ambiguous_indices[offset])
-                nearest_point, face_normal = self._nearest_surface_point(active_points[point_index])
-                direction = nearest_point - active_points[point_index]
-                direction_length = float(np.linalg.norm(direction))
-                if direction_length <= 1e-10:
-                    direction = face_normal
-                else:
-                    direction /= direction_length
-                active_corrected[point_index] = nearest_point + self.clearance_mm * direction
-                active_normals[point_index] = direction
+            active_corrected[ambiguous_indices] = inside_corrected
+            active_normals[ambiguous_indices] = inside_normals
 
         corrected[active_point_indices] = active_corrected
         contact_normals[active_point_indices] = active_normals

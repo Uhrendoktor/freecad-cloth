@@ -31,11 +31,7 @@ def _cube_surface() -> CollisionSurface:
 def _concave_l_prism_surface() -> CollisionSurface:
     """Build a closed L-shaped prism with a concave corner."""
     polygon = ((0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0))
-    vertices = tuple(
-        (x, y, z)
-        for z in (0.0, 1.0)
-        for x, y in polygon
-    )
+    vertices = tuple((x, y, z) for z in (0.0, 1.0) for x, y in polygon)
     cap_triangles = ((0, 1, 3), (1, 2, 3), (0, 3, 5), (3, 4, 5))
     triangles = []
     for a, b, c in cap_triangles:
@@ -73,6 +69,27 @@ def test_projector_escapes_concave_interior_contacts_with_exact_surface_search()
         surface.vertices,
         surface.triangles,
         prefer_trimesh=False,
+    )[0]
+
+
+def test_projector_checks_in_bounds_points_rejected_by_local_candidate_search() -> None:
+    """Closed-mesh containment must rescue an interior point outside the local search radius."""
+    surface = _cube_surface()
+    projector = MeshCollisionProjector(surface, clearance_mm=1.0)
+    projector._normals *= -1.0
+    projector._search_radius_mm = 0.0
+    point = np.asarray(((50.0, 50.0, 50.0),), dtype=np.float64)
+
+    projected, normals = projector.project(point)
+
+    assert np.linalg.norm(projected[0] - point[0]) > 1.0
+    assert np.isclose(np.linalg.norm(normals[0]), 1.0)
+    assert not points_inside_closed_mesh(
+        (tuple(float(value) for value in projected[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+        chunk_size=1,
     )[0]
 
 
