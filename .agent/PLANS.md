@@ -1,42 +1,35 @@
-# Reuse one OpenMP team in native PBD constraint projection
+# Reuse one OpenMP team across the native PBD timestep
 
-## Goal
+## Objective
 
-Measure whether a single persistent OpenMP team reduces the overhead of native pyPBD position-constraint projection without changing solver ordering, physical behavior, or the default production runtime.
+Measure whether one OpenMP team spanning the complete `TimeStepController::step()` substep loop reduces native PBD overhead beyond the current PR #2866 optimization.
 
-## Design constraints
+## Evidence and hypothesis
+
+- PR [#2866](https://github.com/Uhrendoktor/freecad-cloth/pull/2866) reuses one OpenMP team across ordered constraint groups and solver iterations inside each `positionConstraintProjection()` invocation.
+- The pinned upstream timestep calls this projection once per native substep. The production audit performs 16 native substeps for each of 360 backend steps (5,760 projection invocations).
+- The earlier thread-count sweep [#2859](https://github.com/Uhrendoktor/freecad-cloth/pull/2859) did not find a thread count that improved production wall time; thread-count tuning remains out of scope.
+- Hypothesis: keeping one team alive across integration, position projection, and velocity updates over all 16 native substeps removes additional team lifecycle overhead.
+- Strongest alternative: team lifecycle overhead is not material compared with worksharing and barrier costs.
+
+## Design and invariants
 
 - Pin PositionBasedDynamics to `10a70bc146a97873dc3c8fef372f5217e010542e`.
-- Keep the installed `pyPBD==2.2.2` wheel as the normal runtime; the source-built experiment extension is isolated under `/opt/pypbd-openmp-experiment`.
-- Keep the experiment opt-in through `CLOTH_PBD_OPENMP_TEAM_REUSE=1`; mode 0 retains the upstream per-group implementation.
-- Preserve conflict-free group order, the strict `groupSize > 64` parallel threshold, static scheduling for eligible groups, synchronization between groups and iterations, and serial particle-solid contact solving.
-- Do not change solver defaults, thread count, timestep, substeps, collision configuration, constraints, geometry, or physical/visual acceptance gates.
+- Baseline: `CLOTH_PBD_OPENMP_TEAM_REUSE=1`, `CLOTH_PBD_OPENMP_STEP_TEAM_REUSE=0` (current PR #2866 behavior).
+- Candidate: `CLOTH_PBD_OPENMP_TEAM_REUSE=1`, `CLOTH_PBD_OPENMP_STEP_TEAM_REUSE=1` (one team across the full native substep loop).
+- Preserve the exact native integration and velocity-update formulas, the serial behavior when the rigid-body count does not exceed `MIN_PARALLEL_SIZE`, ordered conflict-free groups, `groupSize > 64`, static scheduling, and barriers between groups, iterations, contacts, and solver phases.
+- Keep particle-solid position contacts serial on the master thread.
+- Preserve one native projection timing sample per substep (5,760 per production audit).
+- Keep the source-built extension isolated under `/opt/pypbd-openmp-experiment`; the installed `pyPBD==2.2.2` wheel remains the normal runtime.
+- Do not change thread count, solver defaults, timestep, substeps, iterations, constraints, collision settings, geometry, or physical/visual acceptance gates.
 
-## Implementation
+## Verification and falsifier
 
-- The pinned patch adds a Python-only native build option and the opt-in persistent-team projection path.
-- The validation image builds the extension separately, records source/patch/binary provenance, and includes both the Dockerfile and experiment patch in its immutable image identity.
-- The production audit wrapper loads the extension by absolute path and rejects an accidental import of the installed wheel.
-- Four matched production runs (baseline, candidate, baseline, candidate) write profiles; a fail-closed comparator checks completion, all seven gates, identical runtime/build context and production settings, at least 5% median projection improvement, and no production wall-time regression.
-- The experiment and comparator have focused regression tests. The normal realtime preview remains a separate diagnostic.
+Run four sequential matched production audits (current baseline, full-step candidate, current baseline, full-step candidate). Every run must complete 90/90 scene steps and 360/360 backend steps and pass all seven physical/visual gates. The fail-closed comparator must verify identical source/build/runtime/production settings except for the new full-step mode flag.
 
-## Measured result
-
-On the exact implementation head `5b4b2a75d73a7e3deb6add7a34134efcaeb4ae37`, full-validation run [#44172920333, attempt 2](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/44172920333) completed successfully: 25 jobs passed, 5 conditional jobs were skipped, and none failed. All four production audits completed 90/90 scene steps and 360/360 backend steps, and all seven physical/visual gates passed in each run.
-
-The matched two-repetition comparison passed with no rejection reasons:
-
-- Median native position projection: 13,366.52 ms baseline vs 12,050.67 ms candidate (**9.84% faster**).
-- Median full production wall time: 21,306.37 ms baseline vs 19,934.39 ms candidate (**6.44% lower**).
-
-All four profiles used the pinned source-built extension with matching source, patch, and binary provenance. The installed wheel remains the normal runtime, and no production solver settings were changed.
+Accept only if median native position-projection time improves by at least 5% and median full-production wall time does not regress. Any incomplete audit, failed gate, context mismatch, smaller projection gain, or production wall-time regression rejects the change. Do not compensate by changing physical or numerical settings.
 
 ## Integration status
 
-- PR [#2862](https://github.com/Uhrendoktor/freecad-cloth/pull/2862), the read-only production constraint-group profiler, was merged into `main` at `1a01537581fb25467e1b651dfad1ac4d4d8fe16d`.
-- PR [#2866](https://github.com/Uhrendoktor/freecad-cloth/pull/2866) has been retargeted to `main`. It is no longer stacked on an open PR.
-- The current exact-head full-validation check after this integration/documentation update is the final merge gate. Do not merge unless it completes successfully and the fail-closed production comparison passes.
-
-## Falsifier
-
-Reject the experiment if any audit is incomplete, any physical/visual gate fails, build/runtime contexts differ, median projection improvement is below 5%, or median full-production wall time regresses. Do not compensate by changing solver or physical parameters.
+- Current-best baseline is merged PR #2866 at `4a2f2a29ba17652fe7a30712b540f178363ff8bd`.
+- This follow-up is tracked in issue [#2870](https://github.com/Uhrendoktor/freecad-cloth/issues/2870).
