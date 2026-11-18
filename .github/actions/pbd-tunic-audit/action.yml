@@ -4,8 +4,8 @@ inputs:
   image:
     description: Immutable FreeCAD/PBD validation image containing the source-built experiment extension.
     required: true
-  mode:
-    description: Native execution mode, 0 for upstream baseline or 1 for persistent team reuse.
+  stitch-cache:
+    description: Stitch-component cache mode, 0 for per-step topology rebuild or 1 for cached components.
     required: true
   profile-name:
     description: Stable profile name (baseline-1, candidate-1, baseline-2, candidate-2).
@@ -23,28 +23,29 @@ runs:
         checkout: "false"
         timeout-seconds: "360"
         test-script: tests/freecad_tunic_audit_production.py
-        pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-openmp-team-reuse
+        pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-stitch-group-cache
         stage-workbench: "true"
         clean-user: "true"
         log-file: artifacts/tunic-audit/${{ inputs.profile-name }}.log
         validate-command: >-
           python3 tools/ci/validate_manifests.py tunic-production &&
           cp artifacts/tunic-audit/production-pbd-profile.json
-          artifacts/pbd-openmp-team-reuse/${{ inputs.profile-name }}.json
+          artifacts/pbd-stitch-group-cache/${{ inputs.profile-name }}.json
         artifact-name: ${{ inputs.collect-evidence == 'true' && 'tunic-visual-audit' || '' }}
         artifact-path: |
           docs/images/generated/**
           artifacts/garment-e2e.log
           artifacts/tunic-audit/**
-          artifacts/pbd-openmp-team-reuse/**
+          artifacts/pbd-stitch-group-cache/**
           artifacts/freecad-realtime/**
         scene-report-command: ${{ inputs.collect-evidence == 'true' && 'python3 tools/ci/scene_understanding_report.py --progress docs/images/generated/gui-progress.log --output-root docs/images/generated' || '' }}
         observation-root: docs/images/generated
-        observation-label: Paired native PBD OpenMP team-reuse tunic audit
+        observation-label: Paired PBD stitch-group cache tunic audit
         observation-files: ${{ inputs.collect-evidence == 'true' && 'summary=scene-understanding.json;visual=scene-understanding.svg' || '' }}
         environment: |
           PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace
-          CLOTH_PBD_OPENMP_TEAM_REUSE=${{ inputs.mode }}
+          CLOTH_PBD_OPENMP_TEAM_REUSE=1
+          CLOTH_PBD_STITCH_GROUP_CACHE=${{ inputs.stitch-cache }}
           FREECAD_CLOTH_ANNY_FIT_STEPS=18
           CLOTH_PBD_SUBSTEPS=16
           CLOTH_PBD_COLLISION_VOXEL_MM=8.0
