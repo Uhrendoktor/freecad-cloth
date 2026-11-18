@@ -36,12 +36,18 @@ class _MeasurementBoxProtocol(Protocol):
         ...
 
 
+class _AvatarFeatureProtocol(Protocol):
+    """Minimal identity surface exposed by the FreeCAD avatar feature."""
+
+    AvatarType: str
+
+
 class _AvatarPanelProtocol(Protocol):
     """Minimum avatar task-panel surface used by dimension gizmos."""
 
     App: ModuleType
     Gui: ModuleType
-    avatar: object | None
+    avatar: _AvatarFeatureProtocol | None
     _boxes: dict[str, _MeasurementBoxProtocol]
 
     def _provider_id(self) -> str:
