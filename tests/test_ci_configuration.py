@@ -168,10 +168,10 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
     assert 'timeout-seconds: "360"' in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
-    assert "inputs.mode" in production_action
+    assert "inputs.stitch-cache" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
-    assert "compare_pbd_openmp_team_reuse.py" in tunic_audit
+    assert "compare_pbd_openmp_team_reuse.py --stitch-group-cache" in tunic_audit
     assert "artifacts/pbd-stitch-group-cache/comparison.json" in tunic_audit
     assert "Report paired native production audit outcome" in tunic_audit
     for step_id in (
