@@ -160,75 +160,108 @@ def _make_ring(
     center_y: float,
     *,
     hem_flare_mm: float = 0.0,
+    top_radius_x_mm: float | None = None,
+    top_radius_y_mm: float | None = None,
 ) -> dict[str, App.DocumentObject]:
-    """Create four sewn panels; optional flare widens the lower skirt hem.
+    """Create four sewn panels between measured bottom and top radii.
 
-    The trapezoids remain planar. A small rigid tilt maps their sloped side
-    edges to the measured world-space rise, so all four corner seams meet.
+    A positive hem flare widens the lower edge. Optional top radii allow a
+    torso-shaped shirt shell to taper independently in X and Y while retaining
+    coincident 3D corner seams. Each panel remains a planar Sketcher trapezoid.
     """
     flare = float(hem_flare_mm)
     height = float(height_mm)
+    bottom_radius_x = float(radius_x_mm) + flare
+    bottom_radius_y = float(radius_y_mm) + flare
+    top_radius_x = (
+        float(radius_x_mm) if top_radius_x_mm is None else float(top_radius_x_mm)
+    )
+    top_radius_y = (
+        float(radius_y_mm) if top_radius_y_mm is None else float(top_radius_y_mm)
+    )
     if not math.isfinite(flare) or flare < 0.0:
         raise ValueError("hem flare must be finite and non-negative")
     if not math.isfinite(height) or height <= 0.0:
         raise ValueError("panel height must be positive and finite")
-    angle = math.atan2(flare, height)
-    local_height = math.hypot(height, flare)
-    tilt = App.Rotation(App.Vector(1.0, 0.0, 0.0), -math.degrees(angle))
-    rotations = tuple(
-        rotation.multiply(tilt)
-        for rotation in (rotation_front, rotation_right, rotation_back, rotation_left)
-    )
+    radii = (bottom_radius_x, bottom_radius_y, top_radius_x, top_radius_y)
+    if not all(math.isfinite(value) and value > 0.0 for value in radii):
+        raise ValueError("ring radii must be positive and finite")
+
+    offset_x = bottom_radius_x - top_radius_x
+    offset_y = bottom_radius_y - top_radius_y
+    front_angle = math.atan2(offset_y, height)
+    side_angle = math.atan2(offset_x, height)
+    front_local_height = math.hypot(height, offset_y)
+    side_local_height = math.hypot(height, offset_x)
+    front_tilt = App.Rotation(App.Vector(1.0, 0.0, 0.0), -math.degrees(front_angle))
+    side_tilt = App.Rotation(App.Vector(1.0, 0.0, 0.0), -math.degrees(side_angle))
+
     specifications = (
         (
             "front",
-            2.0 * radius_x_mm + 2.0 * flare,
+            2.0 * bottom_radius_x,
+            offset_x,
+            front_local_height,
             App.Placement(
                 App.Vector(
-                    center_x - radius_x_mm - flare, center_y - radius_y_mm - flare, bottom_z_mm
+                    center_x - bottom_radius_x,
+                    center_y - bottom_radius_y,
+                    bottom_z_mm,
                 ),
-                rotations[0],
+                rotation_front.multiply(front_tilt),
             ),
         ),
         (
             "right",
-            2.0 * radius_y_mm + 2.0 * flare,
+            2.0 * bottom_radius_y,
+            offset_y,
+            side_local_height,
             App.Placement(
                 App.Vector(
-                    center_x + radius_x_mm + flare, center_y - radius_y_mm - flare, bottom_z_mm
+                    center_x + bottom_radius_x,
+                    center_y - bottom_radius_y,
+                    bottom_z_mm,
                 ),
-                rotations[1],
+                rotation_right.multiply(side_tilt),
             ),
         ),
         (
             "back",
-            2.0 * radius_x_mm + 2.0 * flare,
+            2.0 * bottom_radius_x,
+            offset_x,
+            front_local_height,
             App.Placement(
                 App.Vector(
-                    center_x + radius_x_mm + flare, center_y + radius_y_mm + flare, bottom_z_mm
+                    center_x + bottom_radius_x,
+                    center_y + bottom_radius_y,
+                    bottom_z_mm,
                 ),
-                rotations[2],
+                rotation_back.multiply(front_tilt),
             ),
         ),
         (
             "left",
-            2.0 * radius_y_mm + 2.0 * flare,
+            2.0 * bottom_radius_y,
+            offset_y,
+            side_local_height,
             App.Placement(
                 App.Vector(
-                    center_x - radius_x_mm - flare, center_y + radius_y_mm + flare, bottom_z_mm
+                    center_x - bottom_radius_x,
+                    center_y + bottom_radius_y,
+                    bottom_z_mm,
                 ),
-                rotations[3],
+                rotation_left.multiply(side_tilt),
             ),
         ),
     )
     pieces = {}
-    for side, bottom_width, placement in specifications:
+    for side, bottom_width, top_offset, local_height, placement in specifications:
         name = garment_id + "-" + side
         profile = (
             (0.0, 0.0),
             (bottom_width, 0.0),
-            (bottom_width - flare, local_height),
-            (flare, local_height),
+            (bottom_width - top_offset, local_height),
+            (top_offset, local_height),
         )
         pieces[side] = _make_piece(
             doc,
@@ -240,6 +273,8 @@ def _make_ring(
             outline_points=profile,
         )
     return pieces
+
+
 
 
 def _edge_id(piece: App.DocumentObject, index: int) -> str:
@@ -723,56 +758,93 @@ def run_acceptance() -> None:
             for side in ("front", "right", "back", "left")
         ]
 
-        # The untucked shirt hem overlaps the separate waistband by 45 mm.
-        # Unlike the skirt, this shell must clear the mannequin's arms as well
-        # as its torso. Derive its independent rectangular envelope from every
-        # body vertex across the shirt height, rather than the torso-only hip slice.
+        # Keep the shell envelope on the torso: a full-height X bound also
+        # captures the mannequin's outstretched hands and turns the shirt into a
+        # metre-wide box. Measure separate shoulder/chest and hem cross-sections
+        # in the same FreeCAD world frame as the collision surface.
         shirt_bottom_z = hip_z - 85.0
         shirt_top_z = shoulder_z + 35.0
-        shirt_body_samples = [
+        torso_x_limit = 0.60 * shoulder_width
+        shirt_top_samples = [
             vertex
             for vertex in body_surface.vertices
-            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shirt_top_z + 30.0
+            if shoulder_z - 55.0 <= float(vertex[2]) <= shoulder_z + 30.0
+            and abs(float(vertex[0]) - center_x) <= torso_x_limit
         ]
-        if len(shirt_body_samples) < 100:
+        shirt_hem_samples = [
+            vertex
+            for vertex in body_surface.vertices
+            if shirt_bottom_z - 35.0 <= float(vertex[2]) <= shirt_bottom_z + 35.0
+            and abs(float(vertex[0]) - center_x) <= torso_x_limit
+        ]
+        if len(shirt_top_samples) < 50 or len(shirt_hem_samples) < 50:
             raise RuntimeError(
-                "authoritative mannequin surface has insufficient shirt-height samples"
+                "authoritative torso surface has insufficient shoulder or shirt-hem samples"
             )
-        shirt_radius_x = max(
-            radius_x,
-            max(abs(float(vertex[0]) - center_x) for vertex in shirt_body_samples) + 28.0,
-        )
-        shirt_center_y = 0.5 * (
-            min(float(vertex[1]) for vertex in shirt_body_samples)
-            + max(float(vertex[1]) for vertex in shirt_body_samples)
-        )
-        shirt_radius_y = (
-            0.5
-            * (
-                max(float(vertex[1]) for vertex in shirt_body_samples)
-                - min(float(vertex[1]) for vertex in shirt_body_samples)
+
+        shirt_top_radius_x = (
+            max(
+                0.5 * shoulder_width,
+                max(abs(float(vertex[0]) - center_x) for vertex in shirt_top_samples),
             )
             + 28.0
         )
+        shirt_hem_radius_x = max(
+            radius_x,
+            max(abs(float(vertex[0]) - center_x) for vertex in shirt_hem_samples) + 28.0,
+        )
+        shirt_top_radius_y = (
+            0.5
+            * (
+                max(float(vertex[1]) for vertex in shirt_top_samples)
+                - min(float(vertex[1]) for vertex in shirt_top_samples)
+            )
+            + 28.0
+        )
+        shirt_hem_radius_y = max(
+            radius_y,
+            0.5
+            * (
+                max(float(vertex[1]) for vertex in shirt_hem_samples)
+                - min(float(vertex[1]) for vertex in shirt_hem_samples)
+            )
+            + 28.0,
+        )
+        shirt_top_center_y = 0.5 * (
+            min(float(vertex[1]) for vertex in shirt_top_samples)
+            + max(float(vertex[1]) for vertex in shirt_top_samples)
+        )
+        shirt_hem_center_y = 0.5 * (
+            min(float(vertex[1]) for vertex in shirt_hem_samples)
+            + max(float(vertex[1]) for vertex in shirt_hem_samples)
+        )
+        shirt_center_y = 0.5 * (shirt_top_center_y + shirt_hem_center_y)
         _log(
-            "shirt-body-envelope samples=%d radius_x_mm=%.3f radius_y_mm=%.3f center_y_mm=%.3f"
+            "shirt-torso-envelope x_limit_mm=%.3f top_samples=%d hem_samples=%d "
+            "top_radii_mm=(%.3f,%.3f) hem_radii_mm=(%.3f,%.3f) center_y_mm=%.3f"
             % (
-                len(shirt_body_samples),
-                shirt_radius_x,
-                shirt_radius_y,
+                torso_x_limit,
+                len(shirt_top_samples),
+                len(shirt_hem_samples),
+                shirt_top_radius_x,
+                shirt_top_radius_y,
+                shirt_hem_radius_x,
+                shirt_hem_radius_y,
                 shirt_center_y,
             )
         )
         shirt = _make_ring(
             doc,
             "Shirt",
-            shirt_radius_x + 7.0,
-            shirt_radius_y + 7.0,
+            shirt_hem_radius_x,
+            shirt_hem_radius_y,
             shirt_bottom_z,
             shirt_top_z - shirt_bottom_z,
             *rotations,
             center_x,
             shirt_center_y,
+            top_radius_x_mm=shirt_top_radius_x,
+            top_radius_y_mm=shirt_top_radius_y,
         )
         shirt_seams = _sew_ring(doc, "Shirt", shirt)
         doc.recompute()
