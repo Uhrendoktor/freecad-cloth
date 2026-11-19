@@ -2,7 +2,7 @@
 """Contracts for the feedback-paced realtime preview frame clock."""
 
 from math import inf, isclose, nan
-from typing import Callable, cast
+from typing import Protocol, cast
 
 import pytest
 
@@ -130,6 +130,11 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
         def type(self) -> int:
             return self._event_type
 
+    class EventReceiver(Protocol):
+        """Expose the custom-event entry point for the dispatcher regression."""
+
+        def event(self, event: FakeEvent) -> bool: ...
+
     class FakeQObject:
         """Minimal QObject base that accepts custom events."""
 
@@ -174,7 +179,7 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     receiver, event, priority = posted[0]
     assert priority == high_priority
     assert receiver is dispatcher
-    event_handler = cast("Callable[[FakeEvent], bool]", getattr(dispatcher, "event"))
+    event_handler = cast("EventReceiver", dispatcher).event
     assert event_handler(event) is True
     assert len(callbacks) == 1
     assert callbacks[0][0:2] == (10.0, 9.5)
