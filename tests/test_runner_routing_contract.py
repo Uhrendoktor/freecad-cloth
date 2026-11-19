@@ -220,7 +220,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     loop_done = resolver.index("\ndone\n", fail_closed)
     for handler in (
-        "elif [[ \"$conflicts\" == \"freecad_cloth/avatar/AvatarPoseGui.py\" ]] && [[ \"$(git rev-parse REBASE_HEAD)\" == \"69999107b2e8888a5d179835b8297b21fef19d74\" ]]",
+        'elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]',
         "elif [[ \"$conflicts\" == $'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py' ]]",
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
