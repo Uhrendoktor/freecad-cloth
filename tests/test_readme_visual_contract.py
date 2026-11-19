@@ -351,12 +351,15 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     assert "candidate_tree == source_tree" in lookup
     assert "No successful full-validation run matched source tree" in lookup
     assert "merge_group" in lookup
+    assert "workflow_dispatch" in lookup
     assert "pull_request" in lookup
     assert "event={event}" in lookup
     assert "status=success" in lookup
     assert "HTTP\\s+50[234]" in lookup
     assert "_MAX_RUN_PAGES" in lookup
+    assert "Full validation / Required validation gate" in lookup
     assert "Full validation (explicit request) / Required validation gate" in lookup
+    assert "Explicit full validation / Required validation gate" not in lookup
     merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
         encoding="utf-8"
     )

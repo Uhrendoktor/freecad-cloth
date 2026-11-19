@@ -25,6 +25,11 @@ _VALIDATION_SOURCES = (
         "pull_request",
         "Full validation (explicit request) / Required validation gate",
     ),
+    (
+        "commit-validation.yml",
+        "workflow_dispatch",
+        "Full validation / Required validation gate",
+    ),
 )
 
 JsonScalar: TypeAlias = str | int | float | bool | None
@@ -129,8 +134,9 @@ def _warn_candidate(run_id: int, error: Exception) -> None:
 def find_validated_run(repository: str, source_sha: str) -> tuple[int, str]:
     """Find a successful validation run whose required gate and Git tree match.
 
-    The merge-queue validation is preferred. An explicit full pull-request validation is the
-    fallback. Both paths require the exact successful gate and identical Git tree.
+    Merge-queue validation is preferred, followed by an explicit full pull-request run and
+    then a manually dispatched full run (including a manual validation of main). Each source
+    requires its own exact successful gate and the identical Git tree.
 
     Args:
         repository: GitHub repository in owner/name form.
