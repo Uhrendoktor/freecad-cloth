@@ -160,15 +160,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "class _ComboBoxProtocol(Protocol):" in resolver
     assert "self.rows: list[" in resolver
     assert "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" in resolver
-    assert (
-        "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
-    )
+    assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
     assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
     assert "{missing!r}" in resolver
-    assert (
-        "native-arc Ruff formatting did not preserve one dataclass declaration."
-        in resolver
-    )
+    assert "native-arc Ruff formatting did not preserve one dataclass declaration." in resolver
     subprocess.run(
         ["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],
         check=True,
