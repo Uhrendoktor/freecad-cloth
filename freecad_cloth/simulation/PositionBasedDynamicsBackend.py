@@ -1107,9 +1107,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
             particle_groups = np.full(len(positions_mm), "", dtype=object)
             for group_id, group_triangles in self._inter_cloth_groups.items():
-                group_indices = np.unique(
-                    np.asarray(group_triangles, dtype=np.int64).reshape(-1)
-                )
+                group_indices = np.unique(np.asarray(group_triangles, dtype=np.int64).reshape(-1))
                 particle_groups[group_indices] = str(group_id)
             source_edges = np.asarray(
                 [item.source_edge for item in constraints], dtype=np.int64
@@ -1117,18 +1115,15 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             target_triangles = np.asarray(
                 [item.target_triangle for item in constraints], dtype=np.int64
             ).reshape((-1, 3))
-            distances = np.asarray(
-                [item.distance_mm for item in constraints], dtype=np.float64
-            )
+            distances = np.asarray([item.distance_mm for item in constraints], dtype=np.float64)
             if len(constraints):
                 source_centres = positions_mm[source_edges].mean(axis=1)
                 target_centres = positions_mm[target_triangles].mean(axis=1)
                 summaries = {}
                 for source_group in sorted(set(particle_groups[source_edges[:, 0]])):
                     for target_group in sorted(set(particle_groups[target_triangles[:, 0]])):
-                        selected = (
-                            (particle_groups[source_edges[:, 0]] == source_group)
-                            & (particle_groups[target_triangles[:, 0]] == target_group)
+                        selected = (particle_groups[source_edges[:, 0]] == source_group) & (
+                            particle_groups[target_triangles[:, 0]] == target_group
                         )
                         if not bool(np.any(selected)):
                             continue
@@ -1148,8 +1143,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                             ],
                         }
                 _emit_diagnostic(
-                    "cloth-pbd-residual-contact-geometry "
-                    + json.dumps(summaries, sort_keys=True)
+                    "cloth-pbd-residual-contact-geometry " + json.dumps(summaries, sort_keys=True)
                 )
         if self._inter_cloth_metrics is None:
             from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
