@@ -49,6 +49,7 @@ REQUIRED = (
     ROOT / "tools/ci/validate_manifests.py",
     ROOT / "tools/ci/visual_evidence.py",
     ROOT / "tools/ci/publish_visual_evidence.py",
+    ROOT / "tools/ci/find_validated_visual_run.py",
     ROOT / "tools/ci/capture_pypbd_provenance.py",
     ROOT / "tools/ci/pbd_constraint_group_profile.py",
     ROOT / "tools/ci/check_artifact_budget.py",
@@ -390,15 +391,25 @@ def _validate_reusable_workflow_trust(text: str) -> None:
     Raises:
         SystemExit: If the reusable workflow bypasses its validation or trust boundaries.
     """
-    required_markers = (
+    helper_path = ROOT / "tools" / "ci" / "find_validated_visual_run.py"
+    helper_text = helper_path.read_text(encoding="utf-8") if helper_path.is_file() else ""
+    required_workflow_markers = (
         "Required validation gate",
+        "run: python3 tools/ci/find_validated_visual_run.py",
+        "execution_mode == 'publication'",
+    )
+    required_lookup_markers = (
         "No successful full-validation run matched source tree",
-        '--event "${event}" --status success',
+        '"--event"',
+        '"--status"',
         "Full validation (explicit request) / Required validation gate",
+        "candidate_tree == source_tree",
     )
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
-    if any(marker not in text for marker in required_markers) or (
-        "Required pre-merge validation" not in merge_workflow
+    if (
+        any(marker not in text for marker in required_workflow_markers)
+        or any(marker not in helper_text for marker in required_lookup_markers)
+        or "Required pre-merge validation" not in merge_workflow
     ):
         msg = (
             "reusable workflow must enforce mode-specific validation "
