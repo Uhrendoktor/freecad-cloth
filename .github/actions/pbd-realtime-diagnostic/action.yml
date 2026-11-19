@@ -1,5 +1,5 @@
 name: PBD realtime preview diagnostic
-description: Capture independent Fast-preview timing diagnostics without blocking production PBD acceptance.
+description: Compare the original two-panel tunic control with a separate multi-garment outfit preview workload.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image.
@@ -7,24 +7,51 @@ inputs:
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/freecad-test
+    - name: Measure two-panel tunic control
+      uses: ./.github/actions/freecad-test
       continue-on-error: true
       with:
         checkout: "false"
         image: ${{ inputs.image }}
         test-script: tests/freecad_realtime_benchmark.py
-        pre-command: mkdir -p artifacts
-        log-file: artifacts/freecad-realtime/freecad-realtime-benchmark.log
+        pre-command: mkdir -p artifacts/freecad-realtime/control artifacts/freecad-realtime/outfit
+        log-file: artifacts/freecad-realtime/control/freecad-realtime-benchmark.log
         environment: |
           CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          CLOTH_REALTIME_FIXTURE=two-panel-tunic-pattern
+          CLOTH_REALTIME_DIR=/workspace/artifacts/freecad-realtime/control
+          CLOTH_PBD_SUBSTEPS=1
+          CLOTH_REALTIME_FRAMES=120
+          CLOTH_REALTIME_WARMUP_FRAMES=30
+          OMP_NUM_THREADS=1
+
+    - name: Measure three-garment outfit
+      uses: ./.github/actions/freecad-test
+      continue-on-error: true
+      with:
+        checkout: "false"
+        image: ${{ inputs.image }}
+        test-script: tests/freecad_realtime_benchmark.py
+        log-file: artifacts/freecad-realtime/outfit/freecad-realtime-benchmark.log
+        environment: |
+          CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
+          CLOTH_REALTIME_FIXTURE=three-garment-outfit
+          CLOTH_REALTIME_DIR=/workspace/artifacts/freecad-realtime/outfit
           CLOTH_PBD_SUBSTEPS=1
           CLOTH_REALTIME_FRAMES=120
           CLOTH_REALTIME_WARMUP_FRAMES=30
           OMP_NUM_THREADS=1
         artifact-name: realtime-preview-performance
         artifact-path: artifacts/freecad-realtime/**
-    - name: Validate realtime preview metrics (diagnostic)
+
+    - name: Validate tunic control metrics (diagnostic)
       if: always()
       continue-on-error: true
       shell: bash
-      run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/metrics.json
+      run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/control/metrics.json
+
+    - name: Validate outfit metrics (diagnostic)
+      if: always()
+      continue-on-error: true
+      shell: bash
+      run: python3 tools/ci/validate_realtime_benchmark.py artifacts/freecad-realtime/outfit/metrics.json
