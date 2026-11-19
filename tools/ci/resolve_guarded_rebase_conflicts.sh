@@ -792,10 +792,48 @@ replace_type(
     "    def currentData(self) -> str | None: ...",
     label="combo currentData",
 )
-replace_type(
+def ensure_combo_method(old: str, new: str, *, label: str, after: str) -> None:
+    global source
+    old_count = source.count(old)
+    new_count = source.count(new)
+    if old == new:
+        if old_count == 1:
+            return
+        if old_count > 1:
+            raise SystemExit(f"Expected at most one final combo {label} method.")
+        if source.count(after) != 1:
+            raise SystemExit(f"Expected one insertion anchor for combo {label}.")
+        source = source.replace(after, after + "\n" + new, 1)
+        return
+    if old_count == 1 and new_count == 0:
+        source = source.replace(old, new, 1)
+        return
+    if old_count == 0 and new_count == 1:
+        return
+    if old_count == 0 and new_count == 0:
+        if source.count(after) != 1:
+            raise SystemExit(f"Expected one insertion anchor for combo {label}.")
+        source = source.replace(after, after + "\n" + new, 1)
+        return
+    raise SystemExit(f"Expected one old or final combo {label} method.")
+
+ensure_combo_method(
     "    def findData(self, value: object) -> int: ...",
     "    def findData(self, value: str) -> int: ...",
-    label="combo findData",
+    label="findData",
+    after="    def currentData(self) -> str | None: ...",
+)
+ensure_combo_method(
+    "    def setCurrentIndex(self, index: int) -> None: ...",
+    "    def setCurrentIndex(self, index: int) -> None: ...",
+    label="setCurrentIndex",
+    after="    def findData(self, value: str) -> int: ...",
+)
+ensure_combo_method(
+    "    def count(self) -> int: ...",
+    "    def count(self) -> int: ...",
+    label="count",
+    after="    def setCurrentIndex(self, index: int) -> None: ...",
 )
 replace_type(
     "        seam: FreeCADDocumentObjectProtocol,",
@@ -823,6 +861,8 @@ for required in (
     "def addItem(self, text: str, userData: str | None = None) -> None: ...",
     "def currentData(self) -> str | None: ...",
     "def findData(self, value: str) -> int: ...",
+    "def setCurrentIndex(self, index: int) -> None: ...",
+    "def count(self) -> int: ...",
     "seam: SeamFeatureProtocol,",
     "def __init__(self, doc: DocumentTransactionProtocol) -> None:",
     "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:",

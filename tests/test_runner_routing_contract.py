@@ -204,6 +204,17 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Legacy document-object protocol remains after seam/document typing." in resolver
     assert "def currentData(self) -> str | None: ..." in resolver
     assert "def findData(self, value: str) -> int: ..." in resolver
+    assert "def ensure_combo_method(" in resolver
+    assert resolver.count(r'after + "\n" + new') == 2
+    assert r'after + "\\n" + new' not in resolver
+    assert "if old == new:" in resolver
+    assert "if old_count == 1:" in resolver
+    assert "Expected at most one final combo" in resolver
+    assert 'label="findData"' in resolver
+    assert 'label="setCurrentIndex"' in resolver
+    assert 'label="count"' in resolver
+    assert "def setCurrentIndex(self, index: int) -> None: ..." in resolver
+    assert "def count(self) -> int: ..." in resolver
     assert "def addItem(self, text: str, userData: object | None = None) -> None: ..." in resolver
     assert "def addItem(self, text: str, userData: str | None = None) -> None: ..." in resolver
     assert "userData: object = None" not in resolver
