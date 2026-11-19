@@ -32,7 +32,7 @@ if str(ROOT) not in sys.path:
 OUT = Path(os.environ.get("CLOTH_REALTIME_DIR", "artifacts/freecad-realtime"))
 OUT.mkdir(parents=True, exist_ok=True)
 
-TARGET_FPS = 60.0
+TARGET_FPS = 120.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
