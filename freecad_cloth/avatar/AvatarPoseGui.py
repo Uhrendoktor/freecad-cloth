@@ -69,7 +69,6 @@ if TYPE_CHECKING:
         QWidget as _QWidget,
     )
 
-    from freecad_cloth.common.UiDesign import _Panel, _StatusLabel
     from freecad_cloth.avatar.avatar_protocols import (
         AvatarParametersFeatureProtocol,
         AvatarTaskPanelProtocol,
@@ -93,6 +92,7 @@ if TYPE_CHECKING:
         FreeCADDocumentObjectProtocol,
         FreeCADDocumentProtocol,
     )
+    from freecad_cloth.common.UiDesign import _Panel, _StatusLabel
 
 type PosePoint = tuple[float, float, float]
 type PoseSegment = tuple[PosePoint, PosePoint]

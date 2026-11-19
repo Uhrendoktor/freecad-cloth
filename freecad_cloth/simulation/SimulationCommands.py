@@ -37,7 +37,6 @@ class _PatternPieceFeature(SimulationPatternPiece, Protocol):
     """PatternPiece identity required when transferring pieces into a simulation."""
 
 
-
 class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persisted target source and readiness fields used before simulation advancement."""
 

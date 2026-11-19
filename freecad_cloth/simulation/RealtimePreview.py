@@ -11,9 +11,9 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
-    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _PreviewPanel
-    from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
+    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
     from freecad_cloth.simulation.simulation_protocols import SimulationScene
+    from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None
 _PREVIEW_TARGET_FPS = 60.0
@@ -322,6 +322,7 @@ def _make_frame_dispatcher(
 
 
 _SimulationScene = SimulationScene
+
 
 def _qt() -> ModuleType:
     if TYPE_CHECKING:

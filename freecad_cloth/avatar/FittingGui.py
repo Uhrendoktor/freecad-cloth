@@ -14,7 +14,6 @@ from itertools import starmap
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from freecad_cloth.avatar.coin_protocols import CoinModule, CoinSeparator, CoinVector3
-
 from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
     SNAP_CROSSHAIR_HALF_LENGTH,

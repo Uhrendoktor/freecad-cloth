@@ -145,6 +145,7 @@ class _FittingScene(Protocol):
 
 _SimulationScene = SimulationScene
 
+
 def _fitting_scene(doc: _FreeCADDocument | None) -> _FittingScene | None:
     """Find the document's persisted fitting scene.
 

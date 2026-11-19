@@ -517,9 +517,7 @@ def _edge_points(
     placement = getattr(piece, "Placement", None)
     if placement is not None:
         native_placement = cast("_NativePlacement", placement)
-        return native_placement.multVec(local0), native_placement.multVec(
-            local1
-        )
+        return native_placement.multVec(local0), native_placement.multVec(local1)
     return local0, local1
 
 
