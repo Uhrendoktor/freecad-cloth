@@ -737,7 +737,7 @@ PY
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def addItem(self, text: str, userData: object = None) -> None: ...' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def addItem(self, text: str, userData: object | None = None) -> None: ...' ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def currentData(self) -> object: ...' ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def findData(self, value: object) -> int: ...' ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'seam: FreeCADDocumentObjectProtocol,' ||
@@ -779,7 +779,7 @@ if source.count(old_type_block) != 1:
 source = source.replace(old_type_block, new_type_block, 1)
 
 method_replacements = (
-    ("    def addItem(self, text: str, userData: object = None) -> None: ...",
+    ("    def addItem(self, text: str, userData: object | None = None) -> None: ...",
      "    def addItem(self, text: str, userData: str | None = None) -> None: ..."),
     ("    def currentData(self) -> object: ...",
      "    def currentData(self) -> str | None: ..."),

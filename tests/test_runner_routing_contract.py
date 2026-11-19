@@ -183,6 +183,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Applying exact structural document and string-valued combo protocols" in resolver
     assert "def currentData(self) -> str | None: ..." in resolver
     assert "def findData(self, value: str) -> int: ..." in resolver
+    assert "def addItem(self, text: str, userData: object | None = None) -> None: ..." in resolver
+    assert "def addItem(self, text: str, userData: str | None = None) -> None: ..." in resolver
+    assert "userData: object = None" not in resolver
     assert "seam: SeamFeatureProtocol" in resolver
     assert "DocumentTransactionProtocol, SeamFeatureProtocol" in resolver
     assert (
