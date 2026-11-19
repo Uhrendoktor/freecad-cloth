@@ -183,9 +183,16 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     return {
         "schema_version": 1,
         "backend": "position-based-dynamics",
-        "fixture": "two-panel-tunic-pattern",
-        "particles": 480,
-        "panel_count": 2,
+        "fixture": "three-garment-outfit",
+        "garment_count": 3,
+        "garments": {
+            "tshirt": {"panel_count": 4, "seam_count": 8},
+            "trousers": {"panel_count": 4, "seam_count": 6},
+            "hat": {"panel_count": 2, "seam_count": 4},
+        },
+        "seam_count": 18,
+        "particles": 960,
+        "panel_count": 10,
         "collision_triangles": 240,
         "frame_budget_ms": validate_realtime_benchmark.FRAME_BUDGET_MS,
         "publication_mode": "transient-coin3d",
@@ -243,7 +250,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
             "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
-            "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
+            "preview_mesh_publish": {"samples": 1200, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
             "overlay_schedule": {"samples": 60, "mean_ms": 0.1, "p95_ms": 0.2, "max_ms": 0.3},
             "viewport_redraw": {"samples": 120, "mean_ms": 3.0, "p95_ms": 4.0, "max_ms": 5.0},
         },
@@ -286,6 +293,32 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     )
     assert "backend_finite must be true" in errors, "canonical CI contract"
     assert "profile.pbd_substeps must be 1" in errors, "canonical CI contract"
+
+
+def test_realtime_metric_validator_rejects_incomplete_garment_topology() -> None:
+    """Reject an outfit artifact that omits one of the hat's two pattern panels."""
+    metrics = _valid_realtime_benchmark_metrics()
+    garments = _require_mapping(metrics["garments"], label="garments")
+    hat = _require_mapping(garments["hat"], label="hat")
+    hat["panel_count"] = 1
+
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+
+    assert "garments.hat.panel_count must be 2" in errors, "canonical CI contract"
+
+
+def test_realtime_metric_validator_requires_one_mesh_publication_per_panel() -> None:
+    """Require all ten outfit panels to be published on every measured preview frame."""
+    metrics = _valid_realtime_benchmark_metrics()
+    stages = _require_mapping(metrics["stage_timings"], label="stage timings")
+    publication = _require_mapping(stages["preview_mesh_publish"], label="mesh publication")
+    publication["samples"] = 240
+
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+
+    assert "stage_timings.preview_mesh_publish.samples must be >= 1200" in errors, (
+        "canonical CI contract"
+    )
 
 
 def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
