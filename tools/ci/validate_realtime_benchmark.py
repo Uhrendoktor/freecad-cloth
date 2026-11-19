@@ -398,9 +398,7 @@ def _validate_frame_timing_trace(
             and previous_callback_start is not None
             and callback_start <= previous_callback_start
         ):
-            errors.append(
-                "frame_timing_samples callback timestamps must be strictly increasing"
-            )
+            errors.append("frame_timing_samples callback timestamps must be strictly increasing")
         if callback_start is not None:
             previous_callback_start = callback_start
 
