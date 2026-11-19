@@ -77,7 +77,7 @@ def test_exact_nearest_surface_search_uses_bounded_triangle_candidates() -> None
 
 
 def test_cached_closed_mesh_classifier_preserves_cube_and_concave_inside_results() -> None:
-    """Cached ray data must classify known interior and exterior points correctly."""
+    """Cached parity must classify cube and concave-prism interior/exterior points correctly."""
     surfaces_and_points = (
         (
             _cube_surface(),
