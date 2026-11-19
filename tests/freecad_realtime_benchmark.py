@@ -865,9 +865,7 @@ def main() -> None:
                             "gui_dispatch_offset_ms": 1000.0 * (dispatched_at - started),
                             "interval_ms": 1000.0 * (started_at - previous_tick_at),
                             "queue_delay_ms": 1000.0 * (started_at - emitted_at),
-                            "gui_event_dispatch_delay_ms": (
-                                1000.0 * (dispatched_at - emitted_at)
-                            ),
+                            "gui_event_dispatch_delay_ms": (1000.0 * (dispatched_at - emitted_at)),
                             "gui_callback_after_dispatch_ms": (
                                 1000.0 * (started_at - dispatched_at)
                             ),
@@ -881,9 +879,7 @@ def main() -> None:
                             "worker_coalesced_pulses": int(
                                 pending_pulse_metrics["coalesced_pulses"]
                             ),
-                            "worker_signals_emitted": int(
-                                pending_pulse_metrics["signals_emitted"]
-                            ),
+                            "worker_signals_emitted": int(pending_pulse_metrics["signals_emitted"]),
                             "worker_pulse_pending": int(pending_pulse_metrics["pulse_pending"]),
                             "callback_duration_ms": callback_cost_ms,
                             "stage_timings_ms": dict(frame_stage_timings_ms),

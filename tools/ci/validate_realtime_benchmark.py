@@ -393,20 +393,25 @@ def _validate_frame_timing_trace(
                 errors.append(
                     f"frame_timing_samples[{index - 1}].deadline_lateness_ms is not aligned"
                 )
-        if callback_start is not None and previous_callback_start is not None:
-            if callback_start <= previous_callback_start:
-                errors.append("frame_timing_samples callback timestamps must be strictly increasing")
+        if (
+            callback_start is not None
+            and previous_callback_start is not None
+            and callback_start <= previous_callback_start
+        ):
+            errors.append(
+                "frame_timing_samples callback timestamps must be strictly increasing"
+            )
         if callback_start is not None:
             previous_callback_start = callback_start
 
         for key in counter_fields:
             value = _integer(row.get(key))
             if value is None or value < 0:
-                errors.append(f"frame_timing_samples[{index - 1}].{key} must be a non-negative integer")
+                errors.append(
+                    f"frame_timing_samples[{index - 1}].{key} must be a non-negative integer"
+                )
         if _integer(row.get("worker_pulse_pending")) != 1:
-            errors.append(
-                f"frame_timing_samples[{index - 1}].worker_pulse_pending must equal 1"
-            )
+            errors.append(f"frame_timing_samples[{index - 1}].worker_pulse_pending must equal 1")
         stage_value = row.get("stage_timings_ms")
         if not isinstance(stage_value, dict):
             errors.append(f"frame_timing_samples[{index - 1}].stage_timings_ms must be an object")
@@ -563,9 +568,11 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
         shared = set(before).intersection(after)
         if set(delta) != shared:
             errors.append("cgroup_cpu_stat_delta must cover keys shared by before and after")
-        for key in shared:
-            if delta.get(key) != after[key] - before[key]:
-                errors.append(f"runtime.cgroup_cpu_stat_delta.{key} does not match before/after")
+        errors.extend(
+            f"runtime.cgroup_cpu_stat_delta.{key} does not match before/after"
+            for key in shared
+            if delta.get(key) != after[key] - before[key]
+        )
 
 
 def validate_metrics(payload: JsonValue) -> list[str]:
