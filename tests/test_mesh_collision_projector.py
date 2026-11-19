@@ -2,6 +2,7 @@
 """Unit tests for position-level mesh collision projection."""
 
 import numpy as np
+import pytest
 
 from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.Collision import CollisionSurface
@@ -75,8 +76,8 @@ def test_exact_nearest_surface_search_uses_bounded_triangle_candidates() -> None
     assert 0 < candidate_count < len(surface.triangles) // 10
 
 
-def test_cached_closed_mesh_classifier_matches_public_cube_and_concave_results() -> None:
-    """Cached ray data must retain the public classifier's exact parity results."""
+def test_cached_closed_mesh_classifier_preserves_cube_and_concave_inside_results() -> None:
+    """Cached ray data must classify known interior and exterior points correctly."""
     surfaces_and_points = (
         (
             _cube_surface(),
@@ -88,6 +89,7 @@ def test_cached_closed_mesh_classifier_matches_public_cube_and_concave_results()
                 ),
                 dtype=np.float64,
             ),
+            (True, False, False),
         ),
         (
             _concave_l_prism_surface(),
@@ -99,21 +101,33 @@ def test_cached_closed_mesh_classifier_matches_public_cube_and_concave_results()
                 ),
                 dtype=np.float64,
             ),
+            (True, False, False),
         ),
     )
-    for surface, points in surfaces_and_points:
+    for surface, points, expected in surfaces_and_points:
         classifier = _ClosedMeshPointClassifier(surface.vertices, surface.triangles)
-        expected = points_inside_closed_mesh(
-            tuple(tuple(float(value) for value in point) for point in points),
-            surface.vertices,
-            surface.triangles,
-            prefer_trimesh=False,
-        )
         first = tuple(bool(value) for value in classifier.contains_array(points))
-        second = tuple(bool(value) for value in classifier.contains_array(points))
+        second = tuple(
+            bool(value) for value in classifier.contains_array(points, chunk_size=1)
+        )
 
         assert first == expected
         assert second == expected
+
+
+def test_cached_closed_mesh_classifier_rejects_invalid_query_arrays() -> None:
+    """Cached queries still reject malformed or non-finite point arrays."""
+    classifier = _ClosedMeshPointClassifier(
+        _cube_surface().vertices,
+        _cube_surface().triangles,
+    )
+
+    with pytest.raises(ValueError, match="shape"):
+        classifier.contains_array(np.asarray((50.0, 50.0, 50.0), dtype=np.float64))
+    with pytest.raises(ValueError, match="finite"):
+        classifier.contains_array(
+            np.asarray(((float("nan"), 50.0, 50.0),), dtype=np.float64)
+        )
 
 
 def test_projector_escapes_concave_interior_contacts_with_exact_surface_search() -> None:
