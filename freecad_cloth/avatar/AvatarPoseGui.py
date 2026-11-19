@@ -187,8 +187,15 @@ class _PoseApplication(Protocol):
         """Return the active document when one is open."""
         ...
 
-    Vector: Callable[..., _PoseVector]
-    Rotation: _PoseRotationFactory
+    @property
+    def Vector(self) -> Callable[..., _PoseVector]:
+        """Return the native vector constructor."""
+        ...
+
+    @property
+    def Rotation(self) -> _PoseRotationFactory:
+        """Return the native rotation constructor."""
+        ...
 
 
 class _PoseView(Protocol):
@@ -236,7 +243,10 @@ class _PoseGuiControl(Protocol):
 class _PoseGui(Protocol):
     """FreeCAD GUI operations required by Pose Mode."""
 
-    Control: _PoseGuiControl
+    @property
+    def Control(self) -> _PoseGuiControl:
+        """Return the native task-panel dialog controller."""
+        ...
 
     def activeDocument(self) -> _PoseGuiDocument | None:
         """Return the active GUI document when one is available."""

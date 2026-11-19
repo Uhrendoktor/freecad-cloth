@@ -156,7 +156,7 @@ class _NativePlacement(Protocol):
         """Return the homogeneous matrix for this placement."""
         ...
 
-    def multVec(self, vector: _NativeVector) -> _NativeVector:
+    def multVec(self, vector: _NativeVector, /) -> _NativeVector:
         """Transform a vector through the placement into the target coordinate frame.
 
         Args:
@@ -1275,10 +1275,13 @@ def _refresh_anchor_positions(
         if point is None:
             continue
         target = doc.getObject(str(anchor.get("target", "")))
-        if target is None or _anchor_record_status(scene, target, anchor) != "valid":
+        if target is None:
+            continue
+        anchor_target = cast("_FittingAnchorTarget", target)
+        if _anchor_record_status(scene, anchor_target, anchor) != "valid":
             continue
         try:
-            x, y, z = _anchor_world_position(target, anchor)
+            x, y, z = _anchor_world_position(anchor_target, anchor)
         except (AttributeError, IndexError, TypeError, ValueError, RuntimeError):
             continue
         if max(abs(point.x - x), abs(point.y - y), abs(point.offset - z)) <= 1e-6:
@@ -2185,7 +2188,7 @@ def open_interactive_arrange(
     scene = scene or _scene(doc) or create_fitting_scene()
     from freecad_cloth.avatar.FittingGui import show_fitting_task
 
-    panel = show_fitting_task(scene)
+    panel = cast("_FittingTaskPanel", show_fitting_task(scene))
     if Gui.activeDocument():
         Gui.activeDocument().activeView().fitAll()
     return panel
