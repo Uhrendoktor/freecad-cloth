@@ -733,7 +733,55 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
-  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]; then
+    elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "a59f58d25537de846677f89a7858562cfcfc9672" ]] ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def addItem(self, text: str, userData: object | None = None) -> None: ...' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def currentData(self) -> object: ...' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows.append((seam, side, combo, pick_button))' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq '"""Minimal Qt combo-box interface used by the topology repair panel."""' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def addItem(self, text: str, userData: object | None = None) -> None: ...' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def currentData(self) -> object: ...'; then
+      echo "::error::Refusing combo protocol conflict outside the exact a59f docstring/optional-data commit and validated mainline viewport-picker state."
+      exit 1
+    fi
+    echo "::warning::Preserving the already-typed combo-box protocol and applying only the exact a59f docstring."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+source = path.read_text(encoding="utf-8")
+class_anchor = "class _ComboBoxProtocol(Protocol):\n"
+docstring = '    """Minimal Qt combo-box interface used by the topology repair panel."""\n'
+if source.count(class_anchor) != 1:
+    raise SystemExit("Expected exactly one combo-box protocol declaration.")
+if source.count(docstring) == 0:
+    source = source.replace(class_anchor, class_anchor + docstring + "\n", 1)
+elif source.count(docstring) != 1:
+    raise SystemExit("Duplicate combo-box protocol docstrings are not a supported state.")
+for required in (
+    class_anchor,
+    docstring,
+    "def addItem(self, text: str, userData: object | None = None) -> None: ...",
+    "def currentData(self) -> object: ...",
+    "class _TopologyRepairViewportPicker:",
+    "def _begin_viewport_pick(",
+    "def _cancel_viewport_pick(",
+    "self.rows.append((seam, side, combo, pick_button))",
+    "for seam, side, combo, _pick_button in self.rows",
+):
+    if required not in source:
+        raise SystemExit(f"Combo-box protocol replay incomplete: {required}")
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
