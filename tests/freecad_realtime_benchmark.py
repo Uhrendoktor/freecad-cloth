@@ -98,10 +98,9 @@ FIXTURE_NAME = os.environ.get("CLOTH_REALTIME_FIXTURE", "two-panel-tunic-pattern
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
-DISABLE_GC_DURING_MEASUREMENT = (
-    os.environ.get("CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT", "false").strip().lower()
-    in {"1", "true", "yes", "on"}
-)
+DISABLE_GC_DURING_MEASUREMENT = os.environ.get(
+    "CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
 
 
 type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]

@@ -367,9 +367,9 @@ def test_realtime_metric_validator_rejects_enabled_gc_during_disabled_experiment
     metrics = _valid_realtime_benchmark_metrics()
     metrics["python_gc_enabled_during_measurement"] = True
     errors = validate_realtime_benchmark.validate_metrics(metrics)
-    assert (
-        "python_gc must remain disabled throughout the measured preview window" in errors
-    ), "canonical CI contract"
+    assert "python_gc must remain disabled throughout the measured preview window" in errors, (
+        "canonical CI contract"
+    )
 
 
 def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
