@@ -63,14 +63,19 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         encoding="utf-8"
     )
 
+    broker = (ROOT / "tools" / "ci" / "guarded_rebase_conflict_entrypoint.sh").read_text(
+        encoding="utf-8"
+    )
+
     assert "if ! git rebase origin/main; then" in rebase
-    assert '[[ "${REBASE_COMMIT}" == "ec93982d0267fe54c679e3edb89e67f42dff09ec" ]]' in rebase
-    assert '[[ "${CONFLICTED_FILES}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in rebase
-    assert "git checkout --ours -- tools/ci/resolve_guarded_rebase_conflicts.sh" in rebase
-    assert "if ! git rebase --skip; then" in rebase
-    assert 'git rev-parse --git-path rebase-merge' in rebase
-    assert 'git rev-parse --git-path rebase-apply' in rebase
-    assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in rebase
+    assert "bash tools/ci/guarded_rebase_conflict_entrypoint.sh" in rebase
+    assert '[[ "${rebase_commit}" == "ec93982d0267fe54c679e3edb89e67f42dff09ec" ]]' in broker
+    assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
+    assert "git checkout --ours -- tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
+    assert "if ! git rebase --skip; then" in broker
+    assert 'git rev-parse --git-path rebase-merge' in broker
+    assert 'git rev-parse --git-path rebase-apply' in broker
+    assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
     assert "git merge-base --is-ancestor origin/main HEAD" in rebase
     assert "git push --force-with-lease=" in rebase
     assert '[[ "$conflicts" == ".agent/PLANS.md" ]]' in resolver
