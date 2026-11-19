@@ -150,6 +150,23 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "def currentData(self) -> object: ..." in resolver
     assert "repairs: list[tuple[SeamFeatureProtocol, str, str]] = [" in resolver
     assert "Preserving mainline viewport picker lifecycle" in resolver
+    assert "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" in resolver
+    assert "freecad_cloth/pattern/PatternTopologyRepairGui.py" in resolver
+    assert "tests/test_simulation_gui.py" in resolver
+    assert "tests/test_tunic_audit_contract.py" in resolver
+    assert "git checkout --ours --" in resolver
+    assert "git checkout origin/main -- tests/test_simulation_gui.py" in resolver
+    assert "class _ComboBoxProtocol(Protocol):" in resolver
+    assert "self.rows: list[" in resolver
+    assert "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" in resolver
+    assert (
+        "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
+    )
+    assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
+    assert "{missing!r}" in resolver
+    assert (
+        "native-arc Ruff formatting did not preserve one dataclass declaration." in resolver
+    )
     assert "Unsupported rebase conflict" in resolver
 
 
