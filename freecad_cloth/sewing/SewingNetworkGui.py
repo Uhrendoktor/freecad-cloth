@@ -240,13 +240,18 @@ class SewingNetworkTaskPanel:
             self._range_spin(QtWidgets) for _ in range(4)
         )
         self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
-        for label, field in (
-            ("Side A start (0-1)", self.start_a),
-            ("Side A end (0-1)", self.end_a),
-            ("Side B start (0-1)", self.start_b),
-            ("Side B end (0-1)", self.end_b),
-        ):
-            range_form.addRow(label, field)
+
+        def range_pair(start, end):
+            """Keep each seam side's normalized start/end values together."""
+            row = QtWidgets.QHBoxLayout()
+            row.addWidget(QtWidgets.QLabel("Start"))
+            row.addWidget(start, 1)
+            row.addWidget(QtWidgets.QLabel("End"))
+            row.addWidget(end, 1)
+            return row
+
+        range_form.addRow("Side A · 0–1", range_pair(self.start_a, self.end_a))
+        range_form.addRow("Side B · 0–1", range_pair(self.start_b, self.end_b))
         detail_layout.addLayout(range_form)
         layout.addWidget(detail)
 

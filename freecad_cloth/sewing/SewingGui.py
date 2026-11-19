@@ -183,30 +183,68 @@ class SewingTaskPanel:
             getattr(self.seam, "Alignment", getattr(obj, "Alignment", "endpoints"))
         )
         self.alignment.setCurrentIndex(max(0, self.alignment.findText(current_alignment)))
-        layout.addRow("Alignment", self.alignment)
-        self.reversed_b = QtWidgets.QCheckBox("Reverse B correspondence")
+        self.reversed_b = QtWidgets.QCheckBox("Reverse B")
+        self.reversed_b.setToolTip(
+            "Reverse side B when mapping points along the paired seam edges."
+        )
         self.reversed_b.setChecked(
             bool(getattr(self.seam, "ReversedB", getattr(obj, "ReversedB", False)))
         )
-        layout.addRow("Orientation", self.reversed_b)
+        alignment_row = QtWidgets.QHBoxLayout()
+        alignment_row.addWidget(self.alignment, 1)
+        alignment_row.addWidget(self.reversed_b)
+        layout.addRow("Alignment", alignment_row)
+
         self.start_a = self._range_spin(float(getattr(self.seam, "StartA", 0.0)))
         self.end_a = self._range_spin(float(getattr(self.seam, "EndA", 1.0)))
         self.start_b = self._range_spin(float(getattr(self.seam, "StartB", 0.0)))
         self.end_b = self._range_spin(float(getattr(self.seam, "EndB", 1.0)))
-        layout.addRow("A range start", self.start_a)
-        layout.addRow("A range end", self.end_a)
-        layout.addRow("B range start", self.start_b)
-        layout.addRow("B range end", self.end_b)
+
+        def range_pair(start, end):
+            """Keep each seam side's normalized start/end values together."""
+            row = QtWidgets.QHBoxLayout()
+            row.addWidget(QtWidgets.QLabel("Start"))
+            row.addWidget(start, 1)
+            row.addWidget(QtWidgets.QLabel("End"))
+            row.addWidget(end, 1)
+            return row
+
+        self.start_a.setToolTip("Side A start along the selected semantic edge (0–1).")
+        self.end_a.setToolTip("Side A end along the selected semantic edge (0–1).")
+        self.start_b.setToolTip("Side B start along the selected semantic edge (0–1).")
+        self.end_b.setToolTip("Side B end along the selected semantic edge (0–1).")
+        layout.addRow("Side A · 0–1", range_pair(self.start_a, self.end_a))
+        layout.addRow("Side B · 0–1", range_pair(self.start_b, self.end_b))
+
         self.tolerance = QtWidgets.QDoubleSpinBox()
         self.tolerance.setRange(0, 99.99)
         self.tolerance.setDecimals(2)
         self.tolerance.setSuffix(" %")
         self.tolerance.setValue(float(getattr(obj, "RelativeTolerance", 0.05)) * 100.0)
-        layout.addRow("Validation tolerance", self.tolerance)
         self.stitches = QtWidgets.QSpinBox()
         self.stitches.setRange(2, 10000)
         self.stitches.setValue(max(2, int(obj.Stitches)))
-        layout.addRow("Stitch samples", self.stitches)
+        precision = QtWidgets.QWidget()
+        precision_layout = QtWidgets.QHBoxLayout(precision)
+        precision_layout.setContentsMargins(0, 0, 0, 0)
+        tolerance_column = QtWidgets.QVBoxLayout()
+        tolerance_column.addWidget(QtWidgets.QLabel("Validation tolerance"))
+        tolerance_column.addWidget(self.tolerance)
+        stitches_column = QtWidgets.QVBoxLayout()
+        stitches_column.addWidget(QtWidgets.QLabel("Stitch samples"))
+        stitches_column.addWidget(self.stitches)
+        precision_layout.addLayout(tolerance_column, 1)
+        precision_layout.addLayout(stitches_column, 1)
+        from freecad_cloth.common.UiDesign import make_disclosure
+
+        precision_section, self.precision_toggle = make_disclosure(
+            "Advanced correspondence",
+            precision,
+            QtCore,
+            QtWidgets,
+            expanded=False,
+        )
+        layout.addRow(precision_section)
         self.status = QtWidgets.QLabel()
         self.status.setWordWrap(True)
         self.action_feedback = QtWidgets.QLabel()
@@ -222,25 +260,32 @@ class SewingTaskPanel:
             "Reset both seam ranges to the complete referenced edges"
         )
         self.reset_ranges_button.clicked.connect(self.reset_ranges)
-        layout.addRow("Ranges", self.reset_ranges_button)
         self.repair_button = QtWidgets.QPushButton("Repair correspondence")
         self.repair_button.setToolTip(
             "Repair reversible/invalid-range correspondence without hiding physical length mismatch"
         )
         self.repair_button.clicked.connect(self.repair)
-        layout.addRow("Repair", self.repair_button)
+        recovery_row = QtWidgets.QHBoxLayout()
+        recovery_row.addWidget(self.reset_ranges_button, 1)
+        recovery_row.addWidget(self.repair_button, 1)
+        layout.addRow("Recovery", recovery_row)
+
         self.focus_3d_button = QtWidgets.QPushButton("Focus seam in 3D")
         self.focus_3d_button.setToolTip(
             "Fit the 3D viewport to this seam while keeping the deterministic seam color"
         )
         self.focus_3d_button.clicked.connect(self.focus_3d)
-        layout.addRow("3D focus", self.focus_3d_button)
-        self.edit_a_button = QtWidgets.QPushButton("Edit side A in Sketcher")
+        layout.addRow("Viewport", self.focus_3d_button)
+        self.edit_a_button = QtWidgets.QPushButton("Edit A")
+        self.edit_a_button.setToolTip("Open the authoritative Sketcher source for seam side A.")
         self.edit_a_button.clicked.connect(lambda: self.edit_sketch_side("A"))
-        layout.addRow("Sketcher A", self.edit_a_button)
-        self.edit_b_button = QtWidgets.QPushButton("Edit side B in Sketcher")
+        self.edit_b_button = QtWidgets.QPushButton("Edit B")
+        self.edit_b_button.setToolTip("Open the authoritative Sketcher source for seam side B.")
         self.edit_b_button.clicked.connect(lambda: self.edit_sketch_side("B"))
-        layout.addRow("Sketcher B", self.edit_b_button)
+        sketch_row = QtWidgets.QHBoxLayout()
+        sketch_row.addWidget(self.edit_a_button, 1)
+        sketch_row.addWidget(self.edit_b_button, 1)
+        layout.addRow("Sketcher", sketch_row)
 
         from freecad_cloth.common.UiDesign import (
             apply_panel_style,
