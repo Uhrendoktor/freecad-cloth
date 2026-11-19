@@ -114,6 +114,10 @@ class PatternExportTaskPanel:
         advanced_layout.setContentsMargins(0, 0, 0, 0)
         advanced_layout.addWidget(QtWidgets.QLabel("Units: mm · Curve samples"))
         advanced_layout.addWidget(self.curve_samples, 1)
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
         from freecad_cloth.common.UiDesign import make_disclosure
 
         self.advanced_section, self.advanced_toggle = make_disclosure(

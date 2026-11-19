@@ -24,6 +24,27 @@ References:
 
 The references converge on a hybrid workflow. A viewport-only measurement tool is quick but poor for a complete measurement specification; a property-only editor is precise but weak for spatial understanding. Cloth should keep both, linked to one canonical value.
 
+### Findings applied across the window audit
+
+- **Avatar Size and Measure:** Marvelous Designer separates size presets, editable/hidden measurement selection, width/height key measures, linked proportions and optional detail measurements. Its Measure tab lists tapes and exposes name, Basic/Surface type, basic/surface lengths, fit-to-avatar, visibility and label visibility. This supports keeping Cloth's canonical measurement fields in the task panel and its handles in the viewport, while reserving custom/free tape creation and tape management for a future separate workflow rather than mixing those concepts into body-size editing. Style3D similarly splits avatar properties from viewport toggles for avatar, arrangement points, skeleton, mesh and measurement lines.
+- **Pattern and sewing:** CLO uses separate 2D pattern and 3D garment windows, with a selection-driven Property Editor. Sewing Lines are selected, moved and resized in the 2D window; precise length entry is available while dragging, while fold/tension/reversal and presentation settings live in the selected seam's property list. Marvelous Designer's Property Editor changes its property set based on the selected object and has distinct Pattern, Sewing, Stitch, Fabric, Avatar and Simulation properties. This supports Cloth's native Sketcher authority, viewport edge picks and one selected seam detail panel. It does not support a separate floating dialog for every selected seam.
+- **Arrangement and fitting:** CLO's Auto 3D Arrangement is a short reviewable wizard with Proceed, stepwise Back/Next inspection and OK, while Smart Arrangement runs from the 3D garment context. Style3D places arrangement handles on the avatar and lets users drag them while exposing joint binding and dimensions in the property editor. Cloth's direct viewport drag is the right default for continuous placement; the task panel should handle target selection, snap state and recovery, and any future multi-piece solver should have a reviewable staged result rather than silently moving the garment.
+- **Simulation:** Style3D starts simulation from its 3D window and distinguishes accurate, normal and CPU simulation modes, with visible simulation status. Marvelous Designer exposes simulation properties through a selection/context-driven property panel. Cloth should put a simple quality preset and target/readiness first, put solver detail behind Expert, and keep Run / Step / Reset close to the viewport rather than requiring users to navigate to a separate configuration window mid-run.
+- **Export:** CLO starts PDF export from File → Export, then shows a format-specific options pop-up; its published AI/PDF import/export guide exposes scale and rotation for PDF. Cloth should keep the destination path beside Browse and show page size/overlap only for PDF; hidden units and low-frequency curve sampling should not consume prominent rows.
+- **Diagnostics and viewport review:** CLO's interface overview separates 3D and 2D working windows, selected-object properties, vertical view toggles and fit-map tools. Style3D exposes simulation status and avatar/mesh overlays from the 3D context. These patterns support explicit orientation/view toggles when the task is a repeatable inspection, while keeping the generic CAD camera controls for normal navigation.
+
+Additional official references:
+- [Marvelous Designer: Avatar Editor, Size/Measure/Arrangement tabs](https://www.marvelousdesigner.com/en-gb/manuals/articles/47358128221337)
+- [Marvelous Designer: Edit Avatar Measurement properties](https://www.marvelousdesigner.com/en-sg/manuals/articles/47358335488537)
+- [Marvelous Designer: Property Editor by selected asset type](https://support.marvelousdesigner.com/hc/en-us/articles/47358318005913-Property-Editor)
+- [CLO: Edit Sewing in the 2D window and property panel](https://support.clo3d.com/hc/en-us/articles/115012380148-Edit-Sewing)
+- [CLO: Edit Sewing property options](https://support.clo3d.com/hc/en-us/articles/115002324608-Edit-Sewing)
+- [CLO: Auto 3D Arrangement review flow](https://support.clo3d.com/hc/en-us/articles/13200837772185-Auto-3D-Arrangement-ver-7-1)
+- [Style3D: Avatar property and 3D viewport controls](https://help.style3d.com/studio/en/c4905/d2d78/313d5)
+- [Style3D: 3D Simulation and Adjustment](https://help.style3d.com/studio/en/c4905/d2d78/19ef3)
+- [CLO: PDF pattern export flow](https://support.clo3d.com/hc/en-us/articles/115004273427-2D-Pattern-AI-PDF-Import-Export)
+- [CLO: interface overview](https://support.clo3d.com/hc/en-us/article_attachments/48293801440281)
+
 ## Global decisions
 
 ### Information hierarchy
@@ -65,7 +86,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Keep in the panel:** piece name; geometry source only when it is genuinely selectable; derived width/height; seam allowance; grainline angle; Edit Sketch; Focus in 3D.
 
-**Layout decision:** keep name and geometry source as full-width rows. Pair width and height in one dimensions row; pair seam allowance and grainline angle only if the panel width allows both numeric controls to remain legible. Keep derived fields visibly identified as “from Sketch” or “from outline”. Never make a greyed-out field look like a broken editable control.
+**Layout decision:** keep name and geometry source as full-width rows. Pair width and height in one Dimensions row, and seam allowance with grainline angle in one Construction row; keep labels attached to the individual fields so compactness does not cost clarity. Keep derived fields visibly identified as “from Sketch” or “from outline”. Never make a greyed-out field look like a broken editable control.
 
 **Viewport:** the panel is appropriate; geometry editing belongs in native Sketcher. Focus should frame the piece without changing orientation where possible. Do not add a custom 3D dimension gizmo for values already owned by Sketcher constraints.
 
@@ -85,7 +106,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Keep in the panel:** source piece identity/status, format, output path, PDF paper size and overlap when PDF is selected. Keep export read-only with respect to the source document.
 
-**Layout decision:** format and source context first; output path + Browse on one row; PDF-only fields in one PDF layout group; curve sampling in Advanced because most exports should not require it. Do not show fixed units as a separate editable-looking field; show “Units: mm” as concise static text. Pair paper size and overlap on the same row when both are visible.
+**Layout decision:** source identity + Focus Source share one row; output path + Browse share one row; PDF-only paper size and overlap are paired and only shown for PDF. Curve sampling is behind Advanced. Show fixed units as static “Units: mm” text, not a read-only input row.
 
 **Viewport:** Focus Source is a convenience, not the core export interaction. Keep it secondary.
 
@@ -115,7 +136,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Keep in the panel:** seam ID and piece A/B identity; alignment; orientation; A start/end; B start/end; length/correspondence validation; stitch sample count. Preserve repair and Sketcher actions.
 
-**Layout decision:** put the four normalized range controls into a compact 2×3 grid (Side, Start, End) or two paired rows (A: Start / End; B: Start / End). Pair tolerance and stitch samples in Advanced. Keep measured lengths and validation message visible without expansion. Group Edit side A and Edit side B together. Repair must remain a clear recovery action, not a second competing primary action.
+**Layout decision:** put normalized range fields into two paired rows (A: Start / End; B: Start / End), matching the Sewing Network editor. Alignment and Reverse B share one row. Tolerance and stitch samples are behind an Advanced correspondence disclosure. Keep measured lengths and validation message visible without expansion. Group Edit side A and Edit side B together. Repair must remain a clear recovery action, not a second competing primary action.
 
 **Viewport:** Focus seam in 3D and side-specific highlights are useful. The viewport is for selection/review; precision correspondence remains in the panel. Do not add numeric handles for normalized seam parameters until they can map to stable Sketcher-edge semantics.
 
@@ -125,7 +146,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Keep in the panel:** filter text, compact seam identity/relationship/validation state, one selected seam, correspondence settings, selected-range editor and Focus Seam.
 
-**Layout decision:** use the list first, selected detail below. Keep the selected seam explicit when filtering; never redirect staged values after sorting/filtering. Do not replace the list with a wide table. Detail controls should reuse the same A/B range row layout as Sewing Operation.
+**Layout decision:** use the list first, selected detail below. Keep the selected seam explicit when filtering; never redirect staged values after sorting/filtering. Do not replace the list with a wide table. Detail controls reuse the same A/B range row layout as Sewing Operation.
 
 **Viewport:** focus/highlight the selected seam. Maintain seam identity and occlusion settings consistently across Pattern, Sewing and Simulation.
 
@@ -232,6 +253,8 @@ The current workbench model mostly supports these stages. Keep cross-workbench e
 - Measurement handles use a three-layer screen-sized marker (light halo, dark rim, semantic centre) so the pick target remains legible on both light and dark mannequin surfaces.
 - Diagnostics provides explicit front/rear/left/right/top/bottom viewport actions, with orientation changes separate from Focus Panels.
 - Diagnostics packs metric + Refresh together and places its two secondary actions on one row rather than spending one full row per button.
+- Sewing Operation and Sewing Network now use matching paired A/B start–end rows; the precision validation/stitch count fields are disclosed as Advanced.
+- Pattern Piece pairs width/height and allowance/grainline fields. Pattern Export pairs its source context and PDF options and keeps advanced curve sampling out of the default form.
 
 ## Validation still required in the host application
 
