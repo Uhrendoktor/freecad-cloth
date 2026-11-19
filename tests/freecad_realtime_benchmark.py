@@ -56,8 +56,8 @@ type _StitchedPairsCallable = Callable[
 ]
 
 
-def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
-    """Build two authored, sewn tunic panels so preview timing covers garment-scale meshes."""
+def _add_outfit_preview_fixture(doc: object, scene: object) -> dict[str, object]:
+    """Build a three-garment, ten-panel outfit with garment-local sewn seams."""
     import Part
     import Sketcher
 
@@ -73,46 +73,33 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
     body_width = float(bounds.XMax - bounds.XMin)
     body_depth = float(bounds.YMax - bounds.YMin)
     body_height = float(bounds.ZMax - bounds.ZMin)
-    panel_width = max(420.0, body_width + 100.0)
-    hem_width = panel_width + 80.0
-    garment_height = max(600.0, body_height * 0.40)
-    hem_z = float(bounds.ZMin) + body_height * 0.28
     center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
     center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
     clearance = max(60.0, 0.75 * body_depth)
+    z_min = float(bounds.ZMin)
     rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
-    neckline_z = 0.90 * garment_height
-    points = (
-        (0.0, 0.0),
-        (hem_width, 0.0),
-        (panel_width, 0.82 * garment_height),
-        (0.86 * panel_width, 0.97 * garment_height),
-        (0.64 * panel_width, neckline_z),
-        (0.36 * panel_width, neckline_z),
-        (0.14 * panel_width, 0.97 * garment_height),
-        (0.0, 0.82 * garment_height),
-    )
 
-    def make_piece(name: str, y: float) -> object:
+    def make_piece(name: str, outline: tuple[tuple[float, float], ...],
+                   x: float, y: float, z: float) -> object:
         sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
         sketch.addGeometry(
             [
                 Part.LineSegment(
-                    App.Vector(points[index][0], points[index][1], 0.0),
+                    App.Vector(outline[index][0], outline[index][1], 0.0),
                     App.Vector(
-                        points[(index + 1) % len(points)][0],
-                        points[(index + 1) % len(points)][1],
+                        outline[(index + 1) % len(outline)][0],
+                        outline[(index + 1) % len(outline)][1],
                         0.0,
                     ),
                 )
-                for index in range(len(points))
+                for index in range(len(outline))
             ],
             False,
         )
         sketch.addConstraint(
             [
-                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
-                for index in range(len(points))
+                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
+                for index in range(len(outline))
             ]
         )
         doc.recompute()
@@ -124,40 +111,188 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
             grainline=0.0,
         )
         piece.Label = name
-        piece.Placement = App.Placement(
-            App.Vector(center_x - hem_width / 2.0, y, hem_z),
-            rotation,
-        )
+        piece.Placement = App.Placement(App.Vector(x, y, z), rotation)
         piece.Sketch.Placement = piece.Placement
         piece.Sketch.ViewObject.Visibility = False
         return piece
 
-    front = make_piece("RealtimeTunicFront", center_y - clearance)
-    back = make_piece("RealtimeTunicBack", center_y + clearance)
-    for edge_a, edge_b, seam_id in (
-        (1, 1, "RealtimeRightSide"),
-        (3, 3, "RealtimeRightShoulder"),
-        (5, 5, "RealtimeLeftShoulder"),
-        (7, 7, "RealtimeLeftSide"),
-    ):
-        add_seam(
+    seams: list[object] = []
+
+    def sew(
+        piece_a: object,
+        edge_a: int,
+        piece_b: object,
+        edge_b: int,
+        seam_id: str,
+        garment: str,
+    ) -> None:
+        seam = add_seam(
             doc,
             Seam(
-                str(front.PieceId),
+                str(piece_a.PieceId),
                 edge_a,
-                str(back.PieceId),
+                str(piece_b.PieceId),
                 edge_b,
                 id=seam_id,
                 alignment="uniform",
-                stitch_group="RealtimePreviewBenchmark",
+                stitch_group=f"Realtime{garment}",
             ),
         )
+        seams.append(seam)
+
+    # T-shirt: front/back bodice plus two sleeves. The four body seams and four
+    # armhole seams stay within this garment's PatternPiece set.
+    tshirt_width = max(420.0, body_width + 100.0)
+    tshirt_hem_width = tshirt_width + 80.0
+    tshirt_height = max(600.0, body_height * 0.40)
+    tshirt_z = z_min + body_height * 0.28
+    neckline_z = 0.90 * tshirt_height
+    tshirt_outline = (
+        (0.0, 0.0),
+        (tshirt_hem_width, 0.0),
+        (tshirt_width, 0.82 * tshirt_height),
+        (0.86 * tshirt_width, 0.97 * tshirt_height),
+        (0.64 * tshirt_width, neckline_z),
+        (0.36 * tshirt_width, neckline_z),
+        (0.14 * tshirt_width, 0.97 * tshirt_height),
+        (0.0, 0.82 * tshirt_height),
+    )
+    tshirt_x = center_x - tshirt_hem_width / 2.0
+    tshirt_front = make_piece(
+        "RealtimeTShirtFront", tshirt_outline, tshirt_x, center_y - clearance, tshirt_z
+    )
+    tshirt_back = make_piece(
+        "RealtimeTShirtBack", tshirt_outline, tshirt_x, center_y + clearance, tshirt_z
+    )
+    armhole_length = math.hypot(0.14 * tshirt_width, 0.15 * tshirt_height)
+    sleeve_depth = max(220.0, body_depth * 1.5)
+    sleeve_outline = (
+        (0.0, 0.0),
+        (armhole_length, 0.0),
+        (armhole_length, sleeve_depth),
+        (0.0, sleeve_depth),
+    )
+    sleeve_z = tshirt_z + 0.72 * tshirt_height
+    sleeve_left = make_piece(
+        "RealtimeTShirtSleeveLeft",
+        sleeve_outline,
+        center_x - tshirt_width / 2.0 - armhole_length,
+        center_y,
+        sleeve_z,
+    )
+    sleeve_right = make_piece(
+        "RealtimeTShirtSleeveRight",
+        sleeve_outline,
+        center_x + tshirt_width / 2.0,
+        center_y,
+        sleeve_z,
+    )
+    for edge_a, edge_b, seam_name in (
+        (1, 1, "TShirtRightSide"),
+        (3, 3, "TShirtRightShoulder"),
+        (5, 5, "TShirtLeftShoulder"),
+        (7, 7, "TShirtLeftSide"),
+    ):
+        sew(tshirt_front, edge_a, tshirt_back, edge_b, seam_name, "TShirt")
+    sew(tshirt_front, 2, sleeve_right, 0, "TShirtRightFrontArmhole", "TShirt")
+    sew(tshirt_back, 6, sleeve_right, 2, "TShirtRightBackArmhole", "TShirt")
+    sew(tshirt_front, 6, sleeve_left, 0, "TShirtLeftFrontArmhole", "TShirt")
+    sew(tshirt_back, 2, sleeve_left, 2, "TShirtLeftBackArmhole", "TShirt")
+
+    # Trousers: front/back panels for both legs. Side/inseam seams close each
+    # leg tube; the matching front and back crotch edges join the two legs.
+    leg_width = max(180.0, body_width * 0.42)
+    leg_height = max(620.0, body_height * 0.45)
+    leg_outline = (
+        (0.0, 0.0),
+        (leg_width, 0.0),
+        (0.84 * leg_width, 0.54 * leg_height),
+        (0.72 * leg_width, leg_height),
+        (0.0, leg_height),
+    )
+    leg_z = z_min + body_height * 0.06
+    left_x = center_x - leg_width * 0.92
+    right_x = center_x + leg_width * 0.08
+    trousers_front_left = make_piece(
+        "RealtimeTrousersFrontLeft", leg_outline, left_x, center_y - clearance, leg_z
+    )
+    trousers_back_left = make_piece(
+        "RealtimeTrousersBackLeft", leg_outline, left_x, center_y + clearance, leg_z
+    )
+    trousers_front_right = make_piece(
+        "RealtimeTrousersFrontRight", leg_outline, right_x, center_y - clearance, leg_z
+    )
+    trousers_back_right = make_piece(
+        "RealtimeTrousersBackRight", leg_outline, right_x, center_y + clearance, leg_z
+    )
+    for front, back, leg in (
+        (trousers_front_left, trousers_back_left, "Left"),
+        (trousers_front_right, trousers_back_right, "Right"),
+    ):
+        sew(front, 1, back, 1, f"Trousers{leg}Inseam", "Trousers")
+        sew(front, 4, back, 4, f"Trousers{leg}Outseam", "Trousers")
+    sew(
+        trousers_front_left, 3, trousers_front_right, 3,
+        "TrousersFrontCrotch", "Trousers"
+    )
+    sew(
+        trousers_back_left, 3, trousers_back_right, 3,
+        "TrousersBackCrotch", "Trousers"
+    )
+
+    # Hat: two shaped crown halves joined along their four matching crown edges,
+    # leaving the lower opening free.
+    hat_width = max(220.0, body_width * 0.48)
+    hat_height = max(150.0, body_height * 0.13)
+    hat_outline = (
+        (0.0, 0.0),
+        (hat_width, 0.0),
+        (0.86 * hat_width, 0.52 * hat_height),
+        (0.50 * hat_width, hat_height),
+        (0.14 * hat_width, 0.52 * hat_height),
+    )
+    hat_x = center_x - hat_width / 2.0
+    hat_z = z_min + body_height * 0.82
+    hat_front = make_piece(
+        "RealtimeHatFront", hat_outline, hat_x, center_y - clearance, hat_z
+    )
+    hat_back = make_piece(
+        "RealtimeHatBack", hat_outline, hat_x, center_y + clearance, hat_z
+    )
+    for edge in (1, 2, 3, 4):
+        sew(hat_front, edge, hat_back, edge, f"HatCrownPanel{edge}", "Hat")
+
+    doc.recompute()
+    invalid_seams = [
+        str(getattr(seam, "SeamId", "unknown"))
+        for seam in seams
+        if str(getattr(seam, "Status", "")) != "Valid"
+    ]
+    if invalid_seams:
+        msg = f"Realtime outfit fixture has invalid authored seams: {invalid_seams!r}"
+        raise RuntimeError(msg)
+
+    pieces = [
+        tshirt_front, tshirt_back, sleeve_left, sleeve_right,
+        trousers_front_left, trousers_back_left, trousers_front_right, trousers_back_right,
+        hat_front, hat_back,
+    ]
     Gui.Selection.clearSelection()
     scene.PinMode = "None"
     scene.PinSelection = []
-    scene.ClothPieces = [front, back]
+    scene.ClothPieces = pieces
     scene.StartHeight = 0.0
     scene.TimeStep = 1.0 / 60.0
+    return {
+        "garment_count": 3,
+        "panel_count": len(pieces),
+        "seam_count": len(seams),
+        "garments": {
+            "tshirt": {"panel_count": 4, "seam_count": 8},
+            "trousers": {"panel_count": 4, "seam_count": 6},
+            "hat": {"panel_count": 2, "seam_count": 4},
+        },
+    }
 
 
 def _percentile(values: list[float], fraction: float) -> float | None:
@@ -274,7 +409,7 @@ def main() -> None:
         runpy.run_path(str(init_gui))
         Gui.updateGui()
         scene = create_quality_simulation_scene(doc)
-        _add_tunic_preview_fixture(doc, scene)
+        fixture_metadata = _add_outfit_preview_fixture(doc, scene)
         _prepare(scene)
 
         proxy = scene.Proxy
@@ -559,7 +694,12 @@ def main() -> None:
             "solver_substeps": int(scene.SolverSubsteps),
             "pbd_substeps": int(getattr(backend, "_substeps", 1)),
         }
-        fixture_pass = particle_count >= 100 and len(panels) == 2 and collision_triangles > 0
+        fixture_pass = (
+            particle_count >= 100
+            and len(panels) == int(fixture_metadata["panel_count"])
+            and int(fixture_metadata["seam_count"]) == 18
+            and collision_triangles > 0
+        )
         profile_pass = (
             profile["quality_preset"] == "Fast"
             and profile["particle_distance_mm"] >= 40.0
@@ -630,10 +770,14 @@ def main() -> None:
         result = {
             "schema_version": 1,
             "backend": getattr(backend, "name", "unknown"),
-            "fixture": "two-panel-tunic-pattern",
+            "fixture": "three-garment-outfit",
+            "garment_count": fixture_metadata["garment_count"],
+            "garments": fixture_metadata["garments"],
+            "seam_count": fixture_metadata["seam_count"],
             "particles": particle_count,
             "panel_count": len(panels),
             "collision_triangles": collision_triangles,
+            "cloth_contact_model": "single-aggregated-cloth-model; garment-pair contact not independently validated",
             "publication_mode": "transient-coin3d",
             "target_fps": TARGET_FPS,
             "frame_budget_ms": FRAME_BUDGET_MS,
