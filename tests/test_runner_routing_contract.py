@@ -194,7 +194,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Preserving mainline simulation viewport tests" in resolver
     assert "Preserving mainline viewport regressions" in resolver
     assert "restoring the exact standalone-script root bootstrap" in resolver
-    assert 'sys.stdout.write("simulation GUI tests passed\\n")' in resolver
+    assert 'sys.stdout.write("simulation GUI tests passed\n")' in resolver
     assert "Expected already-cleaned test bootstrap state before restoration." in resolver
     assert (
         '[[ "$conflicts" == "freecad_cloth/simulation/SimulationQualityRuntime.py" ]]' in resolver
@@ -242,9 +242,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
     assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
     assert "{missing!r}" in resolver
-    assert 'arc_dataclass = "@dataclass\\nclass _NativeArcPoint:"' in resolver
+    assert 'arc_dataclass = "@dataclass\nclass _NativeArcPoint:"' in resolver
     assert "blank_line_count = marker_index - prefix_start - 1" in resolver
-    assert 'tunic = tunic[:prefix_start] + "\\n\\n\\n" + tunic[marker_index:]' in resolver
+    assert 'tunic = tunic[:prefix_start] + "\n\n\n" + tunic[marker_index:]' in resolver
     assert "old_typechecking = (" in resolver
     assert "formatted_typechecking = (" in resolver
     assert "nested_rows = (" in resolver
@@ -410,7 +410,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "seam: SeamFeatureProtocol" in resolver
     assert "DocumentTransactionProtocol, SeamFeatureProtocol" in resolver
     assert (
-        "freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py"
+        "freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py"
         in resolver
     )
     assert "seam: SeamFeatureProtocol" in resolver
