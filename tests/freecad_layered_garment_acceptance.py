@@ -55,6 +55,8 @@ MINIMUM_SEAMS = 16
 MINIMUM_CONTACTS = 1
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
+SKIRT_HEM_FLARE_MM = 65.0
+SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM = 6.0
 
 
 def _log(message: str) -> None:
@@ -792,7 +794,7 @@ def run_acceptance() -> None:
             *rotations,
             center_x,
             center_y,
-            hem_flare_mm=65.0,
+            hem_flare_mm=SKIRT_HEM_FLARE_MM,
         )
         skirt_seams = _sew_ring(doc, "Skirt", skirt)
 
@@ -855,7 +857,7 @@ def run_acceptance() -> None:
             )
             + 28.0
         )
-        shirt_hem_radius_x = (
+        measured_shirt_hem_radius_x = (
             max(
                 0.5 * shoulder_width,
                 max(abs(float(vertex[0]) - center_x) for vertex in shirt_hem_samples),
@@ -870,7 +872,7 @@ def run_acceptance() -> None:
             )
             + 28.0
         )
-        shirt_hem_radius_y = (
+        measured_shirt_hem_radius_y = (
             0.5
             * (
                 max(float(vertex[1]) for vertex in shirt_hem_samples)
@@ -886,19 +888,51 @@ def run_acceptance() -> None:
             min(float(vertex[1]) for vertex in shirt_hem_samples)
             + max(float(vertex[1]) for vertex in shirt_hem_samples)
         )
-        shirt_center_y = 0.5 * (shirt_top_center_y + shirt_hem_center_y)
+        # Keep the source garment shells nested at every shared height. The
+        # shirt hem overlaps the upper skirt by 45 mm and the waistband by
+        # 100 mm; using only the body-fitted radius made both side panels
+        # co-planar at x=+/-248 mm. Start the shirt 6 mm outside the skirt's
+        # interpolated envelope so the 8 mm contact projector has a measurable
+        # clearance deficit to resolve without opposing coincident surfaces.
+        skirt_fraction_at_shirt_hem = (
+            shirt_bottom_z - skirt_bottom_z
+        ) / skirt_height
+        skirt_hem_radius_x = radius_x + SKIRT_HEM_FLARE_MM * (
+            1.0 - skirt_fraction_at_shirt_hem
+        )
+        skirt_hem_radius_y = radius_y + SKIRT_HEM_FLARE_MM * (
+            1.0 - skirt_fraction_at_shirt_hem
+        )
+        shirt_hem_radius_x = max(
+            measured_shirt_hem_radius_x,
+            skirt_hem_radius_x + SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
+        )
+        shirt_hem_radius_y = max(
+            measured_shirt_hem_radius_y,
+            skirt_hem_radius_y + SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
+        )
+        measured_shirt_center_y = 0.5 * (shirt_top_center_y + shirt_hem_center_y)
+        # The shirt's skirt overlap and waistband must share the skirt's measured
+        # centre; a body-derived average centre displaced the side boundaries.
+        shirt_center_y = center_y
         _log(
             "shirt-torso-envelope x_limit_mm=%.3f top_samples=%d hem_samples=%d "
-            "top_radii_mm=(%.3f,%.3f) hem_radii_mm=(%.3f,%.3f) center_y_mm=%.3f"
+            "top_radii_mm=(%.3f,%.3f) measured_hem_radii_mm=(%.3f,%.3f) "
+            "layered_hem_radii_mm=(%.3f,%.3f) center_y_mm=%.3f measured_body_center_y_mm=%.3f "
+            "initial_layer_gap_mm=%.3f"
             % (
                 torso_x_limit,
                 len(shirt_top_samples),
                 len(shirt_hem_samples),
                 shirt_top_radius_x,
                 shirt_top_radius_y,
+                measured_shirt_hem_radius_x,
+                measured_shirt_hem_radius_y,
                 shirt_hem_radius_x,
                 shirt_hem_radius_y,
                 shirt_center_y,
+                measured_shirt_center_y,
+                SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
             )
         )
         shirt = _make_ring(
