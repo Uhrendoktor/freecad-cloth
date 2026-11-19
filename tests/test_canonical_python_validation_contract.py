@@ -399,6 +399,13 @@ def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
     vars(validate_manifests)["_validate_realtime_metrics"](_valid_realtime_benchmark_metrics())
 
 
+def test_outfit_manifest_gate_accepts_multi_garment_realtime_metrics() -> None:
+    """Accept the outfit stress fixture through the shared manifest metadata gate."""
+    vars(validate_manifests)["_validate_realtime_metrics"](
+        _valid_outfit_realtime_benchmark_metrics()
+    )
+
+
 def test_tunic_manifest_gate_rejects_new_schema_above_the_60_fps_budget() -> None:
     """Reject current-schema tunic metrics exceeding the 60 FPS budget."""
     metrics = _valid_realtime_benchmark_metrics()
