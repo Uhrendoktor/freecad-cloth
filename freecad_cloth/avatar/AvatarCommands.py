@@ -123,8 +123,8 @@ class _AvatarFeature(AvatarParametersFeatureProtocol, _AvatarFeatureView, Protoc
 
     Label: str
 
-    @override
     @property
+    @override
     def Document(self) -> _FreeCADDocument:
         """Return the owning document for this persistent avatar feature."""
         ...
@@ -871,7 +871,7 @@ def create_avatar(
 
     app = cast("_FreeCADApplication", App)
 
-    doc = (doc or app.ActiveDocument or _application_new_document(app, "ClothSewing"),)
+    doc = doc or app.ActiveDocument or _application_new_document(app, "ClothSewing")
     obj = _avatar(doc)
     if obj is None:
         obj = _document_add_object(doc, "Mesh::Feature", object_name)
