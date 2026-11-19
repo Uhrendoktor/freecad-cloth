@@ -736,15 +736,17 @@ PY
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]] = []' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows: list[' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'SeamFeatureProtocol' ||
       ! git show HEAD:tests/test_simulation_gui.py | grep -Fq 'test_simulation_scene_selectors_highlight_the_selected_objects_in_3d' ||
       ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))' ||
       ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()' ||
       ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"'; then
-      echo "::error::Refusing the Ruff bulk conflict outside the exact commit and its three verified file states."
+      echo "::error::Refusing Ruff bulk conflict outside exact commit and verified post-typing source states."
       exit 1
     fi
-    echo "::warning::Applying the exact Ruff formatting to topology GUI and tunic tests while restoring the valid mainline simulation test source."
+    echo "::warning::Normalizing the already-typed topology GUI to the exact Ruff output, restoring valid mainline simulation tests, and retaining the native-arc regression."
     git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_tunic_audit_contract.py
     git checkout origin/main -- tests/test_simulation_gui.py
     python3 - <<'PY'
@@ -752,34 +754,61 @@ from pathlib import Path
 
 gui_path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
 gui = gui_path.read_text(encoding="utf-8")
-old_imports = (
-    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+
+old_typechecking = (
+    "if TYPE_CHECKING:\n"
     "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+    "    from types import ModuleType\n\n"
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
 )
-new_imports = (
+formatted_typechecking = (
+    "if TYPE_CHECKING:\n"
+    "    from types import ModuleType\n\n"
     "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
     "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
 )
-if gui.count(old_imports) != 1:
-    raise SystemExit("Expected exactly one topology GUI TYPE_CHECKING import pair for Ruff formatting.")
-gui = gui.replace(old_imports, new_imports, 1)
+if gui.count(old_typechecking) == 1:
+    gui = gui.replace(old_typechecking, formatted_typechecking, 1)
+elif gui.count(formatted_typechecking) != 1:
+    raise SystemExit("Expected one supported topology GUI TYPE_CHECKING block.")
 
-old_rows = (
+nested_rows = (
+    "        self.rows: list[\n"
+    "            tuple[\n"
+    "                SeamFeatureProtocol,\n"
+    "                str,\n"
+    "                _ComboBoxProtocol,\n"
+    "                _QT_TYPE_QtWidgets.QPushButton,\n"
+    "            ]\n"
+    "        ] = []\n"
+)
+flat_rows = (
     "        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, "
     "_QT_TYPE_QtWidgets.QPushButton]] = []\n"
 )
-new_rows = (
+formatted_rows = (
     "        self.rows: list[\n"
     "            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]\n"
     "        ] = []\n"
 )
-if gui.count(old_rows) != 1:
-    raise SystemExit("Expected exactly one long four-column repair-row annotation for Ruff formatting.")
-gui = gui.replace(old_rows, new_rows, 1)
-if old_imports in gui or old_rows in gui or "class _TopologyRepairViewportPicker:" not in gui:
-    raise SystemExit("Topology GUI Ruff transform did not preserve the viewport picker.")
-if "self.rows.append((seam, side, combo, pick_button))" not in gui:
-    raise SystemExit("Four-field mainline repair rows were lost.")
+if gui.count(nested_rows) == 1:
+    gui = gui.replace(nested_rows, formatted_rows, 1)
+elif gui.count(flat_rows) == 1:
+    gui = gui.replace(flat_rows, formatted_rows, 1)
+elif gui.count(formatted_rows) != 1:
+    raise SystemExit("Expected one supported typed four-column topology GUI row annotation.")
+
+if gui.count(formatted_typechecking) != 1 or gui.count(formatted_rows) != 1:
+    raise SystemExit("Topology GUI Ruff normalization did not produce the exact expected imports/rows.")
+for marker in (
+    "class _ComboBoxProtocol(Protocol):",
+    "class _TopologyRepairViewportPicker:",
+    "self.rows.append((seam, side, combo, pick_button))",
+    "def _begin_viewport_pick(",
+    "def _cancel_viewport_pick(",
+):
+    if marker not in gui:
+        raise SystemExit(f"Mainline topology GUI behavior was lost: {marker}")
 gui_path.write_text(gui, encoding="utf-8")
 
 sim_path = Path("tests/test_simulation_gui.py")
@@ -797,16 +826,17 @@ old_boundary = (
     '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
     "@dataclass\n"
 )
-new_boundary = (
+formatted_boundary = (
     '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
     "\n\n"
     "@dataclass\n"
 )
-if tunic.count(old_boundary) != 1:
-    raise SystemExit("Expected exactly one native-arc dataclass boundary for Ruff blank-line formatting.")
-tunic = tunic.replace(old_boundary, new_boundary, 1)
-if old_boundary in tunic or tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
-    raise SystemExit("Tunic native-arc Ruff formatting did not preserve one dataclass declaration.")
+if tunic.count(old_boundary) == 1:
+    tunic = tunic.replace(old_boundary, formatted_boundary, 1)
+elif tunic.count(formatted_boundary) != 1:
+    raise SystemExit("Expected one supported tunic audit/native-arc dataclass boundary.")
+if tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
+    raise SystemExit("Tunic native-arc formatting must retain exactly one dataclass.")
 if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in tunic:
     raise SystemExit("The previously transplanted native-arc regression test was lost.")
 tunic_path.write_text(tunic, encoding="utf-8")

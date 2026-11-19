@@ -164,6 +164,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
     assert "{missing!r}" in resolver
     assert "native-arc Ruff formatting did not preserve one dataclass declaration." in resolver
+    assert "old_typechecking = (" in resolver
+    assert "formatted_typechecking = (" in resolver
+    assert "nested_rows = (" in resolver
+    assert "formatted_rows = (" in resolver
+    assert "Expected one supported topology GUI TYPE_CHECKING block." in resolver
+    assert "Expected one supported typed four-column topology GUI row annotation." in resolver
+    assert "Normalizing the already-typed topology GUI to the exact Ruff output" in resolver
     subprocess.run(
         ["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],
         check=True,
