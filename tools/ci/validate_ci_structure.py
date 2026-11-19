@@ -407,8 +407,14 @@ def _validate_python_quality_contracts(text: str) -> None:
             "canonical workflow must run Ruff over every tracked Python file: "
             + ", ".join(missing_ruff)
         )
-    base_ref = os.environ.get("BASE_REF") or os.environ.get("GITHUB_BASE_REF")
-    added_modules = added_production_python_modules(base_ref) if base_ref else ()
+    base_ref = os.environ.get("BASE_REF")
+    if base_ref is None or len(base_ref) == 0:
+        base_ref = os.environ.get("GITHUB_BASE_REF")
+    added_modules = (
+        added_production_python_modules(base_ref)
+        if base_ref is not None and len(base_ref) > 0
+        else ()
+    )
     coverage_violations = pyright_coverage_contract_violations(
         PYRIGHT_CONFIG.read_text(encoding="utf-8"), added_modules
     )

@@ -396,7 +396,7 @@ def write_ruff_autofix_patch(patch_text: str) -> Path:
         OSError: If the patch file cannot be created or written.
     """
     configured_path = os.environ.get("RUFF_AUTOFIX_PATCH_PATH")
-    if not configured_path:
+    if configured_path is None or len(configured_path) == 0:
         msg = "RUFF_AUTOFIX_PATCH_PATH must identify the container-to-host patch handoff."
         raise RuntimeError(msg)
     patch_path = Path(configured_path)
@@ -439,9 +439,9 @@ def _run_repository_ruff_autofix() -> int:
                 timeout=command.timeout_seconds,
             ),
         )
-        if result.stdout:
+        if result.stdout is not None and bool(result.stdout):
             sys.stdout.write(result.stdout)
-        if result.stderr:
+        if result.stderr is not None and bool(result.stderr):
             sys.stderr.write(result.stderr)
         sys.stdout.write(f"ruff-autofix-exit-code={result.returncode}\n")
         sys.stdout.write("::endgroup::\n")
