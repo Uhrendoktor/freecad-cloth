@@ -123,10 +123,12 @@ class _AvatarPanel(Protocol):
     App: _DimensionApplication
     Gui: _DimensionGui
     avatar: FreeCADDocumentObjectProtocol | None
+
     @property
     def _boxes(self) -> Mapping[str, _MeasurementBox]:
         """Return the staged measurement controls used by dimension handles."""
         ...
+
     status: _StatusWidget
 
     def _staged_parameters(self) -> AvatarParameters:
