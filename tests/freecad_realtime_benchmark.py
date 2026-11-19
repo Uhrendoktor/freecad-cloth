@@ -179,6 +179,25 @@ def _make_pattern_piece_from_outline(
     return piece
 
 
+def _avatar_preview_dimensions(
+    scene: _RealtimeSimulationScene,
+) -> tuple[float, float, float, float, float, float]:
+    """Return avatar width, depth, height, center coordinates, and base height."""
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
+    if avatar is None or not hasattr(avatar, "Mesh"):
+        msg = "Realtime preview fixture requires the production avatar mesh"
+        raise RuntimeError(msg)
+    bounds = avatar.Mesh.BoundBox
+    return (
+        float(bounds.XMax - bounds.XMin),
+        float(bounds.YMax - bounds.YMin),
+        float(bounds.ZMax - bounds.ZMin),
+        0.5 * (float(bounds.XMin) + float(bounds.XMax)),
+        0.5 * (float(bounds.YMin) + float(bounds.YMax)),
+        float(bounds.ZMin),
+    )
+
+
 def _add_outfit_preview_fixture(
     doc: SimulationDocument, scene: _RealtimeSimulationScene
 ) -> _OutfitFixtureMetrics:
@@ -186,18 +205,10 @@ def _add_outfit_preview_fixture(
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
-    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
-    if avatar is None or not hasattr(avatar, "Mesh"):
-        msg = "Realtime preview fixture requires the production avatar mesh"
-        raise RuntimeError(msg)
-    bounds = avatar.Mesh.BoundBox
-    body_width = float(bounds.XMax - bounds.XMin)
-    body_depth = float(bounds.YMax - bounds.YMin)
-    body_height = float(bounds.ZMax - bounds.ZMin)
-    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
-    center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
+    body_width, body_depth, body_height, center_x, center_y, z_min = (
+        _avatar_preview_dimensions(scene)
+    )
     clearance = max(60.0, 0.75 * body_depth)
-    z_min = float(bounds.ZMin)
 
     def make_piece(
         name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
@@ -390,20 +401,13 @@ def _add_tunic_preview_fixture(
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
-    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
-    if avatar is None or not hasattr(avatar, "Mesh"):
-        msg = "Realtime preview fixture requires the production avatar mesh"
-        raise RuntimeError(msg)
-    bounds = avatar.Mesh.BoundBox
-    body_width = float(bounds.XMax - bounds.XMin)
-    body_depth = float(bounds.YMax - bounds.YMin)
-    body_height = float(bounds.ZMax - bounds.ZMin)
+    body_width, body_depth, body_height, center_x, center_y, z_min = (
+        _avatar_preview_dimensions(scene)
+    )
     panel_width = max(420.0, body_width + 100.0)
     hem_width = panel_width + 80.0
     garment_height = max(600.0, body_height * 0.40)
-    hem_z = float(bounds.ZMin) + body_height * 0.28
-    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
-    center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
+    hem_z = z_min + body_height * 0.28
     clearance = max(60.0, 0.75 * body_depth)
     neckline_z = 0.90 * garment_height
     points = (
