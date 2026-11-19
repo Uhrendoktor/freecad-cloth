@@ -28,6 +28,95 @@ def _cube_surface() -> CollisionSurface:
     return CollisionSurface(vertices, triangles, thickness=0.0).validate()
 
 
+def _concave_l_prism_surface() -> CollisionSurface:
+    """Build a closed L-shaped prism with a concave corner."""
+    polygon = ((0.0, 0.0), (3.0, 0.0), (3.0, 1.0), (1.0, 1.0), (1.0, 3.0), (0.0, 3.0))
+    vertices = tuple((x, y, z) for z in (0.0, 1.0) for x, y in polygon)
+    cap_triangles = ((0, 1, 3), (1, 2, 3), (0, 3, 5), (3, 4, 5))
+    triangles = []
+    for a, b, c in cap_triangles:
+        triangles.append((c, b, a))
+        triangles.append((a + 6, b + 6, c + 6))
+    for index in range(6):
+        next_index = (index + 1) % 6
+        triangles.extend(
+            (
+                (index, next_index, next_index + 6),
+                (index, next_index + 6, index + 6),
+            )
+        )
+    return CollisionSurface(vertices, tuple(triangles), thickness=0.0).validate()
+
+
+def test_exact_nearest_surface_search_uses_bounded_triangle_candidates() -> None:
+    """KD-tree bounds must retain the exhaustive nearest point while reducing faces."""
+    import trimesh
+
+    mesh = trimesh.creation.icosphere(subdivisions=3, radius=50.0)
+    surface = CollisionSurface(
+        tuple(tuple(float(value) for value in point) for point in mesh.vertices),
+        tuple(tuple(int(value) for value in face) for face in mesh.faces),
+        thickness=0.0,
+    ).validate()
+    projector = MeshCollisionProjector(surface, clearance_mm=1.0)
+    query = np.asarray((0.0, 0.0, 42.0), dtype=np.float64)
+
+    actual_point, actual_normal = projector._nearest_surface_point(query)
+    candidate_count = projector._last_nearest_candidate_count
+    all_indices = np.arange(len(surface.triangles), dtype=np.int64)
+    all_points, all_distances = projector._closest_points_on_triangles(query, all_indices)
+    expected_point = all_points[int(np.argmin(all_distances))]
+
+    assert np.allclose(actual_point, expected_point, atol=1e-9)
+    assert np.isclose(np.linalg.norm(actual_normal), 1.0)
+    assert 0 < candidate_count < len(surface.triangles) // 10
+
+
+def test_projector_escapes_concave_interior_contacts_with_exact_surface_search() -> None:
+    """A local face normal at a concave corner must not push an interior point deeper."""
+    surface = _concave_l_prism_surface()
+    projector = MeshCollisionProjector(surface, clearance_mm=0.1, candidate_count=2)
+    point = np.asarray(((0.70232323, 0.97323232, 0.66333333),), dtype=np.float64)
+
+    assert points_inside_closed_mesh(
+        (tuple(point[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+    )[0]
+
+    projected, normals = projector.project(point)
+
+    assert np.allclose(np.linalg.norm(normals, axis=1), 1.0)
+    assert not points_inside_closed_mesh(
+        (tuple(projected[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+    )[0]
+
+
+def test_projector_checks_in_bounds_points_rejected_by_local_candidate_search() -> None:
+    """Closed-mesh containment must rescue an interior point outside the local search radius."""
+    surface = _cube_surface()
+    projector = MeshCollisionProjector(surface, clearance_mm=1.0)
+    projector._normals *= -1.0
+    projector._search_radius_mm = 0.0
+    point = np.asarray(((50.0, 50.0, 50.0),), dtype=np.float64)
+
+    projected, normals = projector.project(point)
+
+    assert np.linalg.norm(projected[0] - point[0]) > 1.0
+    assert np.isclose(np.linalg.norm(normals[0]), 1.0)
+    assert not points_inside_closed_mesh(
+        (tuple(float(value) for value in projected[0]),),
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+        chunk_size=1,
+    )[0]
+
+
 def test_projector_moves_inside_points_outside_closed_surface() -> None:
     surface = _cube_surface()
     projector = MeshCollisionProjector(surface, clearance_mm=1.0)

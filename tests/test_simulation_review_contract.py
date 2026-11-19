@@ -21,12 +21,12 @@ def test_review_protocol_and_templates_exist() -> None:
         message="The canonical workflow must expose the PR simulation-evidence publisher.",
     )
     require(
-        condition="needs: [agent-quality, gui-tunic-visual]" in workflow,
-        message="PR simulation evidence must depend on static checks and the tunic visual audit.",
+        condition="needs: [agent-quality, gui-simple]" in workflow,
+        message="PR simulation evidence must depend on static checks and the GUI acceptance matrix, including layered-outfit.",
     )
     require(
-        condition="needs.gui-tunic-visual.result == 'success'" in workflow,
-        message="Evidence publication must require a successful tunic visual audit.",
+        condition="needs.gui-simple.result == 'success'" in workflow,
+        message="Evidence publication must require successful GUI acceptance, including layered-outfit.",
     )
     require(
         condition="github.event_name == 'pull_request'" in workflow,
@@ -43,12 +43,12 @@ def test_review_protocol_and_templates_exist() -> None:
         message="Evidence must be attributed to the exact pull-request head SHA.",
     )
     require(
-        condition="Download PR simulation artifact" in publisher,
+        condition="Download PR layered-outfit artifact" in publisher,
         message="The shared publisher must retrieve the PR simulation artifact.",
     )
     require(
-        condition="tunic-visual-audit" in publisher,
-        message="The publisher must identify the source tunic visual audit.",
+        condition="name: layered-outfit-acceptance" in publisher,
+        message="The publisher must identify the layered-outfit acceptance artifact.",
     )
     require(
         condition="python3 tools/ci/publish_pr_simulation_evidence.py" in publisher,

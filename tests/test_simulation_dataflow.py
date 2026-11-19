@@ -14,6 +14,7 @@ from freecad_cloth.simulation.PatternSimulationAdapter import resolve_simulation
 from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 from tests.support.assertions import require
 from tests.support.pattern_edge_reference import edge_reference_signature as _edge_reference
+from tests.support.simulation_quality import inter_cloth_quality_defaults
 
 if TYPE_CHECKING:
     from pytest import MonkeyPatch
@@ -257,6 +258,13 @@ class _Scene:
     SolverIterations: int
     SolverSubsteps: int
     PinMode: str
+    GarmentGroups: list[str]
+    InterClothClearance: float
+    InterClothContactCount: int
+    InterClothRemainingContactCount: int
+    InterClothCorrectedParticleCount: int
+    InterClothMaxPenetration: float
+    InterClothResidualPenetration: float
     FabricDensity: float
     FabricThickness: float
     FabricStretch: float
@@ -287,6 +295,8 @@ class _Scene:
         self.SolverIterations = DEFAULT_SOLVER_ITERATIONS
         self.SolverSubsteps = DEFAULT_SOLVER_SUBSTEPS
         self.PinMode = "Automatic"
+        for property_name, default_value in inter_cloth_quality_defaults().items():
+            setattr(self, property_name, default_value)
         self.FabricDensity = DEFAULT_FABRIC_DENSITY
         self.FabricThickness = DEFAULT_FABRIC_THICKNESS_MM
         self.FabricStretch = DEFAULT_FABRIC_STRETCH
