@@ -1,5 +1,7 @@
 # Cloth UI style guide
 
+For the window-by-window competitor study, current workflow audit and product decisions, see the [UI/UX review](UI_UX_REVIEW.md).
+
 ## Product intent
 
 **Cloth should feel like a focused garment workspace inside FreeCAD—not a separate application wearing a FreeCAD skin.** Keep FreeCAD's host theme, selection conventions, task-panel placement, document model, and native Sketcher workflow. Make interactions within those boundaries more intentional, readable, and feedback-rich.

@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Focused behavior checks for the diagnostics task-panel frontend."""
 
+from __future__ import annotations
+
 from collections.abc import Callable
 from types import ModuleType
 from typing import NoReturn, cast
@@ -92,8 +94,11 @@ class _Layout:
     def __init__(self, *_args: _Widget) -> None:
         self.widgets: list[_Widget] = []
 
-    def addWidget(self, widget: _Widget) -> None:
+    def addWidget(self, widget: _Widget, *_args: int) -> None:
         self.widgets.append(widget)
+
+    def addLayout(self, _layout: _Layout) -> None:
+        return None
 
     def addStretch(self, _stretch: int = 0) -> None:
         return None
@@ -118,6 +123,8 @@ def _install_panel_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     for name, value in (
         ("QWidget", _Widget),
         ("QVBoxLayout", _Layout),
+        ("QHBoxLayout", _Layout),
+        ("QGridLayout", _Layout),
         ("QGroupBox", _Widget),
         ("QComboBox", _ComboBox),
         ("QLabel", _Widget),
@@ -222,3 +229,60 @@ def test_focus_panels_selects_sources_and_frames_view_without_reorienting(
     assert calls == [("clear",), ("select", panel_a), ("select", panel_b), ("fit",)]
     assert status.text.startswith("Selected and framed 2 source cloth panel(s)")
     assert status.properties["clothState"] == "success"
+
+
+def test_standard_view_buttons_call_the_matching_freecad_view_method(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provide six compact orthographic inspection actions without changing selection."""
+    from types import SimpleNamespace
+
+    calls: list[str] = []
+    view = SimpleNamespace(
+        viewFront=lambda: calls.append("front"),
+        viewRear=lambda: calls.append("rear"),
+        viewLeft=lambda: calls.append("left"),
+        viewRight=lambda: calls.append("right"),
+        viewTop=lambda: calls.append("top"),
+        viewBottom=lambda: calls.append("bottom"),
+    )
+    gui = SimpleNamespace(activeDocument=lambda: SimpleNamespace(activeView=lambda: view))
+    monkeypatch.setattr(
+        ClothDiagnosticsGui,
+        "_qt",
+        lambda: (cast("ModuleType", object()), gui, cast("ModuleType", object())),
+    )
+    status = _Widget()
+    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel.__new__(
+        ClothDiagnosticsGui.DiagnosticsTaskPanel
+    )
+    panel.status = status
+
+    for orientation in ("front", "rear", "left", "right", "top", "bottom"):
+        assert panel.set_standard_view(orientation) is True
+
+    assert calls == ["front", "rear", "left", "right", "top", "bottom"]
+    assert status.text == "3D view set to bottom."
+    assert status.properties["clothState"] == "success"
+
+
+def test_standard_view_rejects_unknown_orientation_without_touching_view(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reject invalid orientation names instead of constructing arbitrary API calls."""
+    from types import SimpleNamespace
+
+    gui = SimpleNamespace(activeDocument=lambda: SimpleNamespace(activeView=lambda: object()))
+    monkeypatch.setattr(
+        ClothDiagnosticsGui,
+        "_qt",
+        lambda: (cast("ModuleType", object()), gui, cast("ModuleType", object())),
+    )
+    status = _Widget()
+    panel = ClothDiagnosticsGui.DiagnosticsTaskPanel.__new__(
+        ClothDiagnosticsGui.DiagnosticsTaskPanel
+    )
+    panel.status = status
+
+    assert panel.set_standard_view("diagonal") is False
+    assert status.properties["clothState"] == "error"
