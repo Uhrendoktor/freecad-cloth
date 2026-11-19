@@ -184,12 +184,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Expected one supported topology GUI TYPE_CHECKING block." in resolver
     assert "Expected one supported typed four-column topology GUI row annotation." in resolver
     assert "Normalizing the already-typed topology GUI to the exact Ruff output" in resolver
-    subprocess.run(
+    syntax_check = subprocess.run(
         ["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert syntax_check.returncode == 0, syntax_check.stderr
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in resolver
     assert "bbd581e2df7ed83509755ef7a32850edd3441f49" in resolver
@@ -209,6 +210,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     loop_done = resolver.index("\ndone\n", fail_closed)
     for handler in (
         "elif [[ \"$conflicts\" == $'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py' ]]",
+        'elif [[ "$conflicts" == $'tests/test_build_visual_gifs.py\ntools/ci/build_visual_gifs.py' ]] && [[ "$(git rev-parse REBASE_HEAD)" == "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" ]]; then',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
         "elif [[ \"$conflicts\" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py' ]]",
