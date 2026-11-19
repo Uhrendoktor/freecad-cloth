@@ -160,7 +160,7 @@ class _PoseRotationFactory(Protocol):
 class _PoseDocument(FreeCADDocumentProtocol, Protocol):
     """Document lifecycle operation used to remove a fallback gizmo object."""
 
-    def removeObject(self, name: str) -> None:
+    def removeObject(self, name: str, /) -> None:
         """Remove a native object by its internal document name."""
         ...
 
@@ -176,10 +176,7 @@ class _PoseAvatarFeature(AvatarParametersFeatureProtocol, Protocol):
 
     AvatarProviderId: str
 
-    @property
-    def Mesh(self) -> NativeAvatarMeshProtocol:
-        """Return the indexed native mannequin mesh."""
-        ...
+    Mesh: NativeAvatarMeshProtocol
 
 
 class _PoseApplication(Protocol):
@@ -284,7 +281,7 @@ class _PoseGuiAdapter:
         return cast("_PoseGuiDocument | None", self._module.activeDocument())
 
 
-def _modules() -> tuple[_PoseApplicationAdapter, _PoseGuiAdapter, ModuleType, ModuleType]:
+def _modules() -> tuple[_PoseApplication, _PoseGui, ModuleType, ModuleType]:
     """Load FreeCAD, GUI, Qt and Coin modules only when Pose Mode is opened.
 
     Returns:
@@ -490,12 +487,12 @@ class SkeletonPoseController:
         dy = by - ay
         length_sq = dx * dx + dy * dy
         if length_sq <= 1e-9:
-            return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+            return math.sqrt((px - ax) ** 2 + (py - ay) ** 2)
         t = ((px - ax) * dx + (py - ay) * dy) / length_sq
         t = max(0.0, min(1.0, t))
         closest_x = ax + t * dx
         closest_y = ay + t * dy
-        return ((px - closest_x) ** 2 + (py - closest_y) ** 2) ** 0.5
+        return math.sqrt((px - closest_x) ** 2 + (py - closest_y) ** 2)
 
     def _build_positions(self) -> None:
         """Recompute screen positions for visible controllable skeleton joints."""
@@ -1655,8 +1652,6 @@ class AvatarPoseTaskPanel:
             if top is None or not top.childCount():
                 continue
             item = top.child(0)
-            if item is None:
-                continue
             self.joints.setCurrentItem(item)
             bone = item.data(0, self.QtCore.Qt.UserRole)
             if bone:

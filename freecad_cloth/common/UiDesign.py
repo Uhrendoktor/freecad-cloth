@@ -50,7 +50,7 @@ class _StyledWidget(Protocol):
         """
         ...
 
-    def setProperty(self, _name: str, _value: str) -> object:
+    def setProperty(self, _name: str, _value: str, /) -> object:
         """Set a dynamic property used by task-panel style selectors.
 
         Args:

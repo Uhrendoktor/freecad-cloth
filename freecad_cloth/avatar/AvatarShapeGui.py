@@ -123,7 +123,10 @@ class _AvatarPanel(Protocol):
     App: _DimensionApplication
     Gui: _DimensionGui
     avatar: FreeCADDocumentObjectProtocol | None
-    _boxes: Mapping[str, _MeasurementBox]
+    @property
+    def _boxes(self) -> Mapping[str, _MeasurementBox]:
+        """Return the staged measurement controls used by dimension handles."""
+        ...
     status: _StatusWidget
 
     def _staged_parameters(self) -> AvatarParameters:
@@ -153,8 +156,8 @@ class AvatarDimensionController:
             panel: Task panel whose staged values are edited by the viewport handles.
         """
         self.panel = panel
-        self.App: _DimensionApplication = cast("_DimensionApplication", panel.App)
-        self.Gui: _DimensionGui = cast("_DimensionGui", panel.Gui)
+        self.App: _DimensionApplication = panel.App
+        self.Gui: _DimensionGui = panel.Gui
         self.view: _DimensionView | None = None
         self.scene_graph: CoinSeparator | None = None
         self.overlay: CoinSeparator | None = None
@@ -361,8 +364,6 @@ class AvatarDimensionController:
         try:
             coin = self._coin()
             overlay = self.overlay
-            if overlay is None:
-                return
             while overlay.getNumChildren() > 1:
                 overlay.removeChild(1)
             from freecad_cloth.shared.ViewportGizmoStyle import (

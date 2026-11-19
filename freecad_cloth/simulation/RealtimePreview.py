@@ -36,7 +36,7 @@ def _sample_p95_ms(samples: Sequence[float]) -> float:
 class _PulseSignal(Protocol):
     """Expose the thread-safe Qt signal used to queue a frame onto the GUI thread."""
 
-    def emit(self, _scheduled_at: float, _emitted_at: float) -> None: ...
+    def emit(self, _scheduled_at: float, _emitted_at: float, /) -> None: ...
 
 
 class _FrameDispatcher(Protocol):

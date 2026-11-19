@@ -1150,7 +1150,11 @@ def set_avatar_provider(
         msg = f"unsupported avatar provider: {provider_id}"
         raise ValueError(msg)
     if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
-        source = source or getattr(obj, "ProviderSource", None)
+        source = (
+            source
+            if source is not None
+            else cast("FreeCADDocumentObjectProtocol | None", getattr(obj, "ProviderSource", None))
+        )
         if source is None or source is obj:
             msg = "a FreeCAD source object is required for the freecad-geometry provider"
             raise ValueError(msg)
