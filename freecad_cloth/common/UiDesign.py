@@ -336,6 +336,30 @@ def _refresh_widget_style(widget: _StyledWidget) -> None:
     widget.update()
 
 
+def make_paired_range_row(
+    start: "_QT_TYPE_QtWidgets.QWidget",
+    end: "_QT_TYPE_QtWidgets.QWidget",
+    qt_widgets: ModuleType,
+) -> "_QT_TYPE_QtWidgets.QHBoxLayout":
+    """Place a normalized start/end pair in one consistent horizontal row.
+
+    Args:
+        start: First editable control in the normalized range pair.
+        end: Second editable control in the normalized range pair.
+        qt_widgets: QtWidgets module providing the horizontal layout and labels.
+
+    Returns:
+        Horizontal layout containing Start, start, End and end in that order.
+    """
+    row = qt_widgets.QHBoxLayout()
+    row.setContentsMargins(0, 0, 0, 0)
+    row.addWidget(qt_widgets.QLabel("Start"))
+    row.addWidget(start, 1)
+    row.addWidget(qt_widgets.QLabel("End"))
+    row.addWidget(end, 1)
+    return row
+
+
 def configure_form_layout(layout: _FormLayout, qt_widgets: ModuleType) -> None:
     """Make form labels and fields adapt to compact task-panel widths.
 

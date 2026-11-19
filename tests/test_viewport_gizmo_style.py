@@ -8,6 +8,12 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
     DIMENSION_GUIDE_COLOR,
     DIMENSION_GUIDE_LINE_WIDTH,
+    DIMENSION_OCCLUDED_COLOR,
+    DIMENSION_OCCLUDED_LINE_PATTERN,
+    DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
+    DIMENSION_OCCLUDED_LINE_WIDTH,
+    DIMENSION_MARKER_HALO_COLOR,
+    DIMENSION_MARKER_OUTLINE_COLOR,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
     RIG_ACTIVE_JOINT_POINT_SIZE,
@@ -77,6 +83,9 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         *POSE_AXIS_COLORS.values(),
         ACTIVE_COLOR,
         DIMENSION_GUIDE_COLOR,
+        DIMENSION_OCCLUDED_COLOR,
+        DIMENSION_MARKER_HALO_COLOR,
+        DIMENSION_MARKER_OUTLINE_COLOR,
         JOINT_COLOR,
         SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
@@ -109,6 +118,13 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Dimension guide line width must be positive."
     )
+    assert DIMENSION_OCCLUDED_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE
+    assert DIMENSION_OCCLUDED_LINE_WIDTH < DIMENSION_GUIDE_LINE_WIDTH
+    assert 0 < DIMENSION_OCCLUDED_LINE_PATTERN < 0xFFFF
+    assert DIMENSION_OCCLUDED_LINE_PATTERN_SCALE >= 1
+    _assert_rgb(DIMENSION_OCCLUDED_COLOR)
+    _assert_rgb(DIMENSION_MARKER_HALO_COLOR)
+    _assert_rgb(DIMENSION_MARKER_OUTLINE_COLOR)
     assert SNAP_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, "Snap line width must be positive."
     assert SNAP_RING_RADIUS > SNAP_CENTER_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Snap ring must surround its center marker."
@@ -143,6 +159,12 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
         "freecad_cloth/avatar/AvatarShapeGui.py": {
             "DIMENSION_GUIDE_COLOR",
             "DIMENSION_GUIDE_LINE_WIDTH",
+            "DIMENSION_OCCLUDED_COLOR",
+            "DIMENSION_OCCLUDED_LINE_PATTERN",
+            "DIMENSION_OCCLUDED_LINE_PATTERN_SCALE",
+            "DIMENSION_OCCLUDED_LINE_WIDTH",
+            "DIMENSION_MARKER_HALO_COLOR",
+            "DIMENSION_MARKER_OUTLINE_COLOR",
         },
         "freecad_cloth/avatar/FittingGui.py": {
             "SNAP_TARGET_COLOR",
