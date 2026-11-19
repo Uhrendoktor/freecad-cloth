@@ -308,6 +308,7 @@ class _CoinModule(Protocol):
     SoTransform: Callable[[], _CoinTransform]
     SoTrackballDragger: Callable[[], _CoinDynamicDragger]
     SbVec3f: Callable[..., _CoinVector3]
+
     @property
     def SbRotation(self) -> Callable[..., _CoinRotation]:
         """Return the native quaternion rotation constructor."""
