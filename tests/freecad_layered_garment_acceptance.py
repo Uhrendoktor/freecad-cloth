@@ -894,15 +894,9 @@ def run_acceptance() -> None:
         # co-planar at x=+/-248 mm. Start the shirt 6 mm outside the skirt's
         # interpolated envelope so the 8 mm contact projector has a measurable
         # clearance deficit to resolve without opposing coincident surfaces.
-        skirt_fraction_at_shirt_hem = (
-            shirt_bottom_z - skirt_bottom_z
-        ) / skirt_height
-        skirt_hem_radius_x = radius_x + SKIRT_HEM_FLARE_MM * (
-            1.0 - skirt_fraction_at_shirt_hem
-        )
-        skirt_hem_radius_y = radius_y + SKIRT_HEM_FLARE_MM * (
-            1.0 - skirt_fraction_at_shirt_hem
-        )
+        skirt_fraction_at_shirt_hem = (shirt_bottom_z - skirt_bottom_z) / skirt_height
+        skirt_hem_radius_x = radius_x + SKIRT_HEM_FLARE_MM * (1.0 - skirt_fraction_at_shirt_hem)
+        skirt_hem_radius_y = radius_y + SKIRT_HEM_FLARE_MM * (1.0 - skirt_fraction_at_shirt_hem)
         shirt_hem_radius_x = max(
             measured_shirt_hem_radius_x,
             skirt_hem_radius_x + SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
