@@ -346,8 +346,7 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     )
     assert "Required pre-merge validation" in merge_workflow
     assert (
-        '("merge-validation.yml", "merge_group", "Required pre-merge validation")'
-        in lookup_helper
+        '("merge-validation.yml", "merge_group", "Required pre-merge validation")' in lookup_helper
     )
     assert '"Full validation (explicit request) / Required validation gate"' in lookup_helper
     assert "No successful full-validation run" in lookup_helper
