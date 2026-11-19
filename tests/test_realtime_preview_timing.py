@@ -151,10 +151,15 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
         def postEvent(receiver: FakeQObject, event: FakeEvent, priority: int) -> None:
             posted.append((receiver, event, priority))
 
+    class FakeEventPriority:
+        """Model the value-backed enum wrapper exposed by PySide6."""
+
+        value = high_priority
+
     class FakeQt:
         """Expose the Qt event priority used by the dispatcher."""
 
-        HighEventPriority = high_priority
+        HighEventPriority = FakeEventPriority()
 
     class FakeQtCore:
         """Supply only the Qt API surface used to create and post frame events."""
