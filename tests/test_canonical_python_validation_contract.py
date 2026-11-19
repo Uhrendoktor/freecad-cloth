@@ -544,10 +544,26 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     realtime_action = (
         ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
     ).read_text(encoding="utf-8")
+    assert realtime_action.count("test-script: tests/freecad_realtime_benchmark.py") == 2, (
+        "canonical CI contract"
+    )
+    assert "CLOTH_REALTIME_FIXTURE=two-panel-tunic-pattern" in realtime_action, (
+        "tunic control fixture contract"
+    )
+    assert "CLOTH_REALTIME_FIXTURE=three-garment-outfit" in realtime_action, (
+        "outfit stress fixture contract"
+    )
     assert (
         "python3 tools/ci/validate_realtime_benchmark.py "
-        "artifacts/freecad-realtime/metrics.json" in realtime_action
-    ), "canonical CI contract"
+        "artifacts/freecad-realtime/control/metrics.json" in realtime_action
+    ), "tunic control validator contract"
+    assert (
+        "python3 tools/ci/validate_realtime_benchmark.py "
+        "artifacts/freecad-realtime/outfit/metrics.json" in realtime_action
+    ), "outfit validator contract"
+    assert "artifact-name: realtime-preview-performance" in realtime_action, (
+        "combined realtime diagnostics artifact contract"
+    )
 
 
 def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
