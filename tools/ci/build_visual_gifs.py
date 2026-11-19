@@ -9,9 +9,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 if __package__:
-    from tools.ci.command_runner import run_command
+    from tools.ci.command_runner import CommandOptions, run_command
 else:
-    from command_runner import run_command
+    from command_runner import CommandOptions, run_command
 
 TURNTABLE_FRAME_COUNT = 73
 
@@ -61,8 +61,7 @@ def build(tool: str, frames: list[Path], output: Path, delay: str, timeout: int 
             "128",
             str(output),
         ],
-        check=True,
-        timeout=timeout,
+        options=CommandOptions(check=True, timeout=timeout),
     )
     if not output.is_file() or not output.stat().st_size:
         msg = f"GIF was not produced: {output}"
