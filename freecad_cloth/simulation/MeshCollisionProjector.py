@@ -49,6 +49,12 @@ class MeshCollisionProjector:
         self._triangles = np.asarray(surface.triangles, dtype=np.int64).reshape((-1, 3))
         self._source_vertices = surface.vertices
         self._source_triangles = surface.triangles
+        from freecad_cloth.simulation.DrapeVisualSanity import _ClosedMeshPointClassifier
+
+        self._inside_classifier = _ClosedMeshPointClassifier(
+            self._source_vertices,
+            self._source_triangles,
+        )
         # Points beyond the mesh AABB expanded by clearance cannot be inside or
         # touching its clearance shell, so they need no nearest-triangle query.
         self._bounds_min = self._vertices.min(axis=0) - self.clearance_mm
@@ -243,33 +249,17 @@ class MeshCollisionProjector:
         if len(points) == 0:
             return np.zeros(0, dtype=bool)
 
-        # Trimesh.contains can degrade to Python ray/triangle intersection work
-        # when an optional spatial-index backend is unavailable in FreeCAD.
-        # The shared NumPy ray-parity path rejects triangle AABBs in vectorized
-        # batches and preserves the exact closed-mesh odd/even classification.
-        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
-
-        query_points: tuple[Point3, ...] = tuple(
-            (float(point[0]), float(point[1]), float(point[2])) for point in points
-        )
+        # The collision mesh is immutable; validate and precompute it once in __init__.
+        # Query arrays arrive from project(), which has already checked shape and finiteness.
         started = perf_counter()
-        inside = np.asarray(
-            points_inside_closed_mesh(
-                query_points,
-                self._source_vertices,
-                self._source_triangles,
-                chunk_size=32,
-                prefer_trimesh=False,
-            ),
-            dtype=bool,
-        )
+        inside = self._inside_classifier.contains_array(points, chunk_size=32)
         if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
             from freecad_cloth.common.Diagnostics import emit_diagnostic
 
             emit_diagnostic(
                 "body-projection-inside-classification "
                 f"points={len(query_points)} inside={int(np.count_nonzero(inside))} "
-                f"method=numpy-ray-parity elapsed_s={perf_counter() - started:.3f}"
+                f"method=cached-numpy-ray-parity elapsed_s={perf_counter() - started:.3f}"
             )
         return inside
 

@@ -5,7 +5,10 @@ import numpy as np
 
 from freecad_cloth.avatar.MeshSanity import orient_closed_triangle_winding
 from freecad_cloth.shared.Collision import CollisionSurface
-from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+from freecad_cloth.simulation.DrapeVisualSanity import (
+    _ClosedMeshPointClassifier,
+    points_inside_closed_mesh,
+)
 from freecad_cloth.simulation.MeshCollisionProjector import (
     MeshCollisionProjector,
     project_stitched_pairs,
@@ -70,6 +73,47 @@ def test_exact_nearest_surface_search_uses_bounded_triangle_candidates() -> None
     assert np.allclose(actual_point, expected_point, atol=1e-9)
     assert np.isclose(np.linalg.norm(actual_normal), 1.0)
     assert 0 < candidate_count < len(surface.triangles) // 10
+
+
+def test_cached_closed_mesh_classifier_matches_public_cube_and_concave_results() -> None:
+    """Cached ray data must retain the public classifier's exact parity results."""
+    surfaces_and_points = (
+        (
+            _cube_surface(),
+            np.asarray(
+                (
+                    (50.0, 50.0, 50.0),
+                    (-1.0, 50.0, 50.0),
+                    (101.0, 50.0, 50.0),
+                ),
+                dtype=np.float64,
+            ),
+        ),
+        (
+            _concave_l_prism_surface(),
+            np.asarray(
+                (
+                    (0.5, 0.5, 0.5),
+                    (2.0, 2.0, 0.5),
+                    (1.5, 1.5, 0.5),
+                ),
+                dtype=np.float64,
+            ),
+        ),
+    )
+    for surface, points in surfaces_and_points:
+        classifier = _ClosedMeshPointClassifier(surface.vertices, surface.triangles)
+        expected = points_inside_closed_mesh(
+            tuple(tuple(float(value) for value in point) for point in points),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+        )
+        first = tuple(bool(value) for value in classifier.contains_array(points))
+        second = tuple(bool(value) for value in classifier.contains_array(points))
+
+        assert first == expected
+        assert second == expected
 
 
 def test_projector_escapes_concave_interior_contacts_with_exact_surface_search() -> None:
