@@ -539,7 +539,7 @@ jobs:
               fi
               error_text="$(cat "${error_file}")"
               rm -f "${error_file}"
-              if [[ ! "${error_text}" =~ (HTTP\ 502|HTTP\ 503|HTTP\ 504|Server\ Error|connection\ reset\ by\ peer|TLS\ handshake\ timeout) ]]; then
+              if [[ ! "${error_text}" =~ (HTTP[[:space:]]+50[234]|Server[[:space:]]Error|Bad[[:space:]]Gateway|connection[[:space:]]reset[[:space:]]by[[:space:]]peer|TLS[[:space:]]handshake[[:space:]]timeout) ]]; then
                 printf "%s\n" "${error_text}" >&2
                 return 1
               fi
@@ -570,7 +570,22 @@ jobs:
                 continue
               }
               run_count="$(printf "%s" "${runs_json}" | jq -r '.workflow_runs | length')"
-              while IFS=
+              while IFS=$'\t' read -r run_id head_sha; do
+                [ -n "${run_id}" ] || continue
+                jobs_json="$(retry_gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")" || continue
+                gate_result="$(printf "%s" "${jobs_json}" | jq --arg gate "${gate_name}" '[.jobs[]? | select(.name == $gate and .conclusion == "success")] | length')" || continue
+                [ "${gate_result}" = "1" ] || continue
+                candidate_tree="$(retry_gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha')" || continue
+                if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+                  printf "%s %s\n" "${run_id}" "${head_sha}"
+                  return 0
+                fi
+              done < <(printf "%s" "${runs_json}" | jq -r '.workflow_runs[]? | [.id, .head_sha] | @tsv')
+              (( run_count < per_page )) && break
+              page=$((page + 1))
+            done
+            return 1
+          }
           # Preferred path: the dedicated merge-queue gate validated this exact tree.
           if matched="$(find_validated_run merge-validation.yml merge_group "Required pre-merge validation")"; then
             read -r run_id head_sha <<< "${matched}"
