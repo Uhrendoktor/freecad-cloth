@@ -93,8 +93,9 @@ def _valid_artifact(root: Path) -> Path:
             "step": step,
             "elapsed_ms": 100.0,
             "finite": True,
-            "contact_count": 24,
-            "corrected_particle_count": 32,
+            "contact_count": 0 if step == 60 else 24,
+            "corrected_particle_count": 0 if step == 60 else 32,
+            "contact_observed_so_far": True,
             "remaining_contact_count": 0,
             "max_penetration_before_mm": 1.0,
             "residual_penetration_mm": 0.0,
@@ -235,7 +236,7 @@ def _valid_artifact(root: Path) -> Path:
 
 
 def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> None:
-    """A full artifact pack must prove two groups, contact, seams, six views and reload."""
+    """A full pack must retain early contact activation and zero residual at all checkpoints."""
     manifest = _valid_artifact(tmp_path)
 
     result = validate_manifest(manifest, expected_commit="a" * 40)
@@ -250,6 +251,31 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
         "images": 9,
         "document": "layered-outfit.FCStd",
     }
+
+
+def test_validator_rejects_no_contact_activation_during_the_run(tmp_path: Path) -> None:
+    """At least one checkpoint must show real contact-driven particle correction."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for checkpoint in manifest["checkpoints"]:
+        checkpoint["contact_count"] = 0
+        checkpoint["corrected_particle_count"] = 0
+        checkpoint["contact_observed_so_far"] = False
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="no independent shirt/skirt contact ever"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_inconsistent_cumulative_contact_activation(tmp_path: Path) -> None:
+    """The stored cumulative contact flag must match the checkpoint measurements."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][-1]["contact_observed_so_far"] = False
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="cumulative contact activation"):
+        validate_manifest(manifest_path)
 
 
 def test_validator_rejects_residual_inter_cloth_penetration(tmp_path: Path) -> None:

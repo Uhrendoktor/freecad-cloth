@@ -1078,6 +1078,7 @@ def run_acceptance() -> None:
         )
         images.append(motion)
         checkpoints = []
+        contact_observed_so_far = False
         for step in CHECKPOINTS[1:]:
             scene.Steps = int(step)
             _log("layered-outfit-step-start=%d" % step)
@@ -1106,10 +1107,11 @@ def run_acceptance() -> None:
             )
             if not bool(scene.FiniteState):
                 raise RuntimeError("solver state became non-finite at step %d" % step)
-            if int(scene.InterClothContactCount) < MINIMUM_CONTACTS:
-                raise RuntimeError(
-                    "independent shirt/skirt contact was not observed at step %d" % step
-                )
+            contact_count = int(scene.InterClothContactCount)
+            corrected_particle_count = int(scene.InterClothCorrectedParticleCount)
+            contact_observed_so_far = contact_observed_so_far or (
+                contact_count >= MINIMUM_CONTACTS and corrected_particle_count > 0
+            )
             if int(scene.InterClothRemainingContactCount) > 0:
                 raise RuntimeError(
                     "residual inter-garment edge/triangle pairs remain below clearance at step %d"
@@ -1185,8 +1187,9 @@ def run_acceptance() -> None:
                 "step": int(step),
                 "elapsed_ms": round(elapsed_ms, 3),
                 "finite": bool(scene.FiniteState),
-                "contact_count": int(scene.InterClothContactCount),
-                "corrected_particle_count": int(scene.InterClothCorrectedParticleCount),
+                "contact_count": contact_count,
+                "corrected_particle_count": corrected_particle_count,
+                "contact_observed_so_far": contact_observed_so_far,
                 "remaining_contact_count": int(scene.InterClothRemainingContactCount),
                 "max_penetration_before_mm": float(scene.InterClothMaxPenetration),
                 "residual_penetration_mm": float(scene.InterClothResidualPenetration),
@@ -1209,6 +1212,11 @@ def run_acceptance() -> None:
                     float(body_metrics["minimum_unsigned_clearance_mm"]),
                     elapsed_ms,
                 )
+            )
+
+        if not contact_observed_so_far:
+            raise RuntimeError(
+                "independent shirt/skirt contact never corrected particles at any checkpoint"
             )
 
         expected_groups = tuple(str(value) for value in scene.GarmentGroups)

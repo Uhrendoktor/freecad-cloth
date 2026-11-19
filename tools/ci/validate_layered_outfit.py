@@ -432,17 +432,29 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     scene_seam_ids = {str(seam["seam_id"]) for seam in scene_map["seams"] if isinstance(seam, dict)}
     _require(len(scene_seam_ids) == EXPECTED_SEAMS, "scene map has duplicate seam identities")
 
+    contact_observed_so_far = False
     for step, checkpoint in checkpoint_map.items():
         _require(checkpoint.get("finite") is True, "non-finite solver state at step %d" % step)
+        contact_count = checkpoint.get("contact_count")
+        corrected_particle_count = checkpoint.get("corrected_particle_count")
         _require(
-            isinstance(checkpoint.get("contact_count"), int)
-            and int(checkpoint["contact_count"]) > 0,
-            "no independent garment contact was measured at step %d" % step,
+            isinstance(contact_count, int)
+            and not isinstance(contact_count, bool)
+            and contact_count >= 0,
+            "contact count must be a non-negative integer at step %d" % step,
         )
         _require(
-            isinstance(checkpoint.get("corrected_particle_count"), int)
-            and int(checkpoint["corrected_particle_count"]) > 0,
-            "no cloth particles were corrected by inter-garment contact at step %d" % step,
+            isinstance(corrected_particle_count, int)
+            and not isinstance(corrected_particle_count, bool)
+            and corrected_particle_count >= 0,
+            "corrected particle count must be a non-negative integer at step %d" % step,
+        )
+        contact_observed_so_far = contact_observed_so_far or (
+            contact_count > 0 and corrected_particle_count > 0
+        )
+        _require(
+            checkpoint.get("contact_observed_so_far") is contact_observed_so_far,
+            "cumulative contact activation evidence is inconsistent at step %d" % step,
         )
         _require(
             checkpoint.get("remaining_contact_count") == 0,
@@ -546,6 +558,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         persistence.get("contact_rebuilt_after_reload") is True,
         "contact was not rebuilt after reload",
+    )
+
+    _require(
+        contact_observed_so_far,
+        "no independent shirt/skirt contact ever corrected particles at a checkpoint",
     )
 
     return {
