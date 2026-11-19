@@ -205,8 +205,8 @@ def _add_outfit_preview_fixture(
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
-    body_width, body_depth, body_height, center_x, center_y, z_min = (
-        _avatar_preview_dimensions(scene)
+    body_width, body_depth, body_height, center_x, center_y, z_min = _avatar_preview_dimensions(
+        scene
     )
     clearance = max(60.0, 0.75 * body_depth)
 
@@ -401,8 +401,8 @@ def _add_tunic_preview_fixture(
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
-    body_width, body_depth, body_height, center_x, center_y, z_min = (
-        _avatar_preview_dimensions(scene)
+    body_width, body_depth, body_height, center_x, center_y, z_min = _avatar_preview_dimensions(
+        scene
     )
     panel_width = max(420.0, body_width + 100.0)
     hem_width = panel_width + 80.0
