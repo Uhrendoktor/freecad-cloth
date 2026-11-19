@@ -611,7 +611,8 @@ PY
     git add freecad_cloth/pattern/PatternTopologyRepair.py
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
-    fi  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]; then
+    fi
+  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" && "$(git rev-parse REBASE_HEAD)" == "bfe0121970b5eae29bfd16be705cfae86c27d636" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "bfe0121970b5eae29bfd16be705cfae86c27d636" ]] ||
       ! git show origin/main:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
@@ -732,7 +733,317 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
-  elif [[ "$conflicts" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py' ]]; then
+  elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]] ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def currentData(self) -> object: ...' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows.append((seam, side, combo, pick_button))' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def __init__(self, doc: object) -> None:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepair.py | grep -Fq 'class DocumentTransactionProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepair.py | grep -Fq 'class SeamFeatureProtocol(Protocol):'; then
+      echo "::error::Refusing structural-protocol GUI conflict outside the exact f7cc commit and verified post-panel source state."
+      exit 1
+    fi
+    echo "::warning::Applying seam-specific and document-specific protocols while preserving the current viewport picker."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+source = path.read_text(encoding="utf-8")
+
+obsolete_feature_import = (
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+)
+if source.count(obsolete_feature_import) != 1:
+    raise SystemExit("Expected exactly one obsolete generic document-feature protocol import.")
+source = source.replace(obsolete_feature_import, "", 1)
+
+old_type_import = (
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+new_type_import = (
+    "    from freecad_cloth.pattern.PatternTopologyRepair import (\n"
+    "        DocumentTransactionProtocol,\n"
+    "        SeamFeatureProtocol,\n"
+    "    )\n"
+)
+if source.count(old_type_import) != 1:
+    raise SystemExit("Expected exactly one seam protocol TYPE_CHECKING import.")
+source = source.replace(old_type_import, new_type_import, 1)
+
+old_combo_protocol = (
+    "class _ComboBoxProtocol(Protocol):\n"
+    "    def addItem(self, text: str, userData: object = None) -> None: ...\n\n"
+    "    def currentData(self) -> object: ...\n"
+)
+new_combo_protocol = (
+    "class _ComboBoxProtocol(Protocol):\n"
+    "    def addItem(self, text: str, userData: str | None = None) -> None: ...\n\n"
+    "    def currentData(self) -> str | None: ...\n\n"
+    "    def findData(self, value: str) -> int: ...\n\n"
+    "    def setCurrentIndex(self, index: int) -> None: ...\n\n"
+    "    def count(self) -> int: ...\n"
+)
+if source.count(old_combo_protocol) != 1:
+    raise SystemExit("Expected exactly one pre-narrowed combo-box protocol.")
+source = source.replace(old_combo_protocol, new_combo_protocol, 1)
+
+old_seam = "seam: FreeCADDocumentObjectProtocol"
+if source.count(old_seam) != 2:
+    raise SystemExit("Expected exactly two seam-object protocol annotations.")
+source = source.replace(old_seam, "seam: SeamFeatureProtocol")
+
+old_doc_init = "    def __init__(self, doc: object) -> None:"
+new_doc_init = "    def __init__(self, doc: DocumentTransactionProtocol) -> None:"
+if source.count(old_doc_init) != 1:
+    raise SystemExit("Expected exactly one document constructor annotation.")
+source = source.replace(old_doc_init, new_doc_init, 1)
+
+old_show = "def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:"
+new_show = (
+    "def show_topology_repair_task("
+    "doc: DocumentTransactionProtocol"
+    ") -> PatternTopologyRepairTaskPanel:"
+)
+if source.count(old_show) != 1:
+    raise SystemExit("Expected exactly one task-panel factory annotation.")
+source = source.replace(old_show, new_show, 1)
+
+for required in (
+    "from freecad_cloth.pattern.PatternTopologyRepair import (",
+    "DocumentTransactionProtocol,",
+    "SeamFeatureProtocol,",
+    "def addItem(self, text: str, userData: str | None = None) -> None: ...",
+    "def currentData(self) -> str | None: ...",
+    "def findData(self, value: str) -> int: ...",
+    "seam: SeamFeatureProtocol",
+    "doc: DocumentTransactionProtocol",
+    "class _TopologyRepairViewportPicker:",
+    "def _begin_viewport_pick(",
+    "def _cancel_viewport_pick(",
+    "self.rows.append((seam, side, combo, pick_button))",
+    "repairs: list[tuple[SeamFeatureProtocol, str, str]] = [",
+    "str(combo.currentData())",
+):
+    if required not in source:
+        raise SystemExit(f"Structural topology GUI protocol transplant incomplete: {required}")
+if "FreeCADDocumentObjectProtocol" in source:
+    raise SystemExit("Obsolete broad document-feature protocol remains in the topology GUI.")
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+  elif [[ "$conflicts" == 
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows: list[' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'SeamFeatureProtocol' ||
+      ! git show HEAD:tests/test_simulation_gui.py | grep -Fq 'test_simulation_scene_selectors_highlight_the_selected_objects_in_3d' ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"'; then
+      echo "::error::Refusing Ruff bulk conflict outside exact commit and verified post-typing source states."
+      exit 1
+    fi
+    echo "::warning::Normalizing the already-typed topology GUI to the exact Ruff output, restoring valid mainline simulation tests, and retaining the native-arc regression."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_tunic_audit_contract.py
+    git checkout origin/main -- tests/test_simulation_gui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+gui_path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+gui = gui_path.read_text(encoding="utf-8")
+
+old_typechecking = (
+    "if TYPE_CHECKING:\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+    "    from types import ModuleType\n\n"
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+)
+formatted_typechecking = (
+    "if TYPE_CHECKING:\n"
+    "    from types import ModuleType\n\n"
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+if gui.count(old_typechecking) == 1:
+    gui = gui.replace(old_typechecking, formatted_typechecking, 1)
+elif gui.count(formatted_typechecking) != 1:
+    raise SystemExit("Expected one supported topology GUI TYPE_CHECKING block.")
+
+nested_rows = (
+    "        self.rows: list[\n"
+    "            tuple[\n"
+    "                SeamFeatureProtocol,\n"
+    "                str,\n"
+    "                _ComboBoxProtocol,\n"
+    "                _QT_TYPE_QtWidgets.QPushButton,\n"
+    "            ]\n"
+    "        ] = []\n"
+)
+flat_rows = (
+    "        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, "
+    "_QT_TYPE_QtWidgets.QPushButton]] = []\n"
+)
+formatted_rows = (
+    "        self.rows: list[\n"
+    "            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]\n"
+    "        ] = []\n"
+)
+if gui.count(nested_rows) == 1:
+    gui = gui.replace(nested_rows, formatted_rows, 1)
+elif gui.count(flat_rows) == 1:
+    gui = gui.replace(flat_rows, formatted_rows, 1)
+elif gui.count(formatted_rows) != 1:
+    raise SystemExit("Expected one supported typed four-column topology GUI row annotation.")
+
+if gui.count(formatted_typechecking) != 1 or gui.count(formatted_rows) != 1:
+    raise SystemExit("Topology GUI Ruff normalization did not produce the exact expected imports/rows.")
+for marker in (
+    "class _ComboBoxProtocol(Protocol):",
+    "class _TopologyRepairViewportPicker:",
+    "self.rows.append((seam, side, combo, pick_button))",
+    "def _begin_viewport_pick(",
+    "def _cancel_viewport_pick(",
+):
+    if marker not in gui:
+        raise SystemExit(f"Mainline topology GUI behavior was lost: {marker}")
+gui_path.write_text(gui, encoding="utf-8")
+
+sim_path = Path("tests/test_simulation_gui.py")
+sim = sim_path.read_text(encoding="utf-8")
+if len(sim.splitlines()) < 150:
+    raise SystemExit("The simulation GUI test source was not restored as a real Python module.")
+if "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" not in sim:
+    raise SystemExit("The valid mainline standalone test bootstrap was not restored.")
+if "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" not in sim:
+    raise SystemExit("The mainline viewport-selection test was not preserved.")
+
+tunic_path = Path("tests/test_tunic_audit_contract.py")
+tunic = tunic_path.read_text(encoding="utf-8")
+arc_dataclass = "@dataclass\nclass _NativeArcPoint:"
+if tunic.count(arc_dataclass) != 1:
+    raise SystemExit("Expected exactly one native-arc point dataclass.")
+marker_index = tunic.index(arc_dataclass)
+prefix_start = marker_index
+while prefix_start > 0 and tunic[prefix_start - 1] == "\n":
+    prefix_start -= 1
+blank_line_count = marker_index - prefix_start - 1
+if blank_line_count == 1:
+    tunic = tunic[:prefix_start] + "\n\n\n" + tunic[marker_index:]
+elif blank_line_count != 2:
+    raise SystemExit("Unexpected blank-line structure before the native-arc point dataclass.")
+if tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
+    raise SystemExit("Tunic native-arc formatting must retain exactly one dataclass.")
+if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in tunic:
+    raise SystemExit("The previously transplanted native-arc regression test was lost.")
+tunic_path.write_text(tunic, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_simulation_gui.py tests/test_tunic_audit_contract.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+  else
+    echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
+    exit 1
+  fi
+done
+freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py' ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]] = []' ||
+      ! git show HEAD:tests/test_simulation_gui.py | grep -Fq 'test_simulation_scene_selectors_highlight_the_selected_objects_in_3d' ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"'; then
+      echo "::error::Refusing the Ruff bulk conflict outside the exact commit and its three verified file states."
+      exit 1
+    fi
+    echo "::warning::Applying the exact Ruff formatting to topology GUI and tunic tests while restoring the valid mainline simulation test source."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_tunic_audit_contract.py
+    git checkout origin/main -- tests/test_simulation_gui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+gui_path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+gui = gui_path.read_text(encoding="utf-8")
+old_imports = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+new_imports = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+if gui.count(old_imports) != 1:
+    raise SystemExit("Expected exactly one topology GUI TYPE_CHECKING import pair for Ruff formatting.")
+gui = gui.replace(old_imports, new_imports, 1)
+
+old_rows = (
+    "        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, "
+    "_QT_TYPE_QtWidgets.QPushButton]] = []\n"
+)
+new_rows = (
+    "        self.rows: list[\n"
+    "            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]\n"
+    "        ] = []\n"
+)
+if gui.count(old_rows) != 1:
+    raise SystemExit("Expected exactly one long four-column repair-row annotation for Ruff formatting.")
+gui = gui.replace(old_rows, new_rows, 1)
+if old_imports in gui or old_rows in gui or "class _TopologyRepairViewportPicker:" not in gui:
+    raise SystemExit("Topology GUI Ruff transform did not preserve the viewport picker.")
+if "self.rows.append((seam, side, combo, pick_button))" not in gui:
+    raise SystemExit("Four-field mainline repair rows were lost.")
+gui_path.write_text(gui, encoding="utf-8")
+
+sim_path = Path("tests/test_simulation_gui.py")
+sim = sim_path.read_text(encoding="utf-8")
+if len(sim.splitlines()) < 150:
+    raise SystemExit("The simulation GUI test source was not restored as a real Python module.")
+if "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" not in sim:
+    raise SystemExit("The valid mainline standalone test bootstrap was not restored.")
+if "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" not in sim:
+    raise SystemExit("The mainline viewport-selection test was not preserved.")
+
+tunic_path = Path("tests/test_tunic_audit_contract.py")
+tunic = tunic_path.read_text(encoding="utf-8")
+old_boundary = (
+    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
+    "@dataclass\n"
+)
+new_boundary = (
+    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
+    "\n\n"
+    "@dataclass\n"
+)
+if tunic.count(old_boundary) != 1:
+    raise SystemExit("Expected exactly one native-arc dataclass boundary for Ruff blank-line formatting.")
+tunic = tunic.replace(old_boundary, new_boundary, 1)
+if old_boundary in tunic or tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
+    raise SystemExit("Tunic native-arc Ruff formatting did not preserve one dataclass declaration.")
+if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in tunic:
+    raise SystemExit("The previously transplanted native-arc regression test was lost.")
+tunic_path.write_text(tunic, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_simulation_gui.py tests/test_tunic_audit_contract.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+  else
+    echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
+    exit 1
+  fi
+done
+freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py' ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
