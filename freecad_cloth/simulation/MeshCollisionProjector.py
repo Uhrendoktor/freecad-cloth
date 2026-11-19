@@ -9,9 +9,8 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
 from time import perf_counter
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import numpy as np
 import numpy.typing as npt
@@ -104,24 +103,6 @@ class MeshCollisionProjector:
         ).max(axis=1)
         self._maximum_triangle_radius_mm = float(self._triangle_radii_mm.max())
         self._last_nearest_candidate_count = 0
-        self._contains_points: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.bool_]] | None = (
-            None
-        )
-        try:
-            import trimesh
-
-            containment_mesh = trimesh.Trimesh(
-                vertices=self._vertices,
-                faces=self._triangles,
-                process=False,
-            )
-            if containment_mesh.is_watertight:
-                self._contains_points = cast(
-                    Callable[[npt.NDArray[np.float64]], npt.NDArray[np.bool_]],
-                    containment_mesh.contains,
-                )
-        except ImportError:
-            pass
         # Target triangles in the packaged humanoid mesh are locally dense and
         # consistently sized. Fast preview uses two nearby faces to limit per-frame
         # work; production draping uses four and remains subject to exact zero-
@@ -261,22 +242,18 @@ class MeshCollisionProjector:
         """
         if len(points) == 0:
             return np.zeros(0, dtype=bool)
-        if self._contains_points is not None:
-            try:
-                inside = np.asarray(self._contains_points(points), dtype=bool)
-            except (ImportError, RuntimeError, ValueError):
-                self._contains_points = None
-            else:
-                if inside.shape == (len(points),):
-                    return inside
-                self._contains_points = None
 
+        # Trimesh.contains can degrade to Python ray/triangle intersection work
+        # when an optional spatial-index backend is unavailable in FreeCAD.
+        # The shared NumPy ray-parity path rejects triangle AABBs in vectorized
+        # batches and preserves the exact closed-mesh odd/even classification.
         from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
         query_points: tuple[Point3, ...] = tuple(
             (float(point[0]), float(point[1]), float(point[2])) for point in points
         )
-        return np.asarray(
+        started = perf_counter()
+        inside = np.asarray(
             points_inside_closed_mesh(
                 query_points,
                 self._source_vertices,
@@ -286,6 +263,15 @@ class MeshCollisionProjector:
             ),
             dtype=bool,
         )
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+            from freecad_cloth.common.Diagnostics import emit_diagnostic
+
+            emit_diagnostic(
+                "body-projection-inside-classification "
+                f"points={len(query_points)} inside={int(np.count_nonzero(inside))} "
+                f"method=numpy-ray-parity elapsed_s={perf_counter() - started:.3f}"
+            )
+        return inside
 
     def _project_inside_points(
         self,
