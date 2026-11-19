@@ -751,15 +751,9 @@ def run_acceptance() -> None:
                         ]
                         for axis in range(3)
                     ],
-                    "hip_slice_max_abs_x_point_mm": [
-                        float(value) for value in hip_x_extreme
-                    ],
-                    "hip_slice_y_min_point_mm": [
-                        float(value) for value in hip_y_minimum
-                    ],
-                    "hip_slice_y_max_point_mm": [
-                        float(value) for value in hip_y_maximum
-                    ],
+                    "hip_slice_max_abs_x_point_mm": [float(value) for value in hip_x_extreme],
+                    "hip_slice_y_min_point_mm": [float(value) for value in hip_y_minimum],
+                    "hip_slice_y_max_point_mm": [float(value) for value in hip_y_maximum],
                     "skirt_radii_mm": [radius_x, radius_y],
                     "skirt_center_y_mm": center_y,
                     "shoulder_width_mm": shoulder_width,
