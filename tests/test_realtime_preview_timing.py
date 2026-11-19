@@ -8,7 +8,11 @@ from typing import Protocol, cast
 import pytest
 
 from freecad_cloth.simulation import RealtimePreview
-from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
+from freecad_cloth.simulation.RealtimePreview import (
+    _FrameClock,
+    _sample_p95_ms,
+    _worker_wakeup_measurement,
+)
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
@@ -64,6 +68,48 @@ def test_frame_clock_preserves_worker_wakeup_for_the_pending_pulse() -> None:
 
     clock.frame_started(10.004, 9.998)
     assert clock.pending_pulse_metrics()["pulse_pending"] == 0
+    clock.stop()
+
+
+def test_worker_wakeup_measurement_separates_overdue_schedule_debt() -> None:
+    """Do not report an already-expired deadline as OS timed-wait overshoot."""
+    wakeup, debt = _worker_wakeup_measurement(0.0, 10.0, 10.4)
+    assert wakeup == pytest.approx(0.0)
+    assert debt == pytest.approx(400.0)
+
+    wakeup, debt = _worker_wakeup_measurement(0.01, 20.0, 20.004)
+    assert wakeup == pytest.approx(4.0)
+    assert debt == pytest.approx(0.0)
+
+
+def test_schedule_debt_does_not_inflate_worker_wakeup_estimate() -> None:
+    """Keep overdue emission debt diagnostic-only instead of feeding it back as wake delay."""
+    emitted: list[tuple[float, float]] = []
+
+    class Pulse:
+        """Capture emitted pulses while the scheduler receives explicit timing components."""
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
+
+    clock = _FrameClock(Pulse(), 60.0)
+    for index in range(120):
+        scheduled_at = 10.0 + index / 60.0
+        emitted_at = scheduled_at - 0.004
+        assert clock.request_frame(
+            scheduled_at,
+            emitted_at,
+            worker_wakeup_lateness_ms=0.0,
+            worker_schedule_debt_ms=400.0 + index,
+        )
+        pending = clock.pending_pulse_metrics()
+        assert pending["worker_wakeup_lateness_ms"] == pytest.approx(0.0)
+        assert pending["worker_schedule_debt_ms"] == pytest.approx(400.0 + index)
+        clock.frame_started(emitted_at + 0.002, emitted_at)
+
+    assert len(emitted) == 120
+    assert clock.snapshot()["worker_wakeup_estimate_ms"] == pytest.approx(0.25)
+    assert clock.worker_wakeup_metrics()["p95_ms"] == pytest.approx(0.0)
     clock.stop()
 
 

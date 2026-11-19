@@ -279,7 +279,11 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
         if value is None or value < 0.0:
             errors.append(f"frame_dispatch_lateness.{key} must be finite and non-negative")
 
-    for metric_name in ("worker_wakeup_lateness", "gui_queue_dispatch_lateness"):
+    for metric_name in (
+        "worker_wakeup_lateness",
+        "worker_schedule_debt",
+        "gui_queue_dispatch_lateness",
+    ):
         component_value = metrics.get(metric_name)
         if not isinstance(component_value, dict):
             errors.append(f"{metric_name} must be a JSON object")
@@ -326,6 +330,7 @@ def _validate_frame_timing_trace(
         "gui_callback_after_dispatch_ms",
         "deadline_lateness_ms",
         "worker_wakeup_lateness_ms",
+        "worker_schedule_debt_ms",
         "callback_duration_ms",
     )
     counter_fields = (

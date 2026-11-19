@@ -33,6 +33,27 @@ def _sample_p95_ms(samples: Sequence[float]) -> float:
     return float(ordered[percentile_index])
 
 
+def _worker_wakeup_measurement(
+    wait_s: float,
+    emission_deadline: float,
+    woke_at: float,
+) -> tuple[float, float]:
+    """Separate actual timed-wait overshoot from an emission deadline already in the past.
+
+    Args:
+        wait_s: Positive timeout requested from the worker event, or zero when already overdue.
+        emission_deadline: Monotonic deadline at which the worker should emit the next pulse.
+        woke_at: Monotonic time immediately after the wait returns.
+
+    Returns:
+        Actual timed-wait overshoot and pre-existing schedule debt, both in milliseconds.
+    """
+    overdue_ms = max(0.0, 1000.0 * (woke_at - emission_deadline))
+    if wait_s > 0.0:
+        return overdue_ms, 0.0
+    return 0.0, overdue_ms
+
+
 class _PulseSignal(Protocol):
     """Expose the thread-safe Qt signal used to queue a frame onto the GUI thread."""
 
@@ -82,6 +103,7 @@ class _FrameClock:
         self._worker_wakeup_lateness_ms: list[float] = []
         self._last_queue_delay_ms = 0.0
         self._last_worker_wakeup_lateness_ms = 0.0
+        self._last_worker_schedule_debt_ms = 0.0
         self.target_fps = float(target_fps)
         self._thread: Thread | None = None
 
@@ -102,6 +124,7 @@ class _FrameClock:
             self._worker_wakeup_lateness_ms.clear()
             self._last_queue_delay_ms = 0.0
             self._last_worker_wakeup_lateness_ms = 0.0
+            self._last_worker_schedule_debt_ms = 0.0
         self._stop_event.clear()
         self._thread = Thread(
             target=self._run,
@@ -143,12 +166,22 @@ class _FrameClock:
             )
             self._condition.notify_all()
 
-    def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
+    def request_frame(
+        self,
+        scheduled_at: float,
+        emitted_at: float | None = None,
+        *,
+        worker_wakeup_lateness_ms: float | None = None,
+        worker_schedule_debt_ms: float = 0.0,
+    ) -> bool:
         """Emit one frame request, refusing a second outstanding GUI event.
 
         Args:
             scheduled_at: Predicted GUI callback deadline.
             emitted_at: Actual worker emission time, or the current time for direct tests.
+            worker_wakeup_lateness_ms: Actual positive timed-wait overshoot, when measured by
+                the worker loop. Direct callers omit this and use the calculated deadline gap.
+            worker_schedule_debt_ms: Gap to an already-expired emission deadline; diagnostic only.
 
         Returns:
             True when a signal was emitted, or False when a previous request is pending.
@@ -157,8 +190,14 @@ class _FrameClock:
         with self._condition:
             emission_lead_ms = self._queue_delay_estimate_ms + self._worker_wakeup_estimate_ms
             emission_deadline = scheduled_at - emission_lead_ms / 1000.0
-            worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
+            calculated_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
+            worker_lateness_ms = (
+                calculated_lateness_ms
+                if worker_wakeup_lateness_ms is None
+                else max(0.0, float(worker_wakeup_lateness_ms))
+            )
             self._last_worker_wakeup_lateness_ms = worker_lateness_ms
+            self._last_worker_schedule_debt_ms = max(0.0, float(worker_schedule_debt_ms))
             self._worker_wakeup_lateness_ms.append(worker_lateness_ms)
             if len(self._worker_wakeup_lateness_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._worker_wakeup_lateness_ms[0]
@@ -215,6 +254,7 @@ class _FrameClock:
         with self._condition:
             return {
                 "worker_wakeup_lateness_ms": self._last_worker_wakeup_lateness_ms,
+                "worker_schedule_debt_ms": self._last_worker_schedule_debt_ms,
                 "missed_deadlines": self._missed_deadlines,
                 "coalesced_pulses": self._coalesced_pulses,
                 "signals_emitted": self._signals_emitted,
@@ -237,11 +277,20 @@ class _FrameClock:
             if self._stop_event.wait(wait_s):
                 return
             now = time.perf_counter()
-            lateness = now - emission_deadline
-            if lateness >= period:
+            wakeup_lateness_ms, schedule_debt_ms = _worker_wakeup_measurement(
+                wait_s,
+                emission_deadline,
+                now,
+            )
+            if wakeup_lateness_ms >= period * 1000.0:
                 with self._condition:
-                    self._missed_deadlines += int(lateness // period)
-            if not self.request_frame(next_deadline, now):
+                    self._missed_deadlines += int(wakeup_lateness_ms // (period * 1000.0))
+            if not self.request_frame(
+                next_deadline,
+                now,
+                worker_wakeup_lateness_ms=wakeup_lateness_ms,
+                worker_schedule_debt_ms=schedule_debt_ms,
+            ):
                 with self._condition:
                     while not self._stop_event.is_set() and self._frame_ack_serial == ack_before:
                         self._condition.wait()

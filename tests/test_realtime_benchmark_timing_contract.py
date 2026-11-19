@@ -21,6 +21,7 @@ def _frame_row() -> JsonObject:
         "gui_callback_after_dispatch_ms": 2.0,
         "deadline_lateness_ms": 1.0,
         "worker_wakeup_lateness_ms": 0.5,
+        "worker_schedule_debt_ms": 0.0,
         "worker_missed_deadlines": 0,
         "worker_coalesced_pulses": 0,
         "worker_signals_emitted": 31,

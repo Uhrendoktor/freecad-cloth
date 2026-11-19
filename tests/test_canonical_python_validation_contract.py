@@ -200,6 +200,7 @@ def _valid_frame_timing_samples() -> list[JsonObject]:
                 "gui_callback_after_dispatch_ms": callback_start - gui_dispatch,
                 "deadline_lateness_ms": 1.0,
                 "worker_wakeup_lateness_ms": 0.5,
+                "worker_schedule_debt_ms": 0.0,
                 "worker_missed_deadlines": 0,
                 "worker_coalesced_pulses": 0,
                 "worker_signals_emitted": 30 + frame_index,
@@ -431,6 +432,8 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "frame_scheduler" in string_constants, "canonical CI contract"
     assert "frame_dispatch_lateness" in string_constants, "canonical CI contract"
     assert "frame_timing_samples" in string_constants, "canonical CI contract"
+    assert "worker_schedule_debt" in string_constants, "canonical CI contract"
+    assert "worker_schedule_debt_ms" in string_constants, "canonical CI contract"
     assert "cgroup_cpu_stat_before" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"

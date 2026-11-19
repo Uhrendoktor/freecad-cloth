@@ -873,6 +873,9 @@ def main() -> None:
                             "worker_wakeup_lateness_ms": float(
                                 pending_pulse_metrics["worker_wakeup_lateness_ms"]
                             ),
+                            "worker_schedule_debt_ms": float(
+                                pending_pulse_metrics["worker_schedule_debt_ms"]
+                            ),
                             "worker_missed_deadlines": int(
                                 pending_pulse_metrics["missed_deadlines"]
                             ),
@@ -1043,6 +1046,9 @@ def main() -> None:
             "frame_timing_samples": frame_timing_samples,
             "frame_scheduler": active_preview.frame_scheduler_metrics(),
             "worker_wakeup_lateness": active_preview.frame_worker_wakeup_metrics(),
+            "worker_schedule_debt": _timing_summary(
+                [float(sample["worker_schedule_debt_ms"]) for sample in frame_timing_samples]
+            ),
             "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
             "gui_queue_dispatch_lateness": _timing_summary(
                 active_preview._gui_queue_dispatch_lateness_ms
