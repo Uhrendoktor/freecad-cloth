@@ -192,6 +192,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in resolver
+    assert "bbd581e2df7ed83509755ef7a32850edd3441f49" in resolver
+    assert "Strict checks and guarded safe Ruff batch" in resolver
+    assert "run_safe_ruff_batch.sh" in resolver
+    assert "[apply-safe-ruff]" in resolver
     assert "Preserving mainline GIF command-runner API and stronger regression test" in resolver
     assert "jobs: list[Future[None]] = []" in resolver
     assert "from concurrent.futures import Future, ThreadPoolExecutor, as_completed" in resolver
@@ -211,6 +215,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
+    workflow_handler = resolver.index("bbd581e2df7ed83509755ef7a32850edd3441f49", loop_start)
+    assert loop_start < workflow_handler < fail_closed
     assert resolver[loop_done + len("\ndone\n") :].strip() == ""
     assert "a59f58d25537de846677f89a7858562cfcfc9672" in resolver
     assert (
