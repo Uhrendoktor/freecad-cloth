@@ -3,6 +3,7 @@
 
 import os
 import re
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -168,8 +169,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         "native-arc Ruff formatting did not preserve one dataclass declaration."
         in resolver
     )
-    assert "fi  elif" not in resolver
-    assert "\n  elif [[ " in resolver
+    subprocess.run(
+        ["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
     assert "Unsupported rebase conflict" in resolver
 
 
