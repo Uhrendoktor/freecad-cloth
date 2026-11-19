@@ -204,10 +204,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     loop_done = resolver.index("\ndone\n", fail_closed)
     for handler in (
-        'elif [[ "$conflicts" == $\'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py\' ]]',
+        "elif [[ \"$conflicts\" == $'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py' ]]",
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
-        'elif [[ "$conflicts" == $\'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py\' ]]',
+        "elif [[ \"$conflicts\" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py' ]]",
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
