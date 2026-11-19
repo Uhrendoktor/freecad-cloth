@@ -179,6 +179,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         capture_output=True,
         text=True,
     )
+    assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
+    assert "SeamFeatureProtocol" in resolver
+    assert "DocumentTransactionProtocol" in resolver
+    assert "def findData(self, value: str) -> int: ..." in resolver
+    assert "Expected exactly two seam-object protocol annotations." in resolver
+    assert "Obsolete broad document-feature protocol remains in the topology GUI." in resolver
+    assert "Refusing structural-protocol GUI conflict outside the exact f7cc commit" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
