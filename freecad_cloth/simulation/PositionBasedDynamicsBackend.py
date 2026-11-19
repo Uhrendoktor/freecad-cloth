@@ -1102,6 +1102,55 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             )
         )
         self._inter_cloth_residual_constraints = constraints
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+            import json
+
+            particle_groups = np.full(len(positions_mm), "", dtype=object)
+            for group_id, group_triangles in self._inter_cloth_groups.items():
+                group_indices = np.unique(
+                    np.asarray(group_triangles, dtype=np.int64).reshape(-1)
+                )
+                particle_groups[group_indices] = str(group_id)
+            source_edges = np.asarray(
+                [item.source_edge for item in constraints], dtype=np.int64
+            ).reshape((-1, 2))
+            target_triangles = np.asarray(
+                [item.target_triangle for item in constraints], dtype=np.int64
+            ).reshape((-1, 3))
+            distances = np.asarray(
+                [item.distance_mm for item in constraints], dtype=np.float64
+            )
+            if len(constraints):
+                source_centres = positions_mm[source_edges].mean(axis=1)
+                target_centres = positions_mm[target_triangles].mean(axis=1)
+                summaries = {}
+                for source_group in sorted(set(particle_groups[source_edges[:, 0]])):
+                    for target_group in sorted(set(particle_groups[target_triangles[:, 0]])):
+                        selected = (
+                            (particle_groups[source_edges[:, 0]] == source_group)
+                            & (particle_groups[target_triangles[:, 0]] == target_group)
+                        )
+                        if not bool(np.any(selected)):
+                            continue
+                        summaries[str(source_group) + "->" + str(target_group)] = {
+                            "count": int(np.count_nonzero(selected)),
+                            "source_z_mm": [
+                                round(float(source_centres[selected, 2].min()), 3),
+                                round(float(source_centres[selected, 2].max()), 3),
+                            ],
+                            "target_z_mm": [
+                                round(float(target_centres[selected, 2].min()), 3),
+                                round(float(target_centres[selected, 2].max()), 3),
+                            ],
+                            "distance_mm": [
+                                round(float(distances[selected].min()), 4),
+                                round(float(distances[selected].max()), 4),
+                            ],
+                        }
+                _emit_diagnostic(
+                    "cloth-pbd-residual-contact-geometry "
+                    + json.dumps(summaries, sort_keys=True)
+                )
         if self._inter_cloth_metrics is None:
             from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
 
@@ -1171,10 +1220,30 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             if aggregate.remaining_contact_count <= 0:
                 break
 
+            _emit_diagnostic(
+                f"cloth-pbd-contact-reconcile-start pass={pass_index + 1} "
+                f"residual={aggregate.remaining_contact_count} "
+                f"maximum_mm={aggregate.max_penetration_after_mm:.4f} "
+                f"constraints={len(self._inter_cloth_residual_constraints)}"
+            )
             correction = self._project_inter_cloth_residual_constraints()
             if correction is None:
                 break
+            particles = self._model.getParticles()
+            before_body_positions = (
+                np.asarray(particles.getVertices(), dtype=np.float64)[:, (0, 2, 1)] * _MM
+            )
             self._project_collision_positions()
+            after_body_positions = (
+                np.asarray(particles.getVertices(), dtype=np.float64)[:, (0, 2, 1)] * _MM
+            )
+            body_movement = np.linalg.norm(after_body_positions - before_body_positions, axis=1)
+            _emit_diagnostic(
+                f"cloth-pbd-contact-reconcile-body pass={pass_index + 1} "
+                f"moved={int(np.count_nonzero(body_movement > 1e-7))} "
+                f"max_delta_mm={float(body_movement.max(initial=0.0)):.4f} "
+                f"mean_delta_mm={float(body_movement.mean()) if len(body_movement) else 0.0:.4f}"
+            )
             self._measure_inter_cloth_residual()
             measured = self._inter_cloth_metrics
             if measured is None:
@@ -1182,7 +1251,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _emit_diagnostic(
                 f"cloth-pbd-contact-reconcile-pass={pass_index + 1} "
                 f"residual={measured.remaining_contact_count} "
-                f"maximum_mm={measured.max_penetration_after_mm:.4f}"
+                f"maximum_mm={measured.max_penetration_after_mm:.4f} "
+                f"constraints={len(self._inter_cloth_residual_constraints)}"
             )
 
             self._inter_cloth_metrics = measured._replace(
