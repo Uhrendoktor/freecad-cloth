@@ -8,11 +8,10 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from time import perf_counter
 from typing import TYPE_CHECKING, cast
-
-import os
 
 import numpy as np
 import numpy.typing as npt
@@ -162,12 +161,7 @@ class MeshCollisionProjector:
         w = (d00 * d21 - d01 * d20) / safe_denominator
         u = 1.0 - v - w
         projected_plane = a + v[:, None] * ab + w[:, None] * ac
-        barycentric_inside = (
-            (u >= -1e-10)
-            & (v >= -1e-10)
-            & (w >= -1e-10)
-            & (denominator > 1e-18)
-        )
+        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
 
         def closest_on_edge(
             start: npt.NDArray[np.float64],
@@ -225,7 +219,7 @@ class MeshCollisionProjector:
             workers=1,
         )
         seed_indices = np.asarray((int(seed_face),), dtype=np.int64)
-        seed_points, seed_distances = self._closest_points_on_triangles(point, seed_indices)
+        _seed_points, seed_distances = self._closest_points_on_triangles(point, seed_indices)
         upper_bound_mm = float(np.sqrt(seed_distances[0]))
         candidate_radius_mm = upper_bound_mm + self._maximum_triangle_radius_mm + 1e-9
         candidate_indices = np.asarray(
