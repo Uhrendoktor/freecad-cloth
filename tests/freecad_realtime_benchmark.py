@@ -86,14 +86,66 @@ type _StitchedPairsCallable = Callable[
 ]
 
 
-def _add_outfit_preview_fixture(
-    doc: SimulationDocument, scene: _RealtimeSimulationScene
-) -> _OutfitFixtureMetrics:
-    """Build a three-garment, ten-panel outfit with garment-local sewn seams."""
+def _make_pattern_piece_from_outline(
+    doc: SimulationDocument,
+    name: str,
+    outline: tuple[tuple[float, float], ...],
+    position: tuple[float, float, float],
+) -> _PatternPieceFeature:
+    """Create one authored FreeCAD PatternPiece from an ordered planar outline."""
     import Part
     import Sketcher
 
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+
+    sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
+    getattr(sketch, "addGeometry")(
+        [
+            Part.LineSegment(
+                App.Vector(outline[index][0], outline[index][1], 0.0),
+                App.Vector(
+                    outline[(index + 1) % len(outline)][0],
+                    outline[(index + 1) % len(outline)][1],
+                    0.0,
+                ),
+            )
+            for index in range(len(outline))
+        ],
+        False,
+    )
+    getattr(sketch, "addConstraint")(
+        [
+            Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
+            for index in range(len(outline))
+        ]
+    )
+    doc.recompute()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch)
+    piece = cast(
+        "_PatternPieceFeature",
+        create_pattern_piece_from_selected_sketch(
+            name=name,
+            allowance=10.0,
+            grainline=0.0,
+        ),
+    )
+    piece.Label = name
+    piece.Placement = App.Placement(
+        App.Vector(position[0], position[1], position[2]),
+        App.Rotation(App.Vector(1, 0, 0), 90.0),
+    )
+    sketch_feature = getattr(piece, "Sketch")
+    if sketch_feature is not None:
+        setattr(sketch_feature, "Placement", piece.Placement)
+        getattr(sketch_feature, "ViewObject").Visibility = False
+    return piece
+
+
+def _add_outfit_preview_fixture(
+    doc: SimulationDocument, scene: _RealtimeSimulationScene
+) -> _OutfitFixtureMetrics:
+    """Build a three-garment, ten-panel outfit with garment-local sewn seams."""
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
@@ -109,50 +161,10 @@ def _add_outfit_preview_fixture(
     center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
     clearance = max(60.0, 0.75 * body_depth)
     z_min = float(bounds.ZMin)
-    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
-
     def make_piece(
         name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
     ) -> _PatternPieceFeature:
-        sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-        getattr(sketch, "addGeometry")(
-            [
-                Part.LineSegment(
-                    App.Vector(outline[index][0], outline[index][1], 0.0),
-                    App.Vector(
-                        outline[(index + 1) % len(outline)][0],
-                        outline[(index + 1) % len(outline)][1],
-                        0.0,
-                    ),
-                )
-                for index in range(len(outline))
-            ],
-            False,
-        )
-        getattr(sketch, "addConstraint")(
-            [
-                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
-                for index in range(len(outline))
-            ]
-        )
-        doc.recompute()
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(sketch)
-        piece = cast(
-            "_PatternPieceFeature",
-            create_pattern_piece_from_selected_sketch(
-                name=name,
-                allowance=10.0,
-                grainline=0.0,
-            ),
-        )
-        piece.Label = name
-        piece.Placement = App.Placement(App.Vector(x, y, z), rotation)
-        sketch_feature = getattr(piece, "Sketch")
-        if sketch_feature is not None:
-            setattr(sketch_feature, "Placement", piece.Placement)
-            getattr(sketch_feature, "ViewObject").Visibility = False
-        return piece
+        return _make_pattern_piece_from_outline(doc, name, outline, (x, y, z))
 
     seams: list[_SeamFeature] = []
 
@@ -341,10 +353,6 @@ def _add_tunic_preview_fixture(
     doc: SimulationDocument, scene: _RealtimeSimulationScene
 ) -> _OutfitFixtureMetrics:
     """Build the original two-panel sewn tunic control workload."""
-    import Part
-    import Sketcher
-
-    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
     from freecad_cloth.pattern.PatternModel import Seam
     from freecad_cloth.pattern.PatternObjects import add_seam
 
@@ -363,7 +371,6 @@ def _add_tunic_preview_fixture(
     center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
     center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
     clearance = max(60.0, 0.75 * body_depth)
-    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
     neckline_z = 0.90 * garment_height
     points = (
         (0.0, 0.0),
@@ -376,52 +383,18 @@ def _add_tunic_preview_fixture(
         (0.0, 0.82 * garment_height),
     )
 
-    def make_piece(name: str, y: float) -> _PatternPieceFeature:
-        sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-        getattr(sketch, "addGeometry")(
-            [
-                Part.LineSegment(
-                    App.Vector(points[index][0], points[index][1], 0.0),
-                    App.Vector(
-                        points[(index + 1) % len(points)][0],
-                        points[(index + 1) % len(points)][1],
-                        0.0,
-                    ),
-                )
-                for index in range(len(points))
-            ],
-            False,
-        )
-        getattr(sketch, "addConstraint")(
-            [
-                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
-                for index in range(len(points))
-            ]
-        )
-        doc.recompute()
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(sketch)
-        piece = cast(
-            "_PatternPieceFeature",
-            create_pattern_piece_from_selected_sketch(
-                name=name,
-                allowance=10.0,
-                grainline=0.0,
-            ),
-        )
-        piece.Label = name
-        piece.Placement = App.Placement(
-            App.Vector(center_x - hem_width / 2.0, y, hem_z),
-            rotation,
-        )
-        sketch_feature = getattr(piece, "Sketch")
-        if sketch_feature is not None:
-            setattr(sketch_feature, "Placement", piece.Placement)
-            getattr(sketch_feature, "ViewObject").Visibility = False
-        return piece
-
-    front = make_piece("RealtimeTunicFront", center_y - clearance)
-    back = make_piece("RealtimeTunicBack", center_y + clearance)
+    front = _make_pattern_piece_from_outline(
+        doc,
+        "RealtimeTunicFront",
+        points,
+        (center_x - hem_width / 2.0, center_y - clearance, hem_z),
+    )
+    back = _make_pattern_piece_from_outline(
+        doc,
+        "RealtimeTunicBack",
+        points,
+        (center_x - hem_width / 2.0, center_y + clearance, hem_z),
+    )
     seams: list[_SeamFeature] = []
     for edge_a, edge_b, seam_id in (
         (1, 1, "RealtimeRightSide"),
