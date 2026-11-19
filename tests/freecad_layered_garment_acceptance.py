@@ -656,6 +656,7 @@ def run_acceptance() -> None:
         _log("mannequin-collision-surface-built")
         hip_z = float(hip.z)
         shoulder_z = 0.5 * (float(shoulder_left.z) + float(shoulder_right.z))
+        torso_x_limit = 0.60 * shoulder_width
         skirt_bottom_z = hip_z - 520.0
         body_depth_samples = [
             vertex
@@ -663,19 +664,22 @@ def run_acceptance() -> None:
             if skirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
             and abs(float(vertex[0]) - center_x) <= 0.70 * shoulder_width
         ]
+        # The torso-bounded cross-section excludes hands and other appendages that
+        # can pass through hip height in the posed mannequin mesh. Derive every
+        # skirt/waistband ring dimension from this same local anatomical section.
         hip_slice = [
             vertex
             for vertex in body_surface.vertices
             if hip_z - 60.0 <= float(vertex[2]) <= hip_z + 60.0
-            and abs(float(vertex[0]) - center_x) <= 1.2 * shoulder_width
+            and abs(float(vertex[0]) - center_x) <= torso_x_limit
         ]
-        if len(body_depth_samples) < 100 or len(hip_slice) < 20:
+        if len(body_depth_samples) < 100 or len(hip_slice) < 50:
             raise RuntimeError(
                 "authoritative mannequin surface has insufficient garment-height or hip samples"
             )
         center_y = 0.5 * (
-            min(float(vertex[1]) for vertex in body_depth_samples)
-            + max(float(vertex[1]) for vertex in body_depth_samples)
+            min(float(vertex[1]) for vertex in hip_slice)
+            + max(float(vertex[1]) for vertex in hip_slice)
         )
         radius_x = (
             max(
@@ -687,8 +691,8 @@ def run_acceptance() -> None:
         radius_y = (
             0.5
             * (
-                max(float(vertex[1]) for vertex in body_depth_samples)
-                - min(float(vertex[1]) for vertex in body_depth_samples)
+                max(float(vertex[1]) for vertex in hip_slice)
+                - min(float(vertex[1]) for vertex in hip_slice)
             )
             + 28.0
         )
@@ -743,7 +747,7 @@ def run_acceptance() -> None:
                         for axis in range(3)
                     ],
                     "hip_slice_count": len(hip_slice),
-                    "hip_slice_gate_x_mm": 1.2 * shoulder_width,
+                    "hip_slice_gate_x_mm": torso_x_limit,
                     "hip_slice_bounds_mm": [
                         [
                             min(float(vertex[axis]) for vertex in hip_slice),
@@ -827,7 +831,6 @@ def run_acceptance() -> None:
         # in the same FreeCAD world frame as the collision surface.
         shirt_bottom_z = hip_z - 85.0
         shirt_top_z = shoulder_z + 35.0
-        torso_x_limit = 0.60 * shoulder_width
         shirt_top_samples = [
             vertex
             for vertex in body_surface.vertices
