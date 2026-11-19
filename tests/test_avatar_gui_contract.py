@@ -6,6 +6,8 @@ exercise exported panel configuration and pure helper behavior without reading
 the GUI implementation source.
 """
 
+from __future__ import annotations
+
 import math
 from dataclasses import fields
 from types import SimpleNamespace
