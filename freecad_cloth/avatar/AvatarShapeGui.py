@@ -2,9 +2,10 @@
 """Transient, rig-aligned measurement controls for the staged mannequin editor.
 
 Measurement handles follow the current mannequin skeleton and reuse the task
-panel's canonical numeric fields. Surface guide rings depth-test against the
-avatar mesh; their compact pick markers remain accessible in the foreground.
-The overlay is transient Coin3D UI and never creates document objects.
+panel's canonical numeric fields. Visible guides depth-test against the avatar
+mesh; occluded guide segments use a faint dashed X-ray underlay, and layered
+foreground markers keep the pick targets legible. The overlay is transient
+Coin3D UI and never creates document objects.
 """
 
 from __future__ import annotations
@@ -544,15 +545,23 @@ class AvatarDimensionController:
         """
         from freecad_cloth.shared.ViewportGizmoStyle import (
             DIMENSION_MARKER_HALO_COLOR,
+            DIMENSION_MARKER_HALO_SIZE_INCREMENT,
             DIMENSION_MARKER_OUTLINE_COLOR,
+            DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT,
         )
 
         # A light outer halo and dark inner rim keep the semantic centre legible
         # against both pale and dark mannequin surfaces. All layers are screen-sized
         # and bypass depth testing so the handle remains visible and pickable.
         for marker_color, marker_size in (
-            (DIMENSION_MARKER_HALO_COLOR, float(size) + 12.0),
-            (DIMENSION_MARKER_OUTLINE_COLOR, float(size) + 6.0),
+            (
+                DIMENSION_MARKER_HALO_COLOR,
+                float(size) + DIMENSION_MARKER_HALO_SIZE_INCREMENT,
+            ),
+            (
+                DIMENSION_MARKER_OUTLINE_COLOR,
+                float(size) + DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT,
+            ),
             (color, float(size)),
         ):
             marker = coin.SoSeparator()
