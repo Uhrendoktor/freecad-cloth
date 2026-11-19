@@ -398,11 +398,15 @@ def _validate_reusable_workflow_trust(text: str) -> None:
     )
     required_lookup_markers = (
         "No successful full-validation run matched source tree",
-        '"--event"',
-        '"--status"',
+        "merge-validation.yml",
+        "merge_group",
+        "commit-validation.yml",
+        "pull_request",
         "Full validation (explicit request) / Required validation gate",
+        "event={event}",
+        "status=success",
         "candidate_tree == source_tree",
-        "HTTP\\\\s+50[234]",
+        "HTTP\\s+50[234]",
         "_MAX_RUN_PAGES",
     )
     lookup_text = (ROOT / "tools" / "ci" / "find_validated_visual_run.py").read_text(
