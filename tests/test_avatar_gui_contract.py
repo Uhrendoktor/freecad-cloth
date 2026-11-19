@@ -260,6 +260,99 @@ def test_pose_properties_cover_all_pose_angle_fields() -> None:
         "pose property names must derive from the Pose angle fields"
     )
 
+class _CoinField:
+    """Small Coin field stub supporting scalar and multi-point assignments."""
+
+    def __init__(self) -> None:
+        self.value: float | tuple[tuple[float, float, float], ...] | None = None
+
+    def setValue(self, value: float) -> None:
+        self.value = float(value)
+
+    def setValues(
+        self,
+        _start: int,
+        _count: int,
+        values: tuple[tuple[float, float, float], ...],
+    ) -> None:
+        self.value = values
+
+
+class _CoinNode:
+    """Scene-graph node stub retaining child order for render-state assertions."""
+
+    def __init__(self) -> None:
+        self.children: list[_CoinNode] = []
+
+    def addChild(self, child: _CoinNode) -> None:
+        self.children.append(child)
+
+
+class _CoinDrawStyle(_CoinNode):
+    """Draw-style stub for screen-sized point and stippled line controls."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.pointSize = 0.0
+        self.lineWidth = 0.0
+        self.linePattern = 0xFFFF
+        self.linePatternScaleFactor = 1
+
+
+class _CoinBaseColor(_CoinNode):
+    """Base-colour stub retaining the normalized RGB value."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.rgb: tuple[float, float, float] | None = None
+
+
+class _CoinCoordinate3(_CoinNode):
+    """Coordinate node stub retaining values supplied by the renderer."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.point = _CoinField()
+
+
+class _CoinDepthBuffer(_CoinNode):
+    """Depth-state stub for testing visible and X-ray geometry."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.test = True
+        self.write = True
+
+
+class _CoinPointSet(_CoinNode):
+    """Point primitive stub used by foreground dimension markers."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.numPoints = 0
+
+
+class _CoinLineSet(_CoinNode):
+    """Line primitive stub used by measurement guide geometry."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.numVertices = _CoinField()
+
+
+def _coin_stub() -> SimpleNamespace:
+    """Build one reusable Coin API double for marker and line overlay tests."""
+    return SimpleNamespace(
+        SoSeparator=_CoinNode,
+        SoDepthBuffer=_CoinDepthBuffer,
+        SoDrawStyle=_CoinDrawStyle,
+        SoBaseColor=_CoinBaseColor,
+        SoCoordinate3=_CoinCoordinate3,
+        SoPointSet=_CoinPointSet,
+        SoLineSet=_CoinLineSet,
+    )
+
+
 def test_measurement_marker_uses_three_foreground_contrast_layers() -> None:
     """Keep a visible semantic pick target over both light and dark avatar surfaces."""
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
@@ -268,56 +361,9 @@ def test_measurement_marker_uses_three_foreground_contrast_layers() -> None:
         DIMENSION_MARKER_OUTLINE_COLOR,
     )
 
-    class _Field:
-        def __init__(self) -> None:
-            self.value = None
-
-        def setValues(self, _start, _count, values) -> None:
-            self.value = values
-
-    class _Node:
-        def __init__(self) -> None:
-            self.children = []
-
-        def addChild(self, child) -> None:
-            self.children.append(child)
-
-    class _DrawStyle(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.pointSize = 0.0
-
-    class _BaseColor(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.rgb = None
-
-    class _Coordinate3(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.point = _Field()
-
-    class _DepthBuffer(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.test = True
-            self.write = True
-
-    class _PointSet(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.numPoints = 0
-
-    coin = SimpleNamespace(
-        SoSeparator=_Node,
-        SoDepthBuffer=_DepthBuffer,
-        SoDrawStyle=_DrawStyle,
-        SoBaseColor=_BaseColor,
-        SoCoordinate3=_Coordinate3,
-        SoPointSet=_PointSet,
-    )
+    coin = _coin_stub()
     controller = AvatarDimensionController.__new__(AvatarDimensionController)
-    controller.overlay = _Node()
+    controller.overlay = coin.SoSeparator()
     controller._add_marker(coin, (0.0, 0.0, 0.0), (0.9, 0.8, 0.2), 8.0)
 
     assert len(controller.overlay.children) == 3
@@ -340,61 +386,9 @@ def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
         DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
     )
 
-    class _Field:
-        def __init__(self) -> None:
-            self.value = None
-
-        def setValue(self, value) -> None:
-            self.value = value
-
-        def setValues(self, _start, _count, values) -> None:
-            self.value = values
-
-    class _Node:
-        def __init__(self) -> None:
-            self.children = []
-
-        def addChild(self, child) -> None:
-            self.children.append(child)
-
-    class _DrawStyle(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.lineWidth = 0.0
-            self.linePattern = 0xFFFF
-            self.linePatternScaleFactor = 1
-
-    class _BaseColor(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.rgb = None
-
-    class _Coordinate3(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.point = _Field()
-
-    class _DepthBuffer(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.test = True
-            self.write = True
-
-    class _LineSet(_Node):
-        def __init__(self) -> None:
-            super().__init__()
-            self.numVertices = _Field()
-
-    coin = SimpleNamespace(
-        SoSeparator=_Node,
-        SoDepthBuffer=_DepthBuffer,
-        SoDrawStyle=_DrawStyle,
-        SoBaseColor=_BaseColor,
-        SoCoordinate3=_Coordinate3,
-        SoLineSet=_LineSet,
-    )
+    coin = _coin_stub()
     controller = AvatarDimensionController.__new__(AvatarDimensionController)
-    controller.overlay = _Node()
+    controller.overlay = coin.SoSeparator()
     controller._add_line(
         coin,
         ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
