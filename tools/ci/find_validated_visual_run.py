@@ -56,7 +56,8 @@ def run_github_cli(arguments: list[str]) -> str:
         )
         if attempt < _MAX_ATTEMPTS:
             time.sleep(attempt)
-    raise RuntimeError(f"GitHub API request failed after {_MAX_ATTEMPTS} attempts: gh {' '.join(arguments)}")
+    command = " ".join(arguments)
+    raise RuntimeError(f"GitHub API request failed after {_MAX_ATTEMPTS} attempts: gh {command}")
 
 
 def find_validated_run(repository: str, source_sha: str) -> tuple[int, str]:
@@ -111,12 +112,12 @@ def find_validated_run(repository: str, source_sha: str) -> tuple[int, str]:
                         ["api", f"repos/{repository}/actions/runs/{run_id}/jobs?per_page=100"]
                     )
                 )
-                jobs = cast(dict[str, object], jobs_payload).get("jobs", [])
-                if not any(
+                jobs_value = cast(dict[str, object], jobs_payload).get("jobs", [])
+                if not isinstance(jobs_value, list) or not any(
                     isinstance(job, dict)
                     and job.get("name") == required_gate
                     and job.get("conclusion") == "success"
-                    for job in jobs
+                    for job in jobs_value
                 ):
                     continue
                 candidate_tree = run_github_cli(
