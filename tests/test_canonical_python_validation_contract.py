@@ -362,6 +362,16 @@ def test_realtime_metric_validator_accepts_the_three_garment_outfit() -> None:
     ), "canonical CI contract"
 
 
+def test_realtime_metric_validator_rejects_enabled_gc_during_disabled_experiment() -> None:
+    """Reject artifacts that claim the GC experiment while collection remains enabled."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gc_enabled_during_measurement"] = True
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+    assert (
+        "python_gc must remain disabled throughout the measured preview window" in errors
+    ), "canonical CI contract"
+
+
 def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     """Reject a slow artifact with invalid solver state or profile values."""
     metrics = _valid_realtime_benchmark_metrics()
@@ -453,18 +463,18 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "positions_snapshot" in string_constants, "canonical CI contract"
     assert "python_gc_collections" in string_constants, "canonical CI contract"
+    realtime_action = (
+        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
+    ).read_text(encoding="utf-8")
     assert "DISABLE_GC_DURING_MEASUREMENT" in identifiers, "canonical CI contract"
     assert "gc" in identifiers, "canonical CI contract"
     assert "disable" in attributes, "canonical CI contract"
     assert "enable" in attributes, "canonical CI contract"
-    assert "CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true" in realtime_action, (
+    assert realtime_action.count("CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true") == 2, (
         "canonical CI contract"
     )
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
-    realtime_action = (
-        ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
-    ).read_text(encoding="utf-8")
     assert "validate_realtime_benchmark.py" in realtime_action, "canonical CI contract"
 
 

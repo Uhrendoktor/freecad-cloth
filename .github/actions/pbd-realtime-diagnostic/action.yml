@@ -41,6 +41,7 @@ runs:
           CLOTH_PBD_SUBSTEPS=1
           CLOTH_REALTIME_FRAMES=120
           CLOTH_REALTIME_WARMUP_FRAMES=30
+          CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true
           OMP_NUM_THREADS=1
         artifact-name: realtime-preview-performance
         artifact-path: artifacts/freecad-realtime/**
