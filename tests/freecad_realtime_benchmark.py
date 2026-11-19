@@ -12,7 +12,7 @@ import runpy
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -23,7 +23,36 @@ if TYPE_CHECKING:
     import numpy as np
     import numpy.typing as npt
 
+    from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
     from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+    from freecad_cloth.simulation.PatternSimulationAdapter import _PatternPieceFeature, _SeamFeature
+    from freecad_cloth.simulation.simulation_protocols import SimulationDocument
+
+    class _RealtimeSimulationScene(Protocol):
+        """Persisted scene fields needed to build and measure the outfit preview fixture."""
+
+        DrapeTarget: FreeCADDocumentObjectProtocol | None
+        PinMode: str
+        PinSelection: list[str]
+        ClothPieces: Sequence[_PatternPieceFeature]
+        StartHeight: float
+        TimeStep: float
+
+
+class _GarmentFixtureMetrics(TypedDict):
+    """Expected authored panel/seam inventory for one independently sewn garment."""
+
+    panel_count: int
+    seam_count: int
+
+
+class _OutfitFixtureMetrics(TypedDict):
+    """Deterministic outfit size metadata returned by the authored preview fixture."""
+
+    garment_count: int
+    panel_count: int
+    seam_count: int
+    garments: dict[str, _GarmentFixtureMetrics]
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -56,7 +85,9 @@ type _StitchedPairsCallable = Callable[
 ]
 
 
-def _add_outfit_preview_fixture(doc: object, scene: object) -> dict[str, object]:
+def _add_outfit_preview_fixture(
+    doc: SimulationDocument, scene: _RealtimeSimulationScene
+) -> _OutfitFixtureMetrics:
     """Build a three-garment, ten-panel outfit with garment-local sewn seams."""
     import Part
     import Sketcher
@@ -79,10 +110,11 @@ def _add_outfit_preview_fixture(doc: object, scene: object) -> dict[str, object]
     z_min = float(bounds.ZMin)
     rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
 
-    def make_piece(name: str, outline: tuple[tuple[float, float], ...],
-                   x: float, y: float, z: float) -> object:
+    def make_piece(
+        name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
+    ) -> _PatternPieceFeature:
         sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-        sketch.addGeometry(
+        getattr(sketch, "addGeometry")(
             [
                 Part.LineSegment(
                     App.Vector(outline[index][0], outline[index][1], 0.0),
@@ -96,7 +128,7 @@ def _add_outfit_preview_fixture(doc: object, scene: object) -> dict[str, object]
             ],
             False,
         )
-        sketch.addConstraint(
+        getattr(sketch, "addConstraint")(
             [
                 Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
                 for index in range(len(outline))
@@ -105,37 +137,45 @@ def _add_outfit_preview_fixture(doc: object, scene: object) -> dict[str, object]
         doc.recompute()
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(sketch)
-        piece = create_pattern_piece_from_selected_sketch(
-            name=name,
-            allowance=10.0,
-            grainline=0.0,
+        piece = cast(
+            "_PatternPieceFeature",
+            create_pattern_piece_from_selected_sketch(
+                name=name,
+                allowance=10.0,
+                grainline=0.0,
+            ),
         )
         piece.Label = name
         piece.Placement = App.Placement(App.Vector(x, y, z), rotation)
-        piece.Sketch.Placement = piece.Placement
-        piece.Sketch.ViewObject.Visibility = False
+        sketch_feature = getattr(piece, "Sketch")
+        if sketch_feature is not None:
+            setattr(sketch_feature, "Placement", piece.Placement)
+            getattr(sketch_feature, "ViewObject").Visibility = False
         return piece
 
-    seams: list[object] = []
+    seams: list[_SeamFeature] = []
 
     def sew(
-        piece_a: object,
+        piece_a: _PatternPieceFeature,
         edge_a: int,
-        piece_b: object,
+        piece_b: _PatternPieceFeature,
         edge_b: int,
         seam_id: str,
         garment: str,
     ) -> None:
-        seam = add_seam(
-            doc,
-            Seam(
-                str(piece_a.PieceId),
-                edge_a,
-                str(piece_b.PieceId),
-                edge_b,
-                id=seam_id,
-                alignment="uniform",
-                stitch_group=f"Realtime{garment}",
+        seam = cast(
+            "_SeamFeature",
+            add_seam(
+                doc,
+                Seam(
+                    str(piece_a.PieceId),
+                    edge_a,
+                    str(piece_b.PieceId),
+                    edge_b,
+                    id=seam_id,
+                    alignment="uniform",
+                    stitch_group=f"Realtime{garment}",
+                ),
             ),
         )
         seams.append(seam)
