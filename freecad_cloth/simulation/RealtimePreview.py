@@ -274,7 +274,8 @@ def _make_frame_dispatcher(
     """
     QtCore = _qt()
     event_type = int(QtCore.QEvent.registerEventType())
-    event_priority = int(QtCore.Qt.HighEventPriority)
+    priority = QtCore.Qt.HighEventPriority
+    event_priority = int(getattr(priority, "value", priority))
 
     class _FramePulseEvent(QtCore.QEvent):
         """Carry the target and worker timestamps to the GUI thread."""
