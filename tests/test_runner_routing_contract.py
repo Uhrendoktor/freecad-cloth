@@ -192,6 +192,14 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "a59f58d25537de846677f89a7858562cfcfc9672" in resolver
+    assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in resolver
+    assert (
+        "Preserving mainline GIF command-runner API and stronger regression test; transplanting only exact typing refinements."
+        in resolver
+    )
+    assert "jobs: list[Future[None]] = []" in resolver
+    assert "from concurrent.futures import Future, ThreadPoolExecutor, as_completed" in resolver
+    assert "options=CommandOptions(check=True, timeout=timeout)" in resolver
     assert (
         "Preserving the already-typed combo-box protocol and applying only the exact a59f docstring."
         in resolver
