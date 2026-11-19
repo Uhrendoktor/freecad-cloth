@@ -210,6 +210,17 @@ class _FrameClock:
             "max_ms": ordered[-1],
         }
 
+    def pending_pulse_metrics(self) -> dict[str, int | float]:
+        """Snapshot worker timing and counters before the GUI acknowledges its pending pulse."""
+        with self._condition:
+            return {
+                "worker_wakeup_lateness_ms": self._last_worker_wakeup_lateness_ms,
+                "missed_deadlines": self._missed_deadlines,
+                "coalesced_pulses": self._coalesced_pulses,
+                "signals_emitted": self._signals_emitted,
+                "pulse_pending": int(self._pending),
+            }
+
     def _run(self) -> None:
         """Emit before each predicted start, then wait for its GUI acknowledgement."""
         period = self._period_s
@@ -537,6 +548,10 @@ class _Preview:
     def frame_worker_wakeup_metrics(self) -> dict[str, int | float]:
         """Return worker timer wake timing separately from GUI queue delivery."""
         return self._frame_clock.worker_wakeup_metrics()
+
+    def frame_pending_pulse_metrics(self) -> dict[str, int | float]:
+        """Return the worker-side timing sample for the event currently being dispatched."""
+        return self._frame_clock.pending_pulse_metrics()
 
     def tick(
         self,

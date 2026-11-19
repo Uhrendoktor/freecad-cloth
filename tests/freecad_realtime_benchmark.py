@@ -528,6 +528,24 @@ class _TimedGuiDocument:
         return _TimedGuiView(view, self._record_stage)
 
 
+def _read_cgroup_cpu_stat() -> dict[str, int] | None:
+    """Read Linux cgroup CPU counters for a before/after benchmark comparison."""
+    try:
+        lines = Path("/sys/fs/cgroup/cpu.stat").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    counters: dict[str, int] = {}
+    for line in lines:
+        fields = line.split()
+        if len(fields) != 2:
+            continue
+        try:
+            counters[fields[0]] = int(fields[1])
+        except ValueError:
+            continue
+    return counters or None
+
+
 def _timing_summary(values: list[float]) -> dict[str, float | int | None]:
     """Summarize a timing stage without treating missing samples as zero cost."""
     return {
@@ -614,12 +632,15 @@ def main() -> None:
             "viewport_redraw",
         )
         stage_timings: dict[str, list[float]] = {name: [] for name in stage_names}
+        frame_stage_timings_ms: dict[str, float] = {}
         tick_count = 0
         in_tick = False
 
         def record_stage(name: str, started_at: float) -> None:
             if in_tick and tick_count > WARMUP_FRAMES:
-                stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
+                elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
+                stage_timings[name].append(elapsed_ms)
+                frame_stage_timings_ms[name] = frame_stage_timings_ms.get(name, 0.0) + elapsed_ms
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
         from freecad_cloth.simulation import MeshCollisionProjector as mesh_collision_projector
@@ -805,19 +826,23 @@ def main() -> None:
         last_tick_at: float | None = None
         frame_intervals_ms: list[float] = []
         callback_costs_ms: list[float] = []
+        frame_timing_samples: list[dict[str, int | float | dict[str, float]]] = []
         initial_steps = int(scene.Steps)
         timed_out = False
 
         def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
-            nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
+            nonlocal frame_stage_timings_ms, in_tick, last_tick_at, native_timing_reset, tick_count
             started_at = time.perf_counter()
+            previous_tick_at = last_tick_at
             tick_count += 1
-            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
-                frame_intervals_ms.append(1000.0 * (started_at - last_tick_at))
+            if previous_tick_at is not None and tick_count > WARMUP_FRAMES:
+                frame_intervals_ms.append(1000.0 * (started_at - previous_tick_at))
             last_tick_at = started_at
             if tick_count == WARMUP_FRAMES + 1 and not native_timing_reset:
                 timing_reset()
                 native_timing_reset = True
+            frame_stage_timings_ms = {}
+            pending_pulse_metrics = active_preview.frame_pending_pulse_metrics()
             in_tick = True
             try:
                 active_preview.tick(scheduled_at, emitted_at, dispatched_at)
@@ -826,6 +851,44 @@ def main() -> None:
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
+                if previous_tick_at is not None:
+                    frame_timing_samples.append(
+                        {
+                            "frame_index": len(frame_timing_samples) + 1,
+                            "tick_index": tick_count,
+                            "callback_start_offset_ms": 1000.0 * (started_at - started),
+                            "previous_callback_start_offset_ms": (
+                                1000.0 * (previous_tick_at - started)
+                            ),
+                            "scheduled_deadline_offset_ms": 1000.0 * (scheduled_at - started),
+                            "worker_emit_offset_ms": 1000.0 * (emitted_at - started),
+                            "gui_dispatch_offset_ms": 1000.0 * (dispatched_at - started),
+                            "interval_ms": 1000.0 * (started_at - previous_tick_at),
+                            "queue_delay_ms": 1000.0 * (started_at - emitted_at),
+                            "gui_event_dispatch_delay_ms": (
+                                1000.0 * (dispatched_at - emitted_at)
+                            ),
+                            "gui_callback_after_dispatch_ms": (
+                                1000.0 * (started_at - dispatched_at)
+                            ),
+                            "deadline_lateness_ms": 1000.0 * (started_at - scheduled_at),
+                            "worker_wakeup_lateness_ms": float(
+                                pending_pulse_metrics["worker_wakeup_lateness_ms"]
+                            ),
+                            "worker_missed_deadlines": int(
+                                pending_pulse_metrics["missed_deadlines"]
+                            ),
+                            "worker_coalesced_pulses": int(
+                                pending_pulse_metrics["coalesced_pulses"]
+                            ),
+                            "worker_signals_emitted": int(
+                                pending_pulse_metrics["signals_emitted"]
+                            ),
+                            "worker_pulse_pending": int(pending_pulse_metrics["pulse_pending"]),
+                            "callback_duration_ms": callback_cost_ms,
+                            "stage_timings_ms": dict(frame_stage_timings_ms),
+                        }
+                    )
             if len(frame_intervals_ms) >= FRAMES:
                 active_preview.stop_frame_clock()
                 event_loop.quit()
@@ -841,6 +904,7 @@ def main() -> None:
         deadline.setSingleShot(True)
         deadline.timeout.connect(on_deadline)
 
+        cgroup_cpu_stat_before = _read_cgroup_cpu_stat()
         started = time.perf_counter()
         started_process = time.process_time()
         deadline.start(TIMEOUT_MS)
@@ -851,6 +915,16 @@ def main() -> None:
         elapsed = time.perf_counter() - started
         process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
+        cgroup_cpu_stat_after = _read_cgroup_cpu_stat()
+        cgroup_cpu_stat_delta = (
+            {
+                key: value - cgroup_cpu_stat_before[key]
+                for key, value in cgroup_cpu_stat_after.items()
+                if key in cgroup_cpu_stat_before
+            }
+            if cgroup_cpu_stat_before is not None and cgroup_cpu_stat_after is not None
+            else None
+        )
 
         mean_interval_ms = (
             sum(frame_intervals_ms) / len(frame_intervals_ms) if frame_intervals_ms else None
@@ -970,6 +1044,7 @@ def main() -> None:
             "observed_ticks": tick_count,
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
+            "frame_timing_samples": frame_timing_samples,
             "frame_scheduler": active_preview.frame_scheduler_metrics(),
             "worker_wakeup_lateness": active_preview.frame_worker_wakeup_metrics(),
             "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
@@ -1005,6 +1080,9 @@ def main() -> None:
                 "cpu_affinity": runtime_cpu_affinity,
                 "cgroup_cpu_max": runtime_cgroup_cpu_max,
                 "cgroup_cpu_stat": runtime_cgroup_cpu_stat,
+                "cgroup_cpu_stat_before": cgroup_cpu_stat_before,
+                "cgroup_cpu_stat_after": cgroup_cpu_stat_after,
+                "cgroup_cpu_stat_delta": cgroup_cpu_stat_delta,
                 "thread_environment": {
                     key: os.environ.get(key, "unset") for key in runtime_thread_keys
                 },

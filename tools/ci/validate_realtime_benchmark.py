@@ -294,6 +294,131 @@ def _validate_frame_scheduler(metrics: JsonObject, frames: int | None, errors: l
                 errors.append(f"{metric_name}.{key} must be finite and non-negative")
 
 
+def _validate_frame_timing_trace(
+    metrics: JsonObject,
+    frames: int | None,
+    errors: list[str],
+) -> None:
+    """Validate aligned callback, scheduler, queue, and per-frame stage samples."""
+    trace_value = metrics.get("frame_timing_samples")
+    if not isinstance(trace_value, list):
+        errors.append("frame_timing_samples must be a JSON array")
+        return
+    if frames is None or len(trace_value) != frames:
+        errors.append("frame_timing_samples must contain one row per measured interval")
+        return
+
+    previous_callback_start: float | None = None
+    warmup_frames = _integer(metrics.get("warmup_frames_requested"))
+    if warmup_frames is None:
+        errors.append("warmup_frames_requested must be an integer for frame timing trace")
+        return
+
+    numeric_fields = (
+        "callback_start_offset_ms",
+        "previous_callback_start_offset_ms",
+        "scheduled_deadline_offset_ms",
+        "worker_emit_offset_ms",
+        "gui_dispatch_offset_ms",
+        "interval_ms",
+        "queue_delay_ms",
+        "gui_event_dispatch_delay_ms",
+        "gui_callback_after_dispatch_ms",
+        "deadline_lateness_ms",
+        "worker_wakeup_lateness_ms",
+        "callback_duration_ms",
+    )
+    counter_fields = (
+        "worker_missed_deadlines",
+        "worker_coalesced_pulses",
+        "worker_signals_emitted",
+        "worker_pulse_pending",
+    )
+    for index, row_value in enumerate(trace_value, start=1):
+        if not isinstance(row_value, dict):
+            errors.append(f"frame_timing_samples[{index - 1}] must be a JSON object")
+            continue
+        row = cast("JsonObject", row_value)
+        if _integer(row.get("frame_index")) != index:
+            errors.append(f"frame_timing_samples[{index - 1}].frame_index must equal {index}")
+        if _integer(row.get("tick_index")) != warmup_frames + index:
+            errors.append(
+                f"frame_timing_samples[{index - 1}].tick_index must follow warm-up accounting"
+            )
+        values = {key: _number(row.get(key)) for key in numeric_fields}
+        for key, value in values.items():
+            if value is None:
+                errors.append(f"frame_timing_samples[{index - 1}].{key} must be finite")
+            elif key != "deadline_lateness_ms" and value < 0.0:
+                errors.append(f"frame_timing_samples[{index - 1}].{key} must be non-negative")
+
+        callback_start = values["callback_start_offset_ms"]
+        previous_start = values["previous_callback_start_offset_ms"]
+        interval = values["interval_ms"]
+        queue_delay = values["queue_delay_ms"]
+        emit_offset = values["worker_emit_offset_ms"]
+        dispatch_offset = values["gui_dispatch_offset_ms"]
+        event_delay = values["gui_event_dispatch_delay_ms"]
+        callback_after_dispatch = values["gui_callback_after_dispatch_ms"]
+        deadline_offset = values["scheduled_deadline_offset_ms"]
+        deadline_lateness = values["deadline_lateness_ms"]
+        if all(
+            value is not None
+            for value in (
+                callback_start,
+                previous_start,
+                interval,
+                queue_delay,
+                emit_offset,
+                dispatch_offset,
+                event_delay,
+                callback_after_dispatch,
+                deadline_offset,
+                deadline_lateness,
+            )
+        ):
+            if abs(interval - (callback_start - previous_start)) > 1e-3:
+                errors.append(f"frame_timing_samples[{index - 1}].interval_ms is not aligned")
+            if abs(queue_delay - (callback_start - emit_offset)) > 1e-3:
+                errors.append(f"frame_timing_samples[{index - 1}].queue_delay_ms is not aligned")
+            if abs(event_delay - (dispatch_offset - emit_offset)) > 1e-3:
+                errors.append(
+                    f"frame_timing_samples[{index - 1}].gui_event_dispatch_delay_ms is not aligned"
+                )
+            if abs(callback_after_dispatch - (callback_start - dispatch_offset)) > 1e-3:
+                errors.append(
+                    f"frame_timing_samples[{index - 1}].gui_callback_after_dispatch_ms is not aligned"
+                )
+            if abs(deadline_lateness - (callback_start - deadline_offset)) > 1e-3:
+                errors.append(
+                    f"frame_timing_samples[{index - 1}].deadline_lateness_ms is not aligned"
+                )
+        if callback_start is not None and previous_callback_start is not None:
+            if callback_start <= previous_callback_start:
+                errors.append("frame_timing_samples callback timestamps must be strictly increasing")
+        if callback_start is not None:
+            previous_callback_start = callback_start
+
+        for key in counter_fields:
+            value = _integer(row.get(key))
+            if value is None or value < 0:
+                errors.append(f"frame_timing_samples[{index - 1}].{key} must be a non-negative integer")
+        if _integer(row.get("worker_pulse_pending")) != 1:
+            errors.append(
+                f"frame_timing_samples[{index - 1}].worker_pulse_pending must equal 1"
+            )
+        stage_value = row.get("stage_timings_ms")
+        if not isinstance(stage_value, dict):
+            errors.append(f"frame_timing_samples[{index - 1}].stage_timings_ms must be an object")
+            continue
+        for name, stage_duration in cast("JsonObject", stage_value).items():
+            duration = _number(stage_duration)
+            if not isinstance(name, str) or duration is None or duration < 0.0:
+                errors.append(
+                    f"frame_timing_samples[{index - 1}].stage_timings_ms values must be finite and non-negative"
+                )
+
+
 def _validate_stage_timings(
     metrics: JsonObject,
     frames: int | None,
@@ -405,6 +530,43 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
     if cpu_count is None or cpu_count < 1:
         errors.append("runtime.cpu_count must be a positive integer")
 
+    counter_names = (
+        "cgroup_cpu_stat_before",
+        "cgroup_cpu_stat_after",
+        "cgroup_cpu_stat_delta",
+    )
+    counters: dict[str, dict[str, int] | None] = {}
+    for name in counter_names:
+        value = runtime.get(name)
+        if value is None:
+            counters[name] = None
+            continue
+        if not isinstance(value, dict):
+            errors.append(f"runtime.{name} must be an object or null")
+            counters[name] = None
+            continue
+        parsed: dict[str, int] = {}
+        for key, counter in cast("JsonObject", value).items():
+            number = _integer(counter)
+            if not isinstance(key, str) or number is None or number < 0:
+                errors.append(f"runtime.{name} must contain non-negative integer counters")
+            elif isinstance(key, str):
+                parsed[key] = number
+        counters[name] = parsed
+
+    before = counters["cgroup_cpu_stat_before"]
+    after = counters["cgroup_cpu_stat_after"]
+    delta = counters["cgroup_cpu_stat_delta"]
+    if (before is None) != (after is None) or (before is None) != (delta is None):
+        errors.append("cgroup CPU counters must include before, after, and delta together")
+    elif before is not None and after is not None and delta is not None:
+        shared = set(before).intersection(after)
+        if set(delta) != shared:
+            errors.append("cgroup_cpu_stat_delta must cover keys shared by before and after")
+        for key in shared:
+            if delta.get(key) != after[key] - before[key]:
+                errors.append(f"runtime.cgroup_cpu_stat_delta.{key} does not match before/after")
+
 
 def validate_metrics(payload: JsonValue) -> list[str]:
     """Return all acceptance failures found in a realtime metric artifact.
@@ -425,6 +587,7 @@ def validate_metrics(payload: JsonValue) -> list[str]:
     _validate_finite_state(metrics, errors)
     _validate_timing_metrics(metrics, errors)
     _validate_frame_scheduler(metrics, frames, errors)
+    _validate_frame_timing_trace(metrics, frames, errors)
     _validate_stage_timings(metrics, frames, errors)
     _validate_profile(metrics, errors)
     _validate_runtime(metrics, errors)

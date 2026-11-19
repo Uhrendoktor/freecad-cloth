@@ -41,6 +41,32 @@ def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
     clock.stop()
 
 
+def test_frame_clock_preserves_worker_wakeup_for_the_pending_pulse() -> None:
+    """Expose the wake-up sample before acknowledgement releases the clock worker."""
+    emitted: list[tuple[float, float]] = []
+
+    class Pulse:
+        """Collect the requested frame so its wake-up timing can be inspected."""
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
+
+    clock = _FrameClock(Pulse(), 60.0)
+    assert clock.request_frame(10.0, 9.998) is True
+    pending = clock.pending_pulse_metrics()
+    assert pending["worker_wakeup_lateness_ms"] == pytest.approx(3.0)
+    assert pending["missed_deadlines"] == 0
+    assert pending["coalesced_pulses"] == 0
+    assert pending["signals_emitted"] == 1
+    assert pending["pulse_pending"] == 1
+    assert clock.pending_pulse_metrics() == pending
+    assert emitted == [(10.0, 9.998)]
+
+    clock.frame_started(10.004, 9.998)
+    assert clock.pending_pulse_metrics()["pulse_pending"] == 0
+    clock.stop()
+
+
 def test_frame_clock_rejects_invalid_target_rates() -> None:
     """Reject invalid cadence values rather than start a zero-division worker."""
 
