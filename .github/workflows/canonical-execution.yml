@@ -94,7 +94,7 @@ jobs:
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
           if ! git rebase origin/main; then
-            bash tools/ci/resolve_guarded_rebase_conflicts.sh
+            bash tools/ci/guarded_rebase_conflict_entrypoint.sh
           fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
