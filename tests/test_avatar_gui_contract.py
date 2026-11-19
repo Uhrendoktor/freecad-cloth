@@ -259,3 +259,153 @@ def test_pose_properties_cover_all_pose_angle_fields() -> None:
     assert expected == POSE_PROPERTY_MAP, (
         "pose property names must derive from the Pose angle fields"
     )
+
+def test_measurement_marker_uses_three_foreground_contrast_layers() -> None:
+    """Keep a visible semantic pick target over both light and dark avatar surfaces."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+    from freecad_cloth.shared.ViewportGizmoStyle import (
+        DIMENSION_MARKER_HALO_COLOR,
+        DIMENSION_MARKER_OUTLINE_COLOR,
+    )
+
+    class _Field:
+        def __init__(self) -> None:
+            self.value = None
+
+        def setValues(self, _start, _count, values) -> None:
+            self.value = values
+
+    class _Node:
+        def __init__(self) -> None:
+            self.children = []
+
+        def addChild(self, child) -> None:
+            self.children.append(child)
+
+    class _DrawStyle(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.pointSize = 0.0
+
+    class _BaseColor(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rgb = None
+
+    class _Coordinate3(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.point = _Field()
+
+    class _DepthBuffer(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.test = True
+            self.write = True
+
+    class _PointSet(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.numPoints = 0
+
+    coin = SimpleNamespace(
+        SoSeparator=_Node,
+        SoDepthBuffer=_DepthBuffer,
+        SoDrawStyle=_DrawStyle,
+        SoBaseColor=_BaseColor,
+        SoCoordinate3=_Coordinate3,
+        SoPointSet=_PointSet,
+    )
+    controller = AvatarDimensionController.__new__(AvatarDimensionController)
+    controller.overlay = _Node()
+    controller._add_marker(coin, (0.0, 0.0, 0.0), (0.9, 0.8, 0.2), 8.0)
+
+    assert len(controller.overlay.children) == 3
+    sizes = [layer.children[1].pointSize for layer in controller.overlay.children]
+    colors = [layer.children[2].rgb for layer in controller.overlay.children]
+    assert sizes[0] > sizes[1] > sizes[2]
+    assert colors == [
+        DIMENSION_MARKER_HALO_COLOR,
+        DIMENSION_MARKER_OUTLINE_COLOR,
+        (0.9, 0.8, 0.2),
+    ]
+    assert all(layer.children[0].test is False for layer in controller.overlay.children)
+
+
+def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
+    """Configure Coin line stippling independently from the solid depth-tested pass."""
+    from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
+    from freecad_cloth.shared.ViewportGizmoStyle import (
+        DIMENSION_OCCLUDED_LINE_PATTERN,
+        DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
+    )
+
+    class _Field:
+        def __init__(self) -> None:
+            self.value = None
+
+        def setValue(self, value) -> None:
+            self.value = value
+
+        def setValues(self, _start, _count, values) -> None:
+            self.value = values
+
+    class _Node:
+        def __init__(self) -> None:
+            self.children = []
+
+        def addChild(self, child) -> None:
+            self.children.append(child)
+
+    class _DrawStyle(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.lineWidth = 0.0
+            self.linePattern = 0xFFFF
+            self.linePatternScaleFactor = 1
+
+    class _BaseColor(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rgb = None
+
+    class _Coordinate3(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.point = _Field()
+
+    class _DepthBuffer(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.test = True
+            self.write = True
+
+    class _LineSet(_Node):
+        def __init__(self) -> None:
+            super().__init__()
+            self.numVertices = _Field()
+
+    coin = SimpleNamespace(
+        SoSeparator=_Node,
+        SoDepthBuffer=_DepthBuffer,
+        SoDrawStyle=_DrawStyle,
+        SoBaseColor=_BaseColor,
+        SoCoordinate3=_Coordinate3,
+        SoLineSet=_LineSet,
+    )
+    controller = AvatarDimensionController.__new__(AvatarDimensionController)
+    controller.overlay = _Node()
+    controller._add_line(
+        coin,
+        ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+        (0.3, 0.5, 0.6),
+        depth_test=False,
+        line_pattern=DIMENSION_OCCLUDED_LINE_PATTERN,
+        line_pattern_scale_factor=DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
+    )
+
+    separator = controller.overlay.children[0]
+    assert separator.children[0].test is False
+    assert separator.children[1].linePattern == DIMENSION_OCCLUDED_LINE_PATTERN
+    assert separator.children[1].linePatternScaleFactor == DIMENSION_OCCLUDED_LINE_PATTERN_SCALE
+
