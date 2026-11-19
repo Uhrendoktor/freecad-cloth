@@ -10,10 +10,11 @@ from threading import Condition, Event, Thread, current_thread
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
+
 if TYPE_CHECKING:
-    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _PreviewPanel
+    from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
-    from freecad_cloth.simulation.simulation_protocols import SimulationScene
 
 _PREVIEW = None
 _PREVIEW_TARGET_FPS = 60.0
@@ -35,7 +36,7 @@ def _sample_p95_ms(samples: Sequence[float]) -> float:
 class _PulseSignal(Protocol):
     """Expose the thread-safe Qt signal used to queue a frame onto the GUI thread."""
 
-    def emit(self, _scheduled_at: float, _emitted_at: float) -> None: ...
+    def emit(self, _scheduled_at: float, _emitted_at: float, /) -> None: ...
 
 
 class _FrameDispatcher(Protocol):
@@ -322,6 +323,7 @@ def _make_frame_dispatcher(
 
 
 _SimulationScene = SimulationScene
+
 
 def _qt() -> ModuleType:
     if TYPE_CHECKING:

@@ -896,7 +896,7 @@ def _measurement_axis_profiles(
     lateral = [(0.42, 1.0)]
     depth = [(0.42, 1.0)]
     for index, (_name, height, lateral_exponent) in enumerate(bands, start=1):
-        ratio = ratios[index][1]
+        ratio = float(ratios[index][1])
         lateral.append((height, ratio**lateral_exponent))
         depth.append((height, ratio ** (2.0 - lateral_exponent)))
     lateral.extend(((0.75, 1.0), (1.0, 1.0)))
@@ -1450,7 +1450,7 @@ def _make_source_fitted_mapper(
             y_mm += 62.0 * breast_size * front_weight * vertical_weight * lateral_weight
         return (x_mm, y_mm, z_mm)
 
-    if source_triangles:
+    if bool(source_triangles):
         # Apply damped corrections at the named profile nodes. Each iteration
         # measures the actual deformed mesh contour, so target morphs, gender
         # shape, anisotropic scaling, and the soft torso mask are all included.

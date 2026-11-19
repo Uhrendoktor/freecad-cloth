@@ -62,7 +62,7 @@ class DocumentTransactionProtocol(Protocol):
         """
         ...
 
-    def openTransaction(self, label: str) -> None:
+    def openTransaction(self, label: str, /) -> None:
         """Begin an undoable document transaction with the supplied label.
 
         Args:

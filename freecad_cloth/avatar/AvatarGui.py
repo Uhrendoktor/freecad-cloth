@@ -934,7 +934,7 @@ class AvatarTaskPanel:
         elif is_human and self.dimension_gizmo_toggle.isChecked():
             self._toggle_dimension_gizmo(True)
 
-    def _toggle_dimension_gizmo(self, enabled):
+    def _toggle_dimension_gizmo(self, enabled: bool) -> None:
         """Attach or remove transient dimension handles in the active viewport.
 
         Args:

@@ -8,7 +8,7 @@ These narrow protocols describe only the Coin members used by Pose Mode.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from typing import Protocol, overload
+from typing import Protocol, overload, override
 
 
 class _CoinVector3(Protocol):
@@ -219,6 +219,7 @@ class _CoinDynamicDragger(_CoinSeparator, Protocol):
         """Register the callback invoked when a drag finishes."""
         ...
 
+    @override
     def getName(self) -> _CoinName:
         """Return the native Coin node name."""
         ...
@@ -307,7 +308,11 @@ class _CoinModule(Protocol):
     SoTransform: Callable[[], _CoinTransform]
     SoTrackballDragger: Callable[[], _CoinDynamicDragger]
     SbVec3f: Callable[..., _CoinVector3]
-    SbRotation: Callable[..., _CoinRotation]
+
+    @property
+    def SbRotation(self) -> Callable[..., _CoinRotation]:
+        """Return the native quaternion rotation constructor."""
+        ...
 
 
 # Public structural aliases for consumers crossing module boundaries.

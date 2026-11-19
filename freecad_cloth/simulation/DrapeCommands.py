@@ -29,6 +29,7 @@ class _FreeCADDocument(FreeCADDocumentProtocol, Protocol):
 
 _SimulationScene = SimulationScene
 
+
 class _DrapeTarget(FreeCADDocumentObjectProtocol, Protocol):
     """Persistent target fields updated by the drape-target commands."""
 

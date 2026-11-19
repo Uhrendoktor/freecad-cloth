@@ -134,8 +134,15 @@ class _NativeRotation(Protocol):
 class _NativePlacement(Protocol):
     """Native object placement operations used by fitting and anchor geometry."""
 
-    Base: _NativeVector
-    Rotation: _NativeRotation
+    @property
+    def Base(self) -> _NativeVector:
+        """Return the translation component of this native placement."""
+        ...
+
+    @property
+    def Rotation(self) -> _NativeRotation:
+        """Return the rotation component of this native placement."""
+        ...
 
     def inverse(self) -> _NativePlacement:
         """Return the inverse placement transform.
@@ -149,7 +156,7 @@ class _NativePlacement(Protocol):
         """Return the homogeneous matrix for this placement."""
         ...
 
-    def multVec(self, vector: _NativeVector) -> _NativeVector:
+    def multVec(self, vector: _NativeVector, /) -> _NativeVector:
         """Transform a vector through the placement into the target coordinate frame.
 
         Args:
@@ -172,13 +179,40 @@ class _PatternPieceRef(Protocol):
 class _ArrangementPointRef(Protocol):
     """Geometry and validation methods of a saved arrangement-point record."""
 
-    name: str
-    x: float
-    y: float
-    offset: float
-    wrap_direction: str
-    rotation_z: float
-    symmetry_group: str
+    @property
+    def name(self) -> str:
+        """Return the immutable arrangement-point name."""
+        ...
+
+    @property
+    def x(self) -> float:
+        """Return the fitting-plane x coordinate."""
+        ...
+
+    @property
+    def y(self) -> float:
+        """Return the fitting-plane y coordinate."""
+        ...
+
+    @property
+    def offset(self) -> float:
+        """Return the signed fitting-plane offset."""
+        ...
+
+    @property
+    def wrap_direction(self) -> str:
+        """Return the authored direction for garment wrapping."""
+        ...
+
+    @property
+    def rotation_z(self) -> float:
+        """Return the in-plane rotation in degrees."""
+        ...
+
+    @property
+    def symmetry_group(self) -> str:
+        """Return the optional symmetry-group identifier."""
+        ...
 
     def to_string(self) -> str:
         """Serialize the validated arrangement point for document persistence."""
@@ -200,9 +234,20 @@ class _ArrangementPointRef(Protocol):
 class _BoundingVolumeRef(Protocol):
     """Validated bounding-volume fields persisted by the fitting scene."""
 
-    name: str
-    center: Point3
-    size: Point3
+    @property
+    def name(self) -> str:
+        """Return the immutable bounding-volume name."""
+        ...
+
+    @property
+    def center(self) -> Point3:
+        """Return the axis-aligned volume center."""
+        ...
+
+    @property
+    def size(self) -> Point3:
+        """Return the positive axis-aligned volume dimensions."""
+        ...
 
     def validate(self) -> None:
         """Validate the volume's name and positive extents."""
@@ -320,7 +365,7 @@ class _FittingVisualFeature(FreeCADDocumentObjectProtocol, _NativePropertyAdder,
 
 def _drape_target_source(
     doc: _FittingDocument | None,
-) -> FreeCADDocumentObjectProtocol | None:
+) -> _FittingAnchorTarget | None:
     """Return the source object linked by the document's persistent drape target.
 
     Args:
@@ -331,7 +376,13 @@ def _drape_target_source(
     """
     if doc is None:
         return None
-    return getattr(doc.getObject("DrapeTarget"), "SourceObject", None)
+    drape_target = doc.getObject("DrapeTarget")
+    if drape_target is None:
+        return None
+    source = getattr(drape_target, "SourceObject", None)
+    if source is None or not hasattr(source, "Placement") or not hasattr(source, "Name"):
+        return None
+    return cast("_FittingAnchorTarget", source)
 
 
 def _scene(doc: _FittingDocument | None) -> _FittingSceneFeature | None:
@@ -533,9 +584,7 @@ def _mesh_topology_from_parts(
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             msg = "could not normalize target mesh vertices to object-local coordinates"
             raise ValueError(msg) from exc
-    faces = tuple(
-        tuple(int(index) for index in face) for face in triangles
-    )
+    faces = tuple(tuple(int(index) for index in face) for face in triangles)
     return _validated_mesh_topology(points, faces)
 
 
@@ -1152,7 +1201,7 @@ def _anchor_record_status(
     if target is None:
         return "missing target"
     if document is None:
-        document = getattr(scene, "Document", None) if scene is not None else None
+        document = scene.Document if scene is not None else None
     if document is not None:
         configured_target = _drape_target_source(document)
         if configured_target is None:
@@ -1226,10 +1275,13 @@ def _refresh_anchor_positions(
         if point is None:
             continue
         target = doc.getObject(str(anchor.get("target", "")))
-        if target is None or _anchor_record_status(scene, target, anchor) != "valid":
+        if target is None:
+            continue
+        anchor_target = cast("_FittingAnchorTarget", target)
+        if _anchor_record_status(scene, anchor_target, anchor) != "valid":
             continue
         try:
-            x, y, z = _anchor_world_position(target, anchor)
+            x, y, z = _anchor_world_position(anchor_target, anchor)
         except (AttributeError, IndexError, TypeError, ValueError, RuntimeError):
             continue
         if max(abs(point.x - x), abs(point.y - y), abs(point.offset - z)) <= 1e-6:
@@ -1246,14 +1298,16 @@ def _refresh_anchor_positions(
     if update_visuals:
         import Part
 
-        objects = {
-            str(getattr(obj, "PointName", "")): obj
-            for obj in (
-                doc.getObject(str(name))
-                for name in tuple(getattr(scene, "ArrangementPointObjects", ()) or ())
-            )
-            if obj is not None
-        }
+        objects: dict[str, _FittingVisualFeature] = {}
+        for object_name in tuple(getattr(scene, "ArrangementPointObjects", ()) or ()):
+            native_object = doc.getObject(str(object_name))
+            if native_object is None or not all(
+                hasattr(native_object, attribute)
+                for attribute in ("PointName", "Shape", "X", "Y", "Offset", "RotationZ")
+            ):
+                continue
+            marker = cast("_FittingVisualFeature", native_object)
+            objects[str(marker.PointName)] = marker
         for name, point in changed:
             obj = objects.get(name)
             if obj is None:
@@ -1490,8 +1544,11 @@ def _sync_visuals(scene: _FittingSceneFeature) -> None:
             obj.addProperty("App::PropertyString", "AnchorStatus", "Surface Anchor")
         obj.X, obj.Y, obj.Offset, obj.RotationZ = point.x, point.y, point.offset, point.rotation_z
         anchor = anchor_records.get(point.name)
-        if anchor:
-            obj.AnchorTarget = scene.Document.getObject(str(anchor.get("target", "")))
+        if bool(anchor):
+            obj.AnchorTarget = cast(
+                "_FittingAnchorTarget | None",
+                scene.Document.getObject(str(anchor.get("target", ""))),
+            )
             obj.AnchorSubelement = str(anchor.get("subelement", ""))
             obj.AnchorGeometrySignature = str(anchor.get("geometry_signature", ""))
             local_point = tuple(
@@ -2131,7 +2188,7 @@ def open_interactive_arrange(
     scene = scene or _scene(doc) or create_fitting_scene()
     from freecad_cloth.avatar.FittingGui import show_fitting_task
 
-    panel = show_fitting_task(scene)
+    panel = cast("_FittingTaskPanel", show_fitting_task(scene))
     if Gui.activeDocument():
         Gui.activeDocument().activeView().fitAll()
     return panel

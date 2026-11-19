@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-if __package__ is None or __package__ == "":
+if __package__ is None or len(__package__) == 0:
     from repository_paths import add_repository_root
 else:
     from .repository_paths import add_repository_root

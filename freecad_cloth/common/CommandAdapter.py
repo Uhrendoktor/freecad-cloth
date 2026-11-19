@@ -11,7 +11,7 @@ CommandCallable: TypeAlias = Callable[[], object]
 class GuiCommandRegistrar(Protocol):
     """Minimal FreeCAD GUI command-registration interface."""
 
-    def addCommand(self, name: str, command: "FunctionCommand") -> None:
+    def addCommand(self, name: str, command: "FunctionCommand", /) -> None:
         """Register one command instance under its stable GUI identifier.
 
         Args:

@@ -353,7 +353,10 @@ def transform_landmarks(
         if baseline is None or effective is None:
             result.append(landmark)
             continue
-        rest_point = baseline.inverse().apply(tuple(float(value) for value in landmark.position))
+        rest_coordinates = landmark.position
+        rest_point = baseline.inverse().apply(
+            (float(rest_coordinates[0]), float(rest_coordinates[1]), float(rest_coordinates[2]))
+        )
         posed_point = effective.apply(rest_point)
         result.append(Landmark(landmark.name, tuple(float(value) for value in posed_point)))
     return tuple(result)

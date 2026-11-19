@@ -196,7 +196,7 @@ def joint_rotations_from_json(payload: str) -> tuple[JointRotation, ...]:
         ValueError: If the payload is invalid JSON or uses an unsupported schema.
         TypeError: If the JSON root or joints member has the wrong type.
     """
-    decoded: JSONValue = json.loads(payload)
+    decoded: JSONValue = cast("JSONValue", json.loads(payload))
     if not isinstance(decoded, dict):
         msg = "mannequin joint pose JSON must be an object"
         raise TypeError(msg)
@@ -454,7 +454,7 @@ def build_bone_transforms(
             cache[bone_name] = IDENTITY
             return IDENTITY
         parent_name = bone.get("parent")
-        parent_transform = visit(parent_name) if parent_name else IDENTITY
+        parent_transform = visit(parent_name) if bool(parent_name) else IDENTITY
         rest_head = joint_point(source_vertices, skeleton["joints"][bone["head"]], mapper=fit_point)
         rotation = rotation_map.get(bone_name)
         if rotation is None:

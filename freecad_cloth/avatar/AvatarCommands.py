@@ -124,6 +124,7 @@ class _AvatarFeature(AvatarParametersFeatureProtocol, _AvatarFeatureView, Protoc
     Label: str
 
     @property
+    @override
     def Document(self) -> _FreeCADDocument:
         """Return the owning document for this persistent avatar feature."""
         ...
@@ -789,6 +790,7 @@ def _ensure_drape_target(obj: _AvatarFeature) -> _DrapeTarget:
         target = create_drape_target(
             obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0
         )
+    target = cast("_DrapeTarget", target)
     assign_drape_target(target, obj, "Mannequin")
     return target
 
@@ -869,7 +871,7 @@ def create_avatar(
 
     app = cast("_FreeCADApplication", App)
 
-    doc = doc or app.ActiveDocument or _application_new_document(app, "ClothSewing"),
+    doc = doc or app.ActiveDocument or _application_new_document(app, "ClothSewing")
     obj = _avatar(doc)
     if obj is None:
         obj = _document_add_object(doc, "Mesh::Feature", object_name)
@@ -1148,7 +1150,11 @@ def set_avatar_provider(
         msg = f"unsupported avatar provider: {provider_id}"
         raise ValueError(msg)
     if provider_id == FREECAD_GEOMETRY_PROVIDER_ID:
-        source = source or getattr(obj, "ProviderSource", None)
+        source = (
+            source
+            if source is not None
+            else cast("FreeCADDocumentObjectProtocol | None", getattr(obj, "ProviderSource", None))
+        )
         if source is None or source is obj:
             msg = "a FreeCAD source object is required for the freecad-geometry provider"
             raise ValueError(msg)

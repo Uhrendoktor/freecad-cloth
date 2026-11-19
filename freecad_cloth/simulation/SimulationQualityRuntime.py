@@ -8,14 +8,14 @@ proxy. It is the only quality runtime implementation.
 import weakref
 from collections.abc import Hashable, Sequence
 from math import ceil
-from typing import Protocol, Self, cast, override
+from typing import Protocol, cast, override
 
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
 from freecad_cloth.simulation.SimulationObjects import (
     PIN_MODE_NAMES,
     _write_mesh,
     resolve_pin_indices,
 )
-from freecad_cloth.simulation.simulation_protocols import SimulationScene
 from freecad_cloth.simulation.SimulationQuality import (
     QUALITY_PRESETS,
     normalize_color_rgb,

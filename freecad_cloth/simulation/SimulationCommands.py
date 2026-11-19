@@ -37,7 +37,6 @@ class _PatternPieceFeature(SimulationPatternPiece, Protocol):
     """PatternPiece identity required when transferring pieces into a simulation."""
 
 
-
 class _DrapeTargetFeature(FreeCADDocumentObjectProtocol, Protocol):
     """Persisted target source and readiness fields used before simulation advancement."""
 
@@ -366,7 +365,7 @@ def run_simulation(
 def reset_simulation(
     *,
     require_simulation_fn: Callable[[], tuple[SimulationDocument, SimulationScene]] | None = None,
-    reset_scene_fn: Callable[[SimulationScene], SimulationScene] | None = None,
+    reset_scene_fn: Callable[[SimulationScene], None] | None = None,
     refresh_overlay_fn: Callable[[SimulationDocument], SeamOverlayController | None] | None = None,
 ) -> SimulationScene:
     """Reset the active simulation state without changing its authored settings.

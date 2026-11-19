@@ -1371,9 +1371,7 @@ def render_pattern_svg(report: JsonObject) -> str:
     pieces_rendered: list[str] = []
     for piece_number, raw_piece in enumerate(pieces[:2]):
         if isinstance(raw_piece, dict):
-            pieces_rendered.extend(
-                _render_pattern_piece(raw_piece, piece_number, armholes)
-            )
+            pieces_rendered.extend(_render_pattern_piece(raw_piece, piece_number, armholes))
     if not pieces_rendered:
         pieces_rendered.append(
             '<text x="30" y="100" font-size="20" font-family="sans-serif" fill="#202938">'

@@ -9,12 +9,11 @@ available through FreeCAD's property editor for precision work.
 
 import contextlib
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from itertools import starmap
 from typing import TYPE_CHECKING, Protocol, TypeVar, cast
 
 from freecad_cloth.avatar.coin_protocols import CoinModule, CoinSeparator, CoinVector3
-
 from freecad_cloth.shared.ViewportGizmoStyle import (
     SNAP_CENTER_RADIUS,
     SNAP_CROSSHAIR_HALF_LENGTH,
@@ -82,11 +81,15 @@ _ScreenPointT = TypeVar("_ScreenPointT", bound=_ScreenPointCandidate)
 
 
 class _ViewVector(Protocol):
-    """Coordinates exposed by FreeCAD's native viewport projection methods."""
+    """Coordinates and subtraction exposed by FreeCAD viewport vectors."""
 
     x: float
     y: float
     z: float
+
+    def sub(self, vec: _ViewVector, /) -> _ViewVector:
+        """Return the vector difference from the supplied native vector."""
+        ...
 
 
 class _ViewSceneGraphName(Protocol):
