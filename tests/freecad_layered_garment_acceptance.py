@@ -783,9 +783,12 @@ def run_acceptance() -> None:
             )
             + 28.0
         )
-        shirt_hem_radius_x = max(
-            radius_x,
-            max(abs(float(vertex[0]) - center_x) for vertex in shirt_hem_samples) + 28.0,
+        shirt_hem_radius_x = (
+            max(
+                0.5 * shoulder_width,
+                max(abs(float(vertex[0]) - center_x) for vertex in shirt_hem_samples),
+            )
+            + 28.0
         )
         shirt_top_radius_y = (
             0.5
@@ -795,14 +798,13 @@ def run_acceptance() -> None:
             )
             + 28.0
         )
-        shirt_hem_radius_y = max(
-            radius_y,
+        shirt_hem_radius_y = (
             0.5
             * (
                 max(float(vertex[1]) for vertex in shirt_hem_samples)
                 - min(float(vertex[1]) for vertex in shirt_hem_samples)
             )
-            + 28.0,
+            + 28.0
         )
         shirt_top_center_y = 0.5 * (
             min(float(vertex[1]) for vertex in shirt_top_samples)
