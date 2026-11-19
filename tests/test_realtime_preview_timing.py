@@ -168,6 +168,30 @@ def test_frame_clock_smooths_observed_gui_queue_delay() -> None:
     clock.stop()
 
 
+def test_next_frame_deadline_uses_acknowledged_start_not_latest_queue_sample() -> None:
+    """Keep target cadence independent of noisy individual GUI queue-delay observations."""
+
+    class Pulse:
+        """Provide the no-op signal required by the frame clock."""
+
+        def emit(self, _scheduled_at: float, _emitted_at: float) -> None:
+            pass
+
+    clock = _FrameClock(Pulse(), 60.0)
+    first_ack = 10.010
+    clock.frame_started(first_ack, 10.000)
+    first_deadline = clock._next_frame_deadline(first_ack)
+    assert first_deadline == pytest.approx(first_ack + 1.0 / 60.0)
+
+    second_ack = 10.011
+    clock.frame_started(second_ack, 10.010)
+    second_deadline = clock._next_frame_deadline(second_ack)
+    assert second_deadline == pytest.approx(second_ack + 1.0 / 60.0)
+    assert first_deadline != second_deadline
+    assert clock.snapshot()["queue_delay_estimate_ms"] == pytest.approx(10.25)
+    clock.stop()
+
+
 def test_queue_delay_estimator_uses_a_high_percentile_not_the_mean() -> None:
     """Use a tail-aware queue-delay lead that covers rare but material GUI stalls."""
     samples = [float(value) for value in range(1, 101)]
