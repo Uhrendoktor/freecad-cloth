@@ -16,6 +16,8 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
 
 def _modules():
     """Load the FreeCAD and Qt modules supported by the host runtime.
@@ -236,17 +238,21 @@ class SewingNetworkTaskPanel:
         detail_layout.addWidget(self.selected_seam_label)
         range_form = QtWidgets.QFormLayout()
         configure_form_layout(range_form, QtWidgets)
+        from freecad_cloth.common.UiDesign import make_paired_range_row
+
         self.start_a, self.end_a, self.start_b, self.end_b = (
             self._range_spin(QtWidgets) for _ in range(4)
         )
         self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
-        for label, field in (
-            ("Side A start (0-1)", self.start_a),
-            ("Side A end (0-1)", self.end_a),
-            ("Side B start (0-1)", self.start_b),
-            ("Side B end (0-1)", self.end_b),
-        ):
-            range_form.addRow(label, field)
+
+        range_form.addRow(
+            "Side A (0-1)",
+            make_paired_range_row(self.start_a, self.end_a, QtWidgets),
+        )
+        range_form.addRow(
+            "Side B (0-1)",
+            make_paired_range_row(self.start_b, self.end_b, QtWidgets),
+        )
         detail_layout.addLayout(range_form)
         layout.addWidget(detail)
 

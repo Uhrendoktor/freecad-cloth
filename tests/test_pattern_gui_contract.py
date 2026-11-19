@@ -378,3 +378,38 @@ def test_pattern_export_focus_action_selects_and_frames_source_without_changing_
 
     assert panel.focus_source_in_3d() is True
     assert calls == [("clear",), ("select", piece), ("fit",)]
+
+def test_pattern_export_shows_pdf_options_and_hides_their_form_label() -> None:
+    """Keep the PDF-only row label synchronized with its controls across format changes."""
+    pdf_visibility: list[bool] = []
+    label_visibility: list[bool] = []
+    written_paths: list[str] = []
+
+    class _PathField:
+        """Line edit double retaining the current output filename."""
+
+        def __init__(self) -> None:
+            self.path = "garment.svg"
+
+        def text(self) -> str:
+            return self.path
+
+        def setText(self, value: str) -> None:
+            self.path = str(value)
+            written_paths.append(self.path)
+
+    panel = PatternExportGui.PatternExportTaskPanel.__new__(PatternExportGui.PatternExportTaskPanel)
+    panel.pdf_layout = SimpleNamespace(setVisible=pdf_visibility.append)
+    panel._pdf_layout_label = SimpleNamespace(setVisible=label_visibility.append)
+    panel.path = _PathField()
+
+    panel._format_changed("PDF")
+    assert pdf_visibility == [True]
+    assert label_visibility == [True]
+    assert panel.path.text() == "garment.pdf"
+
+    panel._format_changed("SVG")
+    assert pdf_visibility == [True, False]
+    assert label_visibility == [True, False]
+    assert panel.path.text() == "garment.svg"
+    assert written_paths == ["garment.pdf", "garment.svg"]
