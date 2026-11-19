@@ -106,9 +106,7 @@ def _validate_fixture_size(metrics: JsonObject, errors: list[str]) -> None:
             expected_garments,
         ) = expected
         if particles is None or particles < minimum_particles:
-            errors.append(
-                f"particles must be an integer >= {minimum_particles} for this fixture"
-            )
+            errors.append(f"particles must be an integer >= {minimum_particles} for this fixture")
         if _integer(metrics.get("panel_count")) != expected_panels:
             errors.append(f"panel_count must be {expected_panels}")
         if _integer(metrics.get("garment_count")) != expected_garments_count:
@@ -341,7 +339,9 @@ def _validate_stage_timings(
             minimum_samples = 0
         elif name == "preview_mesh_publish":
             panel_count_value = _integer(metrics.get("panel_count"))
-            panel_count = panel_count_value if panel_count_value is not None and panel_count_value > 0 else 2
+            panel_count = (
+                panel_count_value if panel_count_value is not None and panel_count_value > 0 else 2
+            )
             minimum_samples = frames * panel_count
         else:
             minimum_samples = frames
