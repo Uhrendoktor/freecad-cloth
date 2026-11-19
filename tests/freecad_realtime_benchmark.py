@@ -22,10 +22,16 @@ if TYPE_CHECKING:
 
     import numpy as np
     import numpy.typing as npt
+    import Part
+    import Sketcher
 
     from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
     from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
-    from freecad_cloth.simulation.PatternSimulationAdapter import _PatternPieceFeature, _SeamFeature
+    from freecad_cloth.simulation.PatternSimulationAdapter import (
+        _NativePlacement,
+        _PatternPieceFeature,
+        _SeamFeature,
+    )
     from freecad_cloth.simulation.simulation_protocols import SimulationDocument
 
     class _RealtimeSimulationScene(Protocol):
@@ -64,16 +70,18 @@ class _SketcherViewObjectProtocol(Protocol):
 class _SketcherDocumentObjectProtocol(Protocol):
     """Expose the native sketch placement and view object."""
 
-    Placement: object
+    Placement: _NativePlacement
     ViewObject: _SketcherViewObjectProtocol
 
 
 class _SketcherFeatureProtocol(_SketcherDocumentObjectProtocol, Protocol):
     """Expose the Sketcher methods used by the deterministic fixture builder."""
 
-    def addGeometry(self, geometry: list[object], construction: bool) -> object: ...
+    def addGeometry(
+        self, geometry: Sequence[Part.Geometry], construction: bool
+    ) -> int | list[int]: ...
 
-    def addConstraint(self, constraints: list[object]) -> object: ...
+    def addConstraint(self, constraints: Sequence[Sketcher.Constraint]) -> int | list[int]: ...
 
 
 ROOT = Path(__file__).resolve().parents[1]
