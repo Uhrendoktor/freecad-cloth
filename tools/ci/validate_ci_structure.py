@@ -394,7 +394,7 @@ def _validate_reusable_workflow_trust(text: str) -> None:
         "Required validation gate",
         "No successful full-validation run matched source tree",
         '--event "${event}" --status success',
-        "Explicit full validation / Required validation gate",
+        "Full validation (explicit request) / Required validation gate",
     )
     merge_workflow = MERGE_VALIDATION_WORKFLOW.read_text(encoding="utf-8")
     if any(marker not in text for marker in required_markers) or (
