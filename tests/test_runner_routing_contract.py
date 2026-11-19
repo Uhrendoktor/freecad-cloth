@@ -191,7 +191,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     assert "seam: SeamFeatureProtocol" in resolver
     assert "DocumentTransactionProtocol" in resolver
-    assert '$(git rev-parse REBASE_HEAD)' in resolver
+    assert "$(git rev-parse REBASE_HEAD)" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
