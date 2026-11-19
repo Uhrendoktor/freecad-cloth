@@ -114,7 +114,7 @@ def _add_outfit_preview_fixture(
         name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
     ) -> _PatternPieceFeature:
         sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-        sketch.addGeometry(
+        getattr(sketch, "addGeometry")(
             [
                 Part.LineSegment(
                     App.Vector(outline[index][0], outline[index][1], 0.0),
@@ -128,7 +128,7 @@ def _add_outfit_preview_fixture(
             ],
             False,
         )
-        sketch.addConstraint(
+        getattr(sketch, "addConstraint")(
             [
                 Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
                 for index in range(len(outline))
