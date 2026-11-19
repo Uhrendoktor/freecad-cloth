@@ -330,23 +330,27 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
 
 
 def test_main_publication_requires_artifacts_from_a_matching_full_validation_tree() -> None:
+    """Require exact-tree full validation before publishing main documentation assets."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
+    lookup = (ROOT / "tools" / "ci" / "find_validated_visual_run.py").read_text(encoding="utf-8")
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
-    assert "source_tree" in workflow
-    assert '--event "${event}" --status success' in workflow
+    assert "python3 tools/ci/find_validated_visual_run.py" in workflow
+    assert "source_tree" in lookup
+    assert "candidate_tree == source_tree" in lookup
+    assert "No successful full-validation run matched source tree" in lookup
+    assert "merge_group" in lookup
+    assert "pull_request" in lookup
+    assert "event={event}" in lookup
+    assert "status=success" in lookup
+    assert "HTTP\\s+50[234]" in lookup
+    assert "_MAX_RUN_PAGES" in lookup
+    assert "Full validation (explicit request) / Required validation gate" in lookup
     merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
         encoding="utf-8"
     )
     assert "Required pre-merge validation" in merge_workflow
-    assert "find_validated_run merge-validation.yml merge_group" in workflow
-    assert "find_validated_run commit-validation.yml pull_request" in workflow
-    assert (
-        'find_validated_run commit-validation.yml pull_request "Full validation (explicit request) / Required validation gate"'
-        in workflow
-    )
-    assert "No successful full-validation run" in workflow
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
     )[0]

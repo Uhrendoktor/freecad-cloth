@@ -122,6 +122,7 @@ GROUPS = {
         "tests/test_canonical_python_validation_contract.py",
         "tests/test_documentation_contract.py",
         "tests/test_build_visual_gifs.py",
+        "tests/test_visual_artifact_lookup.py",
         "tests/test_command_runner.py",
         "tests/test_pbd_contact_diagnostics_contract.py",
         "tests/test_pbd_cube_ladder_contract.py",
