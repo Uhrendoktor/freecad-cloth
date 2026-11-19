@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the feedback-paced realtime preview frame clock."""
 
+from enum import IntEnum
 from math import inf, isclose, nan
 from typing import Protocol, cast
 
@@ -114,9 +115,15 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     """Post the frame pulse with high priority and dispatch it on the receiver thread."""
     high_priority = 7
 
-    class FakeEvent:
-        """Minimal custom Qt event with a registered integer type."""
+    class FakeEventType(IntEnum):
+        """Model the scoped enum required by the PySide6 QEvent constructor."""
 
+        Custom = 1001
+
+    class FakeEvent:
+        """Require a registered custom event to be wrapped in QEvent.Type."""
+
+        Type = FakeEventType
         _next_type = 1000
 
         @classmethod
@@ -124,10 +131,12 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
             cls._next_type += 1
             return cls._next_type
 
-        def __init__(self, event_type: int) -> None:
+        def __init__(self, event_type: FakeEventType) -> None:
+            if not isinstance(event_type, FakeEventType):
+                raise TypeError("custom event type must be wrapped in QEvent.Type")
             self._event_type = event_type
 
-        def type(self) -> int:
+        def type(self) -> FakeEventType:
             return self._event_type
 
     class EventReceiver(Protocol):
@@ -183,6 +192,7 @@ def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
     assert len(posted) == 1
     receiver, event, priority = posted[0]
     assert priority == high_priority
+    assert event.type() is FakeEventType.Custom
     assert receiver is dispatcher
     event_handler = cast("EventReceiver", dispatcher).event
     assert event_handler(event) is True
