@@ -337,6 +337,16 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     lookup = (ROOT / "tools" / "ci" / "find_validated_visual_run.py").read_text(encoding="utf-8")
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
     assert "python3 tools/ci/find_validated_visual_run.py" in workflow
+    lookup_job = workflow.split("  find-validation-artifacts:", 1)[1].split(
+        "  gui-documentation-assets:", 1
+    )[0]
+    checkout_step = "uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
+    assert checkout_step in lookup_job
+    assert "ref: ${{ github.sha }}" in lookup_job
+    assert "persist-credentials: false" in lookup_job
+    assert lookup_job.index(checkout_step) < lookup_job.index(
+        "run: python3 tools/ci/find_validated_visual_run.py"
+    )
     assert "source_tree" in lookup
     assert "candidate_tree == source_tree" in lookup
     assert "No successful full-validation run matched source tree" in lookup
