@@ -24,13 +24,14 @@ FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
 MIN_PARTICLES = 100
-EXPECTED_PANEL_COUNT = 10
-EXPECTED_GARMENT_COUNT = 3
-EXPECTED_SEAM_COUNT = 18
-EXPECTED_GARMENTS = {
-    "tshirt": (4, 8),
-    "trousers": (4, 6),
-    "hat": (2, 4),
+EXPECTED_FIXTURE_SPECS: dict[str, tuple[int, int, int, dict[str, tuple[int, int]]]] = {
+    "two-panel-tunic-pattern": (1, 2, 4, {"tunic": (2, 4)}),
+    "three-garment-outfit": (
+        3,
+        10,
+        18,
+        {"tshirt": (4, 8), "trousers": (4, 6), "hat": (2, 4)},
+    ),
 }
 MIN_COLLISION_TRIANGLES = 1
 FRAME_BUDGET_TOLERANCE_MS = 1e-6
@@ -78,8 +79,9 @@ def _validate_artifact_identity(metrics: JsonObject, errors: list[str]) -> None:
         errors.append("schema_version must be 1")
     if metrics.get("backend") != "position-based-dynamics":
         errors.append("backend must be position-based-dynamics")
-    if metrics.get("fixture") != "three-garment-outfit":
-        errors.append("fixture must be three-garment-outfit")
+    fixture = metrics.get("fixture")
+    if not isinstance(fixture, str) or fixture not in EXPECTED_FIXTURE_SPECS:
+        errors.append("fixture must be a supported tunic-control or three-garment outfit")
 
 
 def _validate_fixture_size(metrics: JsonObject, errors: list[str]) -> None:
@@ -92,29 +94,35 @@ def _validate_fixture_size(metrics: JsonObject, errors: list[str]) -> None:
     particles = _integer(metrics.get("particles"))
     if particles is None or particles < MIN_PARTICLES:
         errors.append(f"particles must be an integer >= {MIN_PARTICLES} for garment-scale coverage")
-    if _integer(metrics.get("panel_count")) != EXPECTED_PANEL_COUNT:
-        errors.append(f"panel_count must be {EXPECTED_PANEL_COUNT}")
-    if _integer(metrics.get("garment_count")) != EXPECTED_GARMENT_COUNT:
-        errors.append(f"garment_count must be {EXPECTED_GARMENT_COUNT}")
-    if _integer(metrics.get("seam_count")) != EXPECTED_SEAM_COUNT:
-        errors.append(f"seam_count must be {EXPECTED_SEAM_COUNT}")
-    garments_value = metrics.get("garments")
-    if not isinstance(garments_value, dict):
-        errors.append("garments must be a JSON object")
-    else:
-        garments = cast("JsonObject", garments_value)
-        if set(garments) != set(EXPECTED_GARMENTS):
-            errors.append("garments must contain exactly tshirt, trousers, and hat")
-        for garment_name, (panel_count, seam_count) in EXPECTED_GARMENTS.items():
-            garment_value = garments.get(garment_name)
-            if not isinstance(garment_value, dict):
-                errors.append(f"garments.{garment_name} must be a JSON object")
-                continue
-            garment = cast("JsonObject", garment_value)
-            if _integer(garment.get("panel_count")) != panel_count:
-                errors.append(f"garments.{garment_name}.panel_count must be {panel_count}")
-            if _integer(garment.get("seam_count")) != seam_count:
-                errors.append(f"garments.{garment_name}.seam_count must be {seam_count}")
+    fixture = metrics.get("fixture")
+    expected = EXPECTED_FIXTURE_SPECS.get(fixture) if isinstance(fixture, str) else None
+    if expected is not None:
+        expected_garments_count, expected_panels, expected_seams, expected_garments = expected
+        if _integer(metrics.get("panel_count")) != expected_panels:
+            errors.append(f"panel_count must be {expected_panels}")
+        if _integer(metrics.get("garment_count")) != expected_garments_count:
+            errors.append(f"garment_count must be {expected_garments_count}")
+        if _integer(metrics.get("seam_count")) != expected_seams:
+            errors.append(f"seam_count must be {expected_seams}")
+        garments_value = metrics.get("garments")
+        if not isinstance(garments_value, dict):
+            errors.append("garments must be a JSON object")
+        else:
+            garments = cast("JsonObject", garments_value)
+            if set(garments) != set(expected_garments):
+                errors.append(
+                    f"garments must contain exactly {', '.join(sorted(expected_garments))}"
+                )
+            for garment_name, (panel_count, seam_count) in expected_garments.items():
+                garment_value = garments.get(garment_name)
+                if not isinstance(garment_value, dict):
+                    errors.append(f"garments.{garment_name} must be a JSON object")
+                    continue
+                garment = cast("JsonObject", garment_value)
+                if _integer(garment.get("panel_count")) != panel_count:
+                    errors.append(f"garments.{garment_name}.panel_count must be {panel_count}")
+                if _integer(garment.get("seam_count")) != seam_count:
+                    errors.append(f"garments.{garment_name}.seam_count must be {seam_count}")
     collision_triangles = _integer(metrics.get("collision_triangles"))
     if collision_triangles is None or collision_triangles < MIN_COLLISION_TRIANGLES:
         errors.append("collision_triangles must be a positive integer")
@@ -321,7 +329,8 @@ def _validate_stage_timings(
         elif name == "mesh_write":
             minimum_samples = 0
         elif name == "preview_mesh_publish":
-            panel_count = _integer(metrics.get("panel_count")) or EXPECTED_PANEL_COUNT
+            panel_count_value = _integer(metrics.get("panel_count"))
+            panel_count = panel_count_value if panel_count_value is not None and panel_count_value > 0 else 2
             minimum_samples = frames * panel_count
         else:
             minimum_samples = frames
