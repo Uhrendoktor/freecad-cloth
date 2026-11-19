@@ -24,13 +24,13 @@ class NativeAvatarMeshProtocol(Protocol):
     def addFacets(
         self,
         facets: tuple[Sequence[AvatarMeshVectorProtocol], Sequence[Sequence[int]]],
-        check_manifold: bool = False,
+        _check_manifold: bool = False,
     ) -> None:
         """Populate the native mesh with shared vertices and indexed faces.
 
         Args:
             facets: Shared coordinate records and triangle-index sequences.
-            check_manifold: Whether FreeCAD should check the supplied topology.
+            _check_manifold: Whether FreeCAD should check the supplied topology.
         """
         ...
 
@@ -158,7 +158,11 @@ class AvatarParametersFeatureProtocol(FreeCADDocumentObjectProtocol, Protocol):
 
     @property
     def Document(self) -> FreeCADDocumentProtocol:
-        """Return the document that owns the persistent avatar feature."""
+        """Return the document that owns the persistent avatar feature.
+
+        Returns:
+            FreeCAD document owning the persistent avatar feature.
+        """
         ...
 
     PosePreset: str

@@ -10,9 +10,10 @@ from threading import Condition, Event, Thread, current_thread
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
+from freecad_cloth.simulation.simulation_protocols import SimulationScene
+
 if TYPE_CHECKING:
     from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview
-    from freecad_cloth.simulation.simulation_protocols import SimulationScene
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
 _PREVIEW = None

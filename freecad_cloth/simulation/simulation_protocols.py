@@ -14,24 +14,51 @@ class SimulationDocument(Protocol):
 
     @property
     def Name(self) -> str:
-        """Return the immutable internal document name."""
+        """Return the immutable internal document name.
+
+        Returns:
+            Stable internal name assigned to this document.
+        """
         ...
 
     @property
     def Objects(self) -> Sequence[FreeCADDocumentObjectProtocol]:
-        """Return the document's native objects as a read-only sequence."""
+        """Return the document's native objects as a read-only sequence.
+
+        Returns:
+            Ordered native document objects currently owned by the document.
+        """
         ...
 
     def addObject(self, object_type: str, name: str, /) -> FreeCADDocumentObjectProtocol:
-        """Create a feature in the document."""
+        """Create a feature in the document.
+
+        Args:
+            object_type: FreeCAD object type identifier for the new feature.
+            name: Stable internal name assigned to the new feature.
+
+        Returns:
+            Newly created feature owned by this document.
+        """
         ...
 
     def getObject(self, object_name: str, /) -> FreeCADDocumentObjectProtocol | None:
-        """Find a feature by its stable internal name."""
+        """Find a feature by its stable internal name.
+
+        Args:
+            object_name: Internal name used to locate the document feature.
+
+        Returns:
+            Matching feature, or None when the name is not present.
+        """
         ...
 
     def recompute(self) -> int | None:
-        """Recompute the document and return its native status code."""
+        """Recompute the document and return its native status code.
+
+        Returns:
+            Native recompute status code, or None when the host omits one.
+        """
         ...
 
 
@@ -47,7 +74,11 @@ class SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
 
     @property
     def Document(self) -> SimulationDocument:
-        """Return the document that owns this persistent simulation scene."""
+        """Return the document that owns this persistent simulation scene.
+
+        Returns:
+            Document containing this persistent simulation scene.
+        """
         ...
 
     Steps: int
@@ -96,7 +127,16 @@ class SimulationScene(FreeCADDocumentObjectProtocol, Protocol):
     Proxy: SimulationProxyProtocol
 
     def addProperty(self, type_name: str, name: str, group: str) -> Self:
-        """Register one persistent FreeCAD property on the scene."""
+        """Register one persistent FreeCAD property on the scene.
+
+        Args:
+            type_name: Native FreeCAD property type identifier.
+            name: Property name stored on the scene object.
+            group: Property group shown in the FreeCAD property editor.
+
+        Returns:
+            This scene after the property has been registered.
+        """
         ...
 
 
@@ -104,9 +144,17 @@ class SimulationProxyProtocol(Protocol):
     """Lifecycle methods available on the simulation feature proxy."""
 
     def execute(self, obj: SimulationScene) -> None:
-        """Recompute the persisted simulation state."""
+        """Recompute the persisted simulation state.
+
+        Args:
+            obj: Persistent simulation feature being recomputed.
+        """
         ...
 
     def reset(self, obj: SimulationScene) -> None:
-        """Reset transient solver state without changing authored inputs."""
+        """Reset transient solver state without changing authored inputs.
+
+        Args:
+            obj: Persistent simulation feature whose runtime state is reset.
+        """
         ...

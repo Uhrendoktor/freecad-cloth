@@ -123,6 +123,7 @@ class _AvatarFeature(AvatarParametersFeatureProtocol, _AvatarFeatureView, Protoc
 
     Label: str
 
+    @override
     @property
     def Document(self) -> _FreeCADDocument:
         """Return the owning document for this persistent avatar feature."""
@@ -789,6 +790,7 @@ def _ensure_drape_target(obj: _AvatarFeature) -> _DrapeTarget:
         target = create_drape_target(
             obj.Document, target_type="Mannequin", deflection=1.0, thickness=2.0
         )
+    target = cast("_DrapeTarget", target)
     assign_drape_target(target, obj, "Mannequin")
     return target
 
