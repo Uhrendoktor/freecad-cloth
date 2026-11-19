@@ -24,12 +24,13 @@ FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
 MIN_FRAMES = 120
 MIN_WARMUP_FRAMES = 30
 MIN_PARTICLES = 100
-EXPECTED_FIXTURE_SPECS: dict[str, tuple[int, int, int, dict[str, tuple[int, int]]]] = {
-    "two-panel-tunic-pattern": (1, 2, 4, {"tunic": (2, 4)}),
+EXPECTED_FIXTURE_SPECS: dict[str, tuple[int, int, int, int, dict[str, tuple[int, int]]]] = {
+    "two-panel-tunic-pattern": (1, 2, 4, 100, {"tunic": (2, 4)}),
     "three-garment-outfit": (
         3,
         10,
         18,
+        500,
         {"tshirt": (4, 8), "trousers": (4, 6), "hat": (2, 4)},
     ),
 }
@@ -92,12 +93,22 @@ def _validate_fixture_size(metrics: JsonObject, errors: list[str]) -> None:
         errors: Mutable list receiving acceptance failures.
     """
     particles = _integer(metrics.get("particles"))
-    if particles is None or particles < MIN_PARTICLES:
-        errors.append(f"particles must be an integer >= {MIN_PARTICLES} for garment-scale coverage")
     fixture = metrics.get("fixture")
     expected = EXPECTED_FIXTURE_SPECS.get(fixture) if isinstance(fixture, str) else None
+    if expected is None and (particles is None or particles < MIN_PARTICLES):
+        errors.append(f"particles must be an integer >= {MIN_PARTICLES} for garment-scale coverage")
     if expected is not None:
-        expected_garments_count, expected_panels, expected_seams, expected_garments = expected
+        (
+            expected_garments_count,
+            expected_panels,
+            expected_seams,
+            minimum_particles,
+            expected_garments,
+        ) = expected
+        if particles is None or particles < minimum_particles:
+            errors.append(
+                f"particles must be an integer >= {minimum_particles} for this fixture"
+            )
         if _integer(metrics.get("panel_count")) != expected_panels:
             errors.append(f"panel_count must be {expected_panels}")
         if _integer(metrics.get("garment_count")) != expected_garments_count:
