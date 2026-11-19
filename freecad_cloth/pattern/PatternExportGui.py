@@ -86,16 +86,53 @@ class PatternExportTaskPanel:
             "Select this pattern piece and fit it in the viewport without changing camera orientation."
         )
         self.focus_source.clicked.connect(self.focus_source_in_3d)
-        layout.addRow("Viewport", self.focus_source)
-        layout.addRow("Format", self.format)
-        layout.addRow("PDF paper size", self.pdf_paper_size)
-        layout.addRow("PDF tile overlap", self.pdf_overlap)
-        self._pdf_paper_label = layout.labelForField(self.pdf_paper_size)
-        self._pdf_overlap_label = layout.labelForField(self.pdf_overlap)
-        layout.addRow("Geometry unit (fixed)", self.units)
-        layout.addRow("Curve samples", self.curve_samples)
+        source_row = QtWidgets.QHBoxLayout()
+        source_row.addWidget(self.status, 1)
+        source_row.addWidget(self.focus_source)
+        layout.addRow("Source", source_row)
+        format_row = QtWidgets.QHBoxLayout()
+        format_row.addWidget(self.format, 1)
+        format_row.addWidget(QtWidgets.QLabel("Units: mm"))
+        layout.addRow("Format", format_row)
+
+        self.pdf_layout = QtWidgets.QWidget()
+        pdf_layout_row = QtWidgets.QHBoxLayout(self.pdf_layout)
+        pdf_layout_row.setContentsMargins(0, 0, 0, 0)
+        paper_column = QtWidgets.QVBoxLayout()
+        paper_column.addWidget(QtWidgets.QLabel("Paper size"))
+        paper_column.addWidget(self.pdf_paper_size)
+        overlap_column = QtWidgets.QVBoxLayout()
+        overlap_column.addWidget(QtWidgets.QLabel("Tile overlap"))
+        overlap_column.addWidget(self.pdf_overlap)
+        pdf_layout_row.addLayout(paper_column, 1)
+        pdf_layout_row.addLayout(overlap_column, 1)
+        layout.addRow("PDF layout", self.pdf_layout)
+        self._pdf_layout_label = layout.labelForField(self.pdf_layout)
+
+        self.units.setVisible(False)
+        self.curve_samples.setToolTip(
+            "Sampling density used to approximate curved outline segments in vector exports."
+        )
+        advanced = QtWidgets.QWidget()
+        advanced_layout = QtWidgets.QHBoxLayout(advanced)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.addWidget(QtWidgets.QLabel("Curve samples"))
+        advanced_layout.addWidget(self.curve_samples, 1)
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        from freecad_cloth.common.UiDesign import make_disclosure
+
+        self.advanced_section, self.advanced_toggle = make_disclosure(
+            "Advanced export",
+            advanced,
+            QtCore,
+            QtWidgets,
+            expanded=False,
+        )
+        layout.addRow(self.advanced_section)
         layout.addRow("Output", path_row)
-        layout.addRow("Status", self.status)
         self.format.currentTextChanged.connect(self._format_changed)
         self._format_changed(self.format.currentText())
 
@@ -120,10 +157,8 @@ class PatternExportTaskPanel:
 
     def _format_changed(self, value):
         is_pdf = str(value).lower() == "pdf"
-        self.pdf_paper_size.setVisible(is_pdf)
-        self.pdf_overlap.setVisible(is_pdf)
-        self._pdf_paper_label.setVisible(is_pdf)
-        self._pdf_overlap_label.setVisible(is_pdf)
+        self.pdf_layout.setVisible(is_pdf)
+        self._pdf_layout_label.setVisible(is_pdf)
         current = self.path.text().strip()
         if current:
             suffix = {"svg": ".svg", "dxf": ".dxf", "pdf": ".pdf"}.get(str(value).lower(), ".svg")
