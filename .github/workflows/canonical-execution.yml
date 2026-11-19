@@ -524,23 +524,269 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          source_tree="$(gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
+          retry_gh() {
+            local attempt=1
+            local max_attempts=5
+            local output=""
+            local error_file=""
+            local error_text=""
+            while (( attempt <= max_attempts )); do
+              error_file="$(mktemp)"
+              if output="$(gh "$@" 2>"${error_file}")"; then
+                rm -f "${error_file}"
+                printf "%s" "${output}"
+                return 0
+              fi
+              error_text="$(cat "${error_file}")"
+              rm -f "${error_file}"
+              if [[ ! "${error_text}" =~ (HTTP\ 502|HTTP\ 503|HTTP\ 504|Server\ Error|connection\ reset\ by\ peer|TLS\ handshake\ timeout) ]]; then
+                printf "%s\n" "${error_text}" >&2
+                return 1
+              fi
+              printf "::warning::Transient GitHub API error on attempt %s/%s: %s\n" "${attempt}" "${max_attempts}" "${error_text}" >&2
+              sleep "${attempt}"
+              attempt=$((attempt + 1))
+            done
+            printf "::error::GitHub API request failed after %s transient retries: gh %s\n" "${max_attempts}" "$*" >&2
+            return 1
+          }
+          source_tree="$(retry_gh api "repos/${REPOSITORY}/git/commits/${SOURCE_SHA}" --jq '.tree.sha')"
           find_validated_run() {
             local workflow="$1"
             local event="$2"
             local gate_name="$3"
-            local runs=""
-            runs="$(gh run list --repo "${REPOSITORY}" --workflow "${workflow}" --event "${event}" --status success --limit 100 --json databaseId,headSha)"
-            while read -r run_id head_sha; do
-              [ -n "${run_id}" ] || continue
-              gate_result="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100" | jq --arg gate "${gate_name}" '[.jobs[] | select(.name == $gate and .conclusion == "success")] | length')"
-              [ "${gate_result}" = "1" ] || continue
-              candidate_tree="$(gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null || true)"
-              if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
-                printf "%s %s\n" "${run_id}" "${head_sha}"
-                return 0
-              fi
-            done < <(printf "%s" "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
+            local page=1
+            local per_page=25
+            local runs_json=""
+            local run_count=0
+            local run_id=""
+            local head_sha=""
+            local jobs_json=""
+            local gate_result=""
+            local candidate_tree=""
+            while (( page <= 4 )); do
+              runs_json="$(retry_gh api "repos/${REPOSITORY}/actions/workflows/${workflow}/runs?event=${event}&status=success&per_page=${per_page}&page=${page}")" || {
+                page=$((page + 1))
+                continue
+              }
+              run_count="$(printf "%s" "${runs_json}" | jq -r '.workflow_runs | length')"
+              while IFS=
+          # Preferred path: the dedicated merge-queue gate validated this exact tree.
+          if matched="$(find_validated_run merge-validation.yml merge_group "Required pre-merge validation")"; then
+            read -r run_id head_sha <<< "${matched}"
+          # Alternate explicit path: the full suite ran for this exact PR tree.
+          elif matched="$(find_validated_run commit-validation.yml pull_request "Explicit full validation / Required validation gate")"; then
+            read -r run_id head_sha <<< "${matched}"
+          else
+            echo "::error::No successful full-validation run matched source tree ${source_tree}; refusing to publish unvalidated assets."
+            exit 1
+          fi
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          echo "validated_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+          echo "validation-artifacts-run=${run_id} validated_sha=${head_sha} tree=${source_tree}"
+  gui-documentation-assets:
+    name: Main-only documentation stills and animation frames
+    if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 12
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - uses: ./.github/actions/freecad-test
+        with:
+          checkout: "false"
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-documentation-progress.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation\nFREECAD_CLOTH_ANNY_FIT_STEPS=${{ env.CLOTH_DOC_AVATAR_FIT_STEPS }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: avatar-documentation-assets
+          artifact-path: |
+            docs/images/generated/cloth-avatar-*.png
+            docs/images/generated/avatar-body-shape-gallery.png
+            artifacts/avatar-documentation-progress.log
+      - uses: ./.github/actions/freecad-test
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_avatar_screenshot.py
+          clean-user: "true"
+          log-file: artifacts/avatar-turntable-documentation.log
+          environment: "CLOTH_CI_DISABLE_PBD=1\nCLOTH_AVATAR_SCREENSHOT_MODE=documentation-turntable\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: avatar-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-avatar-turntable-frames/**
+            artifacts/avatar-turntable-documentation.log
+      - uses: ./.github/actions/freecad-test
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          checkout: "false"
+          test-script: tests/freecad_simulation_turntable.py
+          clean-user: "true"
+          log-file: artifacts/simulation-turntable-documentation.log
+          environment: "CLOTH_DOCUMENTATION_CAPTURE_ONLY=true\nCLOTH_PBD_SUBSTEPS=${{ env.CLOTH_TURNTABLE_PBD_SUBSTEPS }}\nCLOTH_BLANKET_STEPS=${{ env.CLOTH_BLANKET_STEPS }}\nCLOTH_TURNTABLE_FRAMES=${{ env.CLOTH_TURNTABLE_FRAMES }}\nCLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated"
+          artifact-name: simulation-turntable-documentation-frames
+          artifact-path: |
+            docs/images/generated/cloth-simulation-arranged-turntable-frames/**
+            docs/images/generated/cloth-simulation-draped-turntable-frames/**
+            docs/images/generated/simulation-turntable-progress.log
+            artifacts/simulation-turntable-documentation.log
+  publish-readme-turntables:
+    name: Publish README/wiki visual evidence
+    concurrency:
+      group: canonical-main-visual-publisher
+      cancel-in-progress: false
+    needs: [find-validation-artifacts, gui-documentation-assets]
+    if: ${{ inputs.execution_mode == 'publication' && !(github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 5
+    permissions: {contents: write, actions: read}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: {ref: "${{ github.sha }}", persist-credentials: false}
+      - name: Install ImageMagick for main GIF publication
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: command -v magick >/dev/null 2>&1 || command -v convert >/dev/null 2>&1 || { sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends imagemagick; }
+      - uses: ./.github/actions/publish-visual-evidence
+        with:
+          source-sha: ${{ github.sha }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.run_id }}
+          run-number: ${{ github.run_number }}
+          artifact-run-id: ${{ needs.find-validation-artifacts.outputs.run_id }}
+  maintenance-cleanup:
+    name: Repository retention cleanup
+    # One-shot manual activation: commit title starts with "RUN MAINTENANCE CLEANUP".
+    if: "${{ (github.event_name == 'schedule' && github.event.schedule == '0 3 * * *') || (github.event_name == 'push' && github.ref == 'refs/heads/main' && startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')) }}"
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 4
+    permissions:
+      actions: write
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - name: Retention cleanup
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: timeout --signal=TERM --kill-after=5s 180s python3 tools/ci/maintenance_cleanup.py
+  artifact-budget:
+    name: Accumulated artifact budget
+    if: ${{ always() && inputs.execution_mode != 'fast' && inputs.execution_mode != 'publication' && !startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP') }}
+    needs: [agent-quality, diagnostic-pbd-contact, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-visual-examples, gui-turntables, benchmark, publish-readme-turntables]
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 2
+    permissions: {actions: read, contents: read}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check visual assets and accumulated artifact size
+        if: ${{ always() }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          VISUAL_PUBLISH_RESULT: ${{ needs.publish-readme-turntables.result }}
+          VISUAL_PUBLISH_REQUIRED: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: python3 tools/ci/check_visual_assets_and_budget.py
+  benchmark:
+    name: Workbench benchmark (${{ matrix.workbench }})
+    if: ${{ inputs.execution_mode == 'full' && github.event_name != 'schedule' }}
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image]
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        workbench: [Pattern, Sewing, Simulation]
+    env:
+      FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with: {ref: "${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - uses: ./.github/actions/freecad-test
+        with:
+          checkout: "false"
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          test-script: tests/freecad_workbench_benchmark.py
+          log-file: artifacts/workbench-benchmark.log
+          artifact-name: workbench-benchmark-${{ matrix.workbench }}
+          artifact-path: artifacts
+          environment: |
+            CLOTH_BENCHMARK_WORKBENCH=${{ matrix.workbench }}
+            CLOTH_BENCHMARK_OUTPUT=artifacts/benchmark.json
+            CLOTH_BENCHMARK_REPEATS=7
+      - run: test -s artifacts/benchmark.json
+      - run: python3 tools/ci/validate_workbench_benchmark.py artifacts/benchmark.json "${{ matrix.workbench }}"
+  required-validation-gate:
+    name: Required validation gate
+    if: ${{ always() && inputs.execution_mode != 'publication' && inputs.execution_mode != 'scheduled' }}
+    needs: [agent-quality, local_runner_readiness, pbd_validation_image, simulation-ladder, python, gui-simple, gui-tunic-visual, gui-turntables, gui-visual-examples, benchmark, artifact-budget]
+    runs-on: ${{ fromJSON(inputs.runner_target) }}
+    timeout-minutes: 2
+    permissions:
+      contents: read
+    steps:
+      - name: Enforce checks selected by the execution mode
+        env:
+          EXECUTION_MODE: ${{ inputs.execution_mode }}
+          AGENT_QUALITY_RESULT: ${{ needs.agent-quality.result }}
+          RUNNER_READINESS_RESULT: ${{ needs.local_runner_readiness.result }}
+          PBD_IMAGE_RESULT: ${{ needs.pbd_validation_image.result }}
+          SIMULATION_LADDER_RESULT: ${{ needs.simulation-ladder.result }}
+          PYTHON_RESULT: ${{ needs.python.result }}
+          GUI_SIMPLE_RESULT: ${{ needs.gui-simple.result }}
+          TUNIC_AUDIT_RESULT: ${{ needs.gui-tunic-visual.result }}
+          TURNTABLE_RESULT: ${{ needs.gui-turntables.result }}
+          BLANKET_RESULT: ${{ needs.gui-visual-examples.result }}
+          ARTIFACT_BUDGET_RESULT: ${{ needs.artifact-budget.result }}
+          BENCHMARK_RESULT: ${{ needs.benchmark.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          require_success() {
+            local label="$1" result="$2"
+            if [ "$result" != "success" ]; then
+              echo "::error::$label must succeed for execution_mode=$EXECUTION_MODE (result=$result)"
+              exit 1
+            fi
+          }
+          require_success "Static/code validation" "$AGENT_QUALITY_RESULT"
+          if [ "$EXECUTION_MODE" = "full" ]; then
+            require_success "Runner readiness" "$RUNNER_READINESS_RESULT"
+            require_success "PBD validation image" "$PBD_IMAGE_RESULT"
+            require_success "Simulation collision ladder" "$SIMULATION_LADDER_RESULT"
+            require_success "Python validation matrix" "$PYTHON_RESULT"
+            require_success "GUI acceptance matrix" "$GUI_SIMPLE_RESULT"
+            require_success "Tunic visual and simulation audit" "$TUNIC_AUDIT_RESULT"
+            require_success "Avatar and simulation turntables" "$TURNTABLE_RESULT"
+            require_success "Blanket visual fixture" "$BLANKET_RESULT"
+            require_success "Workbench benchmark" "$BENCHMARK_RESULT"
+            require_success "Visual evidence/artifact contract" "$ARTIFACT_BUDGET_RESULT"
+          fi
+          echo "required-validation=passed mode=$EXECUTION_MODE"
+\t' read -r run_id head_sha; do
+                [ -n "${run_id}" ] || continue
+                jobs_json="$(retry_gh api "repos/${REPOSITORY}/actions/runs/${run_id}/jobs?per_page=100")" || continue
+                gate_result="$(printf "%s" "${jobs_json}" | jq --arg gate "${gate_name}" '[.jobs[]? | select(.name == $gate and .conclusion == "success")] | length')" || continue
+                [ "${gate_result}" = "1" ] || continue
+                candidate_tree="$(retry_gh api "repos/${REPOSITORY}/git/commits/${head_sha}" --jq '.tree.sha' 2>/dev/null)" || continue
+                if [ -n "${candidate_tree}" ] && [ "${candidate_tree}" = "${source_tree}" ]; then
+                  printf "%s %s\n" "${run_id}" "${head_sha}"
+                  return 0
+                fi
+              done < <(printf "%s" "${runs_json}" | jq -r '.workflow_runs[]? | [.id, .head_sha] | @tsv')
+              (( run_count < per_page )) && break
+              page=$((page + 1))
+            done
             return 1
           }
           # Preferred path: the dedicated merge-queue gate validated this exact tree.
