@@ -547,12 +547,12 @@ def test_measured_inter_cloth_projection_preserves_pinned_particles() -> None:
 def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Only measured residual contacts trigger one targeted cloth/body correction."""
+    """Only measured residual contacts trigger one fresh cloth/body correction."""
     backend = object.__new__(PositionBasedDynamicsBackend)
     backend._inter_cloth_metrics = InterClothContactMetrics(100, 50, 12, 7.1, 0.71)
     backend._inter_cloth_residual_constraints = ()
     residual_measurements = iter(((12, 0.71), (0, 0.0)))
-    calls = {"repair": 0, "body": 0, "measure": 0}
+    calls = {"project": 0, "body": 0, "measure": 0}
 
     def measure_residual() -> None:
         calls["measure"] += 1
@@ -564,8 +564,12 @@ def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
             max_penetration_after_mm=deficit,
         )
 
-    def project_measured_residuals() -> InterClothContactMetrics:
-        calls["repair"] += 1
+    def project_full_broad_phase(
+        *, iterations: int, measure_residual: bool
+    ) -> InterClothContactMetrics:
+        calls["project"] += 1
+        assert iterations == 8
+        assert not measure_residual
         backend._inter_cloth_residual_constraints = ()
         backend._inter_cloth_metrics = InterClothContactMetrics(10, 8, 0, 0.71, 0.0)
         return backend._inter_cloth_metrics
@@ -574,17 +578,13 @@ def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
         calls["body"] += 1
 
     monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
-    monkeypatch.setattr(
-        backend,
-        "_project_inter_cloth_residual_constraints",
-        project_measured_residuals,
-    )
+    monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_full_broad_phase)
     monkeypatch.setattr(backend, "_project_collision_positions", project_body)
 
     backend._resolve_inter_cloth_body_contacts()
 
-    assert calls == {"repair": 1, "body": 1, "measure": 2}, (
-        "a post-body residual must trigger one bounded targeted correction"
+    assert calls == {"project": 1, "body": 1, "measure": 2}, (
+        "a post-body residual must trigger one fresh bounded broad-phase correction"
     )
     assert backend._inter_cloth_metrics == InterClothContactMetrics(110, 58, 0, 7.1, 0.0), (
         "final metrics must retain initial and corrective contact activity and report "
@@ -600,7 +600,7 @@ def test_backend_bounds_inter_cloth_body_reconciliation_passes(
     backend._inter_cloth_metrics = InterClothContactMetrics(10, 5, 3, 1.0, 0.2)
     backend._inter_cloth_residual_constraints = ()
     residual_measurements = iter(((3, 0.2), (2, 0.1), (1, 0.05)))
-    calls = {"repair": 0, "body": 0}
+    calls = {"project": 0, "body": 0}
 
     def measure_residual() -> None:
         remaining, deficit = next(residual_measurements)
@@ -611,8 +611,12 @@ def test_backend_bounds_inter_cloth_body_reconciliation_passes(
             max_penetration_after_mm=deficit,
         )
 
-    def project_measured_residuals() -> InterClothContactMetrics:
-        calls["repair"] += 1
+    def project_full_broad_phase(
+        *, iterations: int, measure_residual: bool
+    ) -> InterClothContactMetrics:
+        calls["project"] += 1
+        assert iterations == 8
+        assert not measure_residual
         backend._inter_cloth_residual_constraints = (object(),)
         backend._inter_cloth_metrics = InterClothContactMetrics(1, 1, 0, 0.2, 0.0)
         return backend._inter_cloth_metrics
@@ -621,16 +625,12 @@ def test_backend_bounds_inter_cloth_body_reconciliation_passes(
         calls["body"] += 1
 
     monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
-    monkeypatch.setattr(
-        backend,
-        "_project_inter_cloth_residual_constraints",
-        project_measured_residuals,
-    )
+    monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_full_broad_phase)
     monkeypatch.setattr(backend, "_project_collision_positions", project_body)
 
     backend._resolve_inter_cloth_body_contacts()
 
-    assert calls == {"repair": 2, "body": 2}, (
+    assert calls == {"project": 2, "body": 2}, (
         "coupled contact correction must stop after the configured bounded retry count"
     )
     assert backend._inter_cloth_metrics.remaining_contact_count == 1, (

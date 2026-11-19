@@ -1029,7 +1029,12 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             if inward_speed < 0.0:
                 particles.setVelocity(index, velocity - inward_speed * normal_pbd)
 
-    def _project_inter_cloth_positions(self) -> None:
+    def _project_inter_cloth_positions(
+        self,
+        *,
+        iterations: int = 1,
+        measure_residual: bool = False,
+    ) -> InterClothContactMetrics | None:
         """Separate independent garment groups after each native PBD timestep.
 
         Contact is projected in world millimetres after the native solver pass.
@@ -1068,15 +1073,14 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             inverse_masses,
             clearance_mm=self._inter_cloth_clearance_mm,
             stitches=self._stitches,
-            iterations=1,
-            # The authoritative residual is measured once after the final body
-            # projection below; do not repeat the same broad/narrow phase here.
-            measure_residual=False,
+            iterations=iterations,
+            measure_residual=measure_residual,
         )
         self._apply_position_corrections(
             particles, positions_mm, corrected_mm, contact_directions, skip_zero_directions=True
         )
         self._inter_cloth_metrics = metrics
+        return metrics
 
     def _measure_inter_cloth_residual(self) -> None:
         """Refresh residual garment contact after the final avatar projection."""
@@ -1220,24 +1224,45 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 f"maximum_mm={aggregate.max_penetration_after_mm:.4f} "
                 f"constraints={len(self._inter_cloth_residual_constraints)}"
             )
-            correction = self._project_inter_cloth_residual_constraints()
+            # Rebuild both garment surface indexes from the current particle state.
+            # Targeted constraints can become stale when one correction moves an edge
+            # onto a different neighboring face; a fresh bounded broad/narrow phase
+            # discovers those new pairs instead of repeatedly repairing old ones.
+            correction = self._project_inter_cloth_positions(
+                iterations=8,
+                measure_residual=False,
+            )
             if correction is None:
                 break
-            particles = self._model.getParticles()
-            before_body_positions = (
-                np.asarray(particles.getVertices(), dtype=np.float64)[:, (0, 2, 1)] * _MM
-            )
+            particles = getattr(self, "_model", None)
+            before_body_positions = None
+            if particles is not None:
+                before_body_positions = (
+                    np.asarray(
+                        particles.getParticles().getVertices(),
+                        dtype=np.float64,
+                    )[:, (0, 2, 1)]
+                    * _MM
+                )
             self._project_collision_positions()
-            after_body_positions = (
-                np.asarray(particles.getVertices(), dtype=np.float64)[:, (0, 2, 1)] * _MM
-            )
-            body_movement = np.linalg.norm(after_body_positions - before_body_positions, axis=1)
-            _emit_diagnostic(
-                f"cloth-pbd-contact-reconcile-body pass={pass_index + 1} "
-                f"moved={int(np.count_nonzero(body_movement > 1e-7))} "
-                f"max_delta_mm={float(body_movement.max(initial=0.0)):.4f} "
-                f"mean_delta_mm={float(body_movement.mean()) if len(body_movement) else 0.0:.4f}"
-            )
+            if before_body_positions is not None and particles is not None:
+                after_body_positions = (
+                    np.asarray(
+                        particles.getParticles().getVertices(),
+                        dtype=np.float64,
+                    )[:, (0, 2, 1)]
+                    * _MM
+                )
+                body_movement = np.linalg.norm(
+                    after_body_positions - before_body_positions,
+                    axis=1,
+                )
+                _emit_diagnostic(
+                    f"cloth-pbd-contact-reconcile-body pass={pass_index + 1} "
+                    f"moved={int(np.count_nonzero(body_movement > 1e-7))} "
+                    f"max_delta_mm={float(body_movement.max(initial=0.0)):.4f} "
+                    f"mean_delta_mm={float(body_movement.mean()) if len(body_movement) else 0.0:.4f}"
+                )
             self._measure_inter_cloth_residual()
             measured = self._inter_cloth_metrics
             if measured is None:
