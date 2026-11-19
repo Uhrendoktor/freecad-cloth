@@ -545,9 +545,7 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
         "python_gc_enabled_during_measurement",
     )
     errors.extend(
-        f"{key} must be a boolean"
-        for key in gc_fields
-        if not isinstance(metrics.get(key), bool)
+        f"{key} must be a boolean" for key in gc_fields if not isinstance(metrics.get(key), bool)
     )
     if (
         metrics.get("python_gc_disabled_by_benchmark") is True
