@@ -273,7 +273,7 @@ class DiagnosticsTaskPanel:
         metric_layout = QtWidgets.QHBoxLayout(metric_group)
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
-        self.refresh_button = QtWidgets.QPushButton("Refresh")
+        self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
         metric_layout.addWidget(self.metric, 1)
         metric_layout.addWidget(self.refresh_button)
         layout.addWidget(metric_group)
@@ -288,7 +288,7 @@ class DiagnosticsTaskPanel:
         self.focus_button.setToolTip(
             "Select source cloth panels and fit them in the current 3D view."
         )
-        self.export_button = QtWidgets.QPushButton("Export data…")
+        self.export_button = QtWidgets.QPushButton("Export analysis data…")
         from freecad_cloth.common.UiDesign import mark_button
 
         mark_button(self.refresh_button, "secondary")

@@ -167,6 +167,8 @@ def test_metric_selection_refreshes_definition_range_and_action_state(
     assert panel.status.text.startswith("Stress map: 2 faces")
     assert panel.map_button.enabled is True
     assert panel.export_button.enabled is True
+    assert panel.refresh_button.text == "Refresh analysis"
+    assert panel.export_button.text == "Export analysis data…"
 
     panel.metric.setCurrentText("strain")
 
