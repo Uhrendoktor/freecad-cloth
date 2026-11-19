@@ -262,6 +262,7 @@ def test_pose_properties_cover_all_pose_angle_fields() -> None:
         "pose property names must derive from the Pose angle fields"
     )
 
+
 class _CoinField:
     """Small Coin field stub supporting scalar and multi-point assignments."""
 
@@ -403,5 +404,8 @@ def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
     separator = controller.overlay.children[0]
     assert separator.children[0].test is False
     assert separator.children[1].linePattern == DIMENSION_OCCLUDED_LINE_PATTERN
-    assert separator.children[1].linePatternScaleFactor == DIMENSION_OCCLUDED_LINE_PATTERN_SCALE
+    assert (
+        separator.children[1].linePatternScaleFactor
+        == DIMENSION_OCCLUDED_LINE_PATTERN_SCALE
+    )
 

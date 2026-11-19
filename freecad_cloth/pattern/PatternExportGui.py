@@ -90,7 +90,10 @@ class PatternExportTaskPanel:
         source_row.addWidget(self.status, 1)
         source_row.addWidget(self.focus_source)
         layout.addRow("Source", source_row)
-        layout.addRow("Format", self.format)
+        format_row = QtWidgets.QHBoxLayout()
+        format_row.addWidget(self.format, 1)
+        format_row.addWidget(QtWidgets.QLabel("Units: mm"))
+        layout.addRow("Format", format_row)
 
         self.pdf_layout = QtWidgets.QWidget()
         pdf_layout_row = QtWidgets.QHBoxLayout(self.pdf_layout)
@@ -104,6 +107,7 @@ class PatternExportTaskPanel:
         pdf_layout_row.addLayout(paper_column, 1)
         pdf_layout_row.addLayout(overlap_column, 1)
         layout.addRow("PDF layout", self.pdf_layout)
+        self._pdf_layout_label = layout.labelForField(self.pdf_layout)
 
         self.units.setVisible(False)
         self.curve_samples.setToolTip(
@@ -112,7 +116,7 @@ class PatternExportTaskPanel:
         advanced = QtWidgets.QWidget()
         advanced_layout = QtWidgets.QHBoxLayout(advanced)
         advanced_layout.setContentsMargins(0, 0, 0, 0)
-        advanced_layout.addWidget(QtWidgets.QLabel("Units: mm · Curve samples"))
+        advanced_layout.addWidget(QtWidgets.QLabel("Curve samples"))
         advanced_layout.addWidget(self.curve_samples, 1)
         try:
             from PySide import QtCore
@@ -154,6 +158,7 @@ class PatternExportTaskPanel:
     def _format_changed(self, value):
         is_pdf = str(value).lower() == "pdf"
         self.pdf_layout.setVisible(is_pdf)
+        self._pdf_layout_label.setVisible(is_pdf)
         current = self.path.text().strip()
         if current:
             suffix = {"svg": ".svg", "dxf": ".dxf", "pdf": ".pdf"}.get(str(value).lower(), ".svg")

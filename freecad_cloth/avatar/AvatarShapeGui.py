@@ -868,9 +868,7 @@ class AvatarDimensionController:
                     visible_color = color
                 else:
                     points = item["line"]
-                    visible_color = (
-                        RIG_EDITABLE_COLOR if key not in active_keys else ACTIVE_COLOR
-                    )
+                    visible_color = RIG_EDITABLE_COLOR if key not in active_keys else ACTIVE_COLOR
 
                 # Draw a faint dashed X-ray underlay first, then redraw only the
                 # front-facing portion as a stronger solid guide. This keeps the

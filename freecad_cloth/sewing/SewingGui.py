@@ -11,6 +11,9 @@ from __future__ import annotations
 from types import ModuleType
 from typing import TYPE_CHECKING, Protocol
 
+if TYPE_CHECKING:
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.sewing.SewingCorrespondence import (
     CorrespondenceReport,
@@ -200,21 +203,25 @@ class SewingTaskPanel:
         self.start_b = self._range_spin(float(getattr(self.seam, "StartB", 0.0)))
         self.end_b = self._range_spin(float(getattr(self.seam, "EndB", 1.0)))
 
-        def range_pair(start, end):
+        def range_pair(
+            start: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+            end: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+        ) -> _QT_TYPE_QtWidgets.QHBoxLayout:
             """Keep each seam side's normalized start/end values together."""
             row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
             row.addWidget(QtWidgets.QLabel("Start"))
             row.addWidget(start, 1)
             row.addWidget(QtWidgets.QLabel("End"))
             row.addWidget(end, 1)
             return row
 
-        self.start_a.setToolTip("Side A start along the selected semantic edge (0–1).")
-        self.end_a.setToolTip("Side A end along the selected semantic edge (0–1).")
-        self.start_b.setToolTip("Side B start along the selected semantic edge (0–1).")
-        self.end_b.setToolTip("Side B end along the selected semantic edge (0–1).")
-        layout.addRow("Side A · 0–1", range_pair(self.start_a, self.end_a))
-        layout.addRow("Side B · 0–1", range_pair(self.start_b, self.end_b))
+        self.start_a.setToolTip("Side A start along the selected semantic edge (0-1).")
+        self.end_a.setToolTip("Side A end along the selected semantic edge (0-1).")
+        self.start_b.setToolTip("Side B start along the selected semantic edge (0-1).")
+        self.end_b.setToolTip("Side B end along the selected semantic edge (0-1).")
+        layout.addRow("Side A (0-1)", range_pair(self.start_a, self.end_a))
+        layout.addRow("Side B (0-1)", range_pair(self.start_b, self.end_b))
 
         self.tolerance = QtWidgets.QDoubleSpinBox()
         self.tolerance.setRange(0, 99.99)

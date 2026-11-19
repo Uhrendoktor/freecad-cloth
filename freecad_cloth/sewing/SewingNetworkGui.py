@@ -16,6 +16,8 @@ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets
+
 
 def _modules():
     """Load the FreeCAD and Qt modules supported by the host runtime.
@@ -241,17 +243,21 @@ class SewingNetworkTaskPanel:
         )
         self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
 
-        def range_pair(start, end):
+        def range_pair(
+            start: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+            end: _QT_TYPE_QtWidgets.QDoubleSpinBox,
+        ) -> _QT_TYPE_QtWidgets.QHBoxLayout:
             """Keep each seam side's normalized start/end values together."""
             row = QtWidgets.QHBoxLayout()
+            row.setContentsMargins(0, 0, 0, 0)
             row.addWidget(QtWidgets.QLabel("Start"))
             row.addWidget(start, 1)
             row.addWidget(QtWidgets.QLabel("End"))
             row.addWidget(end, 1)
             return row
 
-        range_form.addRow("Side A · 0–1", range_pair(self.start_a, self.end_a))
-        range_form.addRow("Side B · 0–1", range_pair(self.start_b, self.end_b))
+        range_form.addRow("Side A (0-1)", range_pair(self.start_a, self.end_a))
+        range_form.addRow("Side B (0-1)", range_pair(self.start_b, self.end_b))
         detail_layout.addLayout(range_form)
         layout.addWidget(detail)
 

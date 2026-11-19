@@ -228,6 +228,7 @@ def test_focus_panels_selects_sources_and_frames_view_without_reorienting(
     assert status.text.startswith("Selected and framed 2 source cloth panel(s)")
     assert status.properties["clothState"] == "success"
 
+
 def test_standard_view_buttons_call_the_matching_freecad_view_method(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
