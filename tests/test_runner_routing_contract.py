@@ -183,8 +183,15 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Applying exact structural document and string-valued combo protocols" in resolver
     assert "def currentData(self) -> str | None: ..." in resolver
     assert "def findData(self, value: str) -> int: ..." in resolver
-    assert "seam: DocumentTransactionProtocol" in resolver
+    assert "seam: SeamFeatureProtocol" in resolver
     assert "DocumentTransactionProtocol, SeamFeatureProtocol" in resolver
+    assert (
+        "freecad_cloth/pattern/PatternTopologyRepairGui.py\\\\ntests/test_simulation_gui.py\\\\ntests/test_tunic_audit_contract.py"
+        in resolver
+    )
+    assert "seam: SeamFeatureProtocol" in resolver
+    assert "DocumentTransactionProtocol" in resolver
+    assert "$(git rev-parse REBASE_HEAD)" in resolver
     assert "Unsupported rebase conflict" in resolver
 
 

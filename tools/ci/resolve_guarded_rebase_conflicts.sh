@@ -786,7 +786,7 @@ method_replacements = (
     ("    def findData(self, value: object) -> int: ...",
      "    def findData(self, value: str) -> int: ..."),
     ("        seam: FreeCADDocumentObjectProtocol,",
-     "        seam: DocumentTransactionProtocol,"),
+     "        seam: SeamFeatureProtocol,"),
     ("    def __init__(self, doc: object) -> None:",
      "    def __init__(self, doc: DocumentTransactionProtocol) -> None:"),
     ("def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:",
@@ -808,6 +808,7 @@ for required in (
     "def _cancel_viewport_pick(",
     "self.rows.append((seam, side, combo, pick_button))",
     "def __init__(self, doc: DocumentTransactionProtocol) -> None:",
+    "seam: SeamFeatureProtocol",
     "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:",
 ):
     if required not in source:
@@ -820,7 +821,7 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
-  elif [[ "$conflicts" == 
+  elif [[ "$conflicts" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py' ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
