@@ -163,7 +163,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" in resolver
     assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
     assert "{missing!r}" in resolver
-    assert "native-arc Ruff formatting did not preserve one dataclass declaration." in resolver
+    assert 'arc_dataclass = "@dataclass\\nclass _NativeArcPoint:"' in resolver
+    assert "blank_line_count = marker_index - prefix_start - 1" in resolver
+    assert 'tunic = tunic[:prefix_start] + "\\n\\n\\n" + tunic[marker_index:]' in resolver
     assert "old_typechecking = (" in resolver
     assert "formatted_typechecking = (" in resolver
     assert "nested_rows = (" in resolver

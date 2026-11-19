@@ -822,19 +822,18 @@ if "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" not in
 
 tunic_path = Path("tests/test_tunic_audit_contract.py")
 tunic = tunic_path.read_text(encoding="utf-8")
-old_boundary = (
-    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
-    "@dataclass\n"
-)
-formatted_boundary = (
-    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
-    "\n\n"
-    "@dataclass\n"
-)
-if tunic.count(old_boundary) == 1:
-    tunic = tunic.replace(old_boundary, formatted_boundary, 1)
-elif tunic.count(formatted_boundary) != 1:
-    raise SystemExit("Expected one supported tunic audit/native-arc dataclass boundary.")
+arc_dataclass = "@dataclass\nclass _NativeArcPoint:"
+if tunic.count(arc_dataclass) != 1:
+    raise SystemExit("Expected exactly one native-arc point dataclass.")
+marker_index = tunic.index(arc_dataclass)
+prefix_start = marker_index
+while prefix_start > 0 and tunic[prefix_start - 1] == "\n":
+    prefix_start -= 1
+blank_line_count = marker_index - prefix_start - 1
+if blank_line_count == 1:
+    tunic = tunic[:prefix_start] + "\n\n\n" + tunic[marker_index:]
+elif blank_line_count != 2:
+    raise SystemExit("Unexpected blank-line structure before the native-arc point dataclass.")
 if tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
     raise SystemExit("Tunic native-arc formatting must retain exactly one dataclass.")
 if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in tunic:
