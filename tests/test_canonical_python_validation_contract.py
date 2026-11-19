@@ -88,6 +88,9 @@ def test_realtime_preview_contract_modules_are_routed_to_pytest_group() -> None:
 
     assert '"tests/test_realtime_mesh_preview.py"' in runner, "preview test routing"
     assert '"tests/test_realtime_preview_timing.py"' in runner, "preview test routing"
+    assert '"tests/test_realtime_benchmark_timing_contract.py"' in runner, (
+        "benchmark timing test routing"
+    )
 
 
 def test_rounded_foreground_gizmo_geometry_is_routed_to_pytest_group() -> None:
@@ -174,6 +177,47 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     assert "collection_command" not in runner, "canonical CI contract"
 
 
+def _valid_frame_timing_samples() -> list[JsonObject]:
+    """Build aligned frame rows for the independent timing-trace validator."""
+    samples: list[JsonObject] = []
+    for frame_index in range(1, 121):
+        callback_start = 16.0 * frame_index
+        previous_callback_start = 16.0 * (frame_index - 1)
+        worker_emit = callback_start - 5.0
+        gui_dispatch = callback_start - 2.0
+        samples.append(
+            {
+                "frame_index": frame_index,
+                "tick_index": 30 + frame_index,
+                "callback_start_offset_ms": callback_start,
+                "previous_callback_start_offset_ms": previous_callback_start,
+                "scheduled_deadline_offset_ms": callback_start - 1.0,
+                "worker_emit_offset_ms": worker_emit,
+                "gui_dispatch_offset_ms": gui_dispatch,
+                "interval_ms": callback_start - previous_callback_start,
+                "queue_delay_ms": callback_start - worker_emit,
+                "gui_event_dispatch_delay_ms": gui_dispatch - worker_emit,
+                "gui_callback_after_dispatch_ms": callback_start - gui_dispatch,
+                "deadline_lateness_ms": 1.0,
+                "worker_wakeup_lateness_ms": 0.5,
+                "worker_missed_deadlines": 0,
+                "worker_coalesced_pulses": 0,
+                "worker_signals_emitted": 30 + frame_index,
+                "worker_pulse_pending": 1,
+                "callback_duration_ms": 4.0,
+                "stage_timings_ms": {
+                    "advance_preview_frame": 8.0,
+                    "solver_step": 2.0,
+                    "state_publish": 6.0,
+                    "preview_mesh_publish": 0.3,
+                    "overlay_schedule": 0.1,
+                    "viewport_redraw": 3.0,
+                },
+            }
+        )
+    return samples
+
+
 def _valid_realtime_benchmark_metrics() -> JsonObject:
     """Build a sample that satisfies the sustained 60 FPS metrics contract.
 
@@ -198,6 +242,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "observed_ticks": 150,
         "expected_ticks": 150,
         "frames_advanced": 150,
+        "frame_timing_samples": _valid_frame_timing_samples(),
         "frame_scheduler": {
             "mode": "threaded-feedback-phase-locked",
             "target_fps": validate_realtime_benchmark.TARGET_FPS,
@@ -385,6 +430,8 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "FRAMES" in identifiers, "canonical CI contract"
     assert "frame_scheduler" in string_constants, "canonical CI contract"
     assert "frame_dispatch_lateness" in string_constants, "canonical CI contract"
+    assert "frame_timing_samples" in string_constants, "canonical CI contract"
+    assert "cgroup_cpu_stat_before" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
