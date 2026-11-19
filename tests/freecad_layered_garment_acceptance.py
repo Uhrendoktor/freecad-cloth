@@ -173,12 +173,8 @@ def _make_ring(
     height = float(height_mm)
     bottom_radius_x = float(radius_x_mm) + flare
     bottom_radius_y = float(radius_y_mm) + flare
-    top_radius_x = (
-        float(radius_x_mm) if top_radius_x_mm is None else float(top_radius_x_mm)
-    )
-    top_radius_y = (
-        float(radius_y_mm) if top_radius_y_mm is None else float(top_radius_y_mm)
-    )
+    top_radius_x = float(radius_x_mm) if top_radius_x_mm is None else float(top_radius_x_mm)
+    top_radius_y = float(radius_y_mm) if top_radius_y_mm is None else float(top_radius_y_mm)
     if not math.isfinite(flare) or flare < 0.0:
         raise ValueError("hem flare must be finite and non-negative")
     if not math.isfinite(height) or height <= 0.0:
@@ -273,8 +269,6 @@ def _make_ring(
             outline_points=profile,
         )
     return pieces
-
-
 
 
 def _edge_id(piece: App.DocumentObject, index: int) -> str:
