@@ -273,7 +273,7 @@ def _make_frame_dispatcher(
         RuntimeError: If the active Qt binding does not expose custom events and posting.
     """
     QtCore = _qt()
-    event_type = int(QtCore.QEvent.registerEventType())
+    event_type = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
     priority = QtCore.Qt.HighEventPriority
     event_priority = int(getattr(priority, "value", priority))
 
