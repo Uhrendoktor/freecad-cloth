@@ -1,5 +1,6 @@
 name: PBD realtime preview diagnostic
 description: Compare the original two-panel tunic control with a separate multi-garment outfit preview workload.
+# Keep the production preview unchanged; this action isolates timed-window GC cost.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image.
