@@ -12,6 +12,7 @@ from freecad_cloth.common.UiDesign import (
     apply_panel_style,
     configure_form_layout,
     make_disclosure,
+    make_paired_range_row,
     make_scroll_area,
     mark_button,
     set_status,
@@ -143,12 +144,14 @@ class _PanelLayout(_QtMethodAdapter):
     _qt_method_aliases: ClassVar[dict[str, str]] = {
         "setContentsMargins": "set_contents_margins",
         "setSpacing": "set_spacing",
+        "addWidget": "add_widget",
     }
 
     def __init__(self) -> None:
         """Initialize empty layout measurements."""
         self.margins: tuple[int, int, int, int] | None = None
         self.spacing: int | None = None
+        self.widgets: list[_Label] = []
 
     def set_contents_margins(self, left: int, top: int, right: int, bottom: int) -> None:
         """Record the four margins supplied by the panel-style helper.
@@ -168,6 +171,14 @@ class _PanelLayout(_QtMethodAdapter):
             spacing: Distance used between layout items.
         """
         self.spacing = spacing
+
+    def add_widget(self, widget: _Label, *_args: int) -> None:
+        """Record one widget placed into a horizontal range row.
+
+        Args:
+            widget: Label or editable control inserted into the layout.
+        """
+        self.widgets.append(widget)
 
 
 class _Panel(_QtMethodAdapter):
@@ -635,6 +646,28 @@ def test_configure_form_layout_wraps_long_rows_and_expands_fields() -> None:
 
     assert layout.row_wrap == 1
     assert layout.field_growth == 2
+
+
+def test_make_paired_range_row_keeps_start_and_end_controls_together() -> None:
+    """Build one consistent horizontal start/end row without owning its controls."""
+    start = _Label()
+    end = _Label()
+
+    def label_factory(text: str) -> _Label:
+        label = _Label()
+        label.set_text(text)
+        return label
+
+    qt_widgets = cast(
+        "ModuleType",
+        SimpleNamespace(QHBoxLayout=_PanelLayout, QLabel=label_factory),
+    )
+    row = make_paired_range_row(start, end, qt_widgets)
+
+    assert row.margins == (0, 0, 0, 0)
+    assert [widget.text for widget in (row.widgets[0], row.widgets[2])] == ["Start", "End"]
+    assert row.widgets[1] is start
+    assert row.widgets[3] is end
 
 
 def test_make_scroll_area_keeps_content_inside_the_native_panel() -> None:
