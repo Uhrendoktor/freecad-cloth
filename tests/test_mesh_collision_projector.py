@@ -48,6 +48,30 @@ def _concave_l_prism_surface() -> CollisionSurface:
     return CollisionSurface(vertices, tuple(triangles), thickness=0.0).validate()
 
 
+def test_exact_nearest_surface_search_uses_bounded_triangle_candidates() -> None:
+    """KD-tree bounds must retain the exhaustive nearest point while reducing faces."""
+    import trimesh
+
+    mesh = trimesh.creation.icosphere(subdivisions=3, radius=50.0)
+    surface = CollisionSurface(
+        tuple(tuple(float(value) for value in point) for point in mesh.vertices),
+        tuple(tuple(int(value) for value in face) for face in mesh.faces),
+        thickness=0.0,
+    ).validate()
+    projector = MeshCollisionProjector(surface, clearance_mm=1.0)
+    query = np.asarray((0.0, 0.0, 42.0), dtype=np.float64)
+
+    actual_point, actual_normal = projector._nearest_surface_point(query)
+    candidate_count = projector._last_nearest_candidate_count
+    all_indices = np.arange(len(surface.triangles), dtype=np.int64)
+    all_points, all_distances = projector._closest_points_on_triangles(query, all_indices)
+    expected_point = all_points[int(np.argmin(all_distances))]
+
+    assert np.allclose(actual_point, expected_point, atol=1e-9)
+    assert np.isclose(np.linalg.norm(actual_normal), 1.0)
+    assert 0 < candidate_count < len(surface.triangles) // 10
+
+
 def test_projector_escapes_concave_interior_contacts_with_exact_surface_search() -> None:
     """A local face normal at a concave corner must not push an interior point deeper."""
     surface = _concave_l_prism_surface()

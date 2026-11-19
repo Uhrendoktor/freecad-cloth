@@ -9,7 +9,10 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 from __future__ import annotations
 
 from collections.abc import Callable
+from time import perf_counter
 from typing import TYPE_CHECKING, cast
+
+import os
 
 import numpy as np
 import numpy.typing as npt
@@ -96,6 +99,12 @@ class MeshCollisionProjector:
         self._triangle_vertices = triangles
         self._centroids = np.mean(triangles, axis=1)
         self._tree = KDTree(self._centroids)
+        self._triangle_radii_mm = np.linalg.norm(
+            triangles - self._centroids[:, None, :],
+            axis=2,
+        ).max(axis=1)
+        self._maximum_triangle_radius_mm = float(self._triangle_radii_mm.max())
+        self._last_nearest_candidate_count = 0
         self._contains_points: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.bool_]] | None = (
             None
         )
@@ -124,11 +133,21 @@ class MeshCollisionProjector:
         )
         self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
 
-    def _nearest_surface_point(
-        self, point: npt.NDArray[np.float64]
+    def _closest_points_on_triangles(
+        self,
+        point: npt.NDArray[np.float64],
+        triangle_indices: npt.NDArray[np.int64],
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-        """Return the exact nearest point and outward face normal over the full surface."""
-        triangles = self._triangle_vertices
+        """Compute exact closest points from one query to a selected triangle set.
+
+        Args:
+            point: One finite query position in world millimetres.
+            triangle_indices: Global target-triangle indices to evaluate.
+
+        Returns:
+            Per-triangle closest points and squared distances to the query.
+        """
+        triangles = self._triangle_vertices[triangle_indices]
         a, b, c = triangles[:, 0], triangles[:, 1], triangles[:, 2]
         ab, ac = b - a, c - a
         ap = point[None, :] - a
@@ -143,7 +162,12 @@ class MeshCollisionProjector:
         w = (d00 * d21 - d01 * d20) / safe_denominator
         u = 1.0 - v - w
         projected_plane = a + v[:, None] * ab + w[:, None] * ac
-        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
+        barycentric_inside = (
+            (u >= -1e-10)
+            & (v >= -1e-10)
+            & (w >= -1e-10)
+            & (denominator > 1e-18)
+        )
 
         def closest_on_edge(
             start: npt.NDArray[np.float64],
@@ -175,8 +199,59 @@ class MeshCollisionProjector:
         closest = np.where(barycentric_inside[:, None], projected_plane, closest_edge)
         delta = point[None, :] - closest
         distance_squared = np.einsum("ij,ij->i", delta, delta)
-        nearest_index = int(np.argmin(distance_squared))
-        return closest[nearest_index].copy(), self._normals[nearest_index].copy()
+        return closest, distance_squared
+
+    def _nearest_surface_point(
+        self,
+        point: npt.NDArray[np.float64],
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Return the exact nearest point using a conservative centroid-tree query.
+
+        The closest-centroid triangle supplies an upper bound on the true surface
+        distance. Any triangle that could be closer has its centroid within that
+        upper bound plus the maximum triangle-centroid radius, so the ball query
+        cannot exclude the globally nearest face.
+
+        Args:
+            point: One query position in world millimetres.
+
+        Returns:
+            Exact nearest point on the mesh and its consistently outward face normal.
+        """
+        _centroid_distance, seed_face = self._tree.query(
+            point,
+            k=1,
+            eps=0.0,
+            workers=1,
+        )
+        seed_indices = np.asarray((int(seed_face),), dtype=np.int64)
+        seed_points, seed_distances = self._closest_points_on_triangles(point, seed_indices)
+        upper_bound_mm = float(np.sqrt(seed_distances[0]))
+        candidate_radius_mm = upper_bound_mm + self._maximum_triangle_radius_mm + 1e-9
+        candidate_indices = np.asarray(
+            self._tree.query_ball_point(
+                point,
+                candidate_radius_mm,
+                eps=0.0,
+                workers=1,
+                return_sorted=True,
+            ),
+            dtype=np.int64,
+        )
+        if candidate_indices.size == 0:
+            candidate_indices = seed_indices
+        elif not bool(np.any(candidate_indices == seed_indices[0])):
+            candidate_indices = np.append(candidate_indices, seed_indices)
+            candidate_indices.sort()
+
+        closest_points, distances_squared = self._closest_points_on_triangles(
+            point,
+            candidate_indices,
+        )
+        nearest_index = int(np.argmin(distances_squared))
+        nearest_face = int(candidate_indices[nearest_index])
+        self._last_nearest_candidate_count = int(candidate_indices.size)
+        return closest_points[nearest_index].copy(), self._normals[nearest_face].copy()
 
     def _inside_mask(
         self,
@@ -234,8 +309,11 @@ class MeshCollisionProjector:
         corrected = points.copy()
         directions = np.zeros_like(points)
         inside = self._inside_mask(points)
+        nearest_candidate_total = 0
+        nearest_started = perf_counter()
         for index in np.flatnonzero(inside):
             nearest_point, face_normal = self._nearest_surface_point(points[index])
+            nearest_candidate_total += self._last_nearest_candidate_count
             direction = nearest_point - points[index]
             direction_length = float(np.linalg.norm(direction))
             if direction_length <= 1e-10:
@@ -247,6 +325,16 @@ class MeshCollisionProjector:
                 direction /= direction_length
             corrected[index] = nearest_point + self.clearance_mm * direction
             directions[index] = direction
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1" and bool(np.any(inside)):
+            from freecad_cloth.common.Diagnostics import emit_diagnostic
+
+            emit_diagnostic(
+                "body-projection-exact-nearest "
+                f"inside={int(np.count_nonzero(inside))} "
+                f"candidate_triangles={nearest_candidate_total} "
+                f"target_triangles={len(self._triangles)} "
+                f"elapsed_s={perf_counter() - nearest_started:.3f}"
+            )
         return corrected, directions
 
     def project(
