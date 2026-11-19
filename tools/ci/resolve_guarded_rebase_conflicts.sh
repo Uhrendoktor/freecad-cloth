@@ -731,7 +731,91 @@ PY
     git add freecad_cloth/pattern/PatternTopologyRepairGui.py
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
-    fi  else
+    fi  elif [[ "$conflicts" == done
+freecad_cloth/pattern/PatternTopologyRepairGui.py\ntests/test_simulation_gui.py\ntests/test_tunic_audit_contract.py' ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "99b9aa0e93e1a5e071a989c9b0a751dc2d8d6bbd" ]] ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]] = []' ||
+      ! git show HEAD:tests/test_simulation_gui.py | grep -Fq 'test_simulation_scene_selectors_highlight_the_selected_objects_in_3d' ||
+      ! git show origin/main:tests/test_simulation_gui.py | grep -Fq 'sys.path.insert(0, str(Path(__file__).resolve().parents[1]))' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'def test_native_arc_evaluator_returns_validated_planar_coordinates()' ||
+      ! git show HEAD:tests/test_tunic_audit_contract.py | grep -Fq 'assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"'; then
+      echo "::error::Refusing the Ruff bulk conflict outside the exact commit and its three verified file states."
+      exit 1
+    fi
+    echo "::warning::Applying the exact Ruff formatting to topology GUI and tunic tests while restoring the valid mainline simulation test source."
+    git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_tunic_audit_contract.py
+    git checkout origin/main -- tests/test_simulation_gui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+gui_path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
+gui = gui_path.read_text(encoding="utf-8")
+old_imports = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+new_imports = (
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
+    "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
+)
+if gui.count(old_imports) != 1:
+    raise SystemExit("Expected exactly one topology GUI TYPE_CHECKING import pair for Ruff formatting.")
+gui = gui.replace(old_imports, new_imports, 1)
+
+old_rows = (
+    "        self.rows: list[tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, "
+    "_QT_TYPE_QtWidgets.QPushButton]] = []\n"
+)
+new_rows = (
+    "        self.rows: list[\n"
+    "            tuple[SeamFeatureProtocol, str, _ComboBoxProtocol, _QT_TYPE_QtWidgets.QPushButton]\n"
+    "        ] = []\n"
+)
+if gui.count(old_rows) != 1:
+    raise SystemExit("Expected exactly one long four-column repair-row annotation for Ruff formatting.")
+gui = gui.replace(old_rows, new_rows, 1)
+if old_imports in gui or old_rows in gui or "class _TopologyRepairViewportPicker:" not in gui:
+    raise SystemExit("Topology GUI Ruff transform did not preserve the viewport picker.")
+if "self.rows.append((seam, side, combo, pick_button))" not in gui:
+    raise SystemExit("Four-field mainline repair rows were lost.")
+gui_path.write_text(gui, encoding="utf-8")
+
+sim_path = Path("tests/test_simulation_gui.py")
+sim = sim_path.read_text(encoding="utf-8")
+if len(sim.splitlines()) < 150 or "\\\\n" in sim[:180]:
+    raise SystemExit("The simulation GUI test source was not restored as a real Python module.")
+if "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))" not in sim:
+    raise SystemExit("The valid mainline standalone test bootstrap was not restored.")
+if "test_simulation_scene_selectors_highlight_the_selected_objects_in_3d" not in sim:
+    raise SystemExit("The mainline viewport-selection test was not preserved.")
+
+tunic_path = Path("tests/test_tunic_audit_contract.py")
+tunic = tunic_path.read_text(encoding="utf-8")
+old_boundary = (
+    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
+    "@dataclass\n"
+)
+new_boundary = (
+    '    assert not missing, f"Realtime CPU/CUDA fallback measurements are missing: {missing!r}"\n'
+    "\n\n"
+    "@dataclass\n"
+)
+if tunic.count(old_boundary) != 1:
+    raise SystemExit("Expected exactly one native-arc dataclass boundary for Ruff blank-line formatting.")
+tunic = tunic.replace(old_boundary, new_boundary, 1)
+if old_boundary in tunic or tunic.count("@dataclass\nclass _NativeArcPoint") != 1:
+    raise SystemExit("Tunic native-arc Ruff formatting did not preserve one dataclass declaration.")
+if "test_native_arc_evaluator_returns_validated_planar_coordinates" not in tunic:
+    raise SystemExit("The previously transplanted native-arc regression test was lost.")
+tunic_path.write_text(tunic, encoding="utf-8")
+PY
+    git add freecad_cloth/pattern/PatternTopologyRepairGui.py tests/test_simulation_gui.py tests/test_tunic_audit_contract.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+  else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
   fi
