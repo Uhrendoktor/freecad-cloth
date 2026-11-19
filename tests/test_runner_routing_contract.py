@@ -192,6 +192,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "Applying exact structural document and string-valued combo protocols" in resolver
+    assert "verified post-Ruff combo/seam/document source states" in resolver
+    assert "def replace_signature(old: str, new: str, expected: int, label: str) -> None:" in resolver
+    assert "Cannot locate the TYPE_CHECKING import block for structural GUI protocols." in resolver
+    assert "def __init__(self, doc: DocumentTransactionProtocol) -> None:" in resolver
+    assert "seam: SeamFeatureProtocol," in resolver
+    assert "Legacy document-object import or annotation remains after structural typing." in resolver
     assert "def currentData(self) -> str | None: ..." in resolver
     assert "def findData(self, value: str) -> int: ..." in resolver
     assert "def addItem(self, text: str, userData: object | None = None) -> None: ..." in resolver
