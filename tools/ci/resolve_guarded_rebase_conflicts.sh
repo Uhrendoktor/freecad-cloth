@@ -658,7 +658,7 @@ protocol_anchor = (
 protocol_block = (
     "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n\n"
     "class _ComboBoxProtocol(Protocol):\n"
-    "    def addItem(self, text: str, userData: object = None) -> None: ...\n\n"
+    "    def addItem(self, text: str, userData: object | None = None) -> None: ...\n\n"
     "    def currentData(self) -> object: ...\n\n"
     "def _gui_modules()"
 )
