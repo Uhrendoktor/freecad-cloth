@@ -695,6 +695,81 @@ def run_acceptance() -> None:
         radius_x = max(150.0, radius_x)
         radius_y = max(100.0, radius_y)
 
+        hip_x_extreme = max(
+            hip_slice,
+            key=lambda vertex: abs(float(vertex[0]) - center_x),
+        )
+        hip_y_minimum = min(hip_slice, key=lambda vertex: float(vertex[1]))
+        hip_y_maximum = max(hip_slice, key=lambda vertex: float(vertex[1]))
+        placement_base = avatar.Placement.Base
+        placement_rotation = avatar.Placement.Rotation.Q
+        _log(
+            "layered-outfit-source-geometry "
+            + json.dumps(
+                {
+                    "landmarks_world_mm": {
+                        "shoulder_left": [
+                            float(shoulder_left.x),
+                            float(shoulder_left.y),
+                            float(shoulder_left.z),
+                        ],
+                        "shoulder_right": [
+                            float(shoulder_right.x),
+                            float(shoulder_right.y),
+                            float(shoulder_right.z),
+                        ],
+                        "hip": [float(hip.x), float(hip.y), float(hip.z)],
+                    },
+                    "avatar_placement_base_mm": [
+                        float(placement_base.x),
+                        float(placement_base.y),
+                        float(placement_base.z),
+                    ],
+                    "avatar_placement_rotation_xyzw": [
+                        float(value) for value in placement_rotation
+                    ],
+                    "collision_surface_bounds_mm": [
+                        [
+                            min(float(vertex[axis]) for vertex in body_surface.vertices),
+                            max(float(vertex[axis]) for vertex in body_surface.vertices),
+                        ]
+                        for axis in range(3)
+                    ],
+                    "body_depth_sample_bounds_mm": [
+                        [
+                            min(float(vertex[axis]) for vertex in body_depth_samples),
+                            max(float(vertex[axis]) for vertex in body_depth_samples),
+                        ]
+                        for axis in range(3)
+                    ],
+                    "hip_slice_count": len(hip_slice),
+                    "hip_slice_gate_x_mm": 1.2 * shoulder_width,
+                    "hip_slice_bounds_mm": [
+                        [
+                            min(float(vertex[axis]) for vertex in hip_slice),
+                            max(float(vertex[axis]) for vertex in hip_slice),
+                        ]
+                        for axis in range(3)
+                    ],
+                    "hip_slice_max_abs_x_point_mm": [
+                        float(value) for value in hip_x_extreme
+                    ],
+                    "hip_slice_y_min_point_mm": [
+                        float(value) for value in hip_y_minimum
+                    ],
+                    "hip_slice_y_max_point_mm": [
+                        float(value) for value in hip_y_maximum
+                    ],
+                    "skirt_radii_mm": [radius_x, radius_y],
+                    "skirt_center_y_mm": center_y,
+                    "shoulder_width_mm": shoulder_width,
+                    "hip_z_mm": hip_z,
+                    "shoulder_z_mm": shoulder_z,
+                },
+                sort_keys=True,
+            )
+        )
+
         rotation_front = App.Rotation(App.Vector(1.0, 0.0, 0.0), 90.0)
         rotation_right = App.Rotation(App.Vector(0.0, 0.0, 1.0), 90.0).multiply(rotation_front)
         rotation_back = App.Rotation(App.Vector(0.0, 0.0, 1.0), 180.0).multiply(rotation_front)
