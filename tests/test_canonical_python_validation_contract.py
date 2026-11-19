@@ -183,16 +183,12 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     return {
         "schema_version": 1,
         "backend": "position-based-dynamics",
-        "fixture": "three-garment-outfit",
-        "garment_count": 3,
-        "garments": {
-            "tshirt": {"panel_count": 4, "seam_count": 8},
-            "trousers": {"panel_count": 4, "seam_count": 6},
-            "hat": {"panel_count": 2, "seam_count": 4},
-        },
-        "seam_count": 18,
-        "particles": 960,
-        "panel_count": 10,
+        "fixture": "two-panel-tunic-pattern",
+        "garment_count": 1,
+        "garments": {"tunic": {"panel_count": 2, "seam_count": 4}},
+        "seam_count": 4,
+        "particles": 480,
+        "panel_count": 2,
         "collision_triangles": 240,
         "frame_budget_ms": validate_realtime_benchmark.FRAME_BUDGET_MS,
         "publication_mode": "transient-coin3d",
@@ -250,7 +246,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
             "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
-            "preview_mesh_publish": {"samples": 1200, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
+            "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
             "overlay_schedule": {"samples": 60, "mean_ms": 0.1, "p95_ms": 0.2, "max_ms": 0.3},
             "viewport_redraw": {"samples": 120, "mean_ms": 3.0, "p95_ms": 4.0, "max_ms": 5.0},
         },
@@ -271,10 +267,37 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     }
 
 
+def _valid_outfit_realtime_benchmark_metrics() -> JsonObject:
+    """Build a valid three-garment outfit sample for the complexity-scaling gate."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["fixture"] = "three-garment-outfit"
+    metrics["garment_count"] = 3
+    metrics["garments"] = {
+        "tshirt": {"panel_count": 4, "seam_count": 8},
+        "trousers": {"panel_count": 4, "seam_count": 6},
+        "hat": {"panel_count": 2, "seam_count": 4},
+    }
+    metrics["seam_count"] = 18
+    metrics["particles"] = 960
+    metrics["panel_count"] = 10
+    stages = _require_mapping(metrics["stage_timings"], label="stage timings")
+    publication = _require_mapping(stages["preview_mesh_publish"], label="mesh publication")
+    publication["samples"] = 1200
+    return metrics
+
+
 def test_realtime_metric_validator_accepts_a_valid_sustained_60_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
     assert (
         validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
+    ), "canonical CI contract"
+
+
+def test_realtime_metric_validator_accepts_the_three_garment_outfit() -> None:
+    """Accept the separate ten-panel outfit stress workload."""
+    assert (
+        validate_realtime_benchmark.validate_metrics(_valid_outfit_realtime_benchmark_metrics())
+        == []
     ), "canonical CI contract"
 
 
@@ -297,7 +320,7 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
 
 def test_realtime_metric_validator_rejects_incomplete_garment_topology() -> None:
     """Reject an outfit artifact that omits one of the hat's two pattern panels."""
-    metrics = _valid_realtime_benchmark_metrics()
+    metrics = _valid_outfit_realtime_benchmark_metrics()
     garments = _require_mapping(metrics["garments"], label="garments")
     hat = _require_mapping(garments["hat"], label="hat")
     hat["panel_count"] = 1
@@ -309,7 +332,7 @@ def test_realtime_metric_validator_rejects_incomplete_garment_topology() -> None
 
 def test_realtime_metric_validator_requires_one_mesh_publication_per_panel() -> None:
     """Require all ten outfit panels to be published on every measured preview frame."""
-    metrics = _valid_realtime_benchmark_metrics()
+    metrics = _valid_outfit_realtime_benchmark_metrics()
     stages = _require_mapping(metrics["stage_timings"], label="stage timings")
     publication = _require_mapping(stages["preview_mesh_publish"], label="mesh publication")
     publication["samples"] = 240
