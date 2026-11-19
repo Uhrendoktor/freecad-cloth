@@ -311,7 +311,7 @@ def _add_outfit_preview_fixture(
         sew(front, 1, back, 1, f"Trousers{leg}Inseam", "Trousers")
         sew(front, 4, back, 4, f"Trousers{leg}Outseam", "Trousers")
     sew(trousers_front_left, 3, trousers_front_right, 3, "TrousersFrontCrotch", "Trousers")
-    sew(trousers_back_left, 3, trousers_front_right, 3, "TrousersBackCrotch", "Trousers")
+    sew(trousers_back_left, 3, trousers_back_right, 3, "TrousersBackCrotch", "Trousers")
 
     # Hat: two shaped crown halves joined along their four matching crown edges,
     # leaving the lower opening free.
