@@ -498,6 +498,8 @@ class AvatarDimensionController:
         width: float = 1.4,
         *,
         depth_test: bool = False,
+        line_pattern: int = 0xFFFF,
+        line_pattern_scale_factor: int = 1,
     ) -> None:
         """Add a transient line with an explicit mesh depth-test policy.
 
@@ -507,6 +509,8 @@ class AvatarDimensionController:
             color: Normalized RGB line color.
             width: Line width in viewport pixels.
             depth_test: True to let the mannequin occlude the guide line.
+            line_pattern: Coin 16-bit line stipple mask; 0xFFFF draws a solid line.
+            line_pattern_scale_factor: Integer scale applied to the stipple pattern.
         """
         separator = coin.SoSeparator()
         depth = coin.SoDepthBuffer()
@@ -518,6 +522,8 @@ class AvatarDimensionController:
         base.rgb = color
         coordinates = coin.SoCoordinate3()
         coordinates.point.setValues(0, len(points), points)
+        draw.linePattern = int(line_pattern)
+        draw.linePatternScaleFactor = max(1, int(line_pattern_scale_factor))
         line = coin.SoLineSet()
         line.numVertices.setValue(len(points))
         separator.addChild(depth)
@@ -536,24 +542,37 @@ class AvatarDimensionController:
             color: Normalized RGB marker color.
             size: Marker diameter in viewport pixels.
         """
-        marker = coin.SoSeparator()
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        draw = coin.SoDrawStyle()
-        draw.pointSize = float(size)
-        base = coin.SoBaseColor()
-        base.rgb = color
-        coordinates = coin.SoCoordinate3()
-        coordinates.point.setValues(0, 1, [point])
-        points = coin.SoPointSet()
-        points.numPoints = 1
-        marker.addChild(depth)
-        marker.addChild(draw)
-        marker.addChild(base)
-        marker.addChild(coordinates)
-        marker.addChild(points)
-        self.overlay.addChild(marker)
+        from freecad_cloth.shared.ViewportGizmoStyle import (
+            DIMENSION_MARKER_HALO_COLOR,
+            DIMENSION_MARKER_OUTLINE_COLOR,
+        )
+
+        # A light outer halo and dark inner rim keep the semantic centre legible
+        # against both pale and dark mannequin surfaces. All layers are screen-sized
+        # and bypass depth testing so the handle remains visible and pickable.
+        for marker_color, marker_size in (
+            (DIMENSION_MARKER_HALO_COLOR, float(size) + 12.0),
+            (DIMENSION_MARKER_OUTLINE_COLOR, float(size) + 6.0),
+            (color, float(size)),
+        ):
+            marker = coin.SoSeparator()
+            depth = coin.SoDepthBuffer()
+            depth.test = False
+            depth.write = False
+            draw = coin.SoDrawStyle()
+            draw.pointSize = marker_size
+            base = coin.SoBaseColor()
+            base.rgb = marker_color
+            coordinates = coin.SoCoordinate3()
+            coordinates.point.setValues(0, 1, [point])
+            points = coin.SoPointSet()
+            points.numPoints = 1
+            marker.addChild(depth)
+            marker.addChild(draw)
+            marker.addChild(base)
+            marker.addChild(coordinates)
+            marker.addChild(points)
+            self.overlay.addChild(marker)
 
     def _add_label(self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3) -> None:
         """Draw the one-line value tooltip for the currently linked dimension.
@@ -814,6 +833,10 @@ class AvatarDimensionController:
                 ACTIVE_COLOR,
                 DIMENSION_GUIDE_COLOR,
                 DIMENSION_GUIDE_LINE_WIDTH,
+                DIMENSION_OCCLUDED_COLOR,
+                DIMENSION_OCCLUDED_LINE_PATTERN,
+                DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
+                DIMENSION_OCCLUDED_LINE_WIDTH,
                 RIG_EDITABLE_COLOR,
             )
 
@@ -833,15 +856,32 @@ class AvatarDimensionController:
                         item["radius"],
                         self.RING_SEGMENTS,
                     )
-                    self._add_line(coin, points, color, width, depth_test=True)
+                    visible_color = color
                 else:
-                    self._add_line(
-                        coin,
-                        item["line"],
-                        RIG_EDITABLE_COLOR if key not in active_keys else ACTIVE_COLOR,
-                        width,
-                        depth_test=True,
+                    points = item["line"]
+                    visible_color = (
+                        RIG_EDITABLE_COLOR if key not in active_keys else ACTIVE_COLOR
                     )
+
+                # Draw a faint dashed X-ray underlay first, then redraw only the
+                # front-facing portion as a stronger solid guide. This keeps the
+                # measurement topology understandable when the avatar occludes it.
+                self._add_line(
+                    coin,
+                    points,
+                    DIMENSION_OCCLUDED_COLOR,
+                    DIMENSION_OCCLUDED_LINE_WIDTH,
+                    depth_test=False,
+                    line_pattern=DIMENSION_OCCLUDED_LINE_PATTERN,
+                    line_pattern_scale_factor=DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
+                )
+                self._add_line(
+                    coin,
+                    points,
+                    visible_color,
+                    width,
+                    depth_test=True,
+                )
                 self._add_marker(
                     coin,
                     item["point"],

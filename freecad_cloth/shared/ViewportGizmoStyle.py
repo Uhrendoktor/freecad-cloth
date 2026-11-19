@@ -54,3 +54,14 @@ SEAM_LINE_WIDTH = 2.4
 SEAM_FOCUSED_LINE_WIDTH = 4.0
 SEAM_CONNECTOR_LINE_WIDTH = 1.25
 SEAM_LABEL_FONT_SIZE = 16.0
+
+
+# Measurement guides use a restrained X-ray underlay for geometry hidden by the
+# avatar. The foreground handle is a three-layer, screen-sized target so it stays
+# recognisable against light and dark mannequin surfaces.
+DIMENSION_OCCLUDED_COLOR = (0.38, 0.53, 0.59)
+DIMENSION_OCCLUDED_LINE_WIDTH = 1.25
+DIMENSION_OCCLUDED_LINE_PATTERN = 0x0F0F
+DIMENSION_OCCLUDED_LINE_PATTERN_SCALE = 2
+DIMENSION_MARKER_HALO_COLOR = (0.96, 0.97, 0.98)
+DIMENSION_MARKER_OUTLINE_COLOR = (0.08, 0.10, 0.12)
