@@ -941,8 +941,7 @@ def test_workflow_run_cap_reserves_slot_for_current_cleanup_run() -> None:
 def test_workflow_run_cap_aggregates_github_api_delete_failures() -> None:
     """Report typed GitHub API deletion failures while preserving successful deletions."""
     runs = [
-        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"}
-        for run_id in range(1, 4)
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"} for run_id in range(1, 4)
     ]
     deleted_paths: list[str] = []
 
