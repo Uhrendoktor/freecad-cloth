@@ -541,9 +541,29 @@ def _body_clearance(
     base = scene.Proxy._base_or_restore()
     surface = base.collision_surface
     positions = tuple(backend.positions())
-    inside = points_inside_closed_mesh(positions, surface.vertices, surface.triangles)
+    containment_started = time.perf_counter()
+    _log(
+        "body-clearance-containment-start particles=%d target_triangles=%d method=numpy-ray-parity"
+        % (len(positions), len(surface.triangles))
+    )
+    inside = points_inside_closed_mesh(
+        positions,
+        surface.vertices,
+        surface.triangles,
+        prefer_trimesh=False,
+    )
     inside_indices = tuple(index for index, value in enumerate(inside) if value)
+    _log(
+        "body-clearance-containment-finish inside=%d elapsed_ms=%.1f"
+        % (len(inside_indices), 1000.0 * (time.perf_counter() - containment_started))
+    )
+    clearance_started = time.perf_counter()
+    _log("body-clearance-nearest-surface-start particles=%d" % len(positions))
     clearance = nearest_surface_clearance(positions, surface.vertices, surface.triangles)
+    _log(
+        "body-clearance-nearest-surface-finish minimum_mm=%.4f elapsed_ms=%.1f"
+        % (float(clearance), 1000.0 * (time.perf_counter() - clearance_started))
+    )
     if inside_indices:
         panel_for_particle = {
             int(particle_index): str(base.panel_piece_names.get(panel_name, panel_name))
