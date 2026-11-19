@@ -1029,6 +1029,36 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             if inward_speed < 0.0:
                 particles.setVelocity(index, velocity - inward_speed * normal_pbd)
 
+    def _emit_stitch_gap_diagnostic(self, stage: str) -> None:
+        """Report exact native stitch-pair gaps without changing simulation state."""
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1" or not self._stitches:
+            return
+        native_vertices = np.asarray(
+            self._model.getParticles().getVertices(),
+            dtype=np.float64,
+        )
+        if native_vertices.size == 0:
+            return
+        positions_mm = native_vertices[:, (0, 2, 1)] * _MM
+        stitch_indices = np.asarray(self._stitches, dtype=np.int64)
+        gaps = np.linalg.norm(
+            positions_mm[stitch_indices[:, 0]] - positions_mm[stitch_indices[:, 1]],
+            axis=1,
+        )
+        worst_indices = np.argsort(gaps)[-3:][::-1]
+        worst_pairs = ",".join(
+            f"{int(index)}:{int(stitch_indices[index, 0])}-{int(stitch_indices[index, 1])}"
+            f"={float(gaps[index]):.3f}"
+            for index in worst_indices
+        )
+        _emit_diagnostic(
+            "cloth-pbd-stitch-gaps "
+            f"stage={stage} count={len(gaps)} "
+            f"maximum_mm={float(gaps.max(initial=0.0)):.4f} "
+            f"over_12mm={int(np.count_nonzero(gaps > 12.0))} "
+            f"worst={worst_pairs}"
+        )
+
     def _project_inter_cloth_positions(
         self,
         *,
@@ -1232,6 +1262,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 iterations=8,
                 measure_residual=False,
             )
+            self._emit_stitch_gap_diagnostic(f"reconcile-{pass_index + 1}-after-cloth")
             if correction is None:
                 break
             particles = getattr(self, "_model", None)
@@ -1245,6 +1276,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     * _MM
                 )
             self._project_collision_positions()
+            self._emit_stitch_gap_diagnostic(f"reconcile-{pass_index + 1}-after-body")
             if before_body_positions is not None and particles is not None:
                 after_body_positions = (
                     np.asarray(
@@ -1264,6 +1296,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     f"mean_delta_mm={float(body_movement.mean()) if len(body_movement) else 0.0:.4f}"
                 )
             self._measure_inter_cloth_residual()
+            self._emit_stitch_gap_diagnostic(f"reconcile-{pass_index + 1}-after-measure")
             measured = self._inter_cloth_metrics
             if measured is None:
                 break
@@ -1368,6 +1401,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _emit_diagnostic(
                 f"cloth-pbd-native-step-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
+            self._emit_stitch_gap_diagnostic("after-native")
         self._inter_cloth_metrics_before_body_projection = None
         stage_started = time.perf_counter()
         if diagnostics:
@@ -1377,6 +1411,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _emit_diagnostic(
                 f"cloth-pbd-first-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
+            self._emit_stitch_gap_diagnostic("after-first-body")
         stage_started = time.perf_counter()
         self._project_inter_cloth_positions()
         self._inter_cloth_metrics_before_body_projection = self._inter_cloth_metrics
@@ -1384,6 +1419,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _emit_diagnostic(
                 f"cloth-pbd-inter-cloth-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
+            self._emit_stitch_gap_diagnostic("after-inter-cloth")
         # Cross-cloth response can push fabric back toward the avatar, so preserve
         # the authoritative body shell after the garment-group projection.
         stage_started = time.perf_counter()
@@ -1394,12 +1430,14 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _emit_diagnostic(
                 f"cloth-pbd-final-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
+            self._emit_stitch_gap_diagnostic("after-final-body")
         stage_started = time.perf_counter()
         self._resolve_inter_cloth_body_contacts()
         if diagnostics:
             _emit_diagnostic(
                 f"cloth-pbd-residual-measure-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
             )
+            self._emit_stitch_gap_diagnostic("after-body-reconciliation")
         self._time += float(dt)
 
     def reset(self) -> None:

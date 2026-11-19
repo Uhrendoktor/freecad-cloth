@@ -1019,6 +1019,16 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
+        _log(
+            "seam-stitch-index-map="
+            + json.dumps(
+                {
+                    seam_id: [[int(left), int(right)] for left, right in pairs]
+                    for seam_id, pairs in sorted(base.seam_stitch_pairs.items())
+                },
+                sort_keys=True,
+            )
+        )
 
         seam_objects = {
             str(getattr(obj, "SeamId", "")): obj
@@ -1095,6 +1105,10 @@ def run_acceptance() -> None:
                     )
                 )
             seam_metrics = _seam_measurements(backend, base.seam_stitch_pairs, seam_objects)
+            _log(
+                "seam-metrics-step=%d %s"
+                % (step, json.dumps(seam_metrics, sort_keys=True))
+            )
             max_seam_gap = max(
                 (float(item["maximum_gap_mm"]) for item in seam_metrics),
                 default=0.0,
