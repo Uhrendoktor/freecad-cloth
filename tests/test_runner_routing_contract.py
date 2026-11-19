@@ -191,6 +191,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         text=True,
     )
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
+    assert "a59f58d25537de846677f89a7858562cfcfc9672" in resolver
+    assert (
+        "Preserving the already-typed combo-box protocol and applying only the exact a59f docstring."
+        in resolver
+    )
+    assert '"""Minimal Qt combo-box interface used by the topology repair panel."""' in resolver
     assert (
         "Applying exact structural seam/document and string-valued combo protocols across the post-Ruff import layout"
         in resolver
