@@ -96,9 +96,9 @@ class MeshCollisionProjector:
         self._triangle_vertices = triangles
         self._centroids = np.mean(triangles, axis=1)
         self._tree = KDTree(self._centroids)
-        self._contains_points: Callable[
-            [npt.NDArray[np.float64]], npt.NDArray[np.bool_]
-        ] | None = None
+        self._contains_points: Callable[[npt.NDArray[np.float64]], npt.NDArray[np.bool_]] | None = (
+            None
+        )
         try:
             import trimesh
 
@@ -248,6 +248,7 @@ class MeshCollisionProjector:
             corrected[index] = nearest_point + self.clearance_mm * direction
             directions[index] = direction
         return corrected, directions
+
     def project(
         self, points_mm: npt.ArrayLike
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
