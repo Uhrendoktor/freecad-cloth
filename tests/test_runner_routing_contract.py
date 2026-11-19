@@ -244,7 +244,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "{missing!r}" in resolver
     assert r'arc_dataclass = "@dataclass\nclass _NativeArcPoint:"' in resolver
     assert "blank_line_count = marker_index - prefix_start - 1" in resolver
-    assert 'tunic = tunic[:prefix_start] + "\n\n\n" + tunic[marker_index:]' in resolver
+    assert r'tunic = tunic[:prefix_start] + "\n\n\n" + tunic[marker_index:]' in resolver
     assert "old_typechecking = (" in resolver
     assert "formatted_typechecking = (" in resolver
     assert "nested_rows = (" in resolver
