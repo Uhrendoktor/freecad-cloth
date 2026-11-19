@@ -733,7 +733,7 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
-    elif [[ "$conflicts" == 
+    elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "a59f58d25537de846677f89a7858562cfcfc9672" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||

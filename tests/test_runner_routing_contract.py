@@ -154,6 +154,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'record["provenance"]' in resolver
     assert "Preserving mainline Sketcher viewport-edge resolution" in resolver
     assert '[[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]' in resolver
+    assert 'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]; then' in resolver
     assert "bfe0121970b5eae29bfd16be705cfae86c27d636" in resolver
     assert "git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py" in resolver
     assert "class _TopologyRepairViewportPicker:" in resolver
