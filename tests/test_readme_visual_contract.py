@@ -354,6 +354,14 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]"
         in doc_assets
     )
+    pbd_image = workflow.split("  pbd_validation_image:", 1)[1].split(
+        "  diagnostic-pbd-contact:", 1
+    )[0]
+    assert (
+        "inputs.execution_mode != 'publication' || (github.event_name == 'push' "
+        "&& github.ref == 'refs/heads/main')" in pbd_image
+    )
+    assert "startsWith(github.event.head_commit.message, 'RUN MAINTENANCE CLEANUP')" in pbd_image
     assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
 
