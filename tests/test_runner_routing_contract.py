@@ -154,6 +154,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'record["provenance"]' in resolver
     assert "Preserving mainline Sketcher viewport-edge resolution" in resolver
     assert '[[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]]' in resolver
+    assert (
+        'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]; then'
+        in resolver
+    )
     assert "bfe0121970b5eae29bfd16be705cfae86c27d636" in resolver
     assert "git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py" in resolver
     assert "class _TopologyRepairViewportPicker:" in resolver
@@ -184,12 +188,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Expected one supported topology GUI TYPE_CHECKING block." in resolver
     assert "Expected one supported typed four-column topology GUI row annotation." in resolver
     assert "Normalizing the already-typed topology GUI to the exact Ruff output" in resolver
-    subprocess.run(
+    syntax_check = subprocess.run(
         ["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],
-        check=True,
+        check=False,
         capture_output=True,
         text=True,
     )
+    assert syntax_check.returncode == 0, syntax_check.stderr
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in resolver
     assert "bbd581e2df7ed83509755ef7a32850edd3441f49" in resolver

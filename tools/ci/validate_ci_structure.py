@@ -403,6 +403,8 @@ def _validate_reusable_workflow_trust(text: str) -> None:
         "commit-validation.yml",
         "pull_request",
         "Full validation (explicit request) / Required validation gate",
+        "workflow_dispatch",
+        "Full validation / Required validation gate",
         "event={event}",
         "status=success",
         "candidate_tree == source_tree",
