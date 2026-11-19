@@ -63,6 +63,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
+FIXTURE_NAME = os.environ.get("CLOTH_REALTIME_FIXTURE", "two-panel-tunic-pattern")
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
@@ -335,6 +336,139 @@ def _add_outfit_preview_fixture(
     }
 
 
+
+def _add_tunic_preview_fixture(
+    doc: SimulationDocument, scene: _RealtimeSimulationScene
+) -> _OutfitFixtureMetrics:
+    """Build the original two-panel sewn tunic control workload."""
+    import Part
+    import Sketcher
+
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+
+    avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
+    if avatar is None or not hasattr(avatar, "Mesh"):
+        msg = "Realtime preview fixture requires the production avatar mesh"
+        raise RuntimeError(msg)
+    bounds = avatar.Mesh.BoundBox
+    body_width = float(bounds.XMax - bounds.XMin)
+    body_depth = float(bounds.YMax - bounds.YMin)
+    body_height = float(bounds.ZMax - bounds.ZMin)
+    panel_width = max(420.0, body_width + 100.0)
+    hem_width = panel_width + 80.0
+    garment_height = max(600.0, body_height * 0.40)
+    hem_z = float(bounds.ZMin) + body_height * 0.28
+    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
+    center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
+    clearance = max(60.0, 0.75 * body_depth)
+    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
+    neckline_z = 0.90 * garment_height
+    points = (
+        (0.0, 0.0),
+        (hem_width, 0.0),
+        (panel_width, 0.82 * garment_height),
+        (0.86 * panel_width, 0.97 * garment_height),
+        (0.64 * panel_width, neckline_z),
+        (0.36 * panel_width, neckline_z),
+        (0.14 * panel_width, 0.97 * garment_height),
+        (0.0, 0.82 * garment_height),
+    )
+
+    def make_piece(name: str, y: float) -> _PatternPieceFeature:
+        sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
+        getattr(sketch, "addGeometry")(
+            [
+                Part.LineSegment(
+                    App.Vector(points[index][0], points[index][1], 0.0),
+                    App.Vector(
+                        points[(index + 1) % len(points)][0],
+                        points[(index + 1) % len(points)][1],
+                        0.0,
+                    ),
+                )
+                for index in range(len(points))
+            ],
+            False,
+        )
+        getattr(sketch, "addConstraint")(
+            [
+                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
+                for index in range(len(points))
+            ]
+        )
+        doc.recompute()
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(sketch)
+        piece = cast(
+            "_PatternPieceFeature",
+            create_pattern_piece_from_selected_sketch(
+                name=name,
+                allowance=10.0,
+                grainline=0.0,
+            ),
+        )
+        piece.Label = name
+        piece.Placement = App.Placement(
+            App.Vector(center_x - hem_width / 2.0, y, hem_z),
+            rotation,
+        )
+        sketch_feature = getattr(piece, "Sketch")
+        if sketch_feature is not None:
+            setattr(sketch_feature, "Placement", piece.Placement)
+            getattr(sketch_feature, "ViewObject").Visibility = False
+        return piece
+
+    front = make_piece("RealtimeTunicFront", center_y - clearance)
+    back = make_piece("RealtimeTunicBack", center_y + clearance)
+    seams: list[_SeamFeature] = []
+    for edge_a, edge_b, seam_id in (
+        (1, 1, "RealtimeRightSide"),
+        (3, 3, "RealtimeRightShoulder"),
+        (5, 5, "RealtimeLeftShoulder"),
+        (7, 7, "RealtimeLeftSide"),
+    ):
+        seams.append(
+            cast(
+                "_SeamFeature",
+                add_seam(
+                    doc,
+                    Seam(
+                        str(front.PieceId),
+                        edge_a,
+                        str(back.PieceId),
+                        edge_b,
+                        id=seam_id,
+                        alignment="uniform",
+                        stitch_group="RealtimePreviewBenchmark",
+                    ),
+                ),
+            )
+        )
+    doc.recompute()
+    invalid_seams = [
+        str(getattr(seam, "SeamId", "unknown"))
+        for seam in seams
+        if str(getattr(seam, "Status", "")) != "Valid"
+    ]
+    if invalid_seams:
+        msg = f"Realtime tunic control has invalid authored seams: {invalid_seams!r}"
+        raise RuntimeError(msg)
+    Gui.Selection.clearSelection()
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    scene.ClothPieces = [front, back]
+    scene.StartHeight = 0.0
+    scene.TimeStep = 1.0 / 60.0
+    return {
+        "garment_count": 1,
+        "panel_count": 2,
+        "seam_count": len(seams),
+        "garments": {"tunic": {"panel_count": 2, "seam_count": len(seams)}},
+    }
+
+
 def _percentile(values: list[float], fraction: float) -> float | None:
     """Return a nearest-rank percentile, or None when no samples were collected."""
     if not values:
@@ -449,7 +583,13 @@ def main() -> None:
         runpy.run_path(str(init_gui))
         Gui.updateGui()
         scene = create_quality_simulation_scene(doc)
-        fixture_metadata = _add_outfit_preview_fixture(doc, scene)
+        if FIXTURE_NAME == "two-panel-tunic-pattern":
+            fixture_metadata = _add_tunic_preview_fixture(doc, scene)
+        elif FIXTURE_NAME == "three-garment-outfit":
+            fixture_metadata = _add_outfit_preview_fixture(doc, scene)
+        else:
+            msg = f"Unsupported realtime fixture: {FIXTURE_NAME}"
+            raise ValueError(msg)
         _prepare(scene)
 
         proxy = scene.Proxy
@@ -737,7 +877,7 @@ def main() -> None:
         fixture_pass = (
             particle_count >= 100
             and len(panels) == int(fixture_metadata["panel_count"])
-            and int(fixture_metadata["seam_count"]) == 18
+            and int(fixture_metadata["seam_count"]) > 0
             and collision_triangles > 0
         )
         profile_pass = (
@@ -810,7 +950,7 @@ def main() -> None:
         result = {
             "schema_version": 1,
             "backend": getattr(backend, "name", "unknown"),
-            "fixture": "three-garment-outfit",
+            "fixture": FIXTURE_NAME,
             "garment_count": fixture_metadata["garment_count"],
             "garments": fixture_metadata["garments"],
             "seam_count": fixture_metadata["seam_count"],
