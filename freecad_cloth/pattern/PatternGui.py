@@ -88,7 +88,7 @@ class PatternPieceTaskPanel:
         layout.addRow("Dimensions", size_row)
 
         allowance_label = QtWidgets.QLabel("Seam allowance")
-        grain_label = QtWidgets.QLabel("Grainline")
+        grain_label = QtWidgets.QLabel("Grainline angle")
         allowance_label.setBuddy(self.allowance)
         grain_label.setBuddy(self.grain)
         construction_row = QtWidgets.QWidget()
