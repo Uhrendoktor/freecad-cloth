@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import gc
 import json
 import math
 import os
@@ -599,6 +600,7 @@ def main() -> None:
     preview = None
     deadline = None
     patches: list[tuple[object, str, object]] = []
+    gc_callback: Callable[[str, dict[str, int]], None] | None = None
     try:
         init_gui = ROOT / "InitGui.py"
         runpy.run_path(str(init_gui))
@@ -622,6 +624,8 @@ def main() -> None:
         stage_names = (
             "advance_preview_frame",
             "solver_step",
+            "positions_snapshot",
+            "python_gc_collection",
             "collision_projection_total",
             "mesh_collision_projector",
             "stitched_pair_reconciliation",
@@ -635,12 +639,40 @@ def main() -> None:
         frame_stage_timings_ms: dict[str, float] = {}
         tick_count = 0
         in_tick = False
+        gc_start: tuple[float, int] | None = None
+        gc_events: list[dict[str, int | float]] = []
 
         def record_stage(name: str, started_at: float) -> None:
             if in_tick and tick_count > WARMUP_FRAMES:
                 elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
                 stage_timings[name].append(elapsed_ms)
                 frame_stage_timings_ms[name] = frame_stage_timings_ms.get(name, 0.0) + elapsed_ms
+
+        def capture_gc_timing(phase: str, info: dict[str, int]) -> None:
+            nonlocal gc_start
+            if phase == "start":
+                gc_start = (time.perf_counter(), int(info.get("generation", 0)))
+                return
+            if phase != "stop" or gc_start is None:
+                return
+            started_at, generation = gc_start
+            gc_start = None
+            elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
+            gc_events.append(
+                {
+                    "generation": generation,
+                    "duration_ms": elapsed_ms,
+                    "tick_index": tick_count,
+                }
+            )
+            if in_tick and tick_count > WARMUP_FRAMES:
+                stage_timings["python_gc_collection"].append(elapsed_ms)
+                frame_stage_timings_ms["python_gc_collection"] = (
+                    frame_stage_timings_ms.get("python_gc_collection", 0.0) + elapsed_ms
+                )
+
+        gc_callback = capture_gc_timing
+        gc.callbacks.append(capture_gc_timing)
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
         from freecad_cloth.simulation import MeshCollisionProjector as mesh_collision_projector
@@ -677,6 +709,7 @@ def main() -> None:
 
         original_advance = proxy.advance_preview_frame
         original_publish = proxy._publish_state
+        original_positions_snapshot = backend.positions_and_finite
         original_solver_step = backend.step
         original_collision_projection = backend._project_collision_positions
         original_mesh_project = projector_class.project
@@ -699,6 +732,13 @@ def main() -> None:
                 original_publish(obj, state)
             finally:
                 record_stage("state_publish", started_at)
+
+        def timed_positions_snapshot() -> tuple[tuple[tuple[float, float, float], ...], bool]:
+            started_at = time.perf_counter()
+            try:
+                return original_positions_snapshot()
+            finally:
+                record_stage("positions_snapshot", started_at)
 
         def timed_solver_step(
             dt: float,
@@ -788,6 +828,12 @@ def main() -> None:
         for owner, name, replacement, original in (
             (proxy, "advance_preview_frame", timed_advance, original_advance),
             (proxy, "_publish_state", timed_publish, original_publish),
+            (
+                backend,
+                "positions_and_finite",
+                timed_positions_snapshot,
+                original_positions_snapshot,
+            ),
             (backend, "step", timed_solver_step, original_solver_step),
             (
                 backend,
@@ -1049,6 +1095,7 @@ def main() -> None:
             "worker_schedule_debt": _timing_summary(
                 [float(sample["worker_schedule_debt_ms"]) for sample in frame_timing_samples]
             ),
+            "python_gc_collections": gc_events,
             "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
             "gui_queue_dispatch_lateness": _timing_summary(
                 active_preview._gui_queue_dispatch_lateness_ms
@@ -1120,6 +1167,9 @@ def main() -> None:
         if not passed:
             raise SystemExit(2)
     finally:
+        if gc_callback is not None:
+            with contextlib.suppress(ValueError):
+                gc.callbacks.remove(gc_callback)
         if deadline is not None:
             with contextlib.suppress(Exception):
                 deadline.stop()

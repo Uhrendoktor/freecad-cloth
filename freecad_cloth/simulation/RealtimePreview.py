@@ -75,7 +75,7 @@ class _FrameDispatcher(Protocol):
 
 
 class _FrameClock:
-    """Pace acknowledged frames using rolling tail estimates for early GUI dispatch."""
+    """Pace GUI frames from acknowledged callback starts and observed queue delay."""
 
     def __init__(self, pulse: _PulseSignal, target_fps: float) -> None:
         """Initialize a feedback-paced, single-outstanding-frame scheduler.
@@ -101,6 +101,7 @@ class _FrameClock:
         self._queue_delay_samples_ms: list[float] = []
         self._worker_wakeup_estimate_ms = 0.0
         self._worker_wakeup_lateness_ms: list[float] = []
+        self._last_queue_delay_ms = 0.0
         self._last_worker_wakeup_lateness_ms = 0.0
         self._last_worker_schedule_debt_ms = 0.0
         self.target_fps = float(target_fps)
@@ -121,6 +122,7 @@ class _FrameClock:
             self._queue_delay_samples_ms.clear()
             self._worker_wakeup_estimate_ms = 0.0
             self._worker_wakeup_lateness_ms.clear()
+            self._last_queue_delay_ms = 0.0
             self._last_worker_wakeup_lateness_ms = 0.0
             self._last_worker_schedule_debt_ms = 0.0
         self._stop_event.clear()
@@ -155,6 +157,7 @@ class _FrameClock:
             self._pending = False
             self._frame_ack_serial += 1
             self._last_frame_started_at = float(started_at)
+            self._last_queue_delay_ms = queue_delay_ms
             self._queue_delay_samples_ms.append(queue_delay_ms)
             if len(self._queue_delay_samples_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._queue_delay_samples_ms[0]
@@ -258,12 +261,8 @@ class _FrameClock:
                 "pulse_pending": int(self._pending),
             }
 
-    def _next_frame_deadline(self, acknowledged_start: float) -> float:
-        """Anchor the next target period to the callback start, not one noisy queue sample."""
-        return float(acknowledged_start) + self._period_s
-
     def _run(self) -> None:
-        """Use rolling tail estimates for early dispatch, then await each GUI acknowledgement."""
+        """Emit before each predicted start, then wait for its GUI acknowledgement."""
         period = self._period_s
         next_deadline = time.perf_counter() + period
         while not self._stop_event.is_set():
@@ -305,8 +304,18 @@ class _FrameClock:
                     return
             with self._condition:
                 acknowledged_start = self._last_frame_started_at
+                queue_phase_correction_ms = (
+                    self._queue_delay_estimate_ms - self._last_queue_delay_ms
+                )
+                worker_phase_correction_ms = (
+                    self._worker_wakeup_estimate_ms - self._last_worker_wakeup_lateness_ms
+                )
             if acknowledged_start is not None:
-                next_deadline = self._next_frame_deadline(acknowledged_start)
+                next_deadline = (
+                    acknowledged_start
+                    + period
+                    + (queue_phase_correction_ms + worker_phase_correction_ms) / 1000.0
+                )
 
 
 def _make_frame_dispatcher(

@@ -296,6 +296,12 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
                 "max_ms": 10.0,
             },
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
+            "positions_snapshot": {
+                "samples": 120,
+                "mean_ms": 0.6,
+                "p95_ms": 0.8,
+                "max_ms": 1.0,
+            },
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
             "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
             "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
@@ -442,6 +448,8 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "worker_schedule_debt_ms" in string_constants, "canonical CI contract"
     assert "cgroup_cpu_stat_before" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
+    assert "positions_snapshot" in string_constants, "canonical CI contract"
+    assert "python_gc_collections" in string_constants, "canonical CI contract"
     assert "solver_step" in string_constants, "canonical CI contract"
     assert "viewport_redraw" in string_constants, "canonical CI contract"
     realtime_action = (

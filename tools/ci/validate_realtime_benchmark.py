@@ -446,6 +446,7 @@ def _validate_stage_timings(
     required_stages = (
         "advance_preview_frame",
         "solver_step",
+        "positions_snapshot",
         "state_publish",
         "mesh_write",
         "preview_mesh_publish",
