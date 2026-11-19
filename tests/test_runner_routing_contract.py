@@ -73,8 +73,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
     assert "git checkout --ours -- tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
     assert "if ! git rebase --skip; then" in broker
-    assert 'git rev-parse --git-path rebase-merge' in broker
-    assert 'git rev-parse --git-path rebase-apply' in broker
+    assert "git rev-parse --git-path rebase-merge" in broker
+    assert "git rev-parse --git-path rebase-apply" in broker
     assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
     assert "git merge-base --is-ancestor origin/main HEAD" in rebase
     assert "git push --force-with-lease=" in rebase
