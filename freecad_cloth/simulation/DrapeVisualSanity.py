@@ -247,7 +247,7 @@ def points_inside_closed_mesh(
             tz1 = (bounds_max[:, 2] - point[2]) / ray_z
             enter = np.maximum(np.maximum(tx0, ty0), tz0)
             leave = np.minimum(np.minimum(tx1, ty1), tz1)
-            candidates = leave > np.maximum(enter, 1e-9)
+            candidates = leave >= np.maximum(enter, 1e-9) - 1e-12
             if not bool(np.any(candidates)):
                 continue
 

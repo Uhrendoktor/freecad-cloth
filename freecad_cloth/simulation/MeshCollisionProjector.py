@@ -8,7 +8,8 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -18,6 +19,8 @@ from freecad_cloth.shared.Collision import CollisionSurface
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
+
+    from freecad_cloth.simulation.DrapeVisualSanity import Point3
 
 
 class MeshCollisionProjector:
@@ -43,6 +46,8 @@ class MeshCollisionProjector:
         self.clearance_mm = float(clearance_mm)
         self._vertices = np.asarray(surface.vertices, dtype=np.float64)
         self._triangles = np.asarray(surface.triangles, dtype=np.int64).reshape((-1, 3))
+        self._source_vertices = surface.vertices
+        self._source_triangles = surface.triangles
         # Points beyond the mesh AABB expanded by clearance cannot be inside or
         # touching its clearance shell, so they need no nearest-triangle query.
         self._bounds_min = self._vertices.min(axis=0) - self.clearance_mm
@@ -88,8 +93,27 @@ class MeshCollisionProjector:
             raise ValueError(msg)
         orientation = 1.0 if signed_volume_times_six > 0.0 else -1.0
         self._normals = raw_normals * (orientation / lengths[:, None])
+        self._triangle_vertices = triangles
         self._centroids = np.mean(triangles, axis=1)
         self._tree = KDTree(self._centroids)
+        self._contains_points: Callable[
+            [npt.NDArray[np.float64]], npt.NDArray[np.bool_]
+        ] | None = None
+        try:
+            import trimesh
+
+            containment_mesh = trimesh.Trimesh(
+                vertices=self._vertices,
+                faces=self._triangles,
+                process=False,
+            )
+            if containment_mesh.is_watertight:
+                self._contains_points = cast(
+                    Callable[[npt.NDArray[np.float64]], npt.NDArray[np.bool_]],
+                    containment_mesh.contains,
+                )
+        except ImportError:
+            pass
         # Target triangles in the packaged humanoid mesh are locally dense and
         # consistently sized. Fast preview uses two nearby faces to limit per-frame
         # work; production draping uses four and remains subject to exact zero-
@@ -100,6 +124,130 @@ class MeshCollisionProjector:
         )
         self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
 
+    def _nearest_surface_point(
+        self, point: npt.NDArray[np.float64]
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Return the exact nearest point and outward face normal over the full surface."""
+        triangles = self._triangle_vertices
+        a, b, c = triangles[:, 0], triangles[:, 1], triangles[:, 2]
+        ab, ac = b - a, c - a
+        ap = point[None, :] - a
+        d00 = np.einsum("ij,ij->i", ab, ab)
+        d01 = np.einsum("ij,ij->i", ab, ac)
+        d11 = np.einsum("ij,ij->i", ac, ac)
+        d20 = np.einsum("ij,ij->i", ap, ab)
+        d21 = np.einsum("ij,ij->i", ap, ac)
+        denominator = d00 * d11 - d01 * d01
+        safe_denominator = np.where(np.abs(denominator) > 1e-18, denominator, 1.0)
+        v = (d11 * d20 - d01 * d21) / safe_denominator
+        w = (d00 * d21 - d01 * d20) / safe_denominator
+        u = 1.0 - v - w
+        projected_plane = a + v[:, None] * ab + w[:, None] * ac
+        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
+
+        def closest_on_edge(
+            start: npt.NDArray[np.float64],
+            edge: npt.NDArray[np.float64],
+        ) -> npt.NDArray[np.float64]:
+            start_to_point = point[None, :] - start
+            edge_length_squared = np.einsum("ij,ij->i", edge, edge)
+            parameter = np.divide(
+                np.einsum("ij,ij->i", start_to_point, edge),
+                edge_length_squared,
+                out=np.zeros_like(edge_length_squared),
+                where=edge_length_squared > 1e-18,
+            )
+            return start + np.clip(parameter, 0.0, 1.0)[:, None] * edge
+
+        edge_points = np.stack(
+            (
+                closest_on_edge(a, ab),
+                closest_on_edge(b, c - b),
+                closest_on_edge(c, a - c),
+            ),
+            axis=1,
+        )
+        edge_delta = point[None, None, :] - edge_points
+        edge_distances = np.einsum("ned,ned->ne", edge_delta, edge_delta)
+        edge_indices = np.argmin(edge_distances, axis=1)
+        rows = np.arange(len(triangles))
+        closest_edge = edge_points[rows, edge_indices]
+        closest = np.where(barycentric_inside[:, None], projected_plane, closest_edge)
+        delta = point[None, :] - closest
+        distance_squared = np.einsum("ij,ij->i", delta, delta)
+        nearest_index = int(np.argmin(distance_squared))
+        return closest[nearest_index].copy(), self._normals[nearest_index].copy()
+
+    def _inside_mask(
+        self,
+        points: npt.NDArray[np.float64],
+    ) -> npt.NDArray[np.bool_]:
+        """Classify candidate positions against the cached closed collision mesh.
+
+        Args:
+            points: Candidate positions in world millimetres.
+
+        Returns:
+            Boolean interior classifications in candidate order.
+        """
+        if len(points) == 0:
+            return np.zeros(0, dtype=bool)
+        if self._contains_points is not None:
+            try:
+                inside = np.asarray(self._contains_points(points), dtype=bool)
+            except (ImportError, RuntimeError, ValueError):
+                self._contains_points = None
+            else:
+                if inside.shape == (len(points),):
+                    return inside
+                self._contains_points = None
+
+        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+
+        query_points: tuple[Point3, ...] = tuple(
+            (float(point[0]), float(point[1]), float(point[2])) for point in points
+        )
+        return np.asarray(
+            points_inside_closed_mesh(
+                query_points,
+                self._source_vertices,
+                self._source_triangles,
+                chunk_size=32,
+                prefer_trimesh=False,
+            ),
+            dtype=bool,
+        )
+
+    def _project_inside_points(
+        self,
+        points: npt.NDArray[np.float64],
+    ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+        """Correct only particles confirmed inside the closed collision surface.
+
+        Args:
+            points: Candidate particle positions in world millimetres.
+
+        Returns:
+            Corrected positions and outward correction directions. Exterior points
+            are returned unchanged with zero directions.
+        """
+        corrected = points.copy()
+        directions = np.zeros_like(points)
+        inside = self._inside_mask(points)
+        for index in np.flatnonzero(inside):
+            nearest_point, face_normal = self._nearest_surface_point(points[index])
+            direction = nearest_point - points[index]
+            direction_length = float(np.linalg.norm(direction))
+            if direction_length <= 1e-10:
+                # At a face/edge coincidence use its consistently oriented outward
+                # normal; otherwise the nearest-point vector is the shortest exit
+                # direction and remains reliable at a concave corner.
+                direction = face_normal
+            else:
+                direction /= direction_length
+            corrected[index] = nearest_point + self.clearance_mm * direction
+            directions[index] = direction
+        return corrected, directions
     def project(
         self, points_mm: npt.ArrayLike
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
@@ -156,87 +304,114 @@ class MeshCollisionProjector:
         active = (centroid_distances[:, 0] <= self._search_radius_mm) | (
             closest_plane_signed_distance < 0.0
         )
-        if not bool(np.any(active)):
-            return corrected, contact_normals
-        active_point_indices = candidate_point_indices[active]
-        active_points = candidate_points[active]
-        active_candidate_ids = candidate_ids[active]
-        candidate_triangles = self._triangles[active_candidate_ids]
-        triangles = self._vertices[candidate_triangles]
-        a, b, c = triangles[:, :, 0, :], triangles[:, :, 1, :], triangles[:, :, 2, :]
-        p = active_points[:, None, :]
-        ab, ac = b - a, c - a
-        ap = p - a
+        unresolved_point_indices = candidate_point_indices[~active]
+        if bool(np.any(active)):
+            active_point_indices = candidate_point_indices[active]
+            active_points = candidate_points[active]
+            active_candidate_ids = candidate_ids[active]
+            candidate_triangles = self._triangles[active_candidate_ids]
+            triangles = self._vertices[candidate_triangles]
+            a, b, c = triangles[:, :, 0, :], triangles[:, :, 1, :], triangles[:, :, 2, :]
+            p = active_points[:, None, :]
+            ab, ac = b - a, c - a
+            ap = p - a
 
-        d00 = np.einsum("nkd,nkd->nk", ab, ab)
-        d01 = np.einsum("nkd,nkd->nk", ab, ac)
-        d11 = np.einsum("nkd,nkd->nk", ac, ac)
-        d20 = np.einsum("nkd,nkd->nk", ap, ab)
-        d21 = np.einsum("nkd,nkd->nk", ap, ac)
-        denominator = d00 * d11 - d01 * d01
-        safe_denominator = np.where(np.abs(denominator) > 1e-18, denominator, 1.0)
-        v = (d11 * d20 - d01 * d21) / safe_denominator
-        w = (d00 * d21 - d01 * d20) / safe_denominator
-        u = 1.0 - v - w
-        projected_plane = a + v[:, :, None] * ab + w[:, :, None] * ac
-        barycentric_inside = (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
-
-        edge_ab = ab
-        edge_bc = c - b
-        edge_ca = a - c
-
-        def closest_on_edge(
-            start: npt.NDArray[np.float64], edge: npt.NDArray[np.float64]
-        ) -> npt.NDArray[np.float64]:
-            start_to_point = p - start
-            edge_length_squared = np.einsum("nkd,nkd->nk", edge, edge)
-            parameter = np.divide(
-                np.einsum("nkd,nkd->nk", start_to_point, edge),
-                edge_length_squared,
-                out=np.zeros_like(edge_length_squared),
-                where=edge_length_squared > 1e-18,
+            d00 = np.einsum("nkd,nkd->nk", ab, ab)
+            d01 = np.einsum("nkd,nkd->nk", ab, ac)
+            d11 = np.einsum("nkd,nkd->nk", ac, ac)
+            d20 = np.einsum("nkd,nkd->nk", ap, ab)
+            d21 = np.einsum("nkd,nkd->nk", ap, ac)
+            denominator = d00 * d11 - d01 * d01
+            safe_denominator = np.where(np.abs(denominator) > 1e-18, denominator, 1.0)
+            v = (d11 * d20 - d01 * d21) / safe_denominator
+            w = (d00 * d21 - d01 * d20) / safe_denominator
+            u = 1.0 - v - w
+            projected_plane = a + v[:, :, None] * ab + w[:, :, None] * ac
+            barycentric_inside = (
+                (u >= -1e-10) & (v >= -1e-10) & (w >= -1e-10) & (denominator > 1e-18)
             )
-            parameter = np.clip(parameter, 0.0, 1.0)
-            return start + parameter[:, :, None] * edge
 
-        edge_points = np.stack(
-            (
-                closest_on_edge(a, edge_ab),
-                closest_on_edge(b, edge_bc),
-                closest_on_edge(c, edge_ca),
-            ),
-            axis=2,
-        )
-        edge_distances = np.einsum(
-            "nked,nked->nke", p[:, :, None, :] - edge_points, p[:, :, None, :] - edge_points
-        )
-        closest_edge_index = np.argmin(edge_distances, axis=2)
-        row_indices = np.arange(active_points.shape[0])[:, None]
-        candidate_slots = np.arange(self._candidate_count)[None, :]
-        projected_edge = edge_points[row_indices, candidate_slots, closest_edge_index]
-        closest = np.where(barycentric_inside[:, :, None], projected_plane, projected_edge)
-        squared_distance = np.einsum("nkd,nkd->nk", p - closest, p - closest)
+            edge_ab = ab
+            edge_bc = c - b
+            edge_ca = a - c
 
-        nearest_candidate = np.argmin(squared_distance, axis=1)
-        row_indices = np.arange(active_points.shape[0])
-        nearest_points = closest[row_indices, nearest_candidate]
-        nearest_face_slots = active_candidate_ids[row_indices, nearest_candidate]
-        outward = self._normals[nearest_face_slots]
-        signed_distance = np.einsum("nd,nd->n", active_points - nearest_points, outward)
-        needs_projection = signed_distance < self.clearance_mm - 1e-8
-        if bool(np.any(needs_projection)):
+            def closest_on_edge(
+                start: npt.NDArray[np.float64], edge: npt.NDArray[np.float64]
+            ) -> npt.NDArray[np.float64]:
+                start_to_point = p - start
+                edge_length_squared = np.einsum("nkd,nkd->nk", edge, edge)
+                parameter = np.divide(
+                    np.einsum("nkd,nkd->nk", start_to_point, edge),
+                    edge_length_squared,
+                    out=np.zeros_like(edge_length_squared),
+                    where=edge_length_squared > 1e-18,
+                )
+                parameter = np.clip(parameter, 0.0, 1.0)
+                return start + parameter[:, :, None] * edge
+
+            edge_points = np.stack(
+                (
+                    closest_on_edge(a, edge_ab),
+                    closest_on_edge(b, edge_bc),
+                    closest_on_edge(c, edge_ca),
+                ),
+                axis=2,
+            )
+            edge_distances = np.einsum(
+                "nked,nked->nke",
+                p[:, :, None, :] - edge_points,
+                p[:, :, None, :] - edge_points,
+            )
+            closest_edge_index = np.argmin(edge_distances, axis=2)
+            row_indices = np.arange(active_points.shape[0])[:, None]
+            candidate_slots = np.arange(self._candidate_count)[None, :]
+            projected_edge = edge_points[row_indices, candidate_slots, closest_edge_index]
+            closest = np.where(barycentric_inside[:, :, None], projected_plane, projected_edge)
+            squared_distance = np.einsum("nkd,nkd->nk", p - closest, p - closest)
+
+            nearest_candidate = np.argmin(squared_distance, axis=1)
+            row_indices = np.arange(active_points.shape[0])
+            nearest_points = closest[row_indices, nearest_candidate]
+            nearest_face_slots = active_candidate_ids[row_indices, nearest_candidate]
+            outward = self._normals[nearest_face_slots]
+            signed_distance = np.einsum("nd,nd->n", active_points - nearest_points, outward)
+            needs_projection = signed_distance < self.clearance_mm - 1e-8
             active_corrected = active_points.copy()
             active_normals = np.zeros_like(active_points)
-            # Correct only the signed normal distance. Snapping directly to a
-            # triangle edge/vertex removes tangential displacement and can collapse
-            # neighboring cloth faces when multiple particles share a closest edge.
-            correction_mm = self.clearance_mm - signed_distance[needs_projection]
-            correction = correction_mm[:, None] * outward[needs_projection]
-            active_corrected[needs_projection] = active_points[needs_projection] + correction
-            active_normals[needs_projection] = outward[needs_projection]
+            if bool(np.any(needs_projection)):
+                # Preserve tangential offsets for ordinary exterior shell contacts.
+                correction_mm = self.clearance_mm - signed_distance[needs_projection]
+                correction = correction_mm[:, None] * outward[needs_projection]
+                active_corrected[needs_projection] = active_points[needs_projection] + correction
+                active_normals[needs_projection] = outward[needs_projection]
+
+            # A nearest-centroid candidate can land on a triangle edge at a concavity.
+            # Its face normal may point into another part of the solid, so normal-only
+            # projection can leave an interior particle embedded. Inspect ambiguous
+            # edge/positive-side candidates against the exact closed surface.
+            ambiguous = (~barycentric_inside[row_indices, nearest_candidate]) | (
+                signed_distance >= 0.0
+            )
+            ambiguous_indices = np.flatnonzero(ambiguous)
+            if ambiguous_indices.size:
+                inside_corrected, inside_normals = self._project_inside_points(
+                    active_points[ambiguous_indices]
+                )
+                confirmed_inside = np.linalg.norm(inside_normals, axis=1) > 1e-10
+                if bool(np.any(confirmed_inside)):
+                    inside_indices = ambiguous_indices[confirmed_inside]
+                    active_corrected[inside_indices] = inside_corrected[confirmed_inside]
+                    active_normals[inside_indices] = inside_normals[confirmed_inside]
+
             corrected[active_point_indices] = active_corrected
             contact_normals[active_point_indices] = active_normals
 
+        if unresolved_point_indices.size:
+            unresolved_corrected, unresolved_normals = self._project_inside_points(
+                points[unresolved_point_indices]
+            )
+            corrected[unresolved_point_indices] = unresolved_corrected
+            contact_normals[unresolved_point_indices] = unresolved_normals
         return corrected, contact_normals
 
 

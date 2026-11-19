@@ -403,11 +403,9 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
     workflow = (root / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
-    gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  publish-pr-simulation-evidence:", 1)[
-        0
-    ]
+    gui = workflow.split("  gui-simple:", 1)[1].split("  gui-tunic-visual:", 1)[0]
     publish = workflow.split("  publish-pr-simulation-evidence:", 1)[1].split(
-        "  gui-turntables:", 1
+        "  find-validation-artifacts:", 1
     )[0]
     require(
         condition=("permissions:" not in gui),
@@ -430,7 +428,7 @@ def test_pr_simulation_execution_and_publication_are_privilege_separated() -> No
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(
-        condition=("publish-visual-evidence@" in publish),
+        condition=("uses: ./.github/actions/publish-visual-evidence" in publish),
         message="test_pr_simulation_execution_and_...: required condition failed",
     )
     require(

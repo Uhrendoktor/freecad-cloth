@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 
@@ -12,11 +12,10 @@ from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 from tools.ci.scene_understanding_report import (
     _float_value,
     _int_value,
+    build_report,
+    render_markdown,
     write_report,
 )
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _expect_dict(value: JsonValue, *, message: str) -> JsonObject:
@@ -234,6 +233,29 @@ def test_invalid_outline_becomes_blocking_scene_diagnosis(tmp_path: Path) -> Non
     assert "627.926" in svg, "The SVG must annotate the measured topology crossing."
     assert "INVALID" in svg, "The SVG must label invalid pattern geometry."
     assert 'stroke="#cc3333"' in svg, "The SVG must use the invalid-geometry diagnostic color."
+
+
+def test_scene_report_uses_the_selected_artifact_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Attribute a scene dossier to the exact artifact that produced its evidence."""
+    monkeypatch.setenv("OBSERVATION_ARTIFACT_NAME", "layered-outfit-acceptance")
+    output_root = tmp_path / "layered-outfit"
+    report = write_report(tmp_path / "missing-progress.log", output_root, tmp_path)
+
+    provenance = _expect_dict(
+        report["provenance"],
+        message="Scene report provenance must be a dictionary.",
+    )
+    assert provenance["artifact_name"] == "layered-outfit-acceptance", (
+        "Layered-outfit scene provenance must not be mislabeled as the tunic audit."
+    )
+    action = (
+        Path(__file__).resolve().parents[1] / ".github" / "actions" / "freecad-test" / "action.yml"
+    ).read_text(encoding="utf-8")
+    assert "OBSERVATION_ARTIFACT_NAME: ${{ inputs.artifact-name }}" in action, (
+        "The FreeCAD test action must pass the artifact name to the scene reporter."
+    )
 
 
 def test_missing_progress_log_emits_explicit_incomplete_dossier(tmp_path: Path) -> None:
@@ -502,3 +524,94 @@ def test_scene_report_distinguishes_derived_outline_failure(tmp_path: Path) -> N
     assert issue["source"] == "derived DraftingBoundary representation", (
         "The issue must identify the derived outline as its source."
     )
+
+
+def test_layered_outfit_manifest_is_embedded_as_an_exact_spatial_map(tmp_path: Path) -> None:
+    """The dossier must preserve source transforms, seam IDs and measured group contact."""
+    output = tmp_path / "layered-outfit"
+    output.mkdir()
+    manifest = {
+        "schema": "freecad-cloth.layered-outfit",
+        "schema_version": 1,
+        "provenance": {"commit_sha": "b" * 40},
+        "outfit": {
+            "piece_count": 12,
+            "seam_count": 16,
+            "garment_group_count": 2,
+            "garment_groups": ["shirt|shirt-front", "skirt|skirt-front"],
+            "inter_cloth_clearance_mm": 8.0,
+        },
+        "scene_map": {
+            "coordinate_system": {"units": "mm", "front_direction": "negative Y"},
+            "avatar": {"landmarks": [{"id": "hip", "world_mm": [0.0, 0.0, 0.0]}]},
+            "garment_groups": [
+                {"id": "shirt", "piece_ids": ["shirt-front"], "independent_of": ["skirt"]},
+                {"id": "skirt", "piece_ids": ["skirt-front"], "independent_of": ["shirt"]},
+            ],
+            "pieces": [
+                {
+                    "piece_id": "shirt-front",
+                    "garment_group": "shirt",
+                    "local_to_world": {"translation_mm": [0.0, 0.0, 100.0]},
+                },
+                {
+                    "piece_id": "skirt-front",
+                    "garment_group": "skirt",
+                    "local_to_world": {"translation_mm": [0.0, 0.0, 80.0]},
+                },
+            ],
+            "seams": [
+                {
+                    "seam_id": "shirt-shoulder",
+                    "piece_a_id": "shirt-front",
+                    "piece_b_id": "shirt-back",
+                    "edge_a_id": "shirt-front:shoulder",
+                    "edge_b_id": "shirt-back:shoulder",
+                }
+            ],
+            "inter_garment_relation": {
+                "garment_group_a": "shirt",
+                "garment_group_b": "skirt",
+                "minimum_requested_clearance_mm": 8.0,
+            },
+        },
+        "checkpoints": [
+            {"step": 1, "contact_count": 4, "residual_penetration_mm": 0.0},
+            {"step": 5, "contact_count": 6, "residual_penetration_mm": 0.0},
+        ],
+        "images": [{"file": "final-six-view/step-005-front.png", "label": "front"}],
+    }
+    (output / "layered-outfit-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    progress = output / "layered-outfit-progress.log"
+    progress.write_text("", encoding="utf-8")
+
+    result = build_report(progress, output, tmp_path)
+    layered = _expect_dict(
+        result.get("layered_garment_scene"), message="layered scene map is missing"
+    )
+    scene_map = _expect_dict(
+        layered.get("scene_map"), message="exact CAD scene map was not retained"
+    )
+    assert layered.get("state") == "available"
+    assert scene_map.get("coordinate_system") == manifest["scene_map"]["coordinate_system"]
+    assert scene_map.get("pieces") == manifest["scene_map"]["pieces"]
+    assert scene_map.get("seams") == manifest["scene_map"]["seams"]
+    markdown = render_markdown(result)
+    assert "Layered garment spatial map" in markdown
+    assert "shirt" in markdown and "skirt" in markdown
+
+
+def test_scene_report_marks_malformed_layered_manifest_unavailable(tmp_path: Path) -> None:
+    """An unreadable outfit map must be reported as unavailable, not silently omitted."""
+    output = tmp_path / "layered-outfit"
+    output.mkdir()
+    (output / "layered-outfit-manifest.json").write_text("{not-json", encoding="utf-8")
+    progress = output / "layered-outfit-progress.log"
+    progress.write_text("", encoding="utf-8")
+
+    result = build_report(progress, output, tmp_path)
+    layered = _expect_dict(
+        result.get("layered_garment_scene"), message="missing malformed manifest status"
+    )
+    assert layered.get("state") == "unavailable"
+    assert "not valid JSON" in str(layered.get("reason"))

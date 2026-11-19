@@ -329,7 +329,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 8
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -340,6 +340,7 @@ jobs:
           - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
           - {case: simulation-quality, script: tests/freecad_simulation_quality_acceptance.py, log: artifacts/simulation-quality-acceptance.log, artifact: simulation-quality-acceptance, stage: "true", clean: "false", env: "CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR=/workspace/artifacts", pre: "", validate: "python3 tools/ci/validate_acceptance.py simulation-quality", timeout: "360"}
+          - {case: layered-outfit, script: tests/freecad_layered_garment_acceptance.py, log: artifacts/layered-outfit/layered-outfit-run.log, artifact: layered-outfit-acceptance, stage: "true", clean: "true", env: "CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit\nCLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", pre: "", validate: "python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit/layered-outfit-manifest.json", scene-report-command: "python3 tools/ci/scene_understanding_report.py --progress artifacts/layered-outfit/layered-outfit-progress.log --output-root artifacts/layered-outfit", timeout: "600"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
           - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py surface-pen"}
@@ -357,6 +358,7 @@ jobs:
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
           validate-command: ${{ matrix.validate }}
+          scene-report-command: ${{ matrix.scene-report-command }}
           artifact-name: ${{ matrix.artifact }}
           artifact-path: artifacts
           stage-workbench: ${{ matrix.stage }}
@@ -484,17 +486,17 @@ jobs:
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
-    needs: [agent-quality, gui-tunic-visual]
-    if: ${{ needs.gui-tunic-visual.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
+    needs: [agent-quality, gui-simple]
+    if: ${{ needs.gui-simple.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
     runs-on: ${{ fromJSON(inputs.runner_target) }}
     timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
+    permissions: {actions: read, contents: write, pull-requests: write}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@3bd8306b79b4274695176829edd7b750a0d8390d
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - uses: ./.github/actions/publish-visual-evidence
         with:
           mode: pr
           source-sha: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -543,10 +545,8 @@ jobs:
             done < <(printf "%s" "${runs}" | jq -r '.[] | [.databaseId, .headSha] | @tsv')
             return 1
           }
-          # Preferred path: the dedicated merge-queue gate validated this exact tree.
           if matched="$(find_validated_run merge-validation.yml merge_group "Required pre-merge validation")"; then
             read -r run_id head_sha <<< "${matched}"
-          # Alternate explicit path: the full suite ran for this exact PR tree.
           elif matched="$(find_validated_run commit-validation.yml pull_request "Full validation (explicit request) / Required validation gate")"; then
             read -r run_id head_sha <<< "${matched}"
           else
