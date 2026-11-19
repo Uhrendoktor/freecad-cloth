@@ -54,6 +54,28 @@ class _OutfitFixtureMetrics(TypedDict):
     seam_count: int
     garments: dict[str, _GarmentFixtureMetrics]
 
+
+class _SketcherViewObjectProtocol(Protocol):
+    """Expose the visibility property used to hide an authored source sketch."""
+
+    Visibility: bool
+
+
+class _SketcherDocumentObjectProtocol(Protocol):
+    """Expose the native sketch placement and view object."""
+
+    Placement: object
+    ViewObject: _SketcherViewObjectProtocol
+
+
+class _SketcherFeatureProtocol(_SketcherDocumentObjectProtocol, Protocol):
+    """Expose the Sketcher methods used by the deterministic fixture builder."""
+
+    def addGeometry(self, geometry: list[object], construction: bool) -> object: ...
+
+    def addConstraint(self, constraints: list[object]) -> object: ...
+
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -98,8 +120,11 @@ def _make_pattern_piece_from_outline(
 
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
 
-    sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-    getattr(sketch, "addGeometry")(
+    sketch = cast(
+        "_SketcherFeatureProtocol",
+        doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch"),
+    )
+    sketch.addGeometry(
         [
             Part.LineSegment(
                 App.Vector(outline[index][0], outline[index][1], 0.0),
@@ -113,7 +138,7 @@ def _make_pattern_piece_from_outline(
         ],
         False,
     )
-    getattr(sketch, "addConstraint")(
+    sketch.addConstraint(
         [
             Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
             for index in range(len(outline))
@@ -135,10 +160,10 @@ def _make_pattern_piece_from_outline(
         App.Vector(position[0], position[1], position[2]),
         App.Rotation(App.Vector(1, 0, 0), 90.0),
     )
-    sketch_feature = getattr(piece, "Sketch")
+    sketch_feature = cast("_SketcherDocumentObjectProtocol | None", piece.Sketch)
     if sketch_feature is not None:
-        setattr(sketch_feature, "Placement", piece.Placement)
-        getattr(sketch_feature, "ViewObject").Visibility = False
+        sketch_feature.Placement = piece.Placement
+        sketch_feature.ViewObject.Visibility = False
     return piece
 
 
@@ -161,6 +186,7 @@ def _add_outfit_preview_fixture(
     center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
     clearance = max(60.0, 0.75 * body_depth)
     z_min = float(bounds.ZMin)
+
     def make_piece(
         name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
     ) -> _PatternPieceFeature:
@@ -284,14 +310,8 @@ def _add_outfit_preview_fixture(
     ):
         sew(front, 1, back, 1, f"Trousers{leg}Inseam", "Trousers")
         sew(front, 4, back, 4, f"Trousers{leg}Outseam", "Trousers")
-    sew(
-        trousers_front_left, 3, trousers_front_right, 3,
-        "TrousersFrontCrotch", "Trousers"
-    )
-    sew(
-        trousers_back_left, 3, trousers_back_right, 3,
-        "TrousersBackCrotch", "Trousers"
-    )
+    sew(trousers_front_left, 3, trousers_front_right, 3, "TrousersFrontCrotch", "Trousers")
+    sew(trousers_back_left, 3, trousers_front_right, 3, "TrousersBackCrotch", "Trousers")
 
     # Hat: two shaped crown halves joined along their four matching crown edges,
     # leaving the lower opening free.
@@ -306,12 +326,8 @@ def _add_outfit_preview_fixture(
     )
     hat_x = center_x - hat_width / 2.0
     hat_z = z_min + body_height * 0.82
-    hat_front = make_piece(
-        "RealtimeHatFront", hat_outline, hat_x, center_y - clearance, hat_z
-    )
-    hat_back = make_piece(
-        "RealtimeHatBack", hat_outline, hat_x, center_y + clearance, hat_z
-    )
+    hat_front = make_piece("RealtimeHatFront", hat_outline, hat_x, center_y - clearance, hat_z)
+    hat_back = make_piece("RealtimeHatBack", hat_outline, hat_x, center_y + clearance, hat_z)
     for edge in (1, 2, 3, 4):
         sew(hat_front, edge, hat_back, edge, f"HatCrownPanel{edge}", "Hat")
 
@@ -326,9 +342,16 @@ def _add_outfit_preview_fixture(
         raise RuntimeError(msg)
 
     pieces = [
-        tshirt_front, tshirt_back, sleeve_left, sleeve_right,
-        trousers_front_left, trousers_back_left, trousers_front_right, trousers_back_right,
-        hat_front, hat_back,
+        tshirt_front,
+        tshirt_back,
+        sleeve_left,
+        sleeve_right,
+        trousers_front_left,
+        trousers_back_left,
+        trousers_front_right,
+        trousers_back_right,
+        hat_front,
+        hat_back,
     ]
     Gui.Selection.clearSelection()
     scene.PinMode = "None"
@@ -346,7 +369,6 @@ def _add_outfit_preview_fixture(
             "hat": {"panel_count": 2, "seam_count": 4},
         },
     }
-
 
 
 def _add_tunic_preview_fixture(
