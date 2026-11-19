@@ -165,8 +165,11 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "Realtime CPU/CUDA fallback measurements are missing:" in resolver
     assert "{missing!r}" in resolver
     assert (
-        "native-arc Ruff formatting did not preserve one dataclass declaration." in resolver
+        "native-arc Ruff formatting did not preserve one dataclass declaration."
+        in resolver
     )
+    assert "fi  elif" not in resolver
+    assert "\n  elif [[ " in resolver
     assert "Unsupported rebase conflict" in resolver
 
 
