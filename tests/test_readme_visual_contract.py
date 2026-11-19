@@ -334,19 +334,20 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         encoding="utf-8"
     )
     publisher = (ROOT / "tools" / "ci" / "publish_visual_evidence.py").read_text(encoding="utf-8")
-    assert "source_tree" in workflow
-    assert '--event "${event}" --status success' in workflow
+    lookup_helper = (ROOT / "tools" / "ci" / "find_validated_visual_run.py").read_text(
+        encoding="utf-8"
+    )
+    assert "run: python3 tools/ci/find_validated_visual_run.py" in workflow
+    assert "source_tree" in lookup_helper
+    assert "_VALIDATION_SOURCES" in lookup_helper
+    assert "HTTP" in lookup_helper and "50[234]" in lookup_helper
     merge_workflow = (ROOT / ".github" / "workflows" / "merge-validation.yml").read_text(
         encoding="utf-8"
     )
     assert "Required pre-merge validation" in merge_workflow
-    assert "find_validated_run merge-validation.yml merge_group" in workflow
-    assert "find_validated_run commit-validation.yml pull_request" in workflow
-    assert (
-        'find_validated_run commit-validation.yml pull_request "Full validation (explicit request) / Required validation gate"'
-        in workflow
-    )
-    assert "No successful full-validation run" in workflow
+    assert '("merge-validation.yml", "merge_group", "Required pre-merge validation")' in lookup_helper
+    assert '"Full validation (explicit request) / Required validation gate"' in lookup_helper
+    assert "No successful full-validation run" in lookup_helper
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
     )[0]
@@ -354,6 +355,10 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
         "needs: [find-validation-artifacts, local_runner_readiness, pbd_validation_image]"
         in doc_assets
     )
+    pbd_image = workflow.split("  pbd_validation_image:", 1)[1].split(
+        "  diagnostic-pbd-contact:", 1
+    )[0]
+    assert "inputs.execution_mode != 'publication'" not in pbd_image
     assert 'build_visual_gif_set("turntables", Path("turntable-doc-assets"))' in publisher
     assert 'build_visual_gif_set("blanket", Path("blanket"))' in publisher
 
