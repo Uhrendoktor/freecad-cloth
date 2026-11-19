@@ -1031,16 +1031,22 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
     def _emit_stitch_gap_diagnostic(self, stage: str) -> None:
         """Report exact native stitch-pair gaps without changing simulation state."""
-        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1" or not self._stitches:
+        stitches = getattr(self, "_stitches", ())
+        model = getattr(self, "_model", None)
+        if (
+            os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1"
+            or not stitches
+            or model is None
+        ):
             return
         native_vertices = np.asarray(
-            self._model.getParticles().getVertices(),
+            model.getParticles().getVertices(),
             dtype=np.float64,
         )
         if native_vertices.size == 0:
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-        stitch_indices = np.asarray(self._stitches, dtype=np.int64)
+        stitch_indices = np.asarray(stitches, dtype=np.int64)
         gaps = np.linalg.norm(
             positions_mm[stitch_indices[:, 0]] - positions_mm[stitch_indices[:, 1]],
             axis=1,
