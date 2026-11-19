@@ -8,7 +8,10 @@ from copy import deepcopy
 import pytest
 
 from freecad_cloth.common.JsonTypes import JsonObject
-from tools.ci.compare_pbd_openmp_team_reuse import compare_profile_sets
+from tools.ci.compare_pbd_openmp_team_reuse import (
+    compare_profile_sets,
+    compare_stitch_group_cache_profile_sets,
+)
 
 
 def _profile(
@@ -222,3 +225,75 @@ def test_team_reuse_inputs_are_not_mutated() -> None:
     compare_profile_sets(baseline, candidate)
 
     assert (baseline, candidate) == original
+
+
+def _stitch_cache_profile(mode: str, *, stitched_ms: float, wall_ms: float) -> JsonObject:
+    """Build one matched profile for uncached/cached stitch-component reconciliation."""
+    profile = _profile("1", wall_ms=wall_ms)
+    profile["runtime_limits"]["thread_environment"]["CLOTH_PBD_STITCH_GROUP_CACHE"] = mode
+    profile["python_backend_stage_timings"] = {
+        "stitched_pair_reconciliation": {
+            "samples": 360,
+            "total_ms": stitched_ms,
+        }
+    }
+    return profile
+
+
+def _matched_stitch_cache_profiles() -> tuple[list[JsonObject], list[JsonObject]]:
+    """Return two uncached and two cached profiles with a passing 15% stage gain."""
+    baseline = [
+        _stitch_cache_profile("0", stitched_ms=750.0, wall_ms=20300.0),
+        _stitch_cache_profile("0", stitched_ms=760.0, wall_ms=20400.0),
+    ]
+    candidate = [
+        _stitch_cache_profile("1", stitched_ms=630.0, wall_ms=20100.0),
+        _stitch_cache_profile("1", stitched_ms=640.0, wall_ms=20200.0),
+    ]
+    return baseline, candidate
+
+
+def test_stitch_group_cache_profiles_pass_both_measured_gates() -> None:
+    """Cached topology must improve stitch reconciliation >=10% without wall regression."""
+    baseline, candidate = _matched_stitch_cache_profiles()
+
+    result = compare_stitch_group_cache_profile_sets(baseline, candidate)
+
+    assert result["acceptance"] == "passed"
+    assert result["stitched_reconciliation_improvement_percent"] >= 10.0
+    assert result["production_wall_time_change_percent"] <= 0.0
+    assert result["production_acceptance"] == "passed_all_four_runs"
+
+
+def test_stitch_group_cache_rejects_small_stage_gain_and_wall_regression() -> None:
+    """Small gains or slower full production cannot be hidden by cached topology."""
+    baseline, candidate = _matched_stitch_cache_profiles()
+    candidate = [
+        _stitch_cache_profile("1", stitched_ms=700.0, wall_ms=20300.0),
+        _stitch_cache_profile("1", stitched_ms=705.0, wall_ms=20400.0),
+    ]
+    result = compare_stitch_group_cache_profile_sets(baseline, candidate)
+    assert result["acceptance"] == "rejected"
+    assert any("below 10%" in reason for reason in result["rejection_reasons"])
+
+    baseline, candidate = _matched_stitch_cache_profiles()
+    candidate = [
+        _stitch_cache_profile("1", stitched_ms=600.0, wall_ms=20500.0),
+        _stitch_cache_profile("1", stitched_ms=610.0, wall_ms=20600.0),
+    ]
+    result = compare_stitch_group_cache_profile_sets(baseline, candidate)
+    assert result["acceptance"] == "rejected"
+    assert any("wall time regressed" in reason for reason in result["rejection_reasons"])
+
+
+def test_stitch_group_cache_rejects_unmatched_modes_and_incomplete_timing() -> None:
+    """A/B context and all 360 per-step timing samples are mandatory."""
+    baseline, candidate = _matched_stitch_cache_profiles()
+    candidate[0]["runtime_limits"]["thread_environment"]["CLOTH_PBD_OPENMP_TEAM_REUSE"] = "0"
+    with pytest.raises(ValueError, match="CLOTH_PBD_OPENMP_TEAM_REUSE must remain 1"):
+        compare_stitch_group_cache_profile_sets(baseline, candidate)
+
+    baseline, candidate = _matched_stitch_cache_profiles()
+    candidate[0]["python_backend_stage_timings"]["stitched_pair_reconciliation"]["samples"] = 359
+    with pytest.raises(ValueError, match="stitch-reconciliation timing sample count is incomplete"):
+        compare_stitch_group_cache_profile_sets(baseline, candidate)
