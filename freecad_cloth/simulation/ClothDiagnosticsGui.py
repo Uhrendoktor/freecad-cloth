@@ -270,10 +270,12 @@ class DiagnosticsTaskPanel:
         self.form = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(self.form)
         metric_group = QtWidgets.QGroupBox("Diagnostic metric")
-        metric_layout = QtWidgets.QVBoxLayout(metric_group)
+        metric_layout = QtWidgets.QHBoxLayout(metric_group)
         self.metric = QtWidgets.QComboBox()
         self.metric.addItems(("stress", "strain", "fit", "pressure"))
-        metric_layout.addWidget(self.metric)
+        self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
+        metric_layout.addWidget(self.metric, 1)
+        metric_layout.addWidget(self.refresh_button)
         layout.addWidget(metric_group)
         self.definition = QtWidgets.QLabel()
         self.definition.setWordWrap(True)
@@ -281,11 +283,10 @@ class DiagnosticsTaskPanel:
         self.status = QtWidgets.QLabel("Select a diagnostic map.")
         self.status.setWordWrap(True)
         layout.addWidget(self.status)
-        self.refresh_button = QtWidgets.QPushButton("Refresh analysis")
         self.map_button = QtWidgets.QPushButton("Create diagnostic map")
-        self.focus_button = QtWidgets.QPushButton("Focus cloth panels in 3D")
+        self.focus_button = QtWidgets.QPushButton("Focus panels")
         self.focus_button.setToolTip(
-            "Select source cloth panels and frame them without changing camera orientation."
+            "Select source cloth panels and fit them in the current 3D view."
         )
         self.export_button = QtWidgets.QPushButton("Export analysis data…")
         from freecad_cloth.common.UiDesign import mark_button
@@ -297,10 +298,34 @@ class DiagnosticsTaskPanel:
         self.map_button.setEnabled(False)
         self.focus_button.setEnabled(False)
         self.export_button.setEnabled(False)
-        layout.addWidget(self.refresh_button)
         layout.addWidget(self.map_button)
-        layout.addWidget(self.focus_button)
-        layout.addWidget(self.export_button)
+
+        views_group = QtWidgets.QGroupBox("3D view")
+        views_layout = QtWidgets.QGridLayout(views_group)
+        self.view_buttons = {}
+        for index, (orientation, label) in enumerate(
+            (
+                ("front", "Front"),
+                ("rear", "Rear"),
+                ("left", "Left"),
+                ("right", "Right"),
+                ("top", "Top"),
+                ("bottom", "Bottom"),
+            )
+        ):
+            button = QtWidgets.QPushButton(label)
+            button.setToolTip(f"Set the FreeCAD viewport to the {orientation} view.")
+            button.clicked.connect(
+                lambda _checked=False, value=orientation: self.set_standard_view(value)
+            )
+            self.view_buttons[orientation] = button
+            views_layout.addWidget(button, index // 3, index % 3)
+        layout.addWidget(views_group)
+
+        utility_actions = QtWidgets.QHBoxLayout()
+        utility_actions.addWidget(self.focus_button, 1)
+        utility_actions.addWidget(self.export_button, 1)
+        layout.addLayout(utility_actions)
         self.refresh_button.clicked.connect(self.refresh)
         self.metric.currentTextChanged.connect(self._metric_changed)
         self.map_button.clicked.connect(self.create_map)
@@ -364,6 +389,57 @@ class DiagnosticsTaskPanel:
     def _metric_changed(self, _value: str) -> None:
         """Refresh the metric description and availability after selection changes."""
         self.refresh()
+
+    def set_standard_view(self, orientation: str) -> bool:
+        """Set one of FreeCAD's standard orthographic viewport orientations.
+
+        Args:
+            orientation: One of front, rear, left, right, top, or bottom.
+
+        Returns:
+            True when the requested view was applied successfully.
+        """
+        from freecad_cloth.common.UiDesign import set_status
+
+        methods = {
+            "front": "viewFront",
+            "rear": "viewRear",
+            "left": "viewLeft",
+            "right": "viewRight",
+            "top": "viewTop",
+            "bottom": "viewBottom",
+        }
+        key = str(orientation).strip().lower()
+        method_name = methods.get(key)
+        if method_name is None:
+            set_status(self.status, f"Unknown standard view: {orientation}", state="error")
+            return False
+
+        _App, Gui, _QtWidgets = _qt()
+        active = Gui.activeDocument()
+        if active is None:
+            set_status(
+                self.status,
+                "Open the simulation document to change the 3D view.",
+                state="warning",
+            )
+            return False
+        view = active.activeView()
+        setter = getattr(view, method_name, None)
+        if not callable(setter):
+            set_status(
+                self.status,
+                f"The active FreeCAD view does not support the {key} orientation.",
+                state="error",
+            )
+            return False
+        try:
+            setter()
+        except (AttributeError, RuntimeError, TypeError) as exc:
+            set_status(self.status, f"Could not set the {key} view: {exc}", state="error")
+            return False
+        set_status(self.status, f"3D view set to {key}.", state="success")
+        return True
 
     def focus_panels_in_3d(self) -> bool:
         """Select and frame source cloth panels without changing camera orientation."""

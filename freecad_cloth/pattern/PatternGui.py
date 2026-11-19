@@ -69,17 +69,36 @@ class PatternPieceTaskPanel:
         self.grain.setRange(-360, 360)
         self.grain.setDecimals(1)
         self.grain.setSuffix(" deg")
-        for label, widget in (
-            ("Piece name", self.name),
-            ("Geometry source", self.mode),
-            ("Width (derived)", self.width),
-            ("Height (derived)", self.height),
-            ("Seam allowance", self.allowance),
-            ("Grainline angle", self.grain),
-        ):
-            layout.addRow(label, widget)
-        self._width_label = layout.labelForField(self.width)
-        self._height_label = layout.labelForField(self.height)
+        layout.addRow("Piece name", self.name)
+        layout.addRow("Geometry source", self.mode)
+
+        self._width_label = QtWidgets.QLabel("Width")
+        self._height_label = QtWidgets.QLabel("Height")
+        self._width_label.setBuddy(self.width)
+        self._height_label.setBuddy(self.height)
+        self.width.setToolTip("Pattern width, in millimetres.")
+        self.height.setToolTip("Pattern height, in millimetres.")
+        size_row = QtWidgets.QWidget()
+        size_layout = QtWidgets.QHBoxLayout(size_row)
+        size_layout.setContentsMargins(0, 0, 0, 0)
+        size_layout.addWidget(self._width_label)
+        size_layout.addWidget(self.width, 1)
+        size_layout.addWidget(self._height_label)
+        size_layout.addWidget(self.height, 1)
+        layout.addRow("Dimensions", size_row)
+
+        allowance_label = QtWidgets.QLabel("Seam allowance")
+        grain_label = QtWidgets.QLabel("Grainline angle")
+        allowance_label.setBuddy(self.allowance)
+        grain_label.setBuddy(self.grain)
+        construction_row = QtWidgets.QWidget()
+        construction_layout = QtWidgets.QHBoxLayout(construction_row)
+        construction_layout.setContentsMargins(0, 0, 0, 0)
+        construction_layout.addWidget(allowance_label)
+        construction_layout.addWidget(self.allowance, 1)
+        construction_layout.addWidget(grain_label)
+        construction_layout.addWidget(self.grain, 1)
+        layout.addRow("Construction", construction_row)
         self.edit_sketch = None
         if self._sketch_authoritative:
             self.edit_sketch = QtWidgets.QPushButton("Edit native Sketch…")
