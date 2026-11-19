@@ -539,6 +539,25 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
     if cpu_count is None or cpu_count < 1:
         errors.append("runtime.cpu_count must be a positive integer")
 
+    gc_fields = (
+        "python_gc_disable_requested",
+        "python_gc_disabled_by_benchmark",
+        "python_gc_enabled_during_measurement",
+    )
+    for key in gc_fields:
+        if not isinstance(metrics.get(key), bool):
+            errors.append(f"{key} must be a boolean")
+    if (
+        metrics.get("python_gc_disabled_by_benchmark") is True
+        and metrics.get("python_gc_enabled_during_measurement") is True
+    ):
+        errors.append("python_gc must remain disabled throughout the measured preview window")
+    if (
+        metrics.get("python_gc_disabled_by_benchmark") is True
+        and metrics.get("python_gc_disable_requested") is not True
+    ):
+        errors.append("python_gc_disabled_by_benchmark requires the explicit benchmark switch")
+
     counter_names = (
         "cgroup_cpu_stat_before",
         "cgroup_cpu_stat_after",

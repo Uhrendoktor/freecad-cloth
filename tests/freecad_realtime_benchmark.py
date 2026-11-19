@@ -98,6 +98,10 @@ FIXTURE_NAME = os.environ.get("CLOTH_REALTIME_FIXTURE", "two-panel-tunic-pattern
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
+DISABLE_GC_DURING_MEASUREMENT = (
+    os.environ.get("CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT", "false").strip().lower()
+    in {"1", "true", "yes", "on"}
+)
 
 
 type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
@@ -601,6 +605,9 @@ def main() -> None:
     deadline = None
     patches: list[tuple[object, str, object]] = []
     gc_callback: Callable[[str, dict[str, int]], None] | None = None
+    gc_disabled_by_benchmark = False
+    gc_restore_needed = False
+    gc_enabled_during_measurement = gc.isenabled()
     try:
         init_gui = ROOT / "InitGui.py"
         runpy.run_path(str(init_gui))
@@ -663,6 +670,7 @@ def main() -> None:
                     "generation": generation,
                     "duration_ms": elapsed_ms,
                     "tick_index": tick_count,
+                    "during_measured_frame": bool(in_tick and tick_count > WARMUP_FRAMES),
                 }
             )
             if in_tick and tick_count > WARMUP_FRAMES:
@@ -878,6 +886,7 @@ def main() -> None:
 
         def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
             nonlocal frame_stage_timings_ms, in_tick, last_tick_at, native_timing_reset, tick_count
+            nonlocal gc_disabled_by_benchmark, gc_enabled_during_measurement, gc_restore_needed
             started_at = time.perf_counter()
             previous_tick_at = last_tick_at
             tick_count += 1
@@ -894,6 +903,12 @@ def main() -> None:
                 active_preview.tick(scheduled_at, emitted_at, dispatched_at)
             finally:
                 in_tick = False
+            if tick_count == WARMUP_FRAMES:
+                if DISABLE_GC_DURING_MEASUREMENT and gc.isenabled():
+                    gc.disable()
+                    gc_disabled_by_benchmark = True
+                    gc_restore_needed = True
+                gc_enabled_during_measurement = gc.isenabled()
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
@@ -958,6 +973,9 @@ def main() -> None:
         execute_loop()
         active_preview.stop_frame_clock()
         elapsed = time.perf_counter() - started
+        if gc_restore_needed:
+            gc.enable()
+            gc_restore_needed = False
         process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
         cgroup_cpu_stat_after = _read_cgroup_cpu_stat()
@@ -1071,6 +1089,9 @@ def main() -> None:
             runtime_cgroup_cpu_stat = None
         result = {
             "schema_version": 1,
+            "python_gc_disable_requested": DISABLE_GC_DURING_MEASUREMENT,
+            "python_gc_disabled_by_benchmark": gc_disabled_by_benchmark,
+            "python_gc_enabled_during_measurement": gc_enabled_during_measurement,
             "backend": getattr(backend, "name", "unknown"),
             "fixture": FIXTURE_NAME,
             "garment_count": fixture_metadata["garment_count"],
@@ -1167,6 +1188,8 @@ def main() -> None:
         if not passed:
             raise SystemExit(2)
     finally:
+        if gc_restore_needed:
+            gc.enable()
         if gc_callback is not None:
             with contextlib.suppress(ValueError):
                 gc.callbacks.remove(gc_callback)
