@@ -234,7 +234,10 @@ def _validate_versioned_realtime_metadata(data: dict) -> None:
     if (
         data.get("schema_version") != 1
         or data.get("backend") != "position-based-dynamics"
-        or data.get("fixture") != "two-panel-tunic-pattern"
+        or data.get("fixture") != "three-garment-outfit"
+        or data.get("garment_count") != 3
+        or data.get("panel_count") != 10
+        or data.get("seam_count") != 18
     ):
         _realtime_failure(data)
     if data.get("backend_finite") is not True or data.get("published_state_finite") is not True:
