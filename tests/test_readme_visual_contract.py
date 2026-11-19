@@ -342,6 +342,10 @@ def test_main_publication_requires_artifacts_from_a_matching_full_validation_tre
     assert "Required pre-merge validation" in merge_workflow
     assert "find_validated_run merge-validation.yml merge_group" in workflow
     assert "find_validated_run commit-validation.yml pull_request" in workflow
+    assert (
+        'find_validated_run commit-validation.yml pull_request "Full validation (explicit request) / Required validation gate"'
+        in workflow
+    )
     assert "No successful full-validation run" in workflow
     doc_assets = workflow.split("  gui-documentation-assets:", 1)[1].split(
         "  publish-readme-turntables:", 1
