@@ -191,7 +191,17 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         text=True,
     )
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
-    assert "Applying exact structural document and string-valued combo protocols" in resolver
+    assert (
+        "Applying exact structural seam/document and string-valued combo protocols across the post-Ruff import layout"
+        in resolver
+    )
+    assert "combined_protocol_import =" in resolver
+    assert "replace_type(" in resolver
+    assert "Expected exactly one SeamFeatureProtocol import in the TYPE_CHECKING block." in resolver
+    assert (
+        "Expected {expected} occurrence(s) of either old or final {label} annotation." in resolver
+    )
+    assert "Legacy document-object protocol remains after seam/document typing." in resolver
     assert "def currentData(self) -> str | None: ..." in resolver
     assert "def findData(self, value: str) -> int: ..." in resolver
     assert "def addItem(self, text: str, userData: object | None = None) -> None: ..." in resolver

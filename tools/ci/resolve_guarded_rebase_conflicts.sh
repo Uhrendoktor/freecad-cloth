@@ -737,17 +737,16 @@ PY
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]] ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _ComboBoxProtocol(Protocol):' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def addItem(self, text: str, userData: object | None = None) -> None: ...' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def currentData(self) -> object: ...' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def findData(self, value: object) -> int: ...' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'seam: FreeCADDocumentObjectProtocol,' ||
-      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'def __init__(self, doc: object) -> None:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'class _TopologyRepairViewportPicker:' ||
+      ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepairGui.py | grep -Fq 'self.rows.append((seam, side, combo, pick_button))' ||
       ! git show HEAD:freecad_cloth/pattern/PatternTopologyRepair.py | grep -Fq 'class DocumentTransactionProtocol(Protocol):' ||
-      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def currentData(self) -> str | None: ...'; then
-      echo "::error::Refusing structural GUI typing outside the exact f7cc protocol commit and expected post-bfe source state."
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def currentData(self) -> str | None: ...' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def findData(self, value: str) -> int: ...' ||
+      ! git show "$rebase_commit:freecad_cloth/pattern/PatternTopologyRepairGui.py" | grep -Fq 'def addItem(self, text: str, userData: str | None = None) -> None: ...'; then
+      echo "::error::Refusing structural GUI typing outside the exact f7cc protocol commit and verified post-Ruff task-panel state."
       exit 1
     fi
-    echo "::warning::Applying exact structural document and string-valued combo protocols while retaining the mainline viewport picker."
+    echo "::warning::Applying exact structural seam/document and string-valued combo protocols across the post-Ruff import layout; preserving viewport-picker behavior."
     git checkout --ours -- freecad_cloth/pattern/PatternTopologyRepairGui.py
     python3 - <<'PY'
 from pathlib import Path
@@ -755,66 +754,86 @@ from pathlib import Path
 path = Path("freecad_cloth/pattern/PatternTopologyRepairGui.py")
 source = path.read_text(encoding="utf-8")
 
-document_object_import = (
-    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
-)
-if source.count(document_object_import) != 1:
-    raise SystemExit("Expected one legacy FreeCAD document-object import.")
-source = source.replace(document_object_import, "", 1)
+legacy_import = "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+if source.count(legacy_import) > 1:
+    raise SystemExit("Duplicate legacy document-object imports are not a supported GUI state.")
 
-old_type_block = (
-    "if TYPE_CHECKING:\n"
+protocol_import = (
     "    from freecad_cloth.pattern.PatternTopologyRepair import SeamFeatureProtocol\n"
-    "    from types import ModuleType\n\n"
-    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n"
 )
-new_type_block = (
-    "if TYPE_CHECKING:\n"
-    "    from types import ModuleType\n\n"
-    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
-    "    from freecad_cloth.pattern.PatternTopologyRepair import DocumentTransactionProtocol, SeamFeatureProtocol\n"
+combined_protocol_import = (
+    "    from freecad_cloth.pattern.PatternTopologyRepair import "
+    "DocumentTransactionProtocol, SeamFeatureProtocol\n"
 )
-if source.count(old_type_block) != 1:
-    raise SystemExit("Expected one exact post-bfe TYPE_CHECKING block.")
-source = source.replace(old_type_block, new_type_block, 1)
+if source.count(combined_protocol_import) == 0:
+    if source.count(protocol_import) != 1:
+        raise SystemExit("Expected exactly one SeamFeatureProtocol import in the TYPE_CHECKING block.")
+    source = source.replace(protocol_import, combined_protocol_import, 1)
+elif source.count(combined_protocol_import) != 1:
+    raise SystemExit("Duplicate structural protocol imports are not a supported GUI state.")
 
-method_replacements = (
-    ("    def addItem(self, text: str, userData: object | None = None) -> None: ...",
-     "    def addItem(self, text: str, userData: str | None = None) -> None: ..."),
-    ("    def currentData(self) -> object: ...",
-     "    def currentData(self) -> str | None: ..."),
-    ("    def findData(self, value: object) -> int: ...",
-     "    def findData(self, value: str) -> int: ..."),
-    ("        seam: FreeCADDocumentObjectProtocol,",
-     "        seam: SeamFeatureProtocol,"),
-    ("    def __init__(self, doc: object) -> None:",
-     "    def __init__(self, doc: DocumentTransactionProtocol) -> None:"),
-    ("def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:",
-     "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:"),
-)
-for old, new in method_replacements:
-    expected_count = 2 if old.startswith("        seam:") else 1
-    if source.count(old) != expected_count:
-        raise SystemExit(f"Expected {expected_count} occurrence(s) of typing anchor: {old}")
-    source = source.replace(old, new)
+def replace_type(old: str, new: str, *, label: str, expected: int = 1) -> None:
+    global source
+    count = source.count(old)
+    if count == expected:
+        source = source.replace(old, new)
+        return
+    if count == 0 and source.count(new) == expected:
+        return
+    raise SystemExit(f"Expected {expected} occurrence(s) of either old or final {label} annotation.")
 
+replace_type(
+    "    def addItem(self, text: str, userData: object | None = None) -> None: ...",
+    "    def addItem(self, text: str, userData: str | None = None) -> None: ...",
+    label="combo addItem",
+)
+replace_type(
+    "    def currentData(self) -> object: ...",
+    "    def currentData(self) -> str | None: ...",
+    label="combo currentData",
+)
+replace_type(
+    "    def findData(self, value: object) -> int: ...",
+    "    def findData(self, value: str) -> int: ...",
+    label="combo findData",
+)
+replace_type(
+    "        seam: FreeCADDocumentObjectProtocol,",
+    "        seam: SeamFeatureProtocol,",
+    label="seam feature",
+    expected=2,
+)
+replace_type(
+    "    def __init__(self, doc: object) -> None:",
+    "    def __init__(self, doc: DocumentTransactionProtocol) -> None:",
+    label="task-panel document",
+)
+replace_type(
+    "def show_topology_repair_task(doc: object) -> PatternTopologyRepairTaskPanel:",
+    "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:",
+    label="task-panel factory document",
+)
+
+if legacy_import in source:
+    source = source.replace(legacy_import, "", 1)
+if "FreeCADDocumentObjectProtocol" in source:
+    raise SystemExit("Legacy document-object protocol remains after seam/document typing.")
 for required in (
     "from freecad_cloth.pattern.PatternTopologyRepair import DocumentTransactionProtocol, SeamFeatureProtocol",
     "def addItem(self, text: str, userData: str | None = None) -> None: ...",
     "def currentData(self) -> str | None: ...",
     "def findData(self, value: str) -> int: ...",
+    "seam: SeamFeatureProtocol,",
+    "def __init__(self, doc: DocumentTransactionProtocol) -> None:",
+    "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:",
     "class _TopologyRepairViewportPicker:",
     "def _begin_viewport_pick(",
     "def _cancel_viewport_pick(",
     "self.rows.append((seam, side, combo, pick_button))",
-    "def __init__(self, doc: DocumentTransactionProtocol) -> None:",
-    "seam: SeamFeatureProtocol",
-    "def show_topology_repair_task(doc: DocumentTransactionProtocol) -> PatternTopologyRepairTaskPanel:",
+    "for seam, side, combo, _pick_button in self.rows",
 ):
     if required not in source:
-        raise SystemExit(f"Structural topology GUI transplant incomplete: {required}")
-if "FreeCADDocumentObjectProtocol" in source:
-    raise SystemExit("Legacy document-object protocol import or annotation remains.")
+        raise SystemExit(f"Structural topology GUI postcondition missing: {required}")
 path.write_text(source, encoding="utf-8")
 PY
     git add freecad_cloth/pattern/PatternTopologyRepairGui.py
