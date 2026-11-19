@@ -94,7 +94,17 @@ jobs:
           fi
           git checkout -B "${PR_BRANCH}" "refs/remotes/origin/${PR_BRANCH}"
           if ! git rebase origin/main; then
-            bash tools/ci/resolve_guarded_rebase_conflicts.sh
+            REBASE_COMMIT="$(git rev-parse REBASE_HEAD)"
+            CONFLICTED_FILES="$(git diff --name-only --diff-filter=U)"
+            if [[ "${REBASE_COMMIT}" == "ec93982d0267fe54c679e3edb89e67f42dff09ec" ]] &&
+              [[ "${CONFLICTED_FILES}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]; then
+              echo "::notice::Skipping the exact historical resolver-truncation commit; current main already carries the complete resolver."
+              git checkout --ours -- tools/ci/resolve_guarded_rebase_conflicts.sh
+              git add tools/ci/resolve_guarded_rebase_conflicts.sh
+              git rebase --skip
+            else
+              bash tools/ci/resolve_guarded_rebase_conflicts.sh
+            fi
           fi
           git merge-base --is-ancestor origin/main HEAD
           REBASED_HEAD="$(git rev-parse HEAD)"
