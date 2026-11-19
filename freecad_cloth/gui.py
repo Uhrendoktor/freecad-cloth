@@ -178,7 +178,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
             if duplicates:
                 msg = f"commands registered in multiple groups: {', '.join(duplicates)}"
                 raise ValueError(msg)
-            if group_name and group_commands:
+            if bool(group_name) and group_commands:
                 normalized.append((str(group_name), group_commands))
                 seen.extend(group_commands)
         self.commands = [command for _, commands in normalized for command in commands]
@@ -186,7 +186,7 @@ class ClothWorkbenchBase(_WORKBENCH_BASE):
             return
         add_toolbar = self.appendToolbar if self._toolbar_sink is None else self._toolbar_sink
         add_menu = self.appendMenu if self._menu_sink is None else self._menu_sink
-        if toolbar_name:
+        if bool(toolbar_name):
             toolbar = self.normalize_commands(toolbar_commands or self.commands)
             add_toolbar(toolbar_name, toolbar)
         else:
