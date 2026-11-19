@@ -263,6 +263,12 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "p95_ms": 0.3,
             "max_ms": 0.5,
         },
+        "worker_schedule_debt": {
+            "samples": 120,
+            "mean_ms": 0.0,
+            "p95_ms": 0.0,
+            "max_ms": 0.0,
+        },
         "frame_dispatch_lateness": {
             "samples": 120,
             "mean_ms": 0.15,
