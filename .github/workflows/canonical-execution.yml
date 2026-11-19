@@ -101,7 +101,15 @@ jobs:
               echo "::notice::Skipping the exact historical resolver-truncation commit; current main already carries the complete resolver."
               git checkout --ours -- tools/ci/resolve_guarded_rebase_conflicts.sh
               git add tools/ci/resolve_guarded_rebase_conflicts.sh
-              git rebase --skip
+              if ! git rebase --skip; then
+                REBASE_MERGE="$(git rev-parse --git-path rebase-merge)"
+                REBASE_APPLY="$(git rev-parse --git-path rebase-apply)"
+                if [[ -d "${REBASE_MERGE}" || -d "${REBASE_APPLY}" ]]; then
+                  bash tools/ci/resolve_guarded_rebase_conflicts.sh
+                else
+                  exit 1
+                fi
+              fi
             else
               bash tools/ci/resolve_guarded_rebase_conflicts.sh
             fi
