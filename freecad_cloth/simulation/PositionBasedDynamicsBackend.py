@@ -1043,7 +1043,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """
         if len(self._inter_cloth_groups) < 2:
             self._inter_cloth_metrics = None
-            return
+            return None
 
         from freecad_cloth.simulation.InterClothContact import project_inter_cloth_contacts
 
@@ -1052,7 +1052,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if native_vertices.size == 0:
             self._inter_cloth_metrics = None
             self._inter_cloth_residual_constraints = ()
-            return
+            return None
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
         # _build sets every movable particle mass to 1 and every pin to 0.
         # Cache the equivalent inverse masses instead of crossing the pyPBD
