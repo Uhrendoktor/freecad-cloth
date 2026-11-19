@@ -258,7 +258,7 @@ class MeshCollisionProjector:
 
             emit_diagnostic(
                 "body-projection-inside-classification "
-                f"points={len(query_points)} inside={int(np.count_nonzero(inside))} "
+                f"points={len(points)} inside={int(np.count_nonzero(inside))} "
                 f"method=cached-numpy-ray-parity elapsed_s={perf_counter() - started:.3f}"
             )
         return inside
