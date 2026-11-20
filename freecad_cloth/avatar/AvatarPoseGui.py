@@ -217,6 +217,7 @@ class SkeletonPoseController:
         self._dragger_poll_timer: _QT_TYPE_QtCore.QTimer | None = None
         self._axis_draggers = {}
         self._active_gizmo_axis = None
+        self._last_gizmo_motion_error: str | None = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
 
@@ -1026,17 +1027,28 @@ class SkeletonPoseController:
         )
 
     def _dragger_quaternion(self, dragger):
-        """Return the native dragger quaternion in scalar-first component order.
+        """Return the native dragger quaternion in Coin's vector-first order.
 
         Args:
             dragger: Native Coin dragger whose current rotation is queried.
 
         Returns:
-            Four floating-point quaternion components in scalar-first order.
+            Four floating-point quaternion components ordered x, y, z, w.
         """
         rotation = dragger.rotation.getValue()
         values = rotation.getValue()
         return tuple(float(values[index]) for index in range(4))
+
+    def _dragger_signed_angle_degrees(self, dragger) -> float:
+        """Return the dragger's local-Z quaternion angle within joint limits.
+
+        Coin's quaternion sign is double-valued: a +187 degree representation is
+        equivalent to -173 degrees. JointRotation validates Euler components in
+        [-180, 180], so normalize the equivalent angle before staging it.
+        """
+        quaternion = self._dragger_quaternion(dragger)
+        angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
+        return (angle + 180.0) % 360.0 - 180.0
 
     def _gizmo_motion(self, _data, dragger):
         """Apply an in-progress drag rotation to the selected skeleton bone.
@@ -1048,8 +1060,7 @@ class SkeletonPoseController:
         if self.selected_bone is None or self.base_rotation is None:
             return
         try:
-            quaternion = self._dragger_quaternion(dragger)
-            angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
+            angle = self._dragger_signed_angle_degrees(dragger)
             if self._active_gizmo_axis is None:
                 return
             delta = self.App.Rotation(
@@ -1073,7 +1084,9 @@ class SkeletonPoseController:
                 z,
                 preview=True,
             )
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            self._last_gizmo_motion_error = None
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+            self._last_gizmo_motion_error = repr(exc)
             return
 
     def _gizmo_finish(self, _data, _dragger):
