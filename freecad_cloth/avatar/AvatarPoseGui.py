@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import contextlib
 import math
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -153,6 +153,32 @@ def skeleton_world_segments(parameters):
     return segments, joints
 
 
+class _QtTimerSignalProtocol(Protocol):
+    """Minimal Qt signal contract needed by the viewport release watchdog."""
+
+    def connect(self, callback: Callable[[], None]) -> None:
+        """Connect a no-argument callback to the timer timeout signal."""
+        ...
+
+
+class _QtTimerProtocol(Protocol):
+    """Minimal Qt timer contract owned by the pose controller."""
+
+    timeout: _QtTimerSignalProtocol
+
+    def setInterval(self, interval: int) -> None:
+        """Set the timer interval in milliseconds."""
+        ...
+
+    def start(self) -> None:
+        """Start the timer."""
+        ...
+
+    def stop(self) -> None:
+        """Stop the timer."""
+        ...
+
+
 class _FallbackGizmo:
     """Panel-only pose fallback used when Coin/SWIG viewport controls are unavailable."""
 
@@ -238,6 +264,7 @@ class SkeletonPoseController:
         self._manual_ring_angle_start: float | None = None
         self._manual_ring_angle_current: float | None = None
         self._manual_ring_samples: tuple[tuple[float, tuple[float, float]], ...] | None = None
+        self._pointer_release_timer: _QtTimerProtocol | None = None
         self._last_gizmo_motion_error: str | None = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
@@ -447,6 +474,7 @@ class SkeletonPoseController:
 
     def deactivate(self):
         """Remove transient viewport nodes and clear pointer-driven interaction state."""
+        self._stop_pointer_release_timer()
         if self.view is None:
             return
         if self.scene_graph is None:
@@ -667,6 +695,7 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         """Remove the active rotation gizmo and clear pointer-driven drag state."""
+        self._stop_pointer_release_timer()
         gizmo_parent = (
             self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
         )
@@ -1070,6 +1099,46 @@ class SkeletonPoseController:
             f"Rotating {self.panel._joint_label(bone)} — "
             "release to keep the staged pose; Cancel restores it."
         )
+        self._start_pointer_release_timer()
+
+    def _start_pointer_release_timer(self) -> None:
+        """Poll Qt's global button state as a fallback for Coin-swallowed releases.
+
+        Native Coin draggers can consume their release event before the view-level
+        Pivy callback sees it. The watchdog observes only Qt input state; it never
+        reads native Coin fields and stops as soon as the drag is finalized.
+        """
+        self._stop_pointer_release_timer()
+        timer = self.panel.QtCore.QTimer(self.panel.form)
+        timer.setInterval(16)
+        timer.timeout.connect(self._poll_qt_pointer_release_state)
+        self._pointer_release_timer = timer
+        timer.start()
+
+    def _stop_pointer_release_timer(self) -> None:
+        """Stop and release the Qt pointer-state watchdog if one is active."""
+        timer = getattr(self, "_pointer_release_timer", None)
+        self._pointer_release_timer = None
+        if timer is not None:
+            with contextlib.suppress(RuntimeError):
+                timer.stop()
+
+    def _poll_qt_pointer_release_state(self) -> None:
+        """Finish a pointer-driven pose drag after Qt reports the left button up."""
+        if not self._gizmo_dragging:
+            self._stop_pointer_release_timer()
+            return
+        app = self.panel.QtWidgets.QApplication.instance()
+        if app is None:
+            return
+        try:
+            left_button_down = bool(
+                app.mouseButtons() & self.panel.QtCore.Qt.LeftButton
+            )
+        except (AttributeError, RuntimeError, TypeError):
+            return
+        if not left_button_down:
+            self._gizmo_finish(None, None)
 
     def _gizmo_motion(self, _data, angle_degrees: float) -> None:
         """Apply a pointer-derived ring angle to the selected skeleton bone."""
@@ -1112,6 +1181,7 @@ class SkeletonPoseController:
             _data: Callback data supplied by Pivy Coin and unused by the handler.
             _dragger: Native dragger whose interaction has just completed.
         """
+        self._stop_pointer_release_timer()
         self._gizmo_dragging = False
         self.base_rotation = None
         self._active_gizmo_axis = None
