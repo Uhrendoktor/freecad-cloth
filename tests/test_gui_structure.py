@@ -227,3 +227,71 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         content = path.read_text(encoding="utf-8").lstrip()
         assert content.startswith("<svg "), path
         assert 'xmlns="http://www.w3.org/2000/svg"' in content
+
+
+def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets():
+    class DestroyedWidget:
+        def property(self, _name):
+            raise RuntimeError("Internal C++ object (QDoubleSpinBox) already deleted")
+
+    class LiveWidget:
+        def __init__(self):
+            self.properties = {"clothViewportLinked": False}
+            self.updated = False
+
+        def property(self, name):
+            return self.properties.get(name)
+
+        def setProperty(self, name, value):
+            self.properties[name] = value
+
+        def style(self):
+            return None
+
+        def update(self):
+            self.updated = True
+
+    panel = AvatarTaskPanel.__new__(AvatarTaskPanel)
+    panel._focused_measurement_key = "hip"
+    panel._hovered_measurement_key = None
+    live = LiveWidget()
+    panel._boxes = {"deleted": DestroyedWidget(), "hip": live}
+
+    panel._update_measurement_link_highlights()
+
+    assert "deleted" not in panel._boxes
+    assert live.properties["clothViewportLinked"] is True
+    assert live.updated is True
+
+
+def test_avatar_measurement_focus_cleanup_detaches_filters_before_close():
+    class Widget:
+        def __init__(self):
+            self.removed_filters = []
+
+        def removeEventFilter(self, focus_filter):
+            self.removed_filters.append(focus_filter)
+
+    class Controller:
+        focused_key = "hip"
+
+        def set_field_focus(self, key):
+            self.focused_key = key
+
+    panel = AvatarTaskPanel.__new__(AvatarTaskPanel)
+    panel._measurement_focus_filter_active = True
+    panel._measurement_focus_filter = object()
+    panel._focused_measurement_key = "hip"
+    panel._hovered_measurement_key = "waist"
+    panel._boxes = {"hip": Widget()}
+    panel._dimension_controller = Controller()
+    focus_filter = panel._measurement_focus_filter
+    widget = panel._boxes["hip"]
+
+    panel._cleanup_measurement_focus_filters()
+
+    assert panel._measurement_focus_filter_active is False
+    assert widget.removed_filters == [focus_filter]
+    assert panel._focused_measurement_key is None
+    assert panel._hovered_measurement_key is None
+    assert panel._dimension_controller.focused_key is None
