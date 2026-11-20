@@ -109,20 +109,20 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert (
         'elif [[ "${conflicts}" == "tests/test_runner_routing_contract.py" ]] && '
         '[[ "$(git rev-parse REBASE_HEAD)" == "876177f738e9b2d44add162e589027f5fb68338c" ]]'
-    ) in broker
-    assert '[[ "${conflicts}" == "${test_path}" ]]' in broker
-    assert 'benchmark_path="tests/freecad_realtime_benchmark.py"' in broker
-    assert 'benchmark_additions" != "4"' in broker
-    assert 'benchmark_deletions" != "4"' in broker
-    assert 'helper_references" != "3"' in broker
-    assert 'formatted_calls" != "2"' in broker
-    assert 'parent_wrapped_calls" != "2"' in broker
-    assert "historical_set - mainline_set" in broker
-    assert "Current-main routing contract is missing required marker" in broker
-    assert 'git checkout origin/main -- "${test_path}"' in broker
-    assert 'git checkout "${rebase_commit}" -- "${benchmark_path}"' in broker
-    assert 'git add "${test_path}" "${benchmark_path}"' in broker
-    assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 7
+    ) in resolver
+    assert '[[ "${conflicts}" == "${test_path}" ]]' in resolver
+    assert 'benchmark_path="tests/freecad_realtime_benchmark.py"' in resolver
+    assert 'benchmark_additions" != "4"' in resolver
+    assert 'benchmark_deletions" != "4"' in resolver
+    assert 'helper_references" != "3"' in resolver
+    assert 'formatted_calls" != "2"' in resolver
+    assert 'parent_wrapped_calls" != "2"' in resolver
+    assert "historical_set - mainline_set" in resolver
+    assert "Current-main routing contract is missing required marker" in resolver
+    assert 'git checkout origin/main -- "${test_path}"' in resolver
+    assert 'git checkout "${rebase_commit}" -- "${benchmark_path}"' in resolver
+    assert 'git add "${test_path}" "${benchmark_path}"' in resolver
+    assert 'bash tools/ci/guarded_rebase_conflict_entrypoint.sh' in resolver
     assert 'git checkout origin/main -- "${resolver_path}" "${test_path}"' in broker
     assert 'git checkout origin/main -- "${test_path}"' in broker
     assert "grep -Eq '^\\+[^+]'" in broker
