@@ -266,10 +266,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "ruff==0.17.2" in resolver
     assert '"$ruff_venv/bin/ruff" format --config pyproject.toml "$avatar_path"' in resolver
     assert (
-        '"$ruff_venv/bin/ruff" check --config pyproject.toml --fix "$avatar_path"' in resolver
+        "\"$ruff_venv/bin/ruff\" check --config pyproject.toml --fix "$avatar_path"' in resolver
     )
     assert (
-        '"$ruff_venv/bin/ruff" format --config pyproject.toml --check "$avatar_path"' in resolver
+        "\"$ruff_venv/bin/ruff\" format --config pyproject.toml --check "$avatar_path"' in resolver
     )
     assert '"$ruff_venv/bin/ruff" check --config pyproject.toml "$avatar_path"' in resolver
     assert "changed_after_ruff" in resolver
