@@ -40,6 +40,10 @@ ROTATION_RING_THICKNESS = 3.2
 ROTATION_PIVOT_RADIUS = 0.9
 ROTATION_ARROW_RADIUS = 1.5
 ROTATION_ARROW_HEIGHT = 4.2
+# Camera-facing outer ring provides a screen-space roll control around the view axis.
+ROTATION_VIEW_COLOR = (0.82, 0.85, 0.90)
+ROTATION_VIEW_RING_RADIUS = 14.5
+ROTATION_VIEW_RING_THICKNESS = 2.2
 
 # Arrangement snap markers are intentionally simple and spatially legible.
 SNAP_LINE_WIDTH = 2.0
