@@ -740,7 +740,21 @@ def run():
             ),
             flush=True,
         )
+        # Close while a measurement is still focused: this used to deliver
+        # FocusOut after Qt had deleted another QDoubleSpinBox in the panel.
+        panel._focus_measurement("height")
+        _events()
+        if panel._focused_measurement_key != "height":
+            raise RuntimeError("shape editor could not focus the height measurement for teardown")
+        if not panel._boxes["height"].hasFocus():
+            raise RuntimeError("height measurement did not acquire real Qt focus")
         panel.reject()
+        _events()
+        if panel._measurement_focus_filter_active:
+            raise RuntimeError("measurement focus filters remained active after panel rejection")
+        with Path("artifacts/avatar-shape-editor.log").open("a", encoding="utf-8") as log:
+            log.write("avatar-measurement-focus-teardown=passed field=height detached=true\n")
+        print("avatar-measurement-focus-teardown=passed field=height detached=true", flush=True)
         doc.recompute()
     finally:
         if Gui.Control.activeDialog():
