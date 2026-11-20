@@ -420,6 +420,7 @@ def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
     coin = _coin_stub()
     controller = AvatarDimensionController.__new__(AvatarDimensionController)
     controller.overlay = coin.SoSeparator()
+    controller.guide_overlay = None
     controller._add_line(
         coin,
         ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
