@@ -20,6 +20,8 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     POSE_AXIS_COLORS,
     RIG_ACTIVE_JOINT_RADIUS,
     RIG_ACTIVE_RADIUS,
+    RIG_OUTLINE_COLOR,
+    RIG_OUTLINE_RADIUS_SCALE,
     RIG_EDITABLE_RADIUS,
     RIG_JOINT_RADIUS,
     RIG_PASSIVE_RADIUS,
@@ -93,6 +95,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         DIMENSION_MARKER_OUTLINE_COLOR,
         ROTATION_VIEW_COLOR,
         JOINT_COLOR,
+        RIG_OUTLINE_COLOR,
         SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
     )
@@ -112,14 +115,18 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     assert MINIMUM_POSITIVE_STYLE_VALUE < RIG_JOINT_RADIUS < RIG_ACTIVE_JOINT_RADIUS, (
         "Active spherical joints must be larger than ordinary joints."
     )
-    assert RIG_PASSIVE_RADIUS >= 1.5, (
-        "Passive bone shafts must stay visible at fitted avatar scale."
+    assert RIG_PASSIVE_RADIUS >= 3.0, (
+        "Passive bone shafts must retain a visible inner core inside the outline."
     )
-    assert RIG_EDITABLE_RADIUS >= 2.0, "Editable bone shafts must have a readable viewport width."
-    assert RIG_ACTIVE_RADIUS >= 3.0, (
+    assert RIG_EDITABLE_RADIUS >= 4.0, "Editable bone shafts must have a readable viewport width."
+    assert RIG_ACTIVE_RADIUS >= 6.0, (
         "The active bone must remain distinguishable over the mannequin."
     )
-    assert RIG_JOINT_RADIUS >= 2.5, "Spherical joints must remain visible at fitted avatar scale."
+    assert RIG_JOINT_RADIUS >= 4.0, "Spherical joints must remain visible at fitted avatar scale."
+    assert RIG_OUTLINE_RADIUS_SCALE >= 1.5, (
+        "Bone/joint outlines must be wider than their semantic center geometry."
+    )
+    _assert_rgb(RIG_OUTLINE_COLOR)
     assert (
         MINIMUM_POSITIVE_STYLE_VALUE
         < DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT
@@ -175,6 +182,8 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "POSE_AXIS_COLORS",
             "RIG_PASSIVE_COLOR",
             "RIG_EDITABLE_COLOR",
+            "RIG_OUTLINE_COLOR",
+            "RIG_OUTLINE_RADIUS_SCALE",
             "RIG_PASSIVE_RADIUS",
             "RIG_EDITABLE_RADIUS",
             "RIG_ACTIVE_RADIUS",

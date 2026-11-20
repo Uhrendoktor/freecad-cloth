@@ -26,6 +26,8 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     RIG_ACTIVE_JOINT_RADIUS,
     RIG_ACTIVE_RADIUS,
     RIG_EDITABLE_COLOR,
+    RIG_OUTLINE_COLOR,
+    RIG_OUTLINE_RADIUS_SCALE,
     RIG_EDITABLE_RADIUS,
     RIG_JOINT_RADIUS,
     RIG_PASSIVE_COLOR,
@@ -511,10 +513,14 @@ class SkeletonPoseController:
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
             pass
 
-        # Keep the full authored rig available through the mannequin. Passive
-        # structure is quiet; editable and selected bones use wider rounded shafts.
+        # Draw a dark outline and bright centerline for every bone. The larger
+        # outline remains legible against both the mannequin mesh and white viewport.
+        bone_controls = []
         for bone, segment in self._skeleton_segments.items():
-            midpoint = tuple((float(segment[0][index]) + float(segment[1][index])) * 0.5 for index in range(3))
+            midpoint = tuple(
+                (float(segment[0][index]) + float(segment[1][index])) * 0.5
+                for index in range(3)
+            )
             if bone == selected_bone:
                 radius_pixels, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
             elif bone in editable:
@@ -526,19 +532,47 @@ class SkeletonPoseController:
                 camera_right,
                 self._screen_position,
                 radius_pixels,
-                radius_pixels * 4.0,
+                radius_pixels * 3.0,
             )
+            bone_controls.append((bone, segment, radius, rgb))
+
+        # Keep the selected bone last so its amber core is not lost beneath another shaft.
+        bone_controls.sort(key=lambda control: control[0] == selected_bone)
+        for _bone, segment, radius, _rgb in bone_controls:
+            add_capsule(
+                parent,
+                coin,
+                segment[0],
+                segment[1],
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
+            )
+        for _bone, segment, radius, rgb in bone_controls:
             add_capsule(parent, coin, segment[0], segment[1], radius, rgb)
 
-        # Spherical joints connect the capsule shafts and replace square point sprites.
-        for point in joints.values():
-            radius = world_radius_for_screen_pixels(
+        # Joint grips use the same dark rim/bright center treatment as bone shafts.
+        joint_controls = [
+            (
                 point,
-                camera_right,
-                self._screen_position,
-                RIG_JOINT_RADIUS,
-                RIG_JOINT_RADIUS * 4.0,
+                world_radius_for_screen_pixels(
+                    point,
+                    camera_right,
+                    self._screen_position,
+                    RIG_JOINT_RADIUS,
+                    RIG_JOINT_RADIUS * 3.0,
+                ),
             )
+            for point in joints.values()
+        ]
+        for point, radius in joint_controls:
+            add_sphere(
+                parent,
+                coin,
+                point,
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
+            )
+        for point, radius in joint_controls:
             add_sphere(parent, coin, point, radius, JOINT_COLOR)
 
         if selected_bone is not None and selected_bone in self._positions:
@@ -548,7 +582,14 @@ class SkeletonPoseController:
                 camera_right,
                 self._screen_position,
                 RIG_ACTIVE_JOINT_RADIUS,
-                RIG_ACTIVE_JOINT_RADIUS * 4.0,
+                RIG_ACTIVE_JOINT_RADIUS * 3.0,
+            )
+            add_sphere(
+                parent,
+                coin,
+                point,
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
             )
             add_sphere(parent, coin, point, radius, ACTIVE_COLOR)
 

@@ -60,7 +60,9 @@ def world_radius_for_screen_pixels(
     if direction_length <= 1e-8:
         raise ValueError("The camera-right direction must be non-zero.")
     direction = tuple(float(camera_right[index]) / direction_length for index in range(3))
-    sample_point = tuple(float(point[index]) + direction[index] * float(sample_distance) for index in range(3))
+    sample_point = tuple(
+        float(point[index]) + direction[index] * float(sample_distance) for index in range(3)
+    )
     projected_origin = project_point(point)
     projected_sample = project_point(sample_point)
     if (

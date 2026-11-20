@@ -15,9 +15,10 @@ POSE_AXIS_COLORS = {
 
 # Active/selected controls should be readable without overwhelming the model.
 ACTIVE_COLOR = (1.0, 0.78, 0.20)
+RIG_OUTLINE_COLOR = (0.055, 0.07, 0.10)
 RIG_PASSIVE_COLOR = (0.61, 0.65, 0.72)
 RIG_EDITABLE_COLOR = (0.84, 0.88, 0.95)
-JOINT_COLOR = (0.77, 0.81, 0.89)
+JOINT_COLOR = (0.86, 0.89, 0.95)
 DIMENSION_GUIDE_COLOR = (0.25, 0.68, 0.79)
 DIMENSION_GUIDE_LINE_WIDTH = 1.8
 
@@ -26,11 +27,12 @@ SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
 SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
 # Pose rig radii are screen-space pixels converted locally through the active camera.
-RIG_PASSIVE_RADIUS = 1.7
-RIG_EDITABLE_RADIUS = 2.4
-RIG_ACTIVE_RADIUS = 3.8
-RIG_JOINT_RADIUS = 2.8
-RIG_ACTIVE_JOINT_RADIUS = 4.5
+RIG_PASSIVE_RADIUS = 3.2
+RIG_EDITABLE_RADIUS = 4.4
+RIG_ACTIVE_RADIUS = 6.2
+RIG_JOINT_RADIUS = 4.1
+RIG_ACTIVE_JOINT_RADIUS = 7.5
+RIG_OUTLINE_RADIUS_SCALE = 1.55
 
 # Native axis rotation dragger geometry (model-space dimensions).
 ROTATION_GIZMO_SCALE = 8.5
