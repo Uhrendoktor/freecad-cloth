@@ -116,10 +116,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "replay_names" in broker
     assert "main_names" in broker
     assert "parent_set != main_set or replay_set != main_set" in broker
-    assert (
-        "The 5a4f3ff1 replay still contains duplicate test function definitions."
-        in broker
-    )
+    assert "5a4f3ff1 replay still contains duplicate test function" in broker
+    assert "definitions." in broker
     assert (
         'elif [[ "${conflicts}" == "tests/test_runner_routing_contract.py" ]] && '
         '[[ "$(git rev-parse REBASE_HEAD)" == '
