@@ -846,6 +846,303 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "69999107b2e8888a5d179835b8297b21fef19d74" ]] ||
+      ! git show "$rebase_commit:freecad_cloth/avatar/AvatarPoseGui.py" | grep -Fq 'class _PoseVector(Protocol):' ||
+      ! git show "$rebase_commit:freecad_cloth/avatar/AvatarPoseGui.py" | grep -Fq 'class _PosePanel(Protocol):' ||
+      ! git show "$rebase_commit:freecad_cloth/avatar/AvatarPoseGui.py" | grep -Fq 'def _coin(self) -> _CoinModule:' ||
+      ! git show "$rebase_commit:freecad_cloth/avatar/coin_protocols.py" | grep -Fq 'class _CoinModule(Protocol):' ||
+      git cat-file -e origin/main:freecad_cloth/avatar/coin_protocols.py 2>/dev/null ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'GIZMO_SIZE = 88.0' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'BONE_PICK_RADIUS = 16.0' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'JOINT_PICK_RADIUS = 24.0' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'self._axis_draggers = {}' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'def highlight_axis(self, axis: str | None) -> None:' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'def _set_rotation_axis_highlight(self, axis: str | None) -> None:' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'class _PoseAxisFocusFilter' ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'axis_branch = coin.SoSeparator()'; then
+      echo "::error::Refusing AvatarPoseGui typing replay outside the exact 69999107 protocol commit and verified current three-axis pose UI."
+      exit 1
+    fi
+    echo "::warning::Preserving current-main three-axis draggers and focus highlight; transplanting only Pivy/FreeCAD protocols and compatible type annotations."
+    git checkout --ours -- freecad_cloth/avatar/AvatarPoseGui.py
+    git checkout "$rebase_commit" -- freecad_cloth/avatar/coin_protocols.py
+    python3 - <<'PY'
+from __future__ import annotations
+
+import ast
+import io
+import subprocess
+import tokenize
+from collections import defaultdict
+from pathlib import Path
+
+path = Path("freecad_cloth/avatar/AvatarPoseGui.py")
+source = path.read_text(encoding="utf-8")
+typed_source = subprocess.check_output(
+    ["git", "show", "69999107b2e8888a5d179835b8297b21fef19d74:freecad_cloth/avatar/AvatarPoseGui.py"],
+    text=True,
+    encoding="utf-8",
+)
+
+def replace_once(old: str, new: str, label: str) -> None:
+    global source
+    if source.count(old) != 1:
+        raise SystemExit(f"Expected one exact {label} anchor in current-main AvatarPoseGui.")
+    source = source.replace(old, new, 1)
+
+replace_once("from collections.abc import Sequence\n", "from collections.abc import Callable, Sequence\n", "collections.abc import")
+replace_once("from typing import TYPE_CHECKING\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
+replace_once(
+    "from freecad_cloth.avatar.AvatarProperties import (\n",
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n\n"
+    "from freecad_cloth.avatar.AvatarProperties import (\n",
+    "runtime FreeCAD object protocol import",
+)
+replace_once(
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n",
+    "    from PySide2 import QtWidgets as _QT_TYPE_QtWidgets\n\n"
+    "    from freecad_cloth.avatar.AvatarModel import AvatarParameters\n"
+    "    from freecad_cloth.avatar.SkeletonPose import AffineTransform, JointRotation\n"
+    "    from freecad_cloth.avatar.SkeletonTypes import SkeletonData\n"
+    "    from freecad_cloth.avatar.coin_protocols import (\n"
+    "        _CoinDynamicDragger,\n"
+    "        _CoinEventCallback,\n"
+    "        _CoinModule,\n"
+    "        _CoinNode,\n"
+    "        _CoinRotationField,\n"
+    "        _CoinSeparator,\n"
+    "        _CoinTransform,\n"
+    "        _CoinType,\n"
+    "    )\n\n",
+    "typed GUI protocol imports",
+)
+
+protocol_start = typed_source.index("type PosePoint =")
+protocol_end = typed_source.index("\ndef _modules()", protocol_start)
+protocol_block = typed_source[protocol_start:protocol_end].rstrip() + "\n"
+panel_method = (
+    "    def _stage_joint_rotation(\n"
+    "        self, bone: str, x: float, y: float, z: float, *, preview: bool\n"
+    "    ) -> None:\n"
+    "        \"\"\"Stage one joint rotation from an interactive viewport drag.\"\"\"\n"
+    "        ...\n"
+)
+if protocol_block.count(panel_method) != 1:
+    raise SystemExit("Expected one exact _PosePanel staged-rotation protocol declaration.")
+protocol_block = protocol_block.replace(
+    panel_method,
+    panel_method
+    + "\n"
+    + "    def _set_rotation_axis_highlight(self, axis: str | None) -> None:\n"
+    + '        """Highlight the matching numeric editor and viewport rotation ring."""\n'
+    + "        ...\n",
+    1,
+)
+anchor = "\n_VIEW_POSITION_METHOD = \"getPointOnScreen\"\n"
+if source.count(anchor) != 1:
+    raise SystemExit("Expected one insertion point before current-main viewport API constants.")
+source = source.replace(anchor, "\n\n" + protocol_block + anchor, 1)
+
+coin_old = "        from pivy import coin\n\n        return coin\n"
+coin_new = "        from pivy import coin\n\n        return cast(\"_CoinModule\", coin)\n"
+if source.count(coin_old) != 1:
+    raise SystemExit("Expected one lazy Pivy import in SkeletonPoseController._coin.")
+source = source.replace(coin_old, coin_new, 1)
+
+screen_old = (
+    "        project_on_screen = getattr(view, _VIEW_POSITION_METHOD)\n"
+    "        get_size = getattr(view, _VIEW_SIZE_METHOD)\n"
+    "        projected = project_on_screen(self.App.Vector(*point))\n"
+    "        size = get_size()\n"
+)
+screen_new = (
+    "        projected = view.getPointOnScreen(self.App.Vector(*point))\n"
+    "        size = view.getSize()\n"
+)
+if source.count(screen_old) != 1:
+    raise SystemExit("Expected one current-main screen projection block.")
+source = source.replace(screen_old, screen_new, 1)
+size_old = "        size = getattr(view, _VIEW_SIZE_METHOD)()\n"
+if source.count(size_old) != 2:
+    raise SystemExit("Expected two current-main pointer handlers using the documented view size API.")
+source = source.replace(size_old, "        size = view.getSize()\n")
+
+def collect_definitions(tree: ast.AST):
+    found = {}
+    def visit(node: ast.AST, scope: tuple[str, ...]) -> None:
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, scope + (child.name,))
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                key = ".".join(scope + (child.name,))
+                if key in found:
+                    raise SystemExit(f"Ambiguous function scope while transplanting types: {key}")
+                found[key] = child
+                visit(child, scope + (child.name,))
+            else:
+                visit(child, scope)
+    visit(tree, ())
+    return found
+
+def iter_arguments(args: ast.arguments) -> list[ast.arg]:
+    values = [*args.posonlyargs, *args.args]
+    if args.vararg is not None:
+        values.append(args.vararg)
+    values.extend(args.kwonlyargs)
+    if args.kwarg is not None:
+        values.append(args.kwarg)
+    return values
+
+def byte_column_to_char_offset(lines, line_offsets, line_number, byte_column):
+    encoded = lines[line_number - 1].encode("utf-8")
+    return line_offsets[line_number - 1] + len(encoded[:byte_column].decode("utf-8"))
+
+def function_colon_offset(text, node, line_offsets):
+    started = False
+    paren_depth = 0
+    closed_signature = False
+    for item in tokenize.generate_tokens(io.StringIO(text).readline):
+        if item.start[0] < node.lineno:
+            continue
+        if not started:
+            if item.type == tokenize.NAME and item.string == "def" and item.start[0] == node.lineno:
+                started = True
+            continue
+        if item.type != tokenize.OP:
+            continue
+        if item.string == "(":
+            paren_depth += 1
+        elif item.string == ")":
+            paren_depth -= 1
+            if paren_depth == 0:
+                closed_signature = True
+        elif item.string == ":" and closed_signature and paren_depth == 0:
+            return line_offsets[item.start[0] - 1] + item.start[1]
+    raise SystemExit(f"Could not locate a function header colon at line {node.lineno}.")
+
+def walk_function_body(node):
+    def walk(value):
+        for child in ast.iter_child_nodes(value):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                continue
+            yield child
+            yield from walk(child)
+    yield from walk(node)
+
+main_tree = ast.parse(source)
+typed_tree = ast.parse(typed_source)
+main_defs = collect_definitions(main_tree)
+typed_defs = collect_definitions(typed_tree)
+main_lines = source.splitlines(keepends=True)
+line_offsets = []
+running = 0
+for line in main_lines:
+    line_offsets.append(running)
+    running += len(line)
+
+patches = defaultdict(list)
+matched_functions = 0
+added_parameters = 0
+added_returns = 0
+added_assignments = 0
+for key, typed_node in typed_defs.items():
+    main_node = main_defs.get(key)
+    if main_node is None:
+        continue
+    matched_functions += 1
+    typed_args = {arg.arg: arg for arg in iter_arguments(typed_node.args)}
+    main_args = {arg.arg: arg for arg in iter_arguments(main_node.args)}
+    if set(typed_args) != set(main_args):
+        raise SystemExit(f"Function parameter names changed across typed transplant: {key}")
+    for name, main_arg in main_args.items():
+        typed_arg = typed_args[name]
+        if typed_arg.annotation is None or main_arg.annotation is not None:
+            continue
+        annotation = ast.get_source_segment(typed_source, typed_arg.annotation)
+        if not annotation:
+            raise SystemExit(f"Missing source text for parameter annotation {key}.{name}.")
+        offset = byte_column_to_char_offset(main_lines, line_offsets, main_arg.end_lineno, main_arg.end_col_offset)
+        patches[offset].append(": " + annotation)
+        added_parameters += 1
+    if typed_node.returns is not None and main_node.returns is None:
+        annotation = ast.get_source_segment(typed_source, typed_node.returns)
+        if not annotation:
+            raise SystemExit(f"Missing source text for return annotation {key}.")
+        patches[function_colon_offset(source, main_node, line_offsets)].append(" -> " + annotation)
+        added_returns += 1
+
+    typed_assignments = [x for x in walk_function_body(typed_node) if isinstance(x, ast.AnnAssign) and x.value is not None]
+    main_assignments = [x for x in walk_function_body(main_node) if isinstance(x, ast.Assign) and len(x.targets) == 1]
+    used = set()
+    for typed_assignment in typed_assignments:
+        target_key = ast.dump(typed_assignment.target, include_attributes=False)
+        value_key = ast.dump(typed_assignment.value, include_attributes=False)
+        candidates = [
+            x for x in main_assignments
+            if id(x) not in used
+            and ast.dump(x.targets[0], include_attributes=False) == target_key
+            and ast.dump(x.value, include_attributes=False) == value_key
+            and isinstance(x.targets[0], (ast.Name, ast.Attribute))
+        ]
+        if len(candidates) != 1:
+            continue
+        assignment = candidates[0]
+        used.add(id(assignment))
+        annotation = ast.get_source_segment(typed_source, typed_assignment.annotation)
+        if not annotation:
+            raise SystemExit(f"Missing source text for assignment annotation {key}.")
+        target = assignment.targets[0]
+        offset = byte_column_to_char_offset(main_lines, line_offsets, target.end_lineno, target.end_col_offset)
+        patches[offset].append(": " + annotation)
+        added_assignments += 1
+
+if matched_functions < 55:
+    raise SystemExit(f"Too few matching typed functions; found {matched_functions}.")
+for offset in sorted(patches, reverse=True):
+    fragments = patches[offset]
+    if len(fragments) != 1:
+        raise SystemExit(f"Overlapping annotation insertions at source offset {offset}.")
+    source = source[:offset] + fragments[0] + source[offset:]
+
+old_axes = "        self._axis_draggers = {}\n"
+if source.count(old_axes) != 2:
+    raise SystemExit("Expected exactly two current-main axis-dragger map assignments.")
+source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\n")
+
+for required in (
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol",
+    "class _PoseAvatarFeature(FreeCADDocumentObjectProtocol, Protocol):",
+    "class _PoseView(Protocol):",
+    "class _PosePanel(Protocol):",
+    "def _set_rotation_axis_highlight(self, axis: str | None) -> None:",
+    "def _coin(self) -> _CoinModule:",
+    "return cast(\"_CoinModule\", coin)",
+    "GIZMO_SIZE = 88.0",
+    "BONE_PICK_RADIUS = 16.0",
+    "JOINT_PICK_RADIUS = 24.0",
+    "self._axis_draggers: dict[str, _CoinDynamicDragger] = {}",
+    "def highlight_axis(self, axis: str | None) -> None:",
+    "class _PoseAxisFocusFilter",
+    "axis_branch = coin.SoSeparator()",
+    "self.panel._set_rotation_axis_highlight(name[-1].lower())",
+):
+    if required not in source:
+        raise SystemExit(f"AvatarPoseGui typed-boundary transplant lost required state: {required}")
+ast.parse(source)
+path.write_text(source, encoding="utf-8")
+print(
+    "Transplanted Pivy boundary: "
+    f"{matched_functions} function scopes, {added_parameters} parameters, "
+    f"{added_returns} returns, {added_assignments} matching assignments."
+)
+PY
+    git add freecad_cloth/avatar/AvatarPoseGui.py freecad_cloth/avatar/coin_protocols.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
+
   elif [[ "$conflicts" == $'tests/test_build_visual_gifs.py\ntools/ci/build_visual_gifs.py' ]] && [[ "$(git rev-parse REBASE_HEAD)" == "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" ]] ||
