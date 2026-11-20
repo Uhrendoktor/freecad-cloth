@@ -180,7 +180,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Layout decision:** retain the three axis fields together as one XYZ row. Mirror and Snap share one tool row. Keep presets together. The selected joint and current action/status come before the optional joint list. Do not merge pose editing into the anthropometric editor: they are distinct tasks and already have a clear handoff.
 
-**Viewport:** the gizmo is primary. Keep standard X/Y/Z colors, selected bone/joint emphasis and readable skeleton connections. When the avatar mesh occludes the skeleton, keep the skeleton's X-ray treatment consistent. A visible selected-joint label in the task panel must update from either viewport or list selection.
+**Viewport:** the gizmo is primary. Keep standard X/Y/Z rotation rings, capsule-like bone shafts, spherical joints and selected-bone/pivot emphasis. Render the skeleton in a Coin annotation layer so the mannequin cannot occlude it; keep screen-space hit testing for bone selection and native dragger interaction for rotation. A visible selected-joint label in the task panel must update from either viewport or list selection.
 
 ### 11. Interactive Arrange / Fitting
 
