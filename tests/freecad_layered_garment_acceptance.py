@@ -795,6 +795,94 @@ def _body_clearance(
                 exact_points = exact_corrected
                 if not any(exact_inside):
                     break
+            search_center = vertex_array.mean(axis=0)
+            axis_directions = (
+                np.asarray((1.0, 0.0, 0.0), dtype=np.float64),
+                np.asarray((-1.0, 0.0, 0.0), dtype=np.float64),
+                np.asarray((0.0, 1.0, 0.0), dtype=np.float64),
+                np.asarray((0.0, -1.0, 0.0), dtype=np.float64),
+                np.asarray((0.0, 0.0, 1.0), dtype=np.float64),
+                np.asarray((0.0, 0.0, -1.0), dtype=np.float64),
+            )
+            distance_samples = np.arange(1.0, 101.0, 1.0, dtype=np.float64)
+            ray_exit_records = []
+            for local_index, raw_point in enumerate(inside_points):
+                origin = np.asarray(raw_point, dtype=np.float64)
+                nearest_point, face_normal = exact_probe._nearest_surface_point(origin)
+                raw_directions = (
+                    nearest_point - origin,
+                    face_normal,
+                    -face_normal,
+                    origin - search_center,
+                    *axis_directions,
+                )
+                directions = []
+                for raw_direction in raw_directions:
+                    length = float(np.linalg.norm(raw_direction))
+                    if length <= 1e-10:
+                        continue
+                    normalized = raw_direction / length
+                    if any(float(np.dot(normalized, item)) > 1.0 - 1e-9 for item in directions):
+                        continue
+                    directions.append(normalized)
+                candidates = np.asarray(
+                    [
+                        origin + distance * direction
+                        for direction in directions
+                        for distance in distance_samples
+                    ],
+                    dtype=np.float64,
+                )
+                candidate_inside = exact_probe._inside_mask(candidates)
+                best = None
+                summaries = []
+                for direction_index, direction in enumerate(directions):
+                    start = direction_index * len(distance_samples)
+                    stop = start + len(distance_samples)
+                    outside_offsets = np.flatnonzero(~candidate_inside[start:stop])
+                    first_outside = (
+                        float(distance_samples[int(outside_offsets[0])])
+                        if outside_offsets.size
+                        else None
+                    )
+                    found = None
+                    for offset in outside_offsets:
+                        candidate = candidates[start + int(offset)]
+                        nearest, _normal = exact_probe._nearest_surface_point(candidate)
+                        clearance_mm = float(np.linalg.norm(candidate - nearest))
+                        if clearance_mm >= float(exact_probe.clearance_mm) - 0.05:
+                            found = {
+                                "distance_mm": float(distance_samples[int(offset)]),
+                                "clearance_mm": clearance_mm,
+                                "position_mm": [float(value) for value in candidate],
+                            }
+                            if best is None or found["distance_mm"] < best["distance_mm"]:
+                                best = {
+                                    "direction_index": direction_index,
+                                    "direction": [float(value) for value in direction],
+                                    **found,
+                                }
+                            break
+                    summaries.append(
+                        {
+                            "direction_index": direction_index,
+                            "direction": [float(value) for value in direction],
+                            "first_outside_mm": first_outside,
+                            "clearance_candidate": found,
+                        }
+                    )
+                ray_exit_records.append(
+                    {
+                        "particle": int(particle_ids[local_index]),
+                        "origin_mm": [float(value) for value in origin],
+                        "best_exit": best,
+                        "directions": summaries,
+                    }
+                )
+            _log(
+                "body-projection-multi-direction-exit-search "
+                + json.dumps(ray_exit_records, sort_keys=True)
+            )
     return {
         "inside_particle_count": int(len(inside_indices)),
         "minimum_unsigned_clearance_mm": float(clearance),
