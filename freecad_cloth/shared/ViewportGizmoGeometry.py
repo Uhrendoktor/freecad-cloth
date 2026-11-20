@@ -102,10 +102,14 @@ def create_foreground_layer(coin: ModuleType, name: str) -> _CoinGroup:
 
     if layer is None:
         layer = coin.SoSeparator()
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        layer.addChild(depth)
+
+    # Keep the depth state explicit even when Coin exposes SoAnnotation.
+    # The native rotation-dragger branch uses the same override; without it,
+    # some FreeCAD viewport paths still let the mannequin occlude the controls.
+    depth = coin.SoDepthBuffer()
+    depth.test = False
+    depth.write = False
+    layer.addChild(depth)
 
     layer.setName(str(name))
     return cast(_CoinGroup, layer)
