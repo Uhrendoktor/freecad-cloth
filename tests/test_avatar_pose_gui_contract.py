@@ -121,3 +121,35 @@ def test_pose_ui_acceptance_drives_native_rotation_ring_with_real_viewport_input
     assert "mouse_release(viewport, end" in acceptance
     assert "wait_until(" in acceptance and "_gizmo_dragging" in acceptance
     assert "pose-ring-drag=passed" in acceptance
+
+
+def test_pose_mouse_down_does_not_rebuild_the_selected_dragger_branch() -> None:
+    from types import SimpleNamespace
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller.view = SimpleNamespace(getSize=lambda: (800, 600))
+    controller._gizmo_dragging = False
+    controller.selected_bone = "upperarm01.L"
+    controller._coin = lambda: SimpleNamespace(
+        SoMouseButtonEvent=SimpleNamespace(DOWN=1, BUTTON1=1)
+    )
+    controller._pick_bone = lambda _screen, include_joint_fallback=False: (
+        "upperarm01.L" if include_joint_fallback else None
+    )
+    selected = []
+    controller.select_joint = selected.append
+
+    class MouseEvent:
+        def getState(self):
+            return 1
+
+        def getButton(self):
+            return 1
+
+        def getPosition(self):
+            return (400, 300)
+
+    controller._mouse_event(SimpleNamespace(getEvent=lambda: MouseEvent()))
+
+    assert selected == []
+
