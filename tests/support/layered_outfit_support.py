@@ -48,7 +48,9 @@ def select_top_boundary_supports(
             isinstance(index, bool) or not isinstance(index, int) or index < 0
             for index in chain
         ):
-            raise ValueError("top boundary contains invalid or duplicate particle indices: " + panel_name)
+            raise ValueError(
+                "top boundary contains invalid or duplicate particle indices: " + panel_name
+            )
 
         eligible: list[int] = []
         for index in chain:

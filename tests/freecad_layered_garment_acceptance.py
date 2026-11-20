@@ -1253,7 +1253,9 @@ def run_acceptance() -> None:
         }
         projector = getattr(backend, "_collision_projector", None)
         if projector is None:
-            raise RuntimeError("shirt support selection requires the active body collision projector")
+            raise RuntimeError(
+                "shirt support selection requires the active body collision projector"
+            )
         clearance_by_particle: dict[int, float] = {}
         for index in candidate_indices:
             nearest_point, _normal = projector._nearest_surface_point(initial_positions[index])
