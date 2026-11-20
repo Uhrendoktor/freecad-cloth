@@ -534,20 +534,23 @@ def _body_clearance(
     scene: App.DocumentObject,
     backend: PositionBasedDynamicsBackend,
 ) -> dict[str, int | float]:
-    """Measure sampled clothing clearance to the active authoritative DrapeTarget."""
-    from freecad_cloth.common.MeshValidation import nearest_surface_clearance
+    """Measure authoritative mannequin clearance and a read-only foot-exit trial."""
+    import numpy as np
+
     from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
     base = scene.Proxy._base_or_restore()
     surface = base.collision_surface
-    positions = tuple(backend.positions())
+    positions = np.asarray(backend.positions(), dtype=np.float64)
+    projector = getattr(backend, "_collision_projector", None)
+
     containment_started = time.perf_counter()
     _log(
         "body-clearance-containment-start particles=%d target_triangles=%d method=numpy-ray-parity"
         % (len(positions), len(surface.triangles))
     )
     inside = points_inside_closed_mesh(
-        positions,
+        tuple(tuple(float(value) for value in point) for point in positions),
         surface.vertices,
         surface.triangles,
         prefer_trimesh=False,
@@ -557,444 +560,233 @@ def _body_clearance(
         "body-clearance-containment-finish inside=%d elapsed_ms=%.1f"
         % (len(inside_indices), 1000.0 * (time.perf_counter() - containment_started))
     )
-    clearance_started = time.perf_counter()
-    _log("body-clearance-nearest-surface-start particles=%d" % len(positions))
-    clearance = nearest_surface_clearance(positions, surface.vertices, surface.triangles)
-    _log(
-        "body-clearance-nearest-surface-finish minimum_mm=%.4f elapsed_ms=%.1f"
-        % (float(clearance), 1000.0 * (time.perf_counter() - clearance_started))
-    )
-    if inside_indices:
-        panel_for_particle = {
-            int(particle_index): str(base.panel_piece_names.get(panel_name, panel_name))
-            for panel_name, particle_indices in base.panel_indices.items()
-            for particle_index in particle_indices
+
+    panel_for_particle = {
+        int(particle_index): str(base.panel_piece_names.get(panel_name, panel_name))
+        for panel_name, particle_indices in base.panel_indices.items()
+        for particle_index in particle_indices
+    }
+    sample_records = [
+        {
+            "particle": int(index),
+            "piece": panel_for_particle.get(index, "unknown"),
+            "position_mm": [float(value) for value in positions[index]],
         }
-        sample_records = [
-            {
-                "particle": int(index),
-                "piece": panel_for_particle.get(index, "unknown"),
-                "position_mm": [float(value) for value in positions[index]],
-            }
-            for index in inside_indices[:24]
-        ]
+        for index in inside_indices
+    ]
+    if inside_indices:
         _log(
             "body-penetration-diagnostic count=%d particles=%s"
             % (len(inside_indices), json.dumps(sample_records, sort_keys=True))
         )
 
-        projector = getattr(backend, "_collision_projector", None)
-        if projector is not None:
-            from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
-            import numpy as np
+    if projector is None:
+        from freecad_cloth.common.MeshValidation import nearest_surface_clearance
 
-            inside_points = tuple(positions[index] for index in inside_indices)
+        clearance = nearest_surface_clearance(
+            tuple(tuple(float(value) for value in point) for point in positions),
+            surface.vertices,
+            surface.triangles,
+        )
+    else:
+        # Reuse the projector's exact centroid-tree nearest-face search. This avoids
+        # rebuilding a second Trimesh/Rtree for the same immutable mannequin mesh.
+        nearest_distances = np.empty(len(positions), dtype=np.float64)
+        nearest_started = time.perf_counter()
+        for index, point in enumerate(positions):
+            nearest_point, _normal = projector._nearest_surface_point(point)
+            nearest_distances[index] = float(np.linalg.norm(point - nearest_point))
+        clearance = float(nearest_distances.min(initial=float("inf")))
+        _log(
+            "body-clearance-nearest-surface-finish method=cached-exact-kdtree "
+            "minimum_mm=%.4f elapsed_ms=%.1f"
+            % (clearance, 1000.0 * (time.perf_counter() - nearest_started))
+        )
 
-            # Audit disconnected shell parity on the authoritative collision mesh.
-            # The collision winding adapter orients each edge-connected component,
-            # while one global parity count XORs all shells. Log both semantics.
-            from freecad_cloth.shared.MeshTopology import _closed_mesh_orientation_plan
+    if inside_indices and projector is not None:
+        inside_points = positions[np.asarray(inside_indices, dtype=np.int64)]
+        search_center = projector._vertices.mean(axis=0)
+        axis_directions = (
+            np.asarray((1.0, 0.0, 0.0), dtype=np.float64),
+            np.asarray((-1.0, 0.0, 0.0), dtype=np.float64),
+            np.asarray((0.0, 1.0, 0.0), dtype=np.float64),
+            np.asarray((0.0, -1.0, 0.0), dtype=np.float64),
+            np.asarray((0.0, 0.0, 1.0), dtype=np.float64),
+            np.asarray((0.0, 0.0, -1.0), dtype=np.float64),
+        )
+        distance_samples = np.arange(1.0, 31.0, 1.0, dtype=np.float64)
+        exit_records = []
 
-            vertex_array = np.asarray(surface.vertices, dtype=np.float64)
-            source_faces = tuple(tuple(int(value) for value in face) for face in surface.triangles)
-            coherent_faces, shell_components = _closed_mesh_orientation_plan(source_faces)
-            coherent_array = np.asarray(coherent_faces, dtype=np.int64)
-            query_points = np.asarray(inside_points, dtype=np.float64)
-
-            def parity_for_faces(
-                point_array: np.ndarray,
-                face_array: np.ndarray,
-                ray_direction: np.ndarray,
-            ) -> np.ndarray:
-                """Classify a small probe set against one shell and one deterministic ray."""
-                result = np.zeros(len(point_array), dtype=bool)
-                triangle_points = vertex_array[face_array]
-                a = triangle_points[:, 0]
-                edge_one = triangle_points[:, 1] - a
-                edge_two = triangle_points[:, 2] - a
-                pvec = np.cross(ray_direction, edge_two)
-                determinant = np.einsum("ij,ij->i", edge_one, pvec)
-                usable = np.abs(determinant) > 1e-10
-                a = a[usable]
-                edge_one = edge_one[usable]
-                edge_two = edge_two[usable]
-                pvec = pvec[usable]
-                determinant = determinant[usable]
-                for point_index, point in enumerate(point_array):
-                    tvec = point[None, :] - a
-                    u = np.einsum("ij,ij->i", tvec, pvec) / determinant
-                    qvec = np.cross(tvec, edge_one)
-                    v = np.einsum("j,ij->i", ray_direction, qvec) / determinant
-                    distance = np.einsum("ij,ij->i", edge_two, qvec) / determinant
-                    hits = (
-                        (u >= -1e-9)
-                        & (u <= 1.0 + 1e-9)
-                        & (v >= -1e-9)
-                        & (u + v <= 1.0 + 1e-9)
-                        & (distance > 1e-9)
-                    )
-                    result[point_index] = int(np.count_nonzero(hits)) % 2 == 1
-                return result
-
-            shell_records = []
-            component_faces_list = []
-            for component_index, face_indices in enumerate(shell_components):
-                component_faces = coherent_array[np.asarray(face_indices, dtype=np.int64)]
-                component_faces_list.append(component_faces)
-                used_vertices = np.unique(component_faces)
-                component_points = vertex_array[used_vertices]
-                component_triangles = vertex_array[component_faces]
-                signed_volume6 = float(
-                    np.einsum(
-                        "ij,ij->i",
-                        component_triangles[:, 0],
-                        np.cross(component_triangles[:, 1], component_triangles[:, 2]),
-                    ).sum(dtype=np.float64)
-                )
-                bounds = [
-                    [float(value) for value in component_points.min(axis=0)],
-                    [float(value) for value in component_points.max(axis=0)],
-                ]
-                shell_records.append(
-                    {
-                        "component": component_index,
-                        "faces": int(len(component_faces)),
-                        "vertices": int(len(used_vertices)),
-                        "signed_volume_mm3": signed_volume6 / 6.0,
-                        "bounds_mm": bounds,
-                    }
-                )
-            _log(
-                "body-shell-component-audit count=%d total_faces=%d shells=%s"
-                % (len(shell_records), len(coherent_array), json.dumps(shell_records, sort_keys=True))
+        # The previous exact-head ray search established that these foot particles
+        # have valid 6 mm-clearance exits within 17-19 mm. Repeat only a bounded
+        # 30 mm search for the particles present in this frame; do not rebuild shell
+        # components or run several redundant projector variants.
+        for particle_index in inside_indices:
+            origin = positions[int(particle_index)]
+            nearest_point, face_normal = projector._nearest_surface_point(origin)
+            raw_directions = (
+                nearest_point - origin,
+                face_normal,
+                -face_normal,
+                origin - search_center,
+                *axis_directions,
             )
-
-            ray_directions = (
-                np.asarray((1.0, 0.3713906763541037, 0.1932424973120743), dtype=np.float64),
-                np.asarray((0.1732050807568877, 1.0, 0.4142135623730951), dtype=np.float64),
-                np.asarray((0.2718281828459045, 0.1414213562373095, 1.0), dtype=np.float64),
-                np.asarray((1.0, -0.6180339887498948, 0.3178372451957823), dtype=np.float64),
-            )
-            for ray_index, ray_direction in enumerate(ray_directions):
-                ray_direction = ray_direction / np.linalg.norm(ray_direction)
-                per_shell = [
-                    parity_for_faces(query_points, component_faces, ray_direction)
-                    for component_faces in component_faces_list
-                ]
-                shell_union = (
-                    np.logical_or.reduce(per_shell)
-                    if per_shell
-                    else np.zeros(len(query_points), dtype=bool)
-                )
-                shell_xor = (
-                    np.logical_xor.reduce(per_shell)
-                    if per_shell
-                    else np.zeros(len(query_points), dtype=bool)
-                )
-                all_faces_parity = parity_for_faces(
-                    query_points,
-                    coherent_array,
-                    ray_direction,
-                )
-                _log(
-                    "body-shell-parity-audit ray=%d components=%s global=%s union=%s xor=%s"
-                    % (
-                        ray_index,
-                        json.dumps([values.tolist() for values in per_shell]),
-                        all_faces_parity.tolist(),
-                        shell_union.tolist(),
-                        shell_xor.tolist(),
-                    )
-                )
-
-            candidate_counts = tuple(dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32)))
-            for candidate_count in candidate_counts:
-                probe = MeshCollisionProjector(
-                    surface,
-                    clearance_mm=float(projector.clearance_mm),
-                    candidate_count=candidate_count,
-                )
-                projected, _normals = probe.project(inside_points)
-                projected_points = tuple(
-                    tuple(float(value) for value in point) for point in projected
-                )
-                still_inside = points_inside_closed_mesh(
-                    projected_points,
-                    surface.vertices,
-                    surface.triangles,
-                )
-                moved = tuple(
-                    math.dist(original, corrected)
-                    for original, corrected in zip(inside_points, projected_points, strict=True)
-                )
-                _log(
-                    "body-projection-candidate-probe candidates=%d corrected=%d still_inside=%d "
-                    "maximum_move_mm=%.4f"
-                    % (
-                        candidate_count,
-                        sum(distance > 1e-7 for distance in moved),
-                        sum(still_inside),
-                        max(moved, default=0.0),
-                    )
-                )
-
-            # Separate exact-nearest exit probing from the local face-normal path.
-            # This probe never writes to the live PBD particle model.
-            exact_probe = MeshCollisionProjector(
-                surface,
-                clearance_mm=float(projector.clearance_mm),
-                candidate_count=max(4, int(projector._candidate_count)),
-            )
-            exact_points = np.asarray(inside_points, dtype=np.float64)
-            particle_ids = np.asarray(inside_indices, dtype=np.int64)
-            for attempt in range(1, 6):
-                exact_corrected, exact_directions = exact_probe._project_inside_points(
-                    exact_points
-                )
-                exact_inside = points_inside_closed_mesh(
-                    tuple(tuple(float(value) for value in point) for point in exact_corrected),
-                    surface.vertices,
-                    surface.triangles,
-                    prefer_trimesh=False,
-                )
-                exact_moved = np.linalg.norm(exact_corrected - exact_points, axis=1)
-                _log(
-                    "body-projection-exact-exit-probe attempt=%d input_inside=%d "
-                    "corrected=%d remaining_inside=%d maximum_move_mm=%.4f"
-                    % (
-                        attempt,
-                        int(np.count_nonzero(exact_probe._inside_mask(exact_points))),
-                        int(np.count_nonzero(exact_moved > 1e-7)),
-                        sum(exact_inside),
-                        float(exact_moved.max(initial=0.0)),
-                    )
-                )
-                if attempt == 1:
-                    records = []
-                    for local_index, raw_point in enumerate(inside_points):
-                        point = np.asarray(raw_point, dtype=np.float64)
-                        nearest, face_normal = exact_probe._nearest_surface_point(point)
-                        delta = nearest - point
-                        distance_mm = float(np.linalg.norm(delta))
-                        direction = delta / distance_mm if distance_mm > 1e-10 else face_normal
-                        records.append(
-                            {
-                                "particle": int(particle_ids[local_index]),
-                                "origin_mm": [float(value) for value in point],
-                                "nearest_surface_mm": [float(value) for value in nearest],
-                                "face_normal": [float(value) for value in face_normal],
-                                "distance_mm": distance_mm,
-                                "exact_exit_mm": [
-                                    float(value)
-                                    for value in nearest + float(exact_probe.clearance_mm) * direction
-                                ],
-                                "exact_exit_inside": bool(exact_inside[local_index]),
-                            }
-                        )
-                    _log("body-projection-exact-exit-details " + json.dumps(records, sort_keys=True))
-                exact_points = exact_corrected
-                if not any(exact_inside):
-                    break
-            search_center = vertex_array.mean(axis=0)
-            axis_directions = (
-                np.asarray((1.0, 0.0, 0.0), dtype=np.float64),
-                np.asarray((-1.0, 0.0, 0.0), dtype=np.float64),
-                np.asarray((0.0, 1.0, 0.0), dtype=np.float64),
-                np.asarray((0.0, -1.0, 0.0), dtype=np.float64),
-                np.asarray((0.0, 0.0, 1.0), dtype=np.float64),
-                np.asarray((0.0, 0.0, -1.0), dtype=np.float64),
-            )
-            distance_samples = np.arange(1.0, 101.0, 1.0, dtype=np.float64)
-            ray_exit_records = []
-            for local_index, raw_point in enumerate(inside_points):
-                origin = np.asarray(raw_point, dtype=np.float64)
-                nearest_point, face_normal = exact_probe._nearest_surface_point(origin)
-                raw_directions = (
-                    nearest_point - origin,
-                    face_normal,
-                    -face_normal,
-                    origin - search_center,
-                    *axis_directions,
-                )
-                directions = []
-                for raw_direction in raw_directions:
-                    length = float(np.linalg.norm(raw_direction))
-                    if length <= 1e-10:
-                        continue
-                    normalized = raw_direction / length
-                    if any(float(np.dot(normalized, item)) > 1.0 - 1e-9 for item in directions):
-                        continue
-                    directions.append(normalized)
-                candidates = np.asarray(
-                    [
-                        origin + distance * direction
-                        for direction in directions
-                        for distance in distance_samples
-                    ],
-                    dtype=np.float64,
-                )
-                candidate_inside = exact_probe._inside_mask(candidates)
-                best = None
-                summaries = []
-                for direction_index, direction in enumerate(directions):
-                    start = direction_index * len(distance_samples)
-                    stop = start + len(distance_samples)
-                    outside_offsets = np.flatnonzero(~candidate_inside[start:stop])
-                    first_outside = (
-                        float(distance_samples[int(outside_offsets[0])])
-                        if outside_offsets.size
-                        else None
-                    )
-                    found = None
-                    for offset in outside_offsets:
-                        candidate = candidates[start + int(offset)]
-                        nearest, _normal = exact_probe._nearest_surface_point(candidate)
-                        clearance_mm = float(np.linalg.norm(candidate - nearest))
-                        if clearance_mm >= float(exact_probe.clearance_mm) - 0.05:
-                            found = {
-                                "distance_mm": float(distance_samples[int(offset)]),
-                                "clearance_mm": clearance_mm,
-                                "position_mm": [float(value) for value in candidate],
-                            }
-                            if best is None or found["distance_mm"] < best["distance_mm"]:
-                                best = {
-                                    "direction_index": direction_index,
-                                    "direction": [float(value) for value in direction],
-                                    **found,
-                                }
-                            break
-                    summaries.append(
-                        {
-                            "direction_index": direction_index,
-                            "direction": [float(value) for value in direction],
-                            "first_outside_mm": first_outside,
-                            "clearance_candidate": found,
-                        }
-                    )
-                ray_exit_records.append(
-                    {
-                        "particle": int(particle_ids[local_index]),
-                        "origin_mm": [float(value) for value in origin],
-                        "best_exit": best,
-                        "directions": summaries,
-                    }
-                )
-            _log(
-                "body-projection-multi-direction-exit-search "
-                + json.dumps(ray_exit_records, sort_keys=True)
-            )
-
-            # Apply the selected exits to a copy of the complete solver frame only.
-            # Verify that the escape candidates do not create new body penetrations,
-            # open authored seams, or invert/collapse adjacent garment triangles.
-            trial_positions = np.asarray(positions, dtype=np.float64).copy()
-            selected_exit_count = 0
-            for record in ray_exit_records:
-                best_exit = record["best_exit"]
-                if best_exit is None:
+            directions = []
+            for raw_direction in raw_directions:
+                length = float(np.linalg.norm(raw_direction))
+                if length <= 1e-10:
                     continue
-                trial_positions[int(record["particle"])] = np.asarray(
-                    best_exit["position_mm"],
-                    dtype=np.float64,
-                )
-                selected_exit_count += 1
+                direction = raw_direction / length
+                if any(
+                    float(np.dot(direction, existing)) > 1.0 - 1e-9
+                    for existing in directions
+                ):
+                    continue
+                directions.append(direction)
 
-            trial_inside = points_inside_closed_mesh(
-                tuple(tuple(float(value) for value in point) for point in trial_positions),
-                surface.vertices,
-                surface.triangles,
-                prefer_trimesh=False,
+            candidates = np.asarray(
+                [
+                    origin + distance * direction
+                    for direction in directions
+                    for distance in distance_samples
+                ],
+                dtype=np.float64,
             )
-            trial_clearance = nearest_surface_clearance(
-                tuple(tuple(float(value) for value in point) for point in trial_positions),
-                surface.vertices,
-                surface.triangles,
-            )
-            seam_records = []
-            for seam_id, stitch_pairs in base.seam_stitch_pairs.items():
-                indices = np.asarray(stitch_pairs, dtype=np.int64).reshape((-1, 2))
-                gaps = np.linalg.norm(
-                    trial_positions[indices[:, 0]] - trial_positions[indices[:, 1]],
-                    axis=1,
-                )
-                seam_records.append(
-                    {
-                        "seam_id": str(seam_id),
-                        "pair_count": int(len(indices)),
-                        "maximum_gap_mm": float(gaps.max(initial=0.0)),
+            candidate_inside = projector._inside_mask(candidates)
+            best = None
+            for direction_index, direction in enumerate(directions):
+                start_offset = direction_index * len(distance_samples)
+                stop_offset = start_offset + len(distance_samples)
+                outside_offsets = np.flatnonzero(~candidate_inside[start_offset:stop_offset])
+                for offset in outside_offsets:
+                    candidate = candidates[start_offset + int(offset)]
+                    exact_nearest, _normal = projector._nearest_surface_point(candidate)
+                    candidate_clearance = float(np.linalg.norm(candidate - exact_nearest))
+                    if candidate_clearance < projector.clearance_mm - 0.05:
+                        continue
+                    record = {
+                        "direction": [float(value) for value in direction],
+                        "distance_mm": float(distance_samples[int(offset)]),
+                        "clearance_mm": candidate_clearance,
+                        "position_mm": [float(value) for value in candidate],
                     }
-                )
+                    if best is None or record["distance_mm"] < best["distance_mm"]:
+                        best = record
+                    break
+            exit_records.append(
+                {
+                    "particle": int(particle_index),
+                    "piece": panel_for_particle.get(int(particle_index), "unknown"),
+                    "origin_mm": [float(value) for value in origin],
+                    "best_exit": best,
+                }
+            )
 
-            triangle_records = []
-            for panel_name, local_triangles in base.panel_triangles.items():
-                # SimulationProxy.panel_triangles retains combined global particle indices.
-                triangles = np.asarray(local_triangles, dtype=np.int64)
-                before = np.asarray(positions, dtype=np.float64)[triangles]
-                after = trial_positions[triangles]
-                before_edges = np.stack(
-                    (
-                        before[:, 1] - before[:, 0],
-                        before[:, 2] - before[:, 1],
-                        before[:, 0] - before[:, 2],
-                    ),
-                    axis=1,
-                )
-                after_edges = np.stack(
-                    (
-                        after[:, 1] - after[:, 0],
-                        after[:, 2] - after[:, 1],
-                        after[:, 0] - after[:, 2],
-                    ),
-                    axis=1,
-                )
-                before_lengths = np.linalg.norm(before_edges, axis=2)
-                after_lengths = np.linalg.norm(after_edges, axis=2)
-                edge_ratios = np.divide(
-                    after_lengths,
-                    before_lengths,
-                    out=np.ones_like(after_lengths),
-                    where=before_lengths > 1e-9,
-                )
-                before_normals = np.cross(before_edges[:, 0], -before_edges[:, 2])
-                after_normals = np.cross(after_edges[:, 0], -after_edges[:, 2])
-                before_areas = 0.5 * np.linalg.norm(before_normals, axis=1)
-                after_areas = 0.5 * np.linalg.norm(after_normals, axis=1)
-                area_ratios = np.divide(
-                    after_areas,
-                    before_areas,
-                    out=np.ones_like(after_areas),
-                    where=before_areas > 1e-9,
-                )
-                flips = np.einsum("ij,ij->i", before_normals, after_normals) < 0.0
-                triangle_records.append(
-                    {
-                        "panel": str(panel_name),
-                        "triangle_count": int(len(triangles)),
-                        "minimum_edge_ratio": float(edge_ratios.min(initial=1.0)),
-                        "maximum_edge_ratio": float(edge_ratios.max(initial=1.0)),
-                        "minimum_area_ratio": float(area_ratios.min(initial=1.0)),
-                        "maximum_area_ratio": float(area_ratios.max(initial=1.0)),
-                        "flipped_triangle_count": int(np.count_nonzero(flips)),
-                        "degenerate_after_count": int(np.count_nonzero(after_areas <= 1e-8)),
-                    }
-                )
-            _log(
-                "body-projection-copy-trial "
-                + json.dumps(
-                    {
-                        "selected_exit_count": selected_exit_count,
-                        "inside_particle_count": int(sum(trial_inside)),
-                        "minimum_clearance_mm": float(trial_clearance),
-                        "maximum_seam_gap_mm": max(
-                            (float(item["maximum_gap_mm"]) for item in seam_records),
-                            default=0.0,
-                        ),
-                        "seams": seam_records,
-                        "panels": triangle_records,
-                    },
-                    sort_keys=True,
-                )
+        trial_positions = positions.copy()
+        trial_clearances = nearest_distances.copy()
+        selected_exit_count = 0
+        for record in exit_records:
+            best_exit = record["best_exit"]
+            if best_exit is None:
+                continue
+            particle_index = int(record["particle"])
+            candidate = np.asarray(best_exit["position_mm"], dtype=np.float64)
+            trial_positions[particle_index] = candidate
+            nearest_point, _normal = projector._nearest_surface_point(candidate)
+            trial_clearances[particle_index] = float(np.linalg.norm(candidate - nearest_point))
+            selected_exit_count += 1
+
+        trial_inside = projector._inside_mask(trial_positions)
+        trial_clearance = float(trial_clearances.min(initial=float("inf")))
+        seam_records = []
+        for seam_id, stitch_pairs in base.seam_stitch_pairs.items():
+            indices = np.asarray(stitch_pairs, dtype=np.int64).reshape((-1, 2))
+            gaps = np.linalg.norm(
+                trial_positions[indices[:, 0]] - trial_positions[indices[:, 1]],
+                axis=1,
             )
+            seam_records.append(
+                {
+                    "seam_id": str(seam_id),
+                    "pair_count": int(len(indices)),
+                    "maximum_gap_mm": float(gaps.max(initial=0.0)),
+                }
+            )
+
+        triangle_records = []
+        for panel_name, panel_triangles in base.panel_triangles.items():
+            # SimulationProxy.panel_triangles already contains combined global indices.
+            triangles = np.asarray(panel_triangles, dtype=np.int64).reshape((-1, 3))
+            if triangles.size == 0:
+                continue
+            before = positions[triangles]
+            after = trial_positions[triangles]
+            before_edges = np.stack(
+                (
+                    before[:, 1] - before[:, 0],
+                    before[:, 2] - before[:, 1],
+                    before[:, 0] - before[:, 2],
+                ),
+                axis=1,
+            )
+            after_edges = np.stack(
+                (
+                    after[:, 1] - after[:, 0],
+                    after[:, 2] - after[:, 1],
+                    after[:, 0] - after[:, 2],
+                ),
+                axis=1,
+            )
+            before_lengths = np.linalg.norm(before_edges, axis=2)
+            after_lengths = np.linalg.norm(after_edges, axis=2)
+            edge_ratios = np.divide(
+                after_lengths,
+                before_lengths,
+                out=np.ones_like(after_lengths),
+                where=before_lengths > 1e-9,
+            )
+            before_normals = np.cross(before_edges[:, 0], -before_edges[:, 2])
+            after_normals = np.cross(after_edges[:, 0], -after_edges[:, 2])
+            before_areas = 0.5 * np.linalg.norm(before_normals, axis=1)
+            after_areas = 0.5 * np.linalg.norm(after_normals, axis=1)
+            area_ratios = np.divide(
+                after_areas,
+                before_areas,
+                out=np.ones_like(after_areas),
+                where=before_areas > 1e-9,
+            )
+            flips = np.einsum("ij,ij->i", before_normals, after_normals) < 0.0
+            triangle_records.append(
+                {
+                    "panel": str(panel_name),
+                    "triangle_count": int(len(triangles)),
+                    "minimum_edge_ratio": float(edge_ratios.min(initial=1.0)),
+                    "maximum_edge_ratio": float(edge_ratios.max(initial=1.0)),
+                    "minimum_area_ratio": float(area_ratios.min(initial=1.0)),
+                    "maximum_area_ratio": float(area_ratios.max(initial=1.0)),
+                    "flipped_triangle_count": int(np.count_nonzero(flips)),
+                    "degenerate_after_count": int(np.count_nonzero(after_areas <= 1e-8)),
+                }
+            )
+        copy_trial = {
+            "selected_exit_count": selected_exit_count,
+            "inside_particle_count": int(np.count_nonzero(trial_inside)),
+            "minimum_clearance_mm": trial_clearance,
+            "maximum_seam_gap_mm": max(
+                (float(item["maximum_gap_mm"]) for item in seam_records),
+                default=0.0,
+            ),
+            "seams": seam_records,
+            "panels": triangle_records,
+            "exits": exit_records,
+        }
+        _log("body-projection-copy-trial " + json.dumps(copy_trial, sort_keys=True))
+        OUTPUT.mkdir(parents=True, exist_ok=True)
+        (OUTPUT / "body-exit-copy-trial.json").write_text(
+            json.dumps(copy_trial, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
     return {
         "inside_particle_count": int(len(inside_indices)),
         "minimum_unsigned_clearance_mm": float(clearance),
