@@ -180,26 +180,97 @@ def _drag_native_pose_ring(
             raise RuntimeError("FreeCAD could not project the native X rotation ring")
         return screen
 
-    start = projected_ring_point(45.0)
-    end = projected_ring_point(72.0)
     viewport = viewport_widget(Gui, view)
     panel.angle_snap.setChecked(False)
+    # The three axis rings share a pivot. Try several points on the projected X
+    # ring until Coin activates that named dragger, rather than accepting a hit
+    # on the Y/Z or camera-facing ring as proof of X-axis interaction.
+    candidate_arcs = ((30.0, 210.0), (60.0, 240.0), (90.0, 270.0), (0.0, 180.0), (120.0, 300.0))
+    selected = None
+    attempts = []
     release_all_input()
     try:
-        mouse_press(viewport, start, delay_ms=160)
-        wait_until(
-            lambda: bool(controller._gizmo_dragging),
-            description="native X-axis pose-ring drag start",
+        for start_angle, end_angle in candidate_arcs:
+            start = projected_ring_point(start_angle)
+            end = projected_ring_point(end_angle)
+            mouse_press(viewport, start, delay_ms=160)
+            try:
+                wait_until(
+                    lambda: bool(controller._gizmo_dragging),
+                    description="native pose-ring drag start",
+                )
+            except RuntimeError:
+                release_all_input()
+                _events()
+                attempts.append((start_angle, "no-dragger-hit"))
+                continue
+
+            active_axis = controller._active_gizmo_axis
+            attempts.append((start_angle, active_axis))
+            progress(
+                "pose-ring-hit "
+                + repr(
+                    {
+                        "start_angle": start_angle,
+                        "active_axis": active_axis,
+                        "start": tuple(round(float(value), 1) for value in start),
+                        "end": tuple(round(float(value), 1) for value in end),
+                    }
+                )
+            )
+            if active_axis == (1.0, 0.0, 0.0):
+                selected = (start_angle, end_angle, start, end, controller._axis_draggers["X"])
+                break
+
+            mouse_release(viewport, start, delay_ms=50)
+            _events()
+            wait_until(
+                lambda: not bool(controller._gizmo_dragging),
+                description="release of non-X pose ring",
+            )
+
+        if selected is None:
+            raise RuntimeError(
+                "viewport pointer did not select the native X rotation ring; "
+                f"candidate hits={attempts!r}"
+            )
+
+        start_angle, end_angle, start, end, x_dragger = selected
+        initial_rotation = controller._dragger_quaternion(x_dragger)
+        progress(
+            "pose-ring-start "
+            + repr(
+                {
+                    "active": bool(x_dragger.isActive.getValue()),
+                    "axis": controller._active_gizmo_axis,
+                    "rotation": initial_rotation,
+                }
+            )
         )
-        for step in range(1, 7):
-            angle = 45.0 + (72.0 - 45.0) * step / 6.0
+        for step in range(1, 13):
+            angle = start_angle + (end_angle - start_angle) * step / 12.0
             mouse_move(
                 viewport,
                 projected_ring_point(angle),
-                delay_ms=45,
+                delay_ms=65,
                 buttons_down=True,
             )
-        mouse_release(viewport, end, delay_ms=60)
+            _events()
+            if step in (3, 6, 9, 12):
+                progress(
+                    "pose-ring-motion "
+                    + repr(
+                        {
+                            "step": step,
+                            "active": bool(x_dragger.isActive.getValue()),
+                            "rotation": controller._dragger_quaternion(x_dragger),
+                            "staged": repr(panel._staged_joint_rotations.get(bone)),
+                        }
+                    )
+                )
+
+        final_rotation = controller._dragger_quaternion(x_dragger)
+        mouse_release(viewport, end, delay_ms=80)
         _events()
         wait_until(
             lambda: not bool(controller._gizmo_dragging),
@@ -212,10 +283,23 @@ def _drag_native_pose_ring(
     current = panel._staged_joint_rotations.get(bone)
     after_x = before_x if current is None else float(current.x)
     delta_x = after_x - before_x
+    progress(
+        "pose-ring-final "
+        + repr(
+            {
+                "before": before_x,
+                "after": after_x,
+                "delta": delta_x,
+                "rotation": final_rotation,
+                "attempts": attempts,
+            }
+        )
+    )
     if abs(delta_x) < 1.0:
         raise RuntimeError(
             "native X-axis ring received pointer input but staged no measurable rotation: "
-            f"before={before_x:.3f} after={after_x:.3f} start={start} end={end}"
+            f"before={before_x:.3f} after={after_x:.3f} delta={delta_x:.3f} "
+            f"rotation={final_rotation!r} start={start} end={end} attempts={attempts!r}"
         )
     result: _PoseRingDragResult = {
         "axis": "X",
