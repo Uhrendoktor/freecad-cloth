@@ -1122,7 +1122,7 @@ class SkeletonPoseController:
                 x,
                 y,
                 z,
-                preview=True,
+                preview=False,
             )
             self._last_gizmo_motion_error = None
         except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
@@ -1145,7 +1145,9 @@ class SkeletonPoseController:
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
             )
-            self.refresh_overlay()
+            # Do not rebuild the mesh or Coin scene graph while its native dragger
+            # is active. Apply the latest staged pose once the pointer is released.
+            self.panel._preview_rebuild()
 
     def _clear_hover_overlay(self):
         """Remove the transient hover highlight from the skeleton overlay."""
