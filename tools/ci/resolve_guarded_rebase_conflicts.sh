@@ -846,6 +846,73 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "5d84563005f984dec139794200ad57a77d29ca26" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "5d84563005f984dec139794200ad57a77d29ca26" ]] ||
+      ! git show "$rebase_commit:freecad_cloth/sewing/SewingNetworkGui.py" | grep -Fq 'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())' ||
+      ! git show "$rebase_commit^:freecad_cloth/sewing/SewingNetworkGui.py" | grep -Fq 'field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'self._range_fields: tuple[_RangeEditor, ...] = (' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'ranges = getattr(self, "_range_values", ())' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'self.table.item(row, column).text()' ||
+      ! git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'if getattr(self, "_loading_range", False)'; then
+      echo "::error::Refusing SewingNetworkGui Ruff replay outside the exact 5d845630 safe-format commit and validated typed/fallback state."
+      exit 1
+    fi
+    echo "::warning::Preserving the replayed typed seam editor and current-main defensive fallbacks; applying only the exact Ruff formatting changes."
+    git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py
+    python3 - <<'PY'
+from pathlib import Path
+
+path = Path("freecad_cloth/sewing/SewingNetworkGui.py")
+source = path.read_text(encoding="utf-8")
+
+old_cast = 'field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())'
+new_cast = 'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())'
+if source.count(old_cast) == 1 and source.count(new_cast) == 0:
+    source = source.replace(old_cast, new_cast, 1)
+elif source.count(old_cast) == 0 and source.count(new_cast) == 1:
+    pass
+else:
+    raise SystemExit("Expected exactly one current Ruff cast expression.")
+
+old_gap = (
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+    "\n"
+    "def _modules():\n"
+)
+new_gap = (
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+    "\n"
+    "\n"
+    "def _modules():\n"
+)
+if source.count(old_gap) == 1 and source.count(new_gap) == 0:
+    source = source.replace(old_gap, new_gap, 1)
+elif source.count(old_gap) == 0 and source.count(new_gap) == 1:
+    pass
+else:
+    raise SystemExit("Expected exactly one module-boundary blank-line expression.")
+
+required = (
+    'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())',
+    "class _NetworkEditorSnapshot(TypedDict):",
+    "self._range_fields: tuple[_RangeEditor, ...] = (",
+    'ranges = getattr(self, "_range_values", ())',
+    "self.table.item(row, column).text()",
+    'if getattr(self, "_loading_range", False)',
+)
+for marker in required:
+    if marker not in source:
+        raise SystemExit(f"Safe Ruff replay removed required seam editor contract: {marker}")
+
+path.write_text(source, encoding="utf-8")
+PY
+    git add freecad_cloth/sewing/SewingNetworkGui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f62b45d70533341c14e6f9909c233498c7d5ef01" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "f62b45d70533341c14e6f9909c233498c7d5ef01" ]] ||
