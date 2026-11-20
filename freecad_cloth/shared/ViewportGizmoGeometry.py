@@ -23,7 +23,7 @@ class _CoinGroup(Protocol):
 
 def world_radius_for_screen_pixels(
     point: Sequence[float],
-    camera_right: Sequence[float],
+    camera_right: Sequence[float] | None,
     project_point: Callable[[Sequence[float]], Sequence[float] | None],
     radius_pixels: float,
     fallback_radius: float,
@@ -45,23 +45,22 @@ def world_radius_for_screen_pixels(
     Raises:
         ValueError: If the point, camera direction or radius parameters are invalid.
     """
-    if len(point) != 3 or len(camera_right) != 3:
-        raise ValueError("Screen-scaled gizmos require 3D positions and camera directions.")
+    if len(point) != 3:
+        raise ValueError("Screen-scaled gizmos require a 3D world-space position.")
     if float(radius_pixels) <= 0.0 or float(fallback_radius) <= 0.0:
         raise ValueError("Screen and fallback gizmo radii must be positive.")
     if float(sample_distance) <= 0.0:
         raise ValueError("The projection sample distance must be positive.")
+    if camera_right is None:
+        return float(fallback_radius)
+    if len(camera_right) != 3:
+        raise ValueError("The camera-right direction must contain three coordinates.")
 
-    direction_length = math.sqrt(
-        sum(float(camera_right[index]) ** 2 for index in range(3))
-    )
+    direction_length = math.sqrt(sum(float(camera_right[index]) ** 2 for index in range(3)))
     if direction_length <= 1e-8:
         raise ValueError("The camera-right direction must be non-zero.")
     direction = tuple(float(camera_right[index]) / direction_length for index in range(3))
-    sample_point = tuple(
-        float(point[index]) + direction[index] * float(sample_distance)
-        for index in range(3)
-    )
+    sample_point = tuple(float(point[index]) + direction[index] * float(sample_distance) for index in range(3))
     projected_origin = project_point(point)
     projected_sample = project_point(sample_point)
     if (

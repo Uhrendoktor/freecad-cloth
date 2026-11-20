@@ -245,41 +245,6 @@ class SkeletonPoseController:
         size = get_size()
         return float(projected[0]), float(size[1] - projected[1])
 
-    def _screen_scaled_radius(
-        self,
-        coin,
-        point: Sequence[float],
-        radius_pixels: float,
-        fallback_radius: float,
-    ) -> float:
-        """Return a model-space radius that remains the requested size while zooming.
-
-        Args:
-            coin: Pivy Coin module used to read the active camera orientation.
-            point: World-space control position.
-            radius_pixels: Desired control radius in viewport pixels.
-            fallback_radius: Safe model-space radius when camera projection is unavailable.
-
-        Returns:
-            Local model-space radius for the rounded control.
-        """
-        from freecad_cloth.shared.ViewportGizmoGeometry import (
-            world_radius_for_screen_pixels,
-        )
-
-        try:
-            orientation = self.view.getCameraNode().orientation.getValue()
-            camera_right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
-            return world_radius_for_screen_pixels(
-                point,
-                tuple(float(camera_right[index]) for index in range(3)),
-                self._screen_position,
-                radius_pixels,
-                fallback_radius,
-            )
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
-            return float(fallback_radius)
-
     @staticmethod
     def _screen_segment_distance(point, start, end):
         """Return the 2D distance from a point to a projected bone segment.
@@ -529,6 +494,7 @@ class SkeletonPoseController:
         from freecad_cloth.shared.ViewportGizmoGeometry import (
             add_capsule,
             add_sphere,
+            world_radius_for_screen_pixels,
         )
 
         parent = self.overlay_content if self.overlay_content is not None else self.overlay
@@ -537,23 +503,28 @@ class SkeletonPoseController:
         joints = self._build_skeleton()
         editable = set(CONTROLLABLE_BONES)
         selected_bone = self.selected_bone
+        camera_right = None
+        try:
+            orientation = self.view.getCameraNode().orientation.getValue()
+            right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
+            camera_right = tuple(float(right[index]) for index in range(3))
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            pass
 
         # Keep the full authored rig available through the mannequin. Passive
         # structure is quiet; editable and selected bones use wider rounded shafts.
         for bone, segment in self._skeleton_segments.items():
-            midpoint = tuple(
-                (float(segment[0][index]) + float(segment[1][index])) * 0.5
-                for index in range(3)
-            )
+            midpoint = tuple((float(segment[0][index]) + float(segment[1][index])) * 0.5 for index in range(3))
             if bone == selected_bone:
                 radius_pixels, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
             elif bone in editable:
                 radius_pixels, rgb = RIG_EDITABLE_RADIUS, RIG_EDITABLE_COLOR
             else:
                 radius_pixels, rgb = RIG_PASSIVE_RADIUS, RIG_PASSIVE_COLOR
-            radius = self._screen_scaled_radius(
-                coin,
+            radius = world_radius_for_screen_pixels(
                 midpoint,
+                camera_right,
+                self._screen_position,
                 radius_pixels,
                 radius_pixels * 4.0,
             )
@@ -561,9 +532,10 @@ class SkeletonPoseController:
 
         # Spherical joints connect the capsule shafts and replace square point sprites.
         for point in joints.values():
-            radius = self._screen_scaled_radius(
-                coin,
+            radius = world_radius_for_screen_pixels(
                 point,
+                camera_right,
+                self._screen_position,
                 RIG_JOINT_RADIUS,
                 RIG_JOINT_RADIUS * 4.0,
             )
@@ -571,9 +543,10 @@ class SkeletonPoseController:
 
         if selected_bone is not None and selected_bone in self._positions:
             point = self._positions[selected_bone]
-            radius = self._screen_scaled_radius(
-                coin,
+            radius = world_radius_for_screen_pixels(
                 point,
+                camera_right,
+                self._screen_position,
                 RIG_ACTIVE_JOINT_RADIUS,
                 RIG_ACTIVE_JOINT_RADIUS * 4.0,
             )

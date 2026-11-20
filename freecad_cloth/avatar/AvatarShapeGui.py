@@ -425,41 +425,6 @@ class AvatarDimensionController:
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
-    def _screen_scaled_radius(
-        self,
-        coin: ModuleType,
-        point: _Vector3,
-        radius_pixels: float,
-        fallback_radius: float,
-    ) -> float:
-        """Return a model-space grip radius that remains stable while zooming.
-
-        Args:
-            coin: Pivy Coin module used to read the active camera orientation.
-            point: World-space measurement handle position.
-            radius_pixels: Desired handle radius in viewport pixels.
-            fallback_radius: Safe model-space radius when camera projection is unavailable.
-
-        Returns:
-            Local model-space radius for the rounded grip.
-        """
-        from freecad_cloth.shared.ViewportGizmoGeometry import (
-            world_radius_for_screen_pixels,
-        )
-
-        try:
-            orientation = self.view.getCameraNode().orientation.getValue()
-            camera_right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
-            return world_radius_for_screen_pixels(
-                point,
-                tuple(float(camera_right[index]) for index in range(3)),
-                self._screen_position,
-                radius_pixels,
-                fallback_radius,
-            )
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
-            return float(fallback_radius)
-
     def activate(self) -> bool:
         """Install the transient surface guides and viewport callbacks.
 
@@ -589,7 +554,10 @@ class AvatarDimensionController:
             color: Normalized RGB marker color.
             size: Marker sphere radius in mannequin model units.
         """
-        from freecad_cloth.shared.ViewportGizmoGeometry import add_sphere
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            add_sphere,
+            world_radius_for_screen_pixels,
+        )
         from freecad_cloth.shared.ViewportGizmoStyle import (
             DIMENSION_MARKER_HALO_COLOR,
             DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
@@ -602,6 +570,13 @@ class AvatarDimensionController:
         parent = self.foreground_content if self.foreground_content is not None else self.overlay
         if parent is None:
             return
+        camera_right = None
+        try:
+            orientation = self.view.getCameraNode().orientation.getValue()
+            right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
+            camera_right = tuple(float(right[index]) for index in range(3))
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            pass
         for marker_color, radius_pixels in (
             (
                 DIMENSION_MARKER_HALO_COLOR,
@@ -613,9 +588,10 @@ class AvatarDimensionController:
             ),
             (color, float(size) * 0.5),
         ):
-            radius = self._screen_scaled_radius(
-                coin,
+            radius = world_radius_for_screen_pixels(
                 point,
+                camera_right,
+                self._screen_position,
                 radius_pixels,
                 radius_pixels,
             )

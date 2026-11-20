@@ -115,15 +115,11 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     assert RIG_PASSIVE_RADIUS >= 1.5, (
         "Passive bone shafts must stay visible at fitted avatar scale."
     )
-    assert RIG_EDITABLE_RADIUS >= 2.0, (
-        "Editable bone shafts must have a readable viewport width."
-    )
+    assert RIG_EDITABLE_RADIUS >= 2.0, "Editable bone shafts must have a readable viewport width."
     assert RIG_ACTIVE_RADIUS >= 3.0, (
         "The active bone must remain distinguishable over the mannequin."
     )
-    assert RIG_JOINT_RADIUS >= 2.5, (
-        "Spherical joints must remain visible at fitted avatar scale."
-    )
+    assert RIG_JOINT_RADIUS >= 2.5, "Spherical joints must remain visible at fitted avatar scale."
     assert (
         MINIMUM_POSITIVE_STYLE_VALUE
         < DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT
