@@ -89,7 +89,8 @@ elif [[ "${rebase_commit}" == "cf3c1277814794e364ca1548ad47b1b3673e0f2c" ]] &&
     fi
   done
   echo "::notice::Skipping exact cf3c1277 resolver restoration; current main already contains the restored handlers and equivalent contract coverage."
-  git checkout --ours -- "${resolver_path}" "${test_path}"
+  git checkout --ours -- "${resolver_path}"
+  git checkout origin/main -- "${test_path}"
   git add "${resolver_path}" "${test_path}"
   if ! git rebase --skip; then
     rebase_merge="$(git rev-parse --git-path rebase-merge)"
