@@ -275,6 +275,19 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "self._axis_draggers: dict[str, _CoinDynamicDragger] = {}" in resolver
     assert "def _set_rotation_axis_highlight(self, axis: str | None) -> None:" in resolver
     assert "git checkout --ours -- freecad_cloth/avatar/AvatarPoseGui.py" in resolver
+    assert "from typing import TYPE_CHECKING, Protocol, cast" in resolver
+    assert (
+        "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol"
+        in resolver
+    )
+    assert "Function parameter names changed across typed transplant" not in resolver
+    assert "if set(typed_args) != set(main_args):" in resolver
+    assert "Expected four current-main axis-dragger map assignments" in resolver
+    assert (
+        'source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\\n")'
+        in resolver
+    )
+    assert "axis_assignment_count = source.count(old_axes)" in resolver
     assert "Strict checks and guarded safe Ruff batch" in resolver
     assert "run_safe_ruff_batch.sh" in resolver
     assert "[apply-safe-ruff]" in resolver
