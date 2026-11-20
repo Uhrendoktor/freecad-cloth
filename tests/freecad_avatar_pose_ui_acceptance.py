@@ -428,10 +428,10 @@ def run():
     gizmo_mode = panel.controller.gizmo_mode or "unknown"
     if (
         panel.controller.gizmo_mode != "native"
-        or panel.controller.gizmo_style != "axis-rings-cones"
+        or panel.controller.gizmo_style != "axis-rings-camera"
     ):
         msg = (
-            "Pose Mode did not install the required native axis-ring/cone gizmo "
+            "Pose Mode did not install the required XYZ axis rings and camera-facing outer ring "
             f"(mode={gizmo_mode!r}, style={getattr(panel.controller, 'gizmo_style', None)!r}, "
             f"error={getattr(panel.controller, 'gizmo_style_error', None)!r})"
         )
@@ -447,6 +447,15 @@ def run():
         or panel.controller.overlay_content.getNumChildren() < 1
     ):
         msg = "Pose Mode did not install the rounded joint/bone overlay geometry"
+        raise RuntimeError(msg)
+    if (
+        panel.controller.gizmo_foreground is None
+        or not isinstance(panel.controller.gizmo_foreground, annotation_type)
+    ):
+        msg = "Pose Mode rotation rings are not in the topmost foreground annotation layer"
+        raise RuntimeError(msg)
+    if "VIEW" not in panel.controller._axis_draggers:
+        msg = "Pose Mode did not install the camera-facing outer rotation ring"
         raise RuntimeError(msg)
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
