@@ -58,6 +58,7 @@ _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
 
+
 class _CoinRotationValueProtocol(Protocol):
     """Read-only view of the quaternion value returned by Coin."""
 
