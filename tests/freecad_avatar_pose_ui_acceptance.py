@@ -186,7 +186,7 @@ def _drag_native_pose_ring(
     panel.angle_snap.setChecked(False)
     release_all_input()
     try:
-        mouse_press(viewport, start, delay_ms=60)
+        mouse_press(viewport, start, delay_ms=160)
         wait_until(
             lambda: bool(controller._gizmo_dragging),
             description="native X-axis pose-ring drag start",
