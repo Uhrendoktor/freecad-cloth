@@ -178,8 +178,6 @@ def test_mouse_release_finishes_pointer_driven_pose_drag() -> None:
     assert calls == ["finish"]
 
 
-
-
 def test_mouse_down_on_ring_starts_axis_drag_before_bone_selection() -> None:
     from types import SimpleNamespace
 
@@ -261,7 +259,9 @@ def test_pose_dragger_interaction_does_not_poll_coin_swig_fields() -> None:
     assert "addMotionCallback" not in source
     assert "addFinishCallback" not in source
     assert "self._nearest_ring_angle(screen, self._manual_ring_samples)" in source
-    assert "self._gizmo_motion(None, _normalize_signed_angle_degrees(angle - start_angle))" in source
+    assert (
+        "self._gizmo_motion(None, _normalize_signed_angle_degrees(angle - start_angle))" in source
+    )
 
 
 def test_pose_angle_normalization_wraps_into_joint_limits() -> None:
