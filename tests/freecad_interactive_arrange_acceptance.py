@@ -281,7 +281,7 @@ def run():
             anchor_recorder.hold(850)
     finally:
         if anchor_recorder._started:
-            anchor_recorder.stop()
+            anchor_recorder.stop(max_colors=80)
 
     if len(scene.ArrangementPointObjects) != 2:
         msg = "surface picking did not create exactly two tunic snap anchors"
@@ -438,7 +438,7 @@ def run():
         recorder.hold(700)
     finally:
         if recorder._started:
-            recorder.stop()
+            recorder.stop(max_colors=80)
 
     if len(tuple(PiecePlacement.from_string(value) for value in scene.PiecePlacements)) != 2:
         msg = "fitting scene did not persist both tunic panel placements"

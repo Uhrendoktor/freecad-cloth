@@ -320,13 +320,41 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "def _set_rotation_axis_highlight(self, axis: str | None) -> None:" in resolver
     assert "git checkout --ours -- freecad_cloth/avatar/AvatarPoseGui.py" in resolver
     assert "from typing import TYPE_CHECKING, Protocol, cast" in resolver
+    assert "typing_import_options = (" in resolver
+    assert "collection_import_options = (" in resolver
+    assert '"from collections.abc import Sequence\\n",' in resolver
+    assert '"from collections.abc import Callable, Sequence\\n",' in resolver
+    assert "collection_matches[0] ==" in resolver
+    assert "class _PoseQtCore(Protocol):" in resolver
+    assert "class _PoseQtWidgets(Protocol):" in resolver
+    assert "QtCore: _PoseQtCore" in resolver
+    assert "QtWidgets: _PoseQtWidgets" in resolver
+    assert "form: _QT_TYPE_QtWidgets.QWidget" in resolver
+    assert "def getCameraOrientation(self) -> _PoseRotation:" in resolver
+    assert "def __add__(self, other: _PoseVector) -> _PoseVector:" in resolver
+    assert "snap: bool | None = None" in resolver
+    assert "panel_method_original" in resolver
+    assert "Expected three current-main axis-dragger map assignments" in resolver
+    assert "def setYawPitchRoll(self, yaw: float, pitch: float, roll: float) -> None:" in resolver
+    assert "def getYawPitchRoll(self) -> Sequence[float]:" in resolver
+    assert "def multVec(self, vector: _PoseVector) -> _PoseVector:" in resolver
+    assert "self.panel.QtCore.QTimer.singleShot(0, self.panel._preview_rebuild)" in resolver
+    assert "camera_rotation = self.view.getCameraOrientation()" in resolver
+    assert "if axis_assignment_count != 3:" in resolver
+    assert '"from typing import TYPE_CHECKING\\n",' in resolver
+    assert '"from typing import TYPE_CHECKING, Protocol\\n",' in resolver
+    assert "len(typing_matches) != 1" in resolver
+    assert (
+        "Expected one exact supported typing import anchor in current-main AvatarPoseGui."
+        in resolver
+    )
     assert (
         "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol"
         in resolver
     )
     assert "Function parameter names changed across typed transplant" not in resolver
     assert "if set(typed_args) != set(main_args):" in resolver
-    assert "Expected four current-main axis-dragger map assignments" in resolver
+    assert "Expected three current-main axis-dragger map assignments" in resolver
     assert (
         'source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\\n")'
         in resolver

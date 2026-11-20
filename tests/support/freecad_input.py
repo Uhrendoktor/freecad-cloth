@@ -974,8 +974,12 @@ class UiGifRecorder:
         QtTest.QTest.qWait(max(0, int(milliseconds)))
         self.capture()
 
-    def stop(self) -> Path:
-        """Stop recording and persist the animated GIF to its requested path."""
+    def stop(self, *, max_colors: int = 96) -> Path:
+        """Stop recording and persist the animated GIF to its requested path.
+
+        Args:
+            max_colors: Maximum palette entries used for the output GIF.
+        """
         if not self._started:
             msg = "GIF recorder is not running"
             raise RuntimeError(msg)
@@ -983,7 +987,7 @@ class UiGifRecorder:
             self._timer.stop()
         self.capture()
         self._started = False
-        return write_gif(self.frames, self.path, fps=self.fps)
+        return write_gif(self.frames, self.path, fps=self.fps, max_colors=max_colors)
 
     def __enter__(self) -> UiGifRecorder:
         """Start recording when used as a context manager."""
