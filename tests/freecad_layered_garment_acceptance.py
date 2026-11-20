@@ -883,6 +883,118 @@ def _body_clearance(
                 "body-projection-multi-direction-exit-search "
                 + json.dumps(ray_exit_records, sort_keys=True)
             )
+
+            # Apply the selected exits to a copy of the complete solver frame only.
+            # Verify that the escape candidates do not create new body penetrations,
+            # open authored seams, or invert/collapse adjacent garment triangles.
+            trial_positions = np.asarray(positions, dtype=np.float64).copy()
+            selected_exit_count = 0
+            for record in ray_exit_records:
+                best_exit = record["best_exit"]
+                if best_exit is None:
+                    continue
+                trial_positions[int(record["particle"])] = np.asarray(
+                    best_exit["position_mm"],
+                    dtype=np.float64,
+                )
+                selected_exit_count += 1
+
+            trial_inside = points_inside_closed_mesh(
+                tuple(tuple(float(value) for value in point) for point in trial_positions),
+                surface.vertices,
+                surface.triangles,
+                prefer_trimesh=False,
+            )
+            trial_clearance = nearest_surface_clearance(
+                tuple(tuple(float(value) for value in point) for point in trial_positions),
+                surface.vertices,
+                surface.triangles,
+            )
+            seam_records = []
+            for seam_id, stitch_pairs in base.seam_stitch_pairs.items():
+                indices = np.asarray(stitch_pairs, dtype=np.int64).reshape((-1, 2))
+                gaps = np.linalg.norm(
+                    trial_positions[indices[:, 0]] - trial_positions[indices[:, 1]],
+                    axis=1,
+                )
+                seam_records.append(
+                    {
+                        "seam_id": str(seam_id),
+                        "pair_count": int(len(indices)),
+                        "maximum_gap_mm": float(gaps.max(initial=0.0)),
+                    }
+                )
+
+            triangle_records = []
+            for panel_name, local_triangles in base.panel_triangles.items():
+                particle_indices = np.asarray(base.panel_indices[panel_name], dtype=np.int64)
+                triangles = particle_indices[np.asarray(local_triangles, dtype=np.int64)]
+                before = np.asarray(positions, dtype=np.float64)[triangles]
+                after = trial_positions[triangles]
+                before_edges = np.stack(
+                    (
+                        before[:, 1] - before[:, 0],
+                        before[:, 2] - before[:, 1],
+                        before[:, 0] - before[:, 2],
+                    ),
+                    axis=1,
+                )
+                after_edges = np.stack(
+                    (
+                        after[:, 1] - after[:, 0],
+                        after[:, 2] - after[:, 1],
+                        after[:, 0] - after[:, 2],
+                    ),
+                    axis=1,
+                )
+                before_lengths = np.linalg.norm(before_edges, axis=2)
+                after_lengths = np.linalg.norm(after_edges, axis=2)
+                edge_ratios = np.divide(
+                    after_lengths,
+                    before_lengths,
+                    out=np.ones_like(after_lengths),
+                    where=before_lengths > 1e-9,
+                )
+                before_normals = np.cross(before_edges[:, 0], -before_edges[:, 2])
+                after_normals = np.cross(after_edges[:, 0], -after_edges[:, 2])
+                before_areas = 0.5 * np.linalg.norm(before_normals, axis=1)
+                after_areas = 0.5 * np.linalg.norm(after_normals, axis=1)
+                area_ratios = np.divide(
+                    after_areas,
+                    before_areas,
+                    out=np.ones_like(after_areas),
+                    where=before_areas > 1e-9,
+                )
+                flips = np.einsum("ij,ij->i", before_normals, after_normals) < 0.0
+                triangle_records.append(
+                    {
+                        "panel": str(panel_name),
+                        "triangle_count": int(len(triangles)),
+                        "minimum_edge_ratio": float(edge_ratios.min(initial=1.0)),
+                        "maximum_edge_ratio": float(edge_ratios.max(initial=1.0)),
+                        "minimum_area_ratio": float(area_ratios.min(initial=1.0)),
+                        "maximum_area_ratio": float(area_ratios.max(initial=1.0)),
+                        "flipped_triangle_count": int(np.count_nonzero(flips)),
+                        "degenerate_after_count": int(np.count_nonzero(after_areas <= 1e-8)),
+                    }
+                )
+            _log(
+                "body-projection-copy-trial "
+                + json.dumps(
+                    {
+                        "selected_exit_count": selected_exit_count,
+                        "inside_particle_count": int(sum(trial_inside)),
+                        "minimum_clearance_mm": float(trial_clearance),
+                        "maximum_seam_gap_mm": max(
+                            (float(item["maximum_gap_mm"]) for item in seam_records),
+                            default=0.0,
+                        ),
+                        "seams": seam_records,
+                        "panels": triangle_records,
+                    },
+                    sort_keys=True,
+                )
+            )
     return {
         "inside_particle_count": int(len(inside_indices)),
         "minimum_unsigned_clearance_mm": float(clearance),
