@@ -457,7 +457,9 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         try:
-            gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+            gizmo_parent = (
+                self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+            )
             if gizmo_parent is not None:
                 self.scene_graph.removeChild(gizmo_parent)
             if self.overlay is not None:
@@ -564,7 +566,9 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         """Remove the active rotation gizmo from the Coin scene graph."""
-        gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+        gizmo_parent = (
+            self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+        )
         if self.scene_graph is not None and gizmo_parent is not None:
             with contextlib.suppress(AttributeError, RuntimeError):
                 self.scene_graph.removeChild(gizmo_parent)
