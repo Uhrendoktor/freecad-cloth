@@ -110,8 +110,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         'test_numstat="$(git diff --numstat '
         '"${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"' in broker
     )
-    assert 'test_additions" != "0"' in broker
-    assert 'test_deletions" != "296"' in broker
+    assert '[[ "${test_additions}" != "0" ]]' in broker
+    assert '[[ "${test_deletions}" != "296" ]]' in broker
     assert "parent_names" in broker
     assert "replay_names" in broker
     assert "main_names" in broker
