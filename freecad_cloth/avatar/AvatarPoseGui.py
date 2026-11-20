@@ -11,7 +11,7 @@ from __future__ import annotations
 import contextlib
 import math
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -72,26 +72,9 @@ def _pose_xyz_from_yaw_pitch_roll(
     return float(roll), float(pitch), float(yaw)
 
 
-class _CoinRotationValueProtocol(Protocol):
-    """Read-only view of the quaternion value returned by Coin."""
-
-    def getValue(self) -> Sequence[float]:
-        """Return the vector-first quaternion components."""
-        ...
-
-
-class _CoinRotationFieldProtocol(Protocol):
-    """Read-only view of a native Coin single-rotation field."""
-
-    def getValue(self) -> _CoinRotationValueProtocol:
-        """Return the current Coin rotation value."""
-        ...
-
-
-class _CoinRotationDraggerProtocol(Protocol):
-    """Minimal native dragger surface used by pose rotation staging."""
-
-    rotation: _CoinRotationFieldProtocol
+def _normalize_signed_angle_degrees(angle: float) -> float:
+    """Wrap an equivalent rotation angle into the authored [-180, 180] range."""
+    return (float(angle) + 180.0) % 360.0 - 180.0
 
 
 def _modules():
@@ -249,9 +232,12 @@ class SkeletonPoseController:
         self.gizmo_style = None
         self.gizmo_style_error = None
         self._native_dragger = None
-        self._dragger_poll_timer: _QT_TYPE_QtCore.QTimer | None = None
         self._axis_draggers = {}
         self._active_gizmo_axis = None
+        self._manual_ring_axis_name: str | None = None
+        self._manual_ring_angle_start: float | None = None
+        self._manual_ring_angle_current: float | None = None
+        self._manual_ring_samples: tuple[tuple[float, tuple[float, float]], ...] | None = None
         self._last_gizmo_motion_error: str | None = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
@@ -460,11 +446,7 @@ class SkeletonPoseController:
         self.gizmo = _FallbackGizmo()
 
     def deactivate(self):
-        """Remove transient viewport nodes and stop native dragger polling."""
-        if self._dragger_poll_timer is not None:
-            with contextlib.suppress(RuntimeError):
-                self._dragger_poll_timer.stop()
-            self._dragger_poll_timer = None
+        """Remove transient viewport nodes and clear pointer-driven interaction state."""
         if self.view is None:
             return
         if self.scene_graph is None:
@@ -481,6 +463,10 @@ class SkeletonPoseController:
             self.scene_graph = None
             self._native_dragger = None
             self._gizmo_dragging = False
+            self._manual_ring_axis_name = None
+            self._manual_ring_angle_start = None
+            self._manual_ring_angle_current = None
+            self._manual_ring_samples = None
             self.gizmo_mode = None
             self._skeleton_segments = {}
             self.view = None
@@ -521,6 +507,12 @@ class SkeletonPoseController:
         self.scene_graph = None
         self._native_dragger = None
         self._gizmo_dragging = False
+        self.base_rotation = None
+        self._active_gizmo_axis = None
+        self._manual_ring_axis_name = None
+        self._manual_ring_angle_start = None
+        self._manual_ring_angle_current = None
+        self._manual_ring_samples = None
         self.gizmo_mode = None
         self.gizmo_style = None
         self.gizmo_style_error = None
@@ -674,7 +666,7 @@ class SkeletonPoseController:
                 self.gizmo_transform.translation.setValue(self._coin().SbVec3f(*point))
 
     def _remove_gizmo(self):
-        """Remove the active rotation gizmo from the Coin scene graph."""
+        """Remove the active rotation gizmo and clear pointer-driven drag state."""
         gizmo_parent = (
             self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
         )
@@ -691,6 +683,12 @@ class SkeletonPoseController:
         self._native_dragger = None
         self._axis_draggers = {}
         self._gizmo_dragging = False
+        self.base_rotation = None
+        self._active_gizmo_axis = None
+        self._manual_ring_axis_name = None
+        self._manual_ring_angle_start = None
+        self._manual_ring_angle_current = None
+        self._manual_ring_samples = None
 
     def highlight_axis(self, axis: str | None) -> None:
         """Emphasize the ring linked to a focused numeric angle field.
@@ -819,7 +817,6 @@ class SkeletonPoseController:
                     "rotation",
                     "rotationIncrement",
                     "geometryScale",
-                    "isActive",
                     "setName",
                 )
                 if any(not hasattr(dragger, item) for item in required):
@@ -888,7 +885,6 @@ class SkeletonPoseController:
             self.gizmo_foreground.addChild(separator)
             getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
             self._native_dragger = draggers
-            self._start_native_dragger_polling()
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
             self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
@@ -902,40 +898,6 @@ class SkeletonPoseController:
             self.gizmo_foreground = None
             self._axis_draggers = {}
             return False
-
-    def _start_native_dragger_polling(self) -> None:
-        """Poll native Coin dragger fields through Qt instead of Pivy C callbacks.
-
-        Some FreeCAD/Pivy builds expose SoDragger callback methods but their
-        SWIG callback trampoline can crash the process when Coin invokes a
-        Python callback. The native draggers themselves remain functional;
-        their isActive and rotation fields can be read safely from a Qt timer.
-        """
-        if self._dragger_poll_timer is not None:
-            return
-        timer = self.panel.QtCore.QTimer(self.panel.form)
-        timer.setInterval(16)
-        timer.timeout.connect(self._poll_native_dragger_state)
-        self._dragger_poll_timer = timer
-        timer.start()
-
-    def _poll_native_dragger_state(self) -> None:
-        """Synchronize staged rotations from the active native Coin dragger."""
-        active_dragger = None
-        for dragger in tuple(self._native_dragger or ()):
-            try:
-                if bool(dragger.isActive.getValue()):
-                    active_dragger = dragger
-                    break
-            except (AttributeError, RuntimeError, TypeError, ValueError):
-                continue
-
-        if active_dragger is not None:
-            if not self._gizmo_dragging:
-                self._gizmo_start(None, active_dragger)
-            self._gizmo_motion(None, active_dragger)
-        elif self._gizmo_dragging:
-            self._gizmo_finish(None, None)
 
     def _create_trackball_gizmo(self, coin) -> None:
         """Create a trackball fallback when native axis draggers are unavailable.
@@ -1008,101 +970,144 @@ class SkeletonPoseController:
         bone = str(bone)
         if bone not in self._positions:
             return
+        if bone == self.selected_bone and self.gizmo is not None:
+            self._set_hover_bone(None)
+            self.panel._select_joint_without_preview(bone)
+            return
         self.selected_bone = bone
         self._set_hover_bone(None)
         self.panel._select_joint_without_preview(bone)
         self.refresh_overlay(keep_gizmo=True)
         self._create_gizmo(bone)
 
-    def _gizmo_start(self, _data, dragger) -> None:
-        """Record the beginning of a user-driven rotation drag.
+    def _rotation_ring_samples(
+        self, axis_name: str
+    ) -> tuple[tuple[float, tuple[float, float]], ...]:
+        """Project a native ring into screen-space samples for pointer tracking."""
+        if self.selected_bone is None or self.view is None:
+            return ()
+        if axis_name == "VIEW":
+            camera_rotation = self.view.getCameraOrientation()
+            orientation = camera_rotation
+            radius = ROTATION_VIEW_RING_RADIUS * ROTATION_GIZMO_SCALE
+        else:
+            axis = {
+                "X": (1.0, 0.0, 0.0),
+                "Y": (0.0, 1.0, 0.0),
+                "Z": (0.0, 0.0, 1.0),
+            }.get(axis_name)
+            if axis is None:
+                return ()
+            axis_vector = self.App.Vector(*axis)
+            orientation = self.App.Rotation(
+                self.App.Vector(0.0, 0.0, 1.0),
+                axis_vector,
+            )
+            radius = ROTATION_RING_RADIUS * ROTATION_GIZMO_SCALE
 
-        Args:
-            _data: Callback data supplied by Pivy Coin and unused by the handler.
-            dragger: Native dragger beginning the interactive rotation gesture.
-        """
+        center = self.App.Vector(*self._positions[self.selected_bone])
+        samples = []
+        for degrees in range(0, 361, 5):
+            radians = math.radians(float(degrees))
+            local = self.App.Vector(
+                radius * math.cos(radians),
+                radius * math.sin(radians),
+                0.0,
+            )
+            world = center + orientation.multVec(local)
+            screen = self._screen_position((world.x, world.y, world.z))
+            if screen is not None:
+                samples.append((float(degrees), screen))
+        return tuple(samples) if len(samples) >= 3 else ()
+
+    @staticmethod
+    def _nearest_ring_angle(
+        screen: tuple[float, float],
+        samples: Sequence[tuple[float, tuple[float, float]]],
+    ) -> tuple[float, float]:
+        """Return pointer distance and interpolated ring angle for a sampled ellipse."""
+        px, py = screen
+        best_distance = float("inf")
+        best_angle = 0.0
+        for (angle_a, point_a), (angle_b, point_b) in zip(samples, samples[1:], strict=False):
+            ax, ay = point_a
+            bx, by = point_b
+            dx = bx - ax
+            dy = by - ay
+            length_sq = dx * dx + dy * dy
+            if length_sq <= 1e-9:
+                ratio = 0.0
+            else:
+                ratio = ((px - ax) * dx + (py - ay) * dy) / length_sq
+                ratio = max(0.0, min(1.0, ratio))
+            nearest_x = ax + ratio * dx
+            nearest_y = ay + ratio * dy
+            distance = math.hypot(px - nearest_x, py - nearest_y)
+            if distance < best_distance:
+                best_distance = distance
+                best_angle = angle_a + ratio * (angle_b - angle_a)
+        return best_distance, best_angle
+
+    def _pick_rotation_ring(
+        self, screen: tuple[float, float]
+    ) -> tuple[str, float, tuple[tuple[float, tuple[float, float]], ...]] | None:
+        """Find the closest projected native ring under a pointer press."""
+        best_hit = None
+        best_distance = float("inf")
+        for axis_name in ("X", "Y", "Z", "VIEW"):
+            if axis_name not in self._axis_draggers:
+                continue
+            samples = self._rotation_ring_samples(axis_name)
+            if not samples:
+                continue
+            distance, angle = self._nearest_ring_angle(screen, samples)
+            if distance < best_distance:
+                best_distance = distance
+                best_hit = (axis_name, angle, samples)
+        if best_hit is None or best_distance > 18.0:
+            return None
+        return best_hit
+
+    def _gizmo_start(self, _data, axis_name: str, start_angle: float) -> None:
+        """Record the beginning of a pointer-driven rotation-ring gesture."""
         from freecad_cloth.avatar.SkeletonPose import JointRotation
 
         bone = self.selected_bone
         if bone is None:
             return
         self._gizmo_dragging = True
+        self._manual_ring_axis_name = axis_name
+        self._manual_ring_angle_start = float(start_angle)
+        self._manual_ring_angle_current = float(start_angle)
         self.base_rotation = self.panel._staged_joint_rotations.get(
             bone,
             JointRotation(bone),
         )
-        name = ""
-        with contextlib.suppress(AttributeError, RuntimeError):
-            name = str(dragger.getName().getString())
         self._active_gizmo_axis = {
-            "ClothPoseRotationX": (1.0, 0.0, 0.0),
-            "ClothPoseRotationY": (0.0, 1.0, 0.0),
-            "ClothPoseRotationZ": (0.0, 0.0, 1.0),
-        }.get(name)
-        if name == "ClothPoseRotationView":
-            camera = self.view.getCameraNode()
-            orientation = camera.orientation.getValue()
-            view_axis = orientation.multVec(self._coin().SbVec3f(0.0, 0.0, 1.0))
+            "X": (1.0, 0.0, 0.0),
+            "Y": (0.0, 1.0, 0.0),
+            "Z": (0.0, 0.0, 1.0),
+        }.get(axis_name)
+        if axis_name == "VIEW":
+            camera_rotation = self.view.getCameraOrientation()
+            view_axis = camera_rotation.multVec(self.App.Vector(0.0, 0.0, 1.0))
             self._active_gizmo_axis = tuple(float(view_axis[index]) for index in range(3))
             self.panel._set_rotation_axis_highlight("view")
-        elif name.endswith(("X", "Y", "Z")):
-            self.panel._set_rotation_axis_highlight(name[-1].lower())
-
-        dragger.rotation.setValue(
-            self._coin().SbVec3f(0.0, 0.0, 1.0),
-            0.0,
-        )
-        if hasattr(dragger, "rotationIncrement"):
-            dragger.rotationIncrement.setValue(
-                math.radians(5.0 if self.panel.angle_snap.isChecked() else 1.0)
-            )
+        else:
+            self.panel._set_rotation_axis_highlight(axis_name.lower())
         self.panel._set_status(
             f"Rotating {self.panel._joint_label(bone)} — "
             "release to keep the staged pose; Cancel restores it."
         )
 
-    def _dragger_quaternion(
-        self, dragger: _CoinRotationDraggerProtocol
-    ) -> tuple[float, float, float, float]:
-        """Return the native dragger quaternion in Coin's vector-first order.
-
-        Args:
-            dragger: Native Coin dragger whose current rotation is queried.
-
-        Returns:
-            Four floating-point quaternion components ordered x, y, z, w.
-        """
-        rotation = dragger.rotation.getValue()
-        values = rotation.getValue()
-        return (
-            float(values[0]),
-            float(values[1]),
-            float(values[2]),
-            float(values[3]),
-        )
-
-    def _dragger_signed_angle_degrees(self, dragger: _CoinRotationDraggerProtocol) -> float:
-        """Return the dragger's local-Z quaternion angle within joint limits.
-
-        Coin's quaternion sign is double-valued: a +187 degree representation is
-        equivalent to -173 degrees. JointRotation validates Euler components in
-        [-180, 180], so normalize the equivalent angle before staging it.
-        """
-        quaternion = self._dragger_quaternion(dragger)
-        angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
-        return (angle + 180.0) % 360.0 - 180.0
-
-    def _gizmo_motion(self, _data, dragger):
-        """Apply an in-progress drag rotation to the selected skeleton bone.
-
-        Args:
-            _data: Callback data supplied by Pivy Coin and unused by the handler.
-            dragger: Native dragger carrying the in-progress rotation.
-        """
+    def _gizmo_motion(self, _data, angle_degrees: float) -> None:
+        """Apply a pointer-derived ring angle to the selected skeleton bone."""
         if self.selected_bone is None or self.base_rotation is None:
             return
         try:
-            angle = self._dragger_signed_angle_degrees(dragger)
+            angle = _normalize_signed_angle_degrees(angle_degrees)
+            if self.panel.angle_snap.isChecked():
+                angle = _normalize_signed_angle_degrees(round(angle / 5.0) * 5.0)
             if self._active_gizmo_axis is None:
                 return
             delta = self.App.Rotation(
@@ -1139,15 +1144,19 @@ class SkeletonPoseController:
         self._gizmo_dragging = False
         self.base_rotation = None
         self._active_gizmo_axis = None
+        self._manual_ring_axis_name = None
+        self._manual_ring_angle_start = None
+        self._manual_ring_angle_current = None
+        self._manual_ring_samples = None
         self.panel._set_rotation_axis_highlight(None)
         if self.selected_bone:
             self.panel._set_status(
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
             )
-            # Do not rebuild the mesh or Coin scene graph while its native dragger
-            # is active. Apply the latest staged pose once the pointer is released.
-            self.panel._preview_rebuild()
+            # Rebuild after the pointer callback has returned so Coin has finished
+            # dispatching the release event before the native dragger nodes are replaced.
+            self.panel.QtCore.QTimer.singleShot(0, self.panel._preview_rebuild)
 
     def _clear_hover_overlay(self):
         """Remove the transient hover highlight from the skeleton overlay."""
@@ -1254,13 +1263,7 @@ class SkeletonPoseController:
         return best
 
     def _location_event(self, event_callback) -> None:
-        """Update the hover highlight from a viewport location event.
-
-        Args:
-            event_callback: Coin callback exposing the current pointer event.
-        """
-        if self._gizmo_dragging:
-            return
+        """Update hover state or stage ring rotation from a viewport location event."""
         view = self.view
         if view is None:
             return
@@ -1268,35 +1271,48 @@ class SkeletonPoseController:
         position = event.getPosition()
         size = getattr(view, _VIEW_SIZE_METHOD)()
         screen = (float(position[0]), float(size[1] - position[1]))
-        self._set_hover_bone(self._pick_bone(screen))
+        if self._gizmo_dragging and self._manual_ring_samples:
+            _distance, angle = self._nearest_ring_angle(screen, self._manual_ring_samples)
+            self._manual_ring_angle_current = angle
+            start_angle = self._manual_ring_angle_start
+            if start_angle is not None:
+                self._gizmo_motion(None, _normalize_signed_angle_degrees(angle - start_angle))
+            return
+        if not self._gizmo_dragging:
+            self._set_hover_bone(self._pick_bone(screen))
 
     def _mouse_event(self, event_callback) -> None:
-        """Handle pointer presses and releases for the pose gizmo.
-
-        Args:
-            event_callback: Coin callback exposing the mouse-button event.
-        """
+        """Handle viewport ring presses/releases and skeleton bone selection."""
         view = self.view
         if view is None:
             return
         coin = self._coin()
         event = event_callback.getEvent()
-        if event.getState() != coin.SoMouseButtonEvent.DOWN:
-            return
         if event.getButton() != coin.SoMouseButtonEvent.BUTTON1:
             return
-        if self._gizmo_dragging:
+        state = event.getState()
+        if state == coin.SoMouseButtonEvent.UP:
+            if self._gizmo_dragging:
+                self._gizmo_finish(None, None)
+            return
+        if state != coin.SoMouseButtonEvent.DOWN or self._gizmo_dragging:
             return
         position = event.getPosition()
         size = getattr(view, _VIEW_SIZE_METHOD)()
         screen = (float(position[0]), float(size[1] - position[1]))
+        if self.selected_bone is not None:
+            ring_hit = self._pick_rotation_ring(screen)
+            if ring_hit is not None:
+                axis_name, start_angle, samples = ring_hit
+                self._manual_ring_samples = samples
+                self._gizmo_start(None, axis_name, start_angle)
+                return
         best = self._pick_bone(screen, include_joint_fallback=True)
-        # Coin invokes this view callback while it is dispatching the same
-        # mouse-down event to scene-graph draggers. Rebuilding the selected
-        # dragger branch here can destroy the node Coin is about to activate.
-        # A click on the already-selected bone needs no scene-graph mutation.
+        # Coin dispatches the same mouse-down to this view callback and the
+        # scene-graph dragger. Do not rebuild a selected branch during dispatch.
         if best is not None and best != self.selected_bone:
             self.select_joint(best)
+
 
 
 class AvatarPoseTaskPanel:
