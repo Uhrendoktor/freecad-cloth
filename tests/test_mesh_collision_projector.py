@@ -107,9 +107,7 @@ def test_cached_closed_mesh_classifier_preserves_cube_and_concave_inside_results
     for surface, points, expected in surfaces_and_points:
         classifier = _ClosedMeshPointClassifier(surface.vertices, surface.triangles)
         first = tuple(bool(value) for value in classifier.contains_array(points))
-        second = tuple(
-            bool(value) for value in classifier.contains_array(points, chunk_size=1)
-        )
+        second = tuple(bool(value) for value in classifier.contains_array(points, chunk_size=1))
 
         assert first == expected
         assert second == expected
@@ -125,9 +123,7 @@ def test_cached_closed_mesh_classifier_rejects_invalid_query_arrays() -> None:
     with pytest.raises(ValueError, match="shape"):
         classifier.contains_array(np.asarray((50.0, 50.0, 50.0), dtype=np.float64))
     with pytest.raises(ValueError, match="finite"):
-        classifier.contains_array(
-            np.asarray(((float("nan"), 50.0, 50.0),), dtype=np.float64)
-        )
+        classifier.contains_array(np.asarray(((float("nan"), 50.0, 50.0),), dtype=np.float64))
 
 
 def test_projector_escapes_concave_interior_contacts_with_exact_surface_search() -> None:

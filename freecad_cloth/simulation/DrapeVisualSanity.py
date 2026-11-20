@@ -3,13 +3,13 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from math import dist, isfinite
 from statistics import median
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
@@ -36,7 +36,7 @@ class _ContainmentMesh(Protocol):
 type _MeshContains = Callable[[_ContainmentMesh, NDArray[np.float64]], NDArray[np.bool_]]
 
 
-@dataclass(frozen=True, slots=True)
+@pydantic_dataclass(config=ConfigDict(arbitrary_types_allowed=True), frozen=True)
 class _RayParityMesh:
     """Precomputed immutable arrays for exact odd/even closed-mesh queries."""
 
@@ -94,7 +94,7 @@ def _ray_parity_contains(
     mesh: _RayParityMesh | None,
     chunk_size: int,
 ) -> NDArray[np.bool_]:
-    """Classify finite points using cached triangle slabs and Möller–Trumbore hits."""
+    """Classify finite points using cached triangle slabs and Moller-Trumbore hits."""
     results = np.zeros(len(point_data), dtype=bool)
     if mesh is None or len(point_data) == 0:
         return results
@@ -160,7 +160,6 @@ class _ClosedMeshPointClassifier:
             msg = "closed-mesh query points must be finite"
             raise ValueError(msg)
         return _ray_parity_contains(point_data, self._mesh, chunk_size)
-
 
 
 def maximum_box_penetration(

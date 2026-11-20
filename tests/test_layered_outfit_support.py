@@ -48,7 +48,7 @@ def test_support_selection_rejects_particles_shared_by_panel_boundaries() -> Non
     with pytest.raises(ValueError, match="reused by multiple panel boundaries"):
         select_top_boundary_supports(
             {"front": (1, 2, 3), "right": (3, 4, 5)},
-            {index: True for index in range(1, 6)},
-            {index: 6.0 for index in range(1, 6)},
+            dict.fromkeys(range(1, 6), True),
+            dict.fromkeys(range(1, 6), 6.0),
             minimum_clearance_mm=5.0,
         )

@@ -1036,11 +1036,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         """Report exact native stitch-pair gaps without changing simulation state."""
         stitches = getattr(self, "_stitches", ())
         model = getattr(self, "_model", None)
-        if (
-            os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1"
-            or not stitches
-            or model is None
-        ):
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") != "1" or not stitches or model is None:
             return
         native_vertices = np.asarray(
             model.getParticles().getVertices(),

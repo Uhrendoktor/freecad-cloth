@@ -21,7 +21,6 @@ from freecad_cloth.shared.Collision import CollisionSurface
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from freecad_cloth.simulation.DrapeVisualSanity import Point3
 
 
 class MeshCollisionProjector:

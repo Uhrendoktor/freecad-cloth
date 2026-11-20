@@ -605,7 +605,6 @@ def _body_clearance(
         )
 
     if inside_indices and projector is not None:
-        inside_points = positions[np.asarray(inside_indices, dtype=np.int64)]
         search_center = projector._vertices.mean(axis=0)
         axis_directions = (
             np.asarray((1.0, 0.0, 0.0), dtype=np.float64),
@@ -638,10 +637,7 @@ def _body_clearance(
                 if length <= 1e-10:
                     continue
                 direction = raw_direction / length
-                if any(
-                    float(np.dot(direction, existing)) > 1.0 - 1e-9
-                    for existing in directions
-                ):
+                if any(float(np.dot(direction, existing)) > 1.0 - 1e-9 for existing in directions):
                     continue
                 directions.append(direction)
 
@@ -1259,8 +1255,7 @@ def run_acceptance() -> None:
             )
         )
         candidate_points = tuple(
-            tuple(float(value) for value in initial_positions[index])
-            for index in candidate_indices
+            tuple(float(value) for value in initial_positions[index]) for index in candidate_indices
         )
         candidate_inside = points_inside_closed_mesh(
             candidate_points,
@@ -1274,7 +1269,9 @@ def run_acceptance() -> None:
         }
         projector = getattr(backend, "_collision_projector", None)
         if projector is None:
-            raise RuntimeError("garment support selection requires the active body collision projector")
+            raise RuntimeError(
+                "garment support selection requires the active body collision projector"
+            )
         clearance_by_particle: dict[int, float] = {}
         for index in candidate_indices:
             nearest_point, _normal = projector._nearest_surface_point(initial_positions[index])
@@ -1669,10 +1666,7 @@ def run_acceptance() -> None:
                 "piece_ids": [
                     str(skirt[side].PieceId) for side in ("front", "right", "back", "left")
                 ]
-                + [
-                    str(waistband[side].PieceId)
-                    for side in ("front", "right", "back", "left")
-                ],
+                + [str(waistband[side].PieceId) for side in ("front", "right", "back", "left")],
                 "independent_of": ["shirt"],
             },
         ]
@@ -1908,7 +1902,10 @@ def run_acceptance() -> None:
         manifest_path = OUTPUT / "layered-outfit-manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
         _log("manifest=" + str(manifest_path))
-        _log("manifest-build-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - manifest_started)))
+        _log(
+            "manifest-build-finish elapsed_ms=%.1f"
+            % (1000.0 * (time.perf_counter() - manifest_started))
+        )
         _log("layered-outfit-acceptance=passed")
         App.closeDocument(reloaded.Name)
         doc = None

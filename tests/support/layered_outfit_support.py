@@ -44,10 +44,7 @@ def select_top_boundary_supports(
     used_indices: set[int] = set()
     for panel_name, authored_chain in top_chains.items():
         chain = tuple(authored_chain)
-        if len(chain) != len(set(chain)) or any(
-            isinstance(index, bool) or not isinstance(index, int) or index < 0
-            for index in chain
-        ):
+        if len(chain) != len(set(chain)) or any(isinstance(index, bool) or not isinstance(index, int) or index < 0 for index in chain):
             raise ValueError(
                 "top boundary contains invalid or duplicate particle indices: " + panel_name
             )
