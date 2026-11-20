@@ -264,9 +264,10 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "69999107b2e8888a5d179835b8297b21fef19d74" in resolver
     assert "561071281bb387794029dbbfda720a581b028d04" in resolver
     assert "ruff==0.17.2" in resolver
-    assert "ruff format --config pyproject.toml" in resolver
-    assert "ruff check --config pyproject.toml --fix" in resolver
-    assert "ruff check --config pyproject.toml" in resolver
+    assert '"$ruff_venv/bin/ruff" format --config pyproject.toml "$avatar_path"' in resolver
+    assert '"$ruff_venv/bin/ruff" check --config pyproject.toml --fix "$avatar_path"' in resolver
+    assert '"$ruff_venv/bin/ruff" format --config pyproject.toml --check "$avatar_path"' in resolver
+    assert '"$ruff_venv/bin/ruff" check --config pyproject.toml "$avatar_path"' in resolver
     assert "changed_after_ruff" in resolver
     assert "git diff --cached --quiet" in resolver
     assert "f62b45d70533341c14e6f9909c233498c7d5ef01" in resolver
