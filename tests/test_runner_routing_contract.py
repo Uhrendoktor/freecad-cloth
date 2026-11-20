@@ -76,7 +76,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git rev-parse --git-path rebase-merge" in broker
     assert "git rev-parse --git-path rebase-apply" in broker
     assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
-    assert 'elif [[ "${rebase_commit}" == "188f4ce80b19b47679d616ede5235f67bc2d38a2" ]] &&' in broker
+    assert (
+        'elif [[ "${rebase_commit}" == "188f4ce80b19b47679d616ede5235f67bc2d38a2" ]] &&' in broker
+    )
     assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
     assert 'git diff-tree --no-commit-id --name-only -r "${rebase_commit}"' in broker
     assert 'git show "${rebase_commit}:${resolver_path}" | bash -n' in broker
