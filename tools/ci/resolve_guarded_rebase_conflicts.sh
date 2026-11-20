@@ -1042,7 +1042,7 @@ def replace_once(old: str, new: str, label: str) -> None:
     source = source.replace(old, new, 1)
 
 replace_once("from collections.abc import Sequence\n", "from collections.abc import Callable, Sequence\n", "collections.abc import")
-replace_once("from typing import TYPE_CHECKING\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
+replace_once("from typing import TYPE_CHECKING, Protocol\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
 replace_once(
     "from typing import TYPE_CHECKING, Protocol, cast\n",
     "from typing import TYPE_CHECKING, Protocol, cast\n\n"
@@ -1279,7 +1279,7 @@ for required in (
     "self._axis_draggers: dict[str, _CoinDynamicDragger] = {}",
     "def highlight_axis(self, axis: str | None) -> None:",
     "class _PoseAxisFocusFilter",
-    "axis_branch = coin.SoSeparator()",
+    "self._axis_draggers[axis_name] = dragger",
     "self.panel._set_rotation_axis_highlight(name[-1].lower())",
 ):
     if required not in source:
