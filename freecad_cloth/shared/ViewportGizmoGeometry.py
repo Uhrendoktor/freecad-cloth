@@ -102,17 +102,36 @@ def create_foreground_layer(coin: ModuleType, name: str) -> _CoinGroup:
 
     if layer is None:
         layer = coin.SoSeparator()
-
-    # Keep the depth state explicit even when Coin exposes SoAnnotation.
-    # The native rotation-dragger branch uses the same override; without it,
-    # some FreeCAD viewport paths still let the mannequin occlude the controls.
-    depth = coin.SoDepthBuffer()
-    depth.test = False
-    depth.write = False
-    layer.addChild(depth)
+        depth = coin.SoDepthBuffer()
+        depth.test = False
+        depth.write = False
+        layer.addChild(depth)
 
     layer.setName(str(name))
     return cast(_CoinGroup, layer)
+
+
+def create_foreground_content(coin: ModuleType, name: str) -> _CoinGroup:
+    """Create a separator whose depth override is traversed with its geometry.
+
+    Coin's annotation pass defers the layer's children. Keep the depth state
+    inside the same separator as the foreground primitives, matching the
+    working rotation-dragger branch rather than placing it beside that content.
+
+    Args:
+        coin: Loaded Pivy Coin module.
+        name: Stable diagnostic name assigned to the content separator.
+
+    Returns:
+        Separator with depth testing and depth writes disabled.
+    """
+    content = coin.SoSeparator()
+    depth = coin.SoDepthBuffer()
+    depth.test = False
+    depth.write = False
+    content.addChild(depth)
+    content.setName(str(name))
+    return cast(_CoinGroup, content)
 
 
 def add_sphere(
