@@ -1554,14 +1554,15 @@ PY
     test_path="tests/test_runner_routing_contract.py"
     benchmark_path="tests/freecad_realtime_benchmark.py"
     changed_paths="$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")"
-    changed_path_count="$(printf '%s' "$changed_paths" | grep -c .)"
-    test_additions="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}" | cut -f1)"
-    test_deletions="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}" | cut -f2)"
+    changed_path_count="$(printf '%s\n' "$changed_paths" | grep -c .)"
+    test_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"
+    test_additions="$(printf '%s' "$test_numstat" | cut -f1)"
+    test_deletions="$(printf '%s' "$test_numstat" | cut -f2)"
     helper_references="$(git show "${rebase_commit}:${benchmark_path}" | grep -Fc '_avatar_preview_dimensions(' || true)"
     if [[ "$rebase_commit" != "50ede88397daff95154ba5e3386f4914b08ee3e9" ]] ||
       [[ "$changed_path_count" != "2" ]] ||
-      ! printf '%s' "$changed_paths" | grep -Fxq "$benchmark_path" ||
-      ! printf '%s' "$changed_paths" | grep -Fxq "$test_path" ||
+      ! printf '%s\n' "$changed_paths" | grep -Fxq "$benchmark_path" ||
+      ! printf '%s\n' "$changed_paths" | grep -Fxq "$test_path" ||
       [[ "$test_additions" != "1" ]] ||
       [[ "$test_deletions" != "3" ]] ||
       ! git show "${rebase_commit}:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
