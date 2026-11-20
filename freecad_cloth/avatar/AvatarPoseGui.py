@@ -674,7 +674,11 @@ class SkeletonPoseController:
                 self.gizmo_transform.translation.setValue(self._coin().SbVec3f(*point))
 
     def _remove_gizmo(self):
-        """Remove the active rotation gizmo from the Coin scene graph."""
+        """Stop polling and remove the active rotation gizmo from the Coin scene graph."""
+        if self._dragger_poll_timer is not None:
+            with contextlib.suppress(RuntimeError):
+                self._dragger_poll_timer.stop()
+            self._dragger_poll_timer = None
         gizmo_parent = (
             self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
         )
@@ -1008,6 +1012,10 @@ class SkeletonPoseController:
         bone = str(bone)
         if bone not in self._positions:
             return
+        if bone == self.selected_bone and self.gizmo is not None:
+            self._set_hover_bone(None)
+            self.panel._select_joint_without_preview(bone)
+            return
         self.selected_bone = bone
         self._set_hover_bone(None)
         self.panel._select_joint_without_preview(bone)
@@ -1145,9 +1153,9 @@ class SkeletonPoseController:
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
             )
-            # Do not rebuild the mesh or Coin scene graph while its native dragger
-            # is active. Apply the latest staged pose once the pointer is released.
-            self.panel._preview_rebuild()
+            # Defer scene-graph replacement until this polling slot has returned.
+            # Pivy field proxies must not outlive the native dragger nodes they wrap.
+            self.panel.QtCore.QTimer.singleShot(0, self.panel._preview_rebuild)
 
     def _clear_hover_overlay(self):
         """Remove the transient hover highlight from the skeleton overlay."""

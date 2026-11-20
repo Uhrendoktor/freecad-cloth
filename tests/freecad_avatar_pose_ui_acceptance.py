@@ -156,8 +156,19 @@ def _drag_native_pose_ring(
 
     controller = panel.controller
     bone = "upperarm01.L"
+    progress("pose-ring-select-joint-start")
     controller.select_joint(bone)
     _events()
+    progress(
+        "pose-ring-select-joint-done "
+        + repr(
+            {
+                "selected_bone": controller.selected_bone,
+                "dragger_count": len(controller._native_dragger or ()),
+                "poller_active": controller._dragger_poll_timer is not None,
+            }
+        )
+    )
     if "X" not in controller._axis_draggers:
         raise RuntimeError("native pose controller did not install the X rotation ring")
 
@@ -193,7 +204,17 @@ def _drag_native_pose_ring(
         for start_angle, end_angle in candidate_arcs:
             start = projected_ring_point(start_angle)
             end = projected_ring_point(end_angle)
+            progress(
+                "pose-ring-press "
+                + repr(
+                    {
+                        "start_angle": start_angle,
+                        "start": tuple(round(float(value), 1) for value in start),
+                    }
+                )
+            )
             mouse_press(viewport, start, delay_ms=160)
+            progress("pose-ring-press-returned")
             try:
                 wait_until(
                     lambda: bool(controller._gizmo_dragging),
@@ -819,8 +840,7 @@ def run():
     if window is None or not window.isVisible():
         msg = "FreeCAD main window is unavailable for Pose Mode GIF recording"
         raise RuntimeError(msg)
-    panel.controller.select_joint("upperarm01.L")
-    _events()
+    progress("pose-ring-recorder-start")
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/pose-joint-rotation.gif",
         gui=Gui,
@@ -834,7 +854,9 @@ def run():
     ring_drag: _PoseRingDragResult | None = None
     try:
         recorder.hold(600)
+        progress("pose-ring-drag-helper-start")
         ring_drag = _drag_native_pose_ring(panel, view, progress)
+        progress("pose-ring-drag-helper-returned")
         recorder.hold(650)
         click_widget(panel.precision)
         _events()
