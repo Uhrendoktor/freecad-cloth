@@ -9,6 +9,7 @@ from typing import TypeAlias
 from freecad_cloth.shared.ViewportGizmoGeometry import (
     add_capsule,
     add_sphere,
+    create_foreground_content,
     create_foreground_layer,
 )
 
@@ -99,12 +100,25 @@ def _coin(*, annotation: bool = True) -> SimpleNamespace:
 
 
 def test_foreground_layer_prefers_coin_annotation() -> None:
-    """Use Coin's delayed annotation pass rather than scene-order depth-state tricks."""
+    """Use Coin's delayed annotation pass when it is available."""
     layer = create_foreground_layer(_coin(), "avatar-test-overlay")
 
     assert isinstance(layer, _Group)
     assert layer.name == "avatar-test-overlay"
     assert layer.children == []
+
+
+def test_foreground_content_disables_depth_inside_geometry_separator() -> None:
+    """Keep the depth override in the same separator traversed by each primitive."""
+    content = create_foreground_content(_coin(), "avatar-test-content")
+
+    assert isinstance(content, _Group)
+    assert content.name == "avatar-test-content"
+    assert len(content.children) == 1
+    depth = content.children[0]
+    assert isinstance(depth, _DepthBuffer)
+    assert depth.test is False
+    assert depth.write is False
 
 
 def test_foreground_layer_falls_back_to_depth_disabled_separator() -> None:
