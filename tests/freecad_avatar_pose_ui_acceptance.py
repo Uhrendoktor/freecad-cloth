@@ -16,6 +16,11 @@ from itertools import product
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
+    from tests.support.freecad_input import _QtView
+
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -128,8 +133,8 @@ def _events():
 
 
 def _drag_native_pose_ring(
-    panel: object,
-    view: object,
+    panel: AvatarPoseTaskPanel,
+    view: _QtView,
     progress: Callable[[str], None],
 ) -> dict[str, object]:
     """Drive the selected native X-axis ring through real viewport pointer events."""
