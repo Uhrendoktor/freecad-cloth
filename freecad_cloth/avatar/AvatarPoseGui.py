@@ -666,8 +666,10 @@ class SkeletonPoseController:
         rotator.arcThickness.setValue(
             ROTATION_VIEW_RING_THICKNESS if camera_facing else ROTATION_RING_THICKNESS
         )
-        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS if not camera_facing else 0.25)
-        rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
+        rotator.sphereRadius.setValue(
+            ROTATION_PIVOT_RADIUS if not camera_facing else 0.25
+        )
+         rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
         rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
         rotator.leftArrowVisible.setValue(not camera_facing)
         rotator.rightArrowVisible.setValue(not camera_facing)
@@ -782,8 +784,10 @@ class SkeletonPoseController:
                         draggers.append(view_dragger)
                         has_view_ring = True
 
-            from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
-
+            from freecad_cloth.shared.ViewportGizmoGeometry import (
+                create_foreground_layer,
+            )
+ 
             self.gizmo_foreground = create_foreground_layer(
                 coin,
                 "ClothAvatarRotationOverlay",
@@ -793,8 +797,10 @@ class SkeletonPoseController:
             self._native_dragger = draggers
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
-            self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
-            return True
+            self.gizmo_style = (
+                "axis-rings-camera" if has_view_ring else "axis-rings-cones"
+            )
+             return True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
@@ -915,8 +921,10 @@ class SkeletonPoseController:
             camera = self.view.getCameraNode()
             orientation = camera.orientation.getValue()
             view_axis = orientation.multVec(self._coin().SbVec3f(0.0, 0.0, 1.0))
-            self._active_gizmo_axis = tuple(float(view_axis[index]) for index in range(3))
-            self.panel._set_rotation_axis_highlight("view")
+            self._active_gizmo_axis = tuple(
+                float(view_axis[index]) for index in range(3)
+            )
+             self.panel._set_rotation_axis_highlight("view")
         elif name.endswith(("X", "Y", "Z")):
             self.panel._set_rotation_axis_highlight(name[-1].lower())
 
