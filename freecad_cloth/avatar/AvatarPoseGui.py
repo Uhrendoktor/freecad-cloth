@@ -59,6 +59,19 @@ _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
 
 
+def _pose_xyz_from_yaw_pitch_roll(
+    angles: Sequence[float],
+) -> tuple[float, float, float]:
+    """Convert FreeCAD yaw-pitch-roll output to the model's XYZ Euler order.
+
+    FreeCAD composes yaw about Z, pitch about Y, then roll about X. The
+    mannequin's XYZ rotation matrix uses the same Rz * Ry * Rx composition,
+    but stores the components in X, Y, Z order.
+    """
+    yaw, pitch, roll = angles
+    return float(roll), float(pitch), float(yaw)
+
+
 class _CoinRotationValueProtocol(Protocol):
     """Read-only view of the quaternion value returned by Coin."""
 
@@ -1097,15 +1110,13 @@ class SkeletonPoseController:
                 angle,
             )
             base = self.App.Rotation()
-            base.setEulerAngles(
-                self.App.Rotation.Extrinsic_XYZ,
-                float(self.base_rotation.x),
-                float(self.base_rotation.y),
+            base.setYawPitchRoll(
                 float(self.base_rotation.z),
+                float(self.base_rotation.y),
+                float(self.base_rotation.x),
             )
             combined = delta.multiply(base)
-            angles = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)
-            x, y, z = (float(value) for value in angles)
+            x, y, z = _pose_xyz_from_yaw_pitch_roll(combined.getYawPitchRoll())
             self.panel._stage_joint_rotation(
                 self.selected_bone,
                 x,
