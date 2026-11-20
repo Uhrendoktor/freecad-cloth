@@ -231,18 +231,18 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
 
 def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets() -> None:
     class DestroyedWidget:
-        def property(self, _name: str) -> object:
+        def property(self, _name: str) -> bool:
             raise RuntimeError("Internal C++ object (QDoubleSpinBox) already deleted")
 
     class LiveWidget:
         def __init__(self) -> None:
-            self.properties = {"clothViewportLinked": False}
+            self.properties: dict[str, bool] = {"clothViewportLinked": False}
             self.updated = False
 
-        def property(self, name: str) -> object | None:
+        def property(self, name: str) -> bool | None:
             return self.properties.get(name)
 
-        def setProperty(self, name: str, value: object) -> None:
+        def setProperty(self, name: str, value: bool) -> None:
             self.properties[name] = value
 
         def style(self) -> None:
@@ -267,20 +267,20 @@ def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets() -> None:
 def test_avatar_measurement_focus_cleanup_detaches_filters_before_close() -> None:
     class Widget:
         def __init__(self) -> None:
-            self.removed_filters: list[object] = []
+            self.removed_filters: list[str] = []
 
-        def removeEventFilter(self, focus_filter: object) -> None:
+        def removeEventFilter(self, focus_filter: str) -> None:
             self.removed_filters.append(focus_filter)
 
     class Controller:
-        focused_key = "hip"
+        focused_key: str | None = "hip"
 
         def set_field_focus(self, key: str | None) -> None:
             self.focused_key = key
 
     panel = AvatarTaskPanel.__new__(AvatarTaskPanel)
     panel._measurement_focus_filter_active = True
-    panel._measurement_focus_filter = object()
+    panel._measurement_focus_filter = "measurement-filter"
     panel._focused_measurement_key = "hip"
     panel._hovered_measurement_key = "waist"
     panel._boxes = {"hip": Widget()}
