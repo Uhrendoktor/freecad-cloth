@@ -15,9 +15,9 @@ class _Field:
     """Small Coin-field stand-in that retains scalar and vector assignments."""
 
     def __init__(self) -> None:
-        self.value: float | tuple[float, ...] | None = None
+        self.value: float | tuple[float, ...] | tuple[tuple[float, ...], ...] | None = None
 
-    def setValue(self, *values: float | tuple[float, ...]) -> None:
+    def setValue(self, *values: float | tuple[float, ...] | tuple[tuple[float, ...], ...]) -> None:
         self.value = values[0] if len(values) == 1 else values
 
 
@@ -25,7 +25,7 @@ class _Group:
     """Coin group stand-in retaining child order and the node name."""
 
     def __init__(self) -> None:
-        self.children: list[object] = []
+        self.children: list[_CoinSceneNode] = []
         self.name = ""
 
     def addChild(self, child: _CoinSceneNode) -> None:
