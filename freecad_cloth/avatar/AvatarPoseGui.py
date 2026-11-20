@@ -11,7 +11,7 @@ from __future__ import annotations
 import contextlib
 import math
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -57,6 +57,27 @@ _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
+
+class _CoinRotationValueProtocol(Protocol):
+    """Read-only view of the quaternion value returned by Coin."""
+
+    def getValue(self) -> Sequence[float]:
+        """Return the vector-first quaternion components."""
+
+
+class _CoinRotationFieldProtocol(Protocol):
+    """Read-only view of a native Coin single-rotation field."""
+
+    def getValue(self) -> _CoinRotationValueProtocol:
+        """Return the current Coin rotation value."""
+
+
+class _CoinRotationDraggerProtocol(Protocol):
+    """Minimal native dragger surface used by pose rotation staging."""
+
+    rotation: _CoinRotationFieldProtocol
+
+
 
 
 def _modules():
@@ -1026,7 +1047,9 @@ class SkeletonPoseController:
             "release to keep the staged pose; Cancel restores it."
         )
 
-    def _dragger_quaternion(self, dragger):
+    def _dragger_quaternion(
+        self, dragger: _CoinRotationDraggerProtocol
+    ) -> tuple[float, float, float, float]:
         """Return the native dragger quaternion in Coin's vector-first order.
 
         Args:
@@ -1037,9 +1060,16 @@ class SkeletonPoseController:
         """
         rotation = dragger.rotation.getValue()
         values = rotation.getValue()
-        return tuple(float(values[index]) for index in range(4))
+        return (
+            float(values[0]),
+            float(values[1]),
+            float(values[2]),
+            float(values[3]),
+        )
 
-    def _dragger_signed_angle_degrees(self, dragger) -> float:
+    def _dragger_signed_angle_degrees(
+        self, dragger: _CoinRotationDraggerProtocol
+    ) -> float:
         """Return the dragger's local-Z quaternion angle within joint limits.
 
         Coin's quaternion sign is double-valued: a +187 degree representation is
