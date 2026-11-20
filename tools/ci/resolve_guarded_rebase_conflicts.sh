@@ -937,6 +937,64 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "561071281bb387794029dbbfda720a581b028d04" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    avatar_path="freecad_cloth/avatar/AvatarPoseGui.py"
+    changed_paths="$(git diff-tree --no-commit-id --name-only -r "$rebase_commit")"
+    if [[ "$rebase_commit" != "561071281bb387794029dbbfda720a581b028d04" ]] ||
+      [[ "$changed_paths" != "$avatar_path" ]] ||
+      ! git show "$rebase_commit^:$avatar_path" | grep -Fq 'class _PoseVector(Protocol):' ||
+      ! git show "$rebase_commit:$avatar_path" | grep -Fq 'class _PoseVector(Protocol):' ||
+      ! git show "$rebase_commit:$avatar_path" | grep -Fq 'from freecad_cloth.avatar.avatar_protocols import AvatarTaskPanelProtocol' ||
+      ! git show "$rebase_commit:$avatar_path" | grep -Fq 'def _gizmo_finish(' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'class _PoseVector(Protocol):' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'class _PosePanel(Protocol):' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'def _set_rotation_axis_highlight(self, axis: str | None) -> None:' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'GIZMO_SIZE = 88.0' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'BONE_PICK_RADIUS = 16.0' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'JOINT_PICK_RADIUS = 24.0' ||
+      ! git show HEAD:"$avatar_path" | grep -Fq 'class _PoseAxisFocusFilter' ||
+      ! git show HEAD:freecad_cloth/avatar/coin_protocols.py | grep -Fq 'class _CoinModule(Protocol):' ||
+      ! git show HEAD:pyproject.toml | grep -Fq '"ruff==0.17.2"'; then
+      echo "::error::Refusing AvatarPoseGui safe-Ruff replay outside the exact one-file 56107128 commit and verified post-Pivy current-main GUI."
+      exit 1
+    fi
+    echo "::warning::Keeping the current-main pose UI and Pivy transplant; replaying only pinned Ruff formatting and safe autofixes on AvatarPoseGui.py."
+    git checkout --ours -- "$avatar_path"
+    ruff_venv="$(mktemp -d "\${RUNNER_TEMP:-/tmp}/ruff-56107128.XXXXXX")"
+    python3 -m venv "$ruff_venv"
+    "$ruff_venv/bin/python" -m pip install --disable-pip-version-check --no-input "ruff==0.17.2"
+    "$ruff_venv/bin/ruff" format --config pyproject.toml "$avatar_path"
+    "$ruff_venv/bin/ruff" check --config pyproject.toml --fix "$avatar_path"
+    "$ruff_venv/bin/ruff" format --config pyproject.toml --check "$avatar_path"
+    "$ruff_venv/bin/ruff" check --config pyproject.toml "$avatar_path"
+    rm -rf "$ruff_venv"
+    changed_after_ruff="$(git diff --name-only)"
+    if [[ "$changed_after_ruff" != "$avatar_path" ]]; then
+      echo "::error::Pinned safe Ruff pass changed files outside AvatarPoseGui.py: \${changed_after_ruff:-none}"
+      exit 1
+    fi
+    git add "$avatar_path"
+    if git diff --cached --quiet; then
+      echo "::notice::Current-main AvatarPoseGui was already at the exact Ruff-clean result; skipping this now-empty historical formatter commit."
+      if ! git rebase --skip; then
+        rebase_merge="$(git rev-parse --git-path rebase-merge)"
+        rebase_apply="$(git rev-parse --git-path rebase-apply)"
+        if [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; then
+          bash tools/ci/guarded_rebase_conflict_entrypoint.sh
+        else
+          exit 1
+        fi
+      fi
+    elif ! GIT_EDITOR=true git rebase --continue; then
+      rebase_merge="$(git rev-parse --git-path rebase-merge)"
+      rebase_apply="$(git rev-parse --git-path rebase-apply)"
+      if [[ -d "$rebase_merge" || -d "$rebase_apply" ]]; then
+        bash tools/ci/guarded_rebase_conflict_entrypoint.sh
+      else
+        exit 1
+      fi
+    fi
   elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "69999107b2e8888a5d179835b8297b21fef19d74" ]] ||
