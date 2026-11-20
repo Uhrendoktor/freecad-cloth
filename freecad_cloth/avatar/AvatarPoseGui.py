@@ -669,7 +669,7 @@ class SkeletonPoseController:
         rotator.sphereRadius.setValue(
             ROTATION_PIVOT_RADIUS if not camera_facing else 0.25
         )
-         rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
+        rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
         rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
         rotator.leftArrowVisible.setValue(not camera_facing)
         rotator.rightArrowVisible.setValue(not camera_facing)
@@ -787,7 +787,7 @@ class SkeletonPoseController:
             from freecad_cloth.shared.ViewportGizmoGeometry import (
                 create_foreground_layer,
             )
- 
+
             self.gizmo_foreground = create_foreground_layer(
                 coin,
                 "ClothAvatarRotationOverlay",
@@ -800,7 +800,7 @@ class SkeletonPoseController:
             self.gizmo_style = (
                 "axis-rings-camera" if has_view_ring else "axis-rings-cones"
             )
-             return True
+            return True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
@@ -924,7 +924,7 @@ class SkeletonPoseController:
             self._active_gizmo_axis = tuple(
                 float(view_axis[index]) for index in range(3)
             )
-             self.panel._set_rotation_axis_highlight("view")
+            self.panel._set_rotation_axis_highlight("view")
         elif name.endswith(("X", "Y", "Z")):
             self.panel._set_rotation_axis_highlight(name[-1].lower())
 
