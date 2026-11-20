@@ -17,7 +17,7 @@ from typing import Protocol, cast
 class _CoinGroup(Protocol):
     """Coin group node with the child operations required by these helpers."""
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _CoinGroup) -> None:
         """Append one transient geometry node."""
 
 
@@ -40,8 +40,8 @@ def create_foreground_layer(coin: ModuleType, name: str) -> _CoinGroup:
             layer = None
 
     if layer is None:
-        layer = getattr(coin, "SoSeparator")()
-        depth = getattr(coin, "SoDepthBuffer")()
+        layer = coin.SoSeparator()
+        depth = coin.SoDepthBuffer()
         depth.test = False
         depth.write = False
         layer.addChild(depth)
@@ -65,18 +65,21 @@ def add_sphere(
         point: Sphere center in mannequin/world coordinates.
         radius: Sphere radius in model units.
         color: Normalized RGB color.
+
+    Raises:
+        ValueError: If the point/color are not 3D/RGB or the radius is not positive.
     """
     if len(point) != 3 or len(color) != 3 or float(radius) <= 0.0:
         raise ValueError("A gizmo sphere requires a 3D point, positive radius and RGB color.")
 
     marker = getattr(coin, "SoSeparator")()
-    transform = getattr(coin, "SoTransform")()
+    transform = coin.SoTransform()
     transform.translation.setValue(
-        getattr(coin, "SbVec3f")(*(float(value) for value in point))
+        coin.SbVec3f(*(float(value) for value in point))
     )
-    base = getattr(coin, "SoBaseColor")()
+    base = coin.SoBaseColor()
     base.rgb = tuple(float(value) for value in color)
-    sphere = getattr(coin, "SoSphere")()
+    sphere = coin.SoSphere()
     sphere.radius.setValue(float(radius))
     marker.addChild(transform)
     marker.addChild(base)
@@ -104,6 +107,9 @@ def add_capsule(
         end: Second endpoint in mannequin/world coordinates.
         radius: Bone shaft radius in model units.
         color: Normalized RGB color.
+
+    Raises:
+        ValueError: If either endpoint/color has invalid dimensions or the radius is not positive.
     """
     if len(start) != 3 or len(end) != 3 or len(color) != 3 or float(radius) <= 0.0:
         raise ValueError("A bone capsule requires two 3D endpoints, positive radius and RGB color.")
@@ -122,14 +128,14 @@ def add_capsule(
         getattr(coin, "SbVec3f")(*(float(value) for value in center))
     )
     transform.rotation.setValue(
-        getattr(coin, "SbRotation")(
+        coin.SbRotation(
             getattr(coin, "SbVec3f")(0.0, 1.0, 0.0),
             getattr(coin, "SbVec3f")(*(float(value) for value in unit_direction)),
         )
     )
     base = getattr(coin, "SoBaseColor")()
     base.rgb = tuple(float(value) for value in color)
-    cylinder = getattr(coin, "SoCylinder")()
+    cylinder = coin.SoCylinder()
     cylinder.radius.setValue(float(radius))
     cylinder.height.setValue(float(length))
     segment.addChild(transform)
