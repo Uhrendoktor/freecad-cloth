@@ -76,6 +76,14 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git rev-parse --git-path rebase-merge" in broker
     assert "git rev-parse --git-path rebase-apply" in broker
     assert "bash tools/ci/resolve_guarded_rebase_conflicts.sh" in broker
+    assert 'elif [[ "${rebase_commit}" == "188f4ce80b19b47679d616ede5235f67bc2d38a2" ]] &&' in broker
+    assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
+    assert 'git diff-tree --no-commit-id --name-only -r "${rebase_commit}"' in broker
+    assert 'git show "${rebase_commit}:${resolver_path}" | bash -n' in broker
+    assert 'git show "origin/main:${resolver_path}" | bash -n' in broker
+    assert 'grep -Eq \'^\\+[^+]\'' in broker
+    assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in broker
+    assert "69999107b2e8888a5d179835b8297b21fef19d74" in broker
     assert "git merge-base --is-ancestor origin/main HEAD" in rebase
     assert "git push --force-with-lease=" in rebase
     assert '[[ "$conflicts" == ".agent/PLANS.md" ]]' in resolver
