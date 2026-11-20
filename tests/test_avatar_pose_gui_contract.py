@@ -236,4 +236,59 @@ def test_pose_drag_defers_mesh_rebuild_until_native_drag_finishes() -> None:
     finish = source.split("def _gizmo_finish", 1)[1].split("def _clear_hover_overlay", 1)[0]
 
     assert "preview=False" in motion
-    assert "self.panel._preview_rebuild()" in finish
+    assert "QTimer.singleShot(0, self.panel._preview_rebuild)" in finish
+
+
+def test_remove_gizmo_stops_native_dragger_poller_before_dropping_fields() -> None:
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+
+    class Timer:
+        stopped = False
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    timer = Timer()
+    controller._dragger_poll_timer = timer
+    controller.gizmo_foreground = None
+    controller.gizmo_separator = None
+    controller.scene_graph = None
+    controller.gizmo_transform = object()
+    controller.gizmo = object()
+    controller.gizmo_mode = "native"
+    controller.gizmo_style = "axis-rings-camera"
+    controller.gizmo_style_error = None
+    controller._native_dragger = [object()]
+    controller._axis_draggers = {"X": object()}
+    controller._gizmo_dragging = False
+
+    controller._remove_gizmo()
+
+    assert timer.stopped
+    assert controller._dragger_poll_timer is None
+    assert controller._native_dragger is None
+    assert controller._axis_draggers == {}
+
+
+def test_selecting_the_current_pose_joint_does_not_recreate_native_draggers() -> None:
+    from types import SimpleNamespace
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    panel_selection = []
+    refresh_calls = []
+    create_calls = []
+    controller._positions = {"upperarm01.L": (0.0, 0.0, 0.0)}
+    controller.selected_bone = "upperarm01.L"
+    controller.gizmo = object()
+    controller.panel = SimpleNamespace(
+        _select_joint_without_preview=panel_selection.append
+    )
+    controller._set_hover_bone = lambda _bone: None
+    controller.refresh_overlay = lambda **_kwargs: refresh_calls.append(True)
+    controller._create_gizmo = create_calls.append
+
+    controller.select_joint("upperarm01.L")
+
+    assert panel_selection == ["upperarm01.L"]
+    assert refresh_calls == []
+    assert create_calls == []
