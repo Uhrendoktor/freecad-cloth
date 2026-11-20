@@ -307,6 +307,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "def _set_rotation_axis_highlight(self, axis: str | None) -> None:" in resolver
     assert "git checkout --ours -- freecad_cloth/avatar/AvatarPoseGui.py" in resolver
     assert "from typing import TYPE_CHECKING, Protocol, cast" in resolver
+    assert "Expected one exact typing import anchor in current-main AvatarPoseGui." in resolver
+    assert "runtime FreeCAD object protocol import" in resolver
+    assert "AvatarTaskPanelFormProtocol" in resolver
+    assert "from freecad_cloth.avatar.coin_protocols import (" in resolver
+    assert "_CoinDynamicDragger" in resolver
+    assert "self._axis_draggers[axis_name] = dragger" in resolver
     assert (
         "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol"
         in resolver
