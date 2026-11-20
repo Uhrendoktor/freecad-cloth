@@ -140,13 +140,13 @@ def test_pose_mouse_down_does_not_rebuild_the_selected_dragger_branch() -> None:
     controller.select_joint = selected.append
 
     class MouseEvent:
-        def getState(self):
+        def getState(self) -> int:
             return 1
 
-        def getButton(self):
+        def getButton(self) -> int:
             return 1
 
-        def getPosition(self):
+        def getPosition(self) -> tuple[int, int]:
             return (400, 300)
 
     controller._mouse_event(SimpleNamespace(getEvent=lambda: MouseEvent()))
