@@ -15,10 +15,15 @@ class _Field:
     """Small Coin-field stand-in that retains scalar and vector assignments."""
 
     def __init__(self) -> None:
-        self.value: float | tuple[float, ...] | tuple[tuple[float, ...], ...] | None = None
-
-    def setValue(self, *values: float | tuple[float, ...] | tuple[tuple[float, ...], ...]) -> None:
-        self.value = values[0] if len(values) == 1 else values
+        self.value: (
+            float | tuple[float, ...] | tuple[tuple[float, ...], ...] | None
+        ) = None
+ 
+    def setValue(
+        self,
+        *values: float | tuple[float, ...] | tuple[tuple[float, ...], ...],
+    ) -> None:
+         self.value = values[0] if len(values) == 1 else values
 
 
 class _Group:
