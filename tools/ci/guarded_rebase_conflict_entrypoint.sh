@@ -222,16 +222,70 @@ elif [[ "${rebase_commit}" == "5a4f3ff1bc99a09b064e0b9bfebbf611628b633f" ]] &&
   [[ "${conflicted_files}" == "tests/test_runner_routing_contract.py" ]]; then
   test_path="tests/test_runner_routing_contract.py"
   changed_paths="$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")"
+  test_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"
+  test_additions="$(printf '%s' "${test_numstat}" | cut -f1)"
+  test_deletions="$(printf '%s' "${test_numstat}" | cut -f2)"
   if [[ "${changed_paths}" != "${test_path}" ]] ||
-    git diff --unified=0 "${rebase_commit}^" "${rebase_commit}" -- "${test_path}" | grep -Eq '^\+[^+]' ||
+    [[ "${test_additions}" != "0" ]] ||
+    [[ "${test_deletions}" != "296" ]] ||
     ! git show "origin/main:${test_path}" | grep -Fq "def test_guarded_rebase_uses_the_verified_conflict_resolver" ||
     ! git show "origin/main:${test_path}" | grep -Fq "def test_freecad_container_transfers_checkout_and_returns_evidence()" ||
-    ! git show "origin/main:${test_path}" | grep -Fq '"--shm-size=1g" in action' ||
-    git show "${rebase_commit}:${test_path}" | grep -Fq "def test_freecad_container_transfers_checkout_and_returns_evidence()"; then
-    echo "::error::Refusing duplicate test-tail removal outside the exact deletion-only 5a4f3ff1 commit and verified current-main contract."
+    ! git show "origin/main:${test_path}" | grep -Fq '"--shm-size=1g" in action'; then
+    echo "::error::Refusing duplicate test-tail cleanup outside the exact deletion-only 5a4f3ff1 commit and verified current-main contract."
     exit 1
   fi
-  echo "::notice::Skipping exact 5a4f3ff1 duplicate test-tail removal; retaining current main's complete repository-container contract."
+  if ! python3 - "${rebase_commit}" "${test_path}" <<'PY'
+import re
+import subprocess
+import sys
+
+commit, path = sys.argv[1:]
+
+def show(revision: str) -> str:
+    return subprocess.run(
+        ["git", "show", f"{revision}:{path}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+main_source = show("origin/main")
+parent_source = show(f"{commit}^")
+replay_source = show(commit)
+pattern = re.compile(r"^def (test_[A-Za-z0-9_]+)\(", re.MULTILINE)
+
+main_names = pattern.findall(main_source)
+parent_names = pattern.findall(parent_source)
+replay_names = pattern.findall(replay_source)
+main_set = set(main_names)
+parent_set = set(parent_names)
+replay_set = set(replay_names)
+
+if len(parent_names) <= len(parent_set):
+    raise SystemExit("The exact 5a4f3ff1 parent does not contain the expected duplicate test tail.")
+if len(main_names) != len(main_set):
+    raise SystemExit("Current main contains duplicate test function definitions.")
+if len(replay_names) != len(replay_set):
+    raise SystemExit("The 5a4f3ff1 replay still contains duplicate test function definitions.")
+if parent_set != main_set or replay_set != main_set:
+    raise SystemExit(
+        "The parent, replay, and current-main test function sets differ; refusing to skip."
+    )
+
+for marker in (
+    "def test_guarded_rebase_uses_the_verified_conflict_resolver",
+    "def test_freecad_container_transfers_checkout_and_returns_evidence",
+):
+    if marker not in main_source or marker not in replay_source:
+        raise SystemExit(f"Required canonical test definition is missing: {marker}")
+if '"--shm-size=1g" in action' not in main_source:
+    raise SystemExit("Current main is missing the canonical container shared-memory assertion.")
+PY
+  then
+    echo "::error::The exact 5a4f3ff1 deletion does not leave the same unique test-function set as current main."
+    exit 1
+  fi
+  echo "::notice::Skipping exact 5a4f3ff1 duplicate-tail cleanup; parent duplicates are removed and its unique test-function set matches current main."
   git checkout origin/main -- "${test_path}"
   git add "${test_path}"
   if ! git rebase --skip; then
