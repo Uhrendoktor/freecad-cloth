@@ -425,6 +425,41 @@ class AvatarDimensionController:
         size = self.view.getSize()
         return float(projected[0]), float(size[1] - projected[1])
 
+    def _screen_scaled_radius(
+        self,
+        coin: ModuleType,
+        point: _Vector3,
+        radius_pixels: float,
+        fallback_radius: float,
+    ) -> float:
+        """Return a model-space grip radius that remains stable while zooming.
+
+        Args:
+            coin: Pivy Coin module used to read the active camera orientation.
+            point: World-space measurement handle position.
+            radius_pixels: Desired handle radius in viewport pixels.
+            fallback_radius: Safe model-space radius when camera projection is unavailable.
+
+        Returns:
+            Local model-space radius for the rounded grip.
+        """
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            world_radius_for_screen_pixels,
+        )
+
+        try:
+            orientation = self.view.getCameraNode().orientation.getValue()
+            camera_right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
+            return world_radius_for_screen_pixels(
+                point,
+                tuple(float(camera_right[index]) for index in range(3)),
+                self._screen_position,
+                radius_pixels,
+                fallback_radius,
+            )
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            return float(fallback_radius)
+
     def activate(self) -> bool:
         """Install the transient surface guides and viewport callbacks.
 
@@ -567,17 +602,23 @@ class AvatarDimensionController:
         parent = self.foreground_content if self.foreground_content is not None else self.overlay
         if parent is None:
             return
-        for marker_color, radius in (
+        for marker_color, radius_pixels in (
             (
                 DIMENSION_MARKER_HALO_COLOR,
-                float(size) + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
+                float(size) * 0.5 + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
             ),
             (
                 DIMENSION_MARKER_OUTLINE_COLOR,
-                float(size) + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
+                float(size) * 0.5 + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
             ),
-            (color, float(size)),
+            (color, float(size) * 0.5),
         ):
+            radius = self._screen_scaled_radius(
+                coin,
+                point,
+                radius_pixels,
+                radius_pixels,
+            )
             add_sphere(parent, coin, point, radius, marker_color)
 
     def _add_label(self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3) -> None:

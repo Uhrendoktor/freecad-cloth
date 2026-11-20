@@ -159,3 +159,54 @@ def test_degenerate_bone_segment_becomes_a_joint_sphere() -> None:
 
     sphere = layer.children[0].children[2]
     assert sphere.radius.value == 4.0
+
+
+def test_screen_radius_tracks_camera_projection_scale() -> None:
+    """Keep a rounded control's radius constant in pixels across zoom levels."""
+    from freecad_cloth.shared.ViewportGizmoGeometry import world_radius_for_screen_pixels
+
+    def project(point: tuple[float, ...]) -> tuple[float, float]:
+        """Project a coordinate with a deterministic two-pixels-per-unit scale."""
+        return float(point[0]) * 2.0, float(point[1]) * 2.0
+
+    radius = world_radius_for_screen_pixels(
+        (0.0, 0.0, 0.0),
+        (1.0, 0.0, 0.0),
+        project,
+        4.0,
+        10.0,
+    )
+
+    assert radius == 2.0
+
+
+def test_screen_radius_uses_fallback_when_projection_is_unavailable() -> None:
+    """Retain a safe 3D grip when a host viewport cannot project sample positions."""
+    from freecad_cloth.shared.ViewportGizmoGeometry import world_radius_for_screen_pixels
+
+    assert (
+        world_radius_for_screen_pixels(
+            (1.0, 2.0, 3.0),
+            (1.0, 0.0, 0.0),
+            lambda _point: None,
+            4.0,
+            9.0,
+        )
+        == 9.0
+    )
+
+
+def test_screen_radius_rejects_invalid_camera_and_radius_inputs() -> None:
+    """Reject invalid model coordinates rather than create zero-size Coin geometry."""
+    import pytest
+
+    from freecad_cloth.shared.ViewportGizmoGeometry import world_radius_for_screen_pixels
+
+    with pytest.raises(ValueError, match="camera directions"):
+        world_radius_for_screen_pixels(
+            (1.0, 2.0),
+            (1.0, 0.0, 0.0),
+            lambda point: (float(point[0]), float(point[1])),
+            4.0,
+            9.0,
+        )

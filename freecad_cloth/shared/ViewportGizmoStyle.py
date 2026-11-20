@@ -25,12 +25,12 @@ DIMENSION_GUIDE_LINE_WIDTH = 1.8
 SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
 SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
-# Pose rig geometry uses model-space radii so bones and joints read as rounded controls.
-RIG_PASSIVE_RADIUS = 7.5
-RIG_EDITABLE_RADIUS = 10.5
-RIG_ACTIVE_RADIUS = 15.0
-RIG_JOINT_RADIUS = 10.0
-RIG_ACTIVE_JOINT_RADIUS = 16.0
+# Pose rig radii are screen-space pixels converted locally through the active camera.
+RIG_PASSIVE_RADIUS = 1.7
+RIG_EDITABLE_RADIUS = 2.4
+RIG_ACTIVE_RADIUS = 3.8
+RIG_JOINT_RADIUS = 2.8
+RIG_ACTIVE_JOINT_RADIUS = 4.5
 
 # Native axis rotation dragger geometry (model-space dimensions).
 ROTATION_GIZMO_SCALE = 8.5
@@ -61,12 +61,12 @@ SEAM_LABEL_FONT_SIZE = 16.0
 
 
 # Measurement guides use a higher-contrast X-ray underlay behind the mannequin.
-# Foreground grips are nested 3D spheres whose radii are expressed in model units.
+# Foreground grips are nested 3D spheres; radii and increments are screen-space pixels.
 DIMENSION_OCCLUDED_COLOR = (0.48, 0.65, 0.72)
 DIMENSION_OCCLUDED_LINE_WIDTH = 1.6
 DIMENSION_OCCLUDED_LINE_PATTERN = 0x0F0F
 DIMENSION_OCCLUDED_LINE_PATTERN_SCALE = 2
 DIMENSION_MARKER_HALO_COLOR = (0.96, 0.97, 0.98)
 DIMENSION_MARKER_OUTLINE_COLOR = (0.08, 0.10, 0.12)
-DIMENSION_MARKER_HALO_RADIUS_INCREMENT = 5.0
-DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT = 2.5
+DIMENSION_MARKER_HALO_RADIUS_INCREMENT = 6.0
+DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT = 3.0

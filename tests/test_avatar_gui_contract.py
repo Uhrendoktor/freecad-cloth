@@ -396,9 +396,9 @@ def test_measurement_marker_uses_three_rounded_foreground_spheres() -> None:
     radii = [layer.children[2].radius.value for layer in controller.overlay.children]
     colors = [layer.children[1].rgb for layer in controller.overlay.children]
     assert radii == [
-        8.0 + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
-        8.0 + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
-        8.0,
+        4.0 + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
+        4.0 + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
+        4.0,
     ]
     assert radii[0] > radii[1] > radii[2]
     assert colors == [

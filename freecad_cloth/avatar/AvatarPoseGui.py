@@ -245,6 +245,41 @@ class SkeletonPoseController:
         size = get_size()
         return float(projected[0]), float(size[1] - projected[1])
 
+    def _screen_scaled_radius(
+        self,
+        coin,
+        point: Sequence[float],
+        radius_pixels: float,
+        fallback_radius: float,
+    ) -> float:
+        """Return a model-space radius that remains the requested size while zooming.
+
+        Args:
+            coin: Pivy Coin module used to read the active camera orientation.
+            point: World-space control position.
+            radius_pixels: Desired control radius in viewport pixels.
+            fallback_radius: Safe model-space radius when camera projection is unavailable.
+
+        Returns:
+            Local model-space radius for the rounded control.
+        """
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            world_radius_for_screen_pixels,
+        )
+
+        try:
+            orientation = self.view.getCameraNode().orientation.getValue()
+            camera_right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
+            return world_radius_for_screen_pixels(
+                point,
+                tuple(float(camera_right[index]) for index in range(3)),
+                self._screen_position,
+                radius_pixels,
+                fallback_radius,
+            )
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            return float(fallback_radius)
+
     @staticmethod
     def _screen_segment_distance(point, start, end):
         """Return the 2D distance from a point to a projected bone segment.
@@ -491,7 +526,10 @@ class SkeletonPoseController:
             coin: Pivy Coin module supplying scene-graph types.
         """
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
-        from freecad_cloth.shared.ViewportGizmoGeometry import add_capsule, add_sphere
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            add_capsule,
+            add_sphere,
+        )
 
         parent = self.overlay_content if self.overlay_content is not None else self.overlay
         if parent is None:
@@ -503,26 +541,43 @@ class SkeletonPoseController:
         # Keep the full authored rig available through the mannequin. Passive
         # structure is quiet; editable and selected bones use wider rounded shafts.
         for bone, segment in self._skeleton_segments.items():
+            midpoint = tuple(
+                (float(segment[0][index]) + float(segment[1][index])) * 0.5
+                for index in range(3)
+            )
             if bone == selected_bone:
-                radius, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
+                radius_pixels, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
             elif bone in editable:
-                radius, rgb = RIG_EDITABLE_RADIUS, RIG_EDITABLE_COLOR
+                radius_pixels, rgb = RIG_EDITABLE_RADIUS, RIG_EDITABLE_COLOR
             else:
-                radius, rgb = RIG_PASSIVE_RADIUS, RIG_PASSIVE_COLOR
+                radius_pixels, rgb = RIG_PASSIVE_RADIUS, RIG_PASSIVE_COLOR
+            radius = self._screen_scaled_radius(
+                coin,
+                midpoint,
+                radius_pixels,
+                radius_pixels * 4.0,
+            )
             add_capsule(parent, coin, segment[0], segment[1], radius, rgb)
 
         # Spherical joints connect the capsule shafts and replace square point sprites.
         for point in joints.values():
-            add_sphere(parent, coin, point, RIG_JOINT_RADIUS, JOINT_COLOR)
+            radius = self._screen_scaled_radius(
+                coin,
+                point,
+                RIG_JOINT_RADIUS,
+                RIG_JOINT_RADIUS * 4.0,
+            )
+            add_sphere(parent, coin, point, radius, JOINT_COLOR)
 
         if selected_bone is not None and selected_bone in self._positions:
-            add_sphere(
-                parent,
+            point = self._positions[selected_bone]
+            radius = self._screen_scaled_radius(
                 coin,
-                self._positions[selected_bone],
+                point,
                 RIG_ACTIVE_JOINT_RADIUS,
-                ACTIVE_COLOR,
+                RIG_ACTIVE_JOINT_RADIUS * 4.0,
             )
+            add_sphere(parent, coin, point, radius, ACTIVE_COLOR)
 
     def _joint_connections(self):
         """Return the line segments associated with the currently displayed skeleton.

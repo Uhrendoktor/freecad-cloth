@@ -9,7 +9,7 @@ testing disabled on builds that do not expose SoAnnotation.
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from types import ModuleType
 from typing import Protocol, cast
 
@@ -19,6 +19,66 @@ class _CoinGroup(Protocol):
 
     def addChild(self, child: _CoinGroup) -> None:
         """Append one transient geometry node."""
+
+
+def world_radius_for_screen_pixels(
+    point: Sequence[float],
+    camera_right: Sequence[float],
+    project_point: Callable[[Sequence[float]], Sequence[float] | None],
+    radius_pixels: float,
+    fallback_radius: float,
+    sample_distance: float = 100.0,
+) -> float:
+    """Convert a screen-space gizmo radius to local model-space units.
+
+    Args:
+        point: World-space position where the control is drawn.
+        camera_right: Camera-local right direction expressed in world coordinates.
+        project_point: Callback returning the first two screen coordinates, or None.
+        radius_pixels: Desired radius in viewport pixels.
+        fallback_radius: Positive model-space radius used when projection is unavailable.
+        sample_distance: World-space distance used to estimate the local projection scale.
+
+    Returns:
+        Model-space radius that projects to the requested pixel radius.
+
+    Raises:
+        ValueError: If the point, camera direction or radius parameters are invalid.
+    """
+    if len(point) != 3 or len(camera_right) != 3:
+        raise ValueError("Screen-scaled gizmos require 3D positions and camera directions.")
+    if float(radius_pixels) <= 0.0 or float(fallback_radius) <= 0.0:
+        raise ValueError("Screen and fallback gizmo radii must be positive.")
+    if float(sample_distance) <= 0.0:
+        raise ValueError("The projection sample distance must be positive.")
+
+    direction_length = math.sqrt(
+        sum(float(camera_right[index]) ** 2 for index in range(3))
+    )
+    if direction_length <= 1e-8:
+        raise ValueError("The camera-right direction must be non-zero.")
+    direction = tuple(float(camera_right[index]) / direction_length for index in range(3))
+    sample_point = tuple(
+        float(point[index]) + direction[index] * float(sample_distance)
+        for index in range(3)
+    )
+    projected_origin = project_point(point)
+    projected_sample = project_point(sample_point)
+    if (
+        projected_origin is None
+        or projected_sample is None
+        or len(projected_origin) < 2
+        or len(projected_sample) < 2
+    ):
+        return float(fallback_radius)
+
+    projected_distance = math.hypot(
+        float(projected_sample[0]) - float(projected_origin[0]),
+        float(projected_sample[1]) - float(projected_origin[1]),
+    )
+    if projected_distance <= 1e-8:
+        return float(fallback_radius)
+    return float(sample_distance) * float(radius_pixels) / projected_distance
 
 
 def create_foreground_layer(coin: ModuleType, name: str) -> _CoinGroup:
