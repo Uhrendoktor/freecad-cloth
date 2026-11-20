@@ -224,3 +224,16 @@ def test_freecad_yaw_pitch_roll_maps_to_mannequin_xyz_order() -> None:
         -20.0,
         30.0,
     )
+
+
+def test_pose_drag_defers_mesh_rebuild_until_native_drag_finishes() -> None:
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarPoseGui.py"
+    ).read_text(encoding="utf-8")
+    motion = source.split("def _gizmo_motion", 1)[1].split("def _gizmo_finish", 1)[0]
+    finish = source.split("def _gizmo_finish", 1)[1].split("def _clear_hover_overlay", 1)[0]
+
+    assert "preview=False" in motion
+    assert "self.panel._preview_rebuild()" in finish
