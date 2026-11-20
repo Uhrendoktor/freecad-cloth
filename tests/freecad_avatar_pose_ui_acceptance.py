@@ -265,6 +265,7 @@ def _drag_native_pose_ring(
                             "active": bool(x_dragger.isActive.getValue()),
                             "rotation": controller._dragger_quaternion(x_dragger),
                             "staged": repr(panel._staged_joint_rotations.get(bone)),
+                            "motion_error": controller._last_gizmo_motion_error,
                         }
                     )
                 )
