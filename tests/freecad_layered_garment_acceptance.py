@@ -1648,6 +1648,34 @@ def run_acceptance() -> None:
 
         saved_piece_ids = tuple(str(piece.PieceId) for piece in scene.ClothPieces)
         saved_groups = tuple(str(value) for value in scene.GarmentGroups)
+        # The original document is closed below. Snapshot every identity used by
+        # the final manifest as plain Python data before its FreeCAD links die.
+        saved_avatar_record = {
+            "id": str(avatar.Name),
+            "label": str(avatar.Label),
+            "landmarks": mannequin_landmarks,
+            "collision_surface": collision_surface_record,
+        }
+        saved_garment_group_records = [
+            {
+                "id": "shirt",
+                "piece_ids": [
+                    str(shirt[side].PieceId) for side in ("front", "right", "back", "left")
+                ],
+                "independent_of": ["skirt"],
+            },
+            {
+                "id": "skirt",
+                "piece_ids": [
+                    str(skirt[side].PieceId) for side in ("front", "right", "back", "left")
+                ]
+                + [
+                    str(waistband[side].PieceId)
+                    for side in ("front", "right", "back", "left")
+                ],
+                "independent_of": ["shirt"],
+            },
+        ]
         saved_step_count = int(scene.Steps)
         if saved_step_count != CHECKPOINTS[-1]:
             raise RuntimeError(
@@ -1845,32 +1873,8 @@ def run_acceptance() -> None:
                     "front_direction": "negative Y",
                     "placement_quaternion_order": "x,y,z,w",
                 },
-                "avatar": {
-                    "id": str(avatar.Name),
-                    "label": str(avatar.Label),
-                    "landmarks": mannequin_landmarks,
-                    "collision_surface": collision_surface_record,
-                },
-                "garment_groups": [
-                    {
-                        "id": "shirt",
-                        "piece_ids": [
-                            str(shirt[side].PieceId) for side in ("front", "right", "back", "left")
-                        ],
-                        "independent_of": ["skirt"],
-                    },
-                    {
-                        "id": "skirt",
-                        "piece_ids": [
-                            str(skirt[side].PieceId) for side in ("front", "right", "back", "left")
-                        ]
-                        + [
-                            str(waistband[side].PieceId)
-                            for side in ("front", "right", "back", "left")
-                        ],
-                        "independent_of": ["shirt"],
-                    },
-                ],
+                "avatar": saved_avatar_record,
+                "garment_groups": saved_garment_group_records,
                 "pieces": piece_scene_map,
                 "seams": checkpoints[-1]["seams"],
                 "camera_views": [
