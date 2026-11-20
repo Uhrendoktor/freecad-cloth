@@ -72,11 +72,9 @@ def add_sphere(
     if len(point) != 3 or len(color) != 3 or float(radius) <= 0.0:
         raise ValueError("A gizmo sphere requires a 3D point, positive radius and RGB color.")
 
-    marker = getattr(coin, "SoSeparator")()
+    marker = coin.SoSeparator()
     transform = coin.SoTransform()
-    transform.translation.setValue(
-        coin.SbVec3f(*(float(value) for value in point))
-    )
+    transform.translation.setValue(coin.SbVec3f(*(float(value) for value in point)))
     base = coin.SoBaseColor()
     base.rgb = tuple(float(value) for value in color)
     sphere = coin.SoSphere()
@@ -122,18 +120,16 @@ def add_capsule(
 
     unit_direction = tuple(component / length for component in direction)
     center = tuple((float(start[index]) + float(end[index])) * 0.5 for index in range(3))
-    segment = getattr(coin, "SoSeparator")()
-    transform = getattr(coin, "SoTransform")()
-    transform.translation.setValue(
-        getattr(coin, "SbVec3f")(*(float(value) for value in center))
-    )
+    segment = coin.SoSeparator()
+    transform = coin.SoTransform()
+    transform.translation.setValue(coin.SbVec3f(*(float(value) for value in center)))
     transform.rotation.setValue(
         coin.SbRotation(
-            getattr(coin, "SbVec3f")(0.0, 1.0, 0.0),
-            getattr(coin, "SbVec3f")(*(float(value) for value in unit_direction)),
+            coin.SbVec3f(0.0, 1.0, 0.0),
+            coin.SbVec3f(*(float(value) for value in unit_direction)),
         )
     )
-    base = getattr(coin, "SoBaseColor")()
+    base = coin.SoBaseColor()
     base.rgb = tuple(float(value) for value in color)
     cylinder = coin.SoCylinder()
     cylinder.radius.setValue(float(radius))
