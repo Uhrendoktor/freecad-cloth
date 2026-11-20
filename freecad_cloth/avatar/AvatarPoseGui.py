@@ -1132,9 +1132,7 @@ class SkeletonPoseController:
         if app is None:
             return
         try:
-            left_button_down = bool(
-                app.mouseButtons() & self.panel.QtCore.Qt.LeftButton
-            )
+            left_button_down = bool(app.mouseButtons() & self.panel.QtCore.Qt.LeftButton)
         except (AttributeError, RuntimeError, TypeError):
             return
         if not left_button_down:
