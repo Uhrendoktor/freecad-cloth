@@ -899,40 +899,6 @@ class SkeletonPoseController:
             self._axis_draggers = {}
             return False
 
-    def _create_trackball_gizmo(self, coin) -> None:
-        """Create a trackball fallback when native axis draggers are unavailable.
-
-        Args:
-            coin: Pivy Coin module supplying the trackball dragger node type.
-        """
-        separator = self.gizmo_separator
-        scene_graph = self.scene_graph
-        if separator is None or scene_graph is None:
-            return
-        gizmo = coin.SoTrackballDragger()
-        self.gizmo = gizmo
-        gizmo.scaleFactor.setValue(
-            self.GIZMO_SIZE,
-            self.GIZMO_SIZE,
-            self.GIZMO_SIZE,
-        )
-        gizmo.setAnimationEnabled(False)
-        getattr(separator, _COIN_ADD_CHILD_METHOD)(gizmo)
-        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
-
-        self.gizmo_foreground = create_foreground_layer(
-            coin,
-            "ClothAvatarRotationOverlay",
-        )
-        self.gizmo_foreground.addChild(separator)
-        getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
-        self.gizmo_mode = "trackball-fallback"
-        self._native_dragger = None
-        self._axis_draggers = {}
-        gizmo.addStartCallback(self._gizmo_start)
-        gizmo.addMotionCallback(self._gizmo_motion)
-        gizmo.addFinishCallback(self._gizmo_finish)
-
     def _create_gizmo(self, bone):
         """Choose and install the appropriate rotation gizmo for the selected bone.
 
@@ -959,7 +925,12 @@ class SkeletonPoseController:
         self.gizmo_separator.addChild(self.gizmo_transform)
         if self._create_native_gizmo(coin):
             return
-        self._create_trackball_gizmo(coin)
+        self._create_fallback_gizmo(bone)
+        self.gizmo_mode = "fallback-panel"
+        self.panel._set_status(
+            "Native rotation rings are unavailable in this viewport; "
+            "select a joint and use Exact angles to edit its pose."
+        )
 
     def select_joint(self, bone):
         """Select a skeleton bone and synchronize the visible rotation controls.
