@@ -91,7 +91,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'git checkout origin/main -- "${test_path}"' in broker
     assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 2
     assert (
-        "Current-main contract coverage does not supersede the exact cf3c1277 test addition" in broker
+        "Current-main contract coverage does not supersede the exact cf3c1277 test addition"
+        in broker
     )
     assert "syntax_check.returncode == 0" in broker
     for superseded_commit in (
