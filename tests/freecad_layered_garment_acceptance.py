@@ -589,6 +589,124 @@ def _body_clearance(
             import numpy as np
 
             inside_points = tuple(positions[index] for index in inside_indices)
+
+            # Audit disconnected shell parity on the authoritative collision mesh.
+            # The collision winding adapter orients each edge-connected component,
+            # while one global parity count XORs all shells. Log both semantics.
+            from freecad_cloth.shared.MeshTopology import _closed_mesh_orientation_plan
+
+            vertex_array = np.asarray(surface.vertices, dtype=np.float64)
+            source_faces = tuple(tuple(int(value) for value in face) for face in surface.triangles)
+            coherent_faces, shell_components = _closed_mesh_orientation_plan(source_faces)
+            coherent_array = np.asarray(coherent_faces, dtype=np.int64)
+            query_points = np.asarray(inside_points, dtype=np.float64)
+
+            def parity_for_faces(
+                point_array: np.ndarray,
+                face_array: np.ndarray,
+                ray_direction: np.ndarray,
+            ) -> np.ndarray:
+                """Classify a small probe set against one shell and one deterministic ray."""
+                result = np.zeros(len(point_array), dtype=bool)
+                triangle_points = vertex_array[face_array]
+                a = triangle_points[:, 0]
+                edge_one = triangle_points[:, 1] - a
+                edge_two = triangle_points[:, 2] - a
+                pvec = np.cross(ray_direction, edge_two)
+                determinant = np.einsum("ij,ij->i", edge_one, pvec)
+                usable = np.abs(determinant) > 1e-10
+                a = a[usable]
+                edge_one = edge_one[usable]
+                edge_two = edge_two[usable]
+                pvec = pvec[usable]
+                determinant = determinant[usable]
+                for point_index, point in enumerate(point_array):
+                    tvec = point[None, :] - a
+                    u = np.einsum("ij,ij->i", tvec, pvec) / determinant
+                    qvec = np.cross(tvec, edge_one)
+                    v = np.einsum("j,ij->i", ray_direction, qvec) / determinant
+                    distance = np.einsum("ij,ij->i", edge_two, qvec) / determinant
+                    hits = (
+                        (u >= -1e-9)
+                        & (u <= 1.0 + 1e-9)
+                        & (v >= -1e-9)
+                        & (u + v <= 1.0 + 1e-9)
+                        & (distance > 1e-9)
+                    )
+                    result[point_index] = int(np.count_nonzero(hits)) % 2 == 1
+                return result
+
+            shell_records = []
+            component_faces_list = []
+            for component_index, face_indices in enumerate(shell_components):
+                component_faces = coherent_array[np.asarray(face_indices, dtype=np.int64)]
+                component_faces_list.append(component_faces)
+                used_vertices = np.unique(component_faces)
+                component_points = vertex_array[used_vertices]
+                component_triangles = vertex_array[component_faces]
+                signed_volume6 = float(
+                    np.einsum(
+                        "ij,ij->i",
+                        component_triangles[:, 0],
+                        np.cross(component_triangles[:, 1], component_triangles[:, 2]),
+                    ).sum(dtype=np.float64)
+                )
+                bounds = [
+                    [float(value) for value in component_points.min(axis=0)],
+                    [float(value) for value in component_points.max(axis=0)],
+                ]
+                shell_records.append(
+                    {
+                        "component": component_index,
+                        "faces": int(len(component_faces)),
+                        "vertices": int(len(used_vertices)),
+                        "signed_volume_mm3": signed_volume6 / 6.0,
+                        "bounds_mm": bounds,
+                    }
+                )
+            _log(
+                "body-shell-component-audit count=%d total_faces=%d shells=%s"
+                % (len(shell_records), len(coherent_array), json.dumps(shell_records, sort_keys=True))
+            )
+
+            ray_directions = (
+                np.asarray((1.0, 0.3713906763541037, 0.1932424973120743), dtype=np.float64),
+                np.asarray((0.1732050807568877, 1.0, 0.4142135623730951), dtype=np.float64),
+                np.asarray((0.2718281828459045, 0.1414213562373095, 1.0), dtype=np.float64),
+                np.asarray((1.0, -0.6180339887498948, 0.3178372451957823), dtype=np.float64),
+            )
+            for ray_index, ray_direction in enumerate(ray_directions):
+                ray_direction = ray_direction / np.linalg.norm(ray_direction)
+                per_shell = [
+                    parity_for_faces(query_points, component_faces, ray_direction)
+                    for component_faces in component_faces_list
+                ]
+                shell_union = (
+                    np.logical_or.reduce(per_shell)
+                    if per_shell
+                    else np.zeros(len(query_points), dtype=bool)
+                )
+                shell_xor = (
+                    np.logical_xor.reduce(per_shell)
+                    if per_shell
+                    else np.zeros(len(query_points), dtype=bool)
+                )
+                all_faces_parity = parity_for_faces(
+                    query_points,
+                    coherent_array,
+                    ray_direction,
+                )
+                _log(
+                    "body-shell-parity-audit ray=%d components=%s global=%s union=%s xor=%s"
+                    % (
+                        ray_index,
+                        json.dumps([values.tolist() for values in per_shell]),
+                        all_faces_parity.tolist(),
+                        shell_union.tolist(),
+                        shell_xor.tolist(),
+                    )
+                )
+
             candidate_counts = tuple(dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32)))
             for candidate_count in candidate_counts:
                 probe = MeshCollisionProjector(
