@@ -170,9 +170,7 @@ def test_native_pose_dragger_state_is_polled_on_qt_without_pivy_callback_trampol
 
     controller = SkeletonPoseController.__new__(SkeletonPoseController)
     active = {"value": True}
-    dragger = SimpleNamespace(
-        isActive=SimpleNamespace(getValue=lambda: active["value"])
-    )
+    dragger = SimpleNamespace(isActive=SimpleNamespace(getValue=lambda: active["value"]))
     controller._native_dragger = [dragger]
     controller._gizmo_dragging = False
     observed = []
@@ -189,4 +187,3 @@ def test_native_pose_dragger_state_is_polled_on_qt_without_pivy_callback_trampol
         ("motion", dragger),
         ("finish", None),
     ]
-
