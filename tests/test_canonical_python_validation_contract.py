@@ -318,6 +318,10 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "python_gc_disable_requested": True,
         "python_gc_disabled_by_benchmark": True,
         "python_gc_enabled_during_measurement": False,
+        "python_gil_switch_interval_requested_seconds": None,
+        "python_gil_switch_interval_before_seconds": 0.005,
+        "python_gil_switch_interval_during_measurement_seconds": 0.005,
+        "python_gil_switch_interval_applied_by_benchmark": False,
         "runtime": {
             "platform": "Linux-test",
             "python_version": "3.12.0",
@@ -360,6 +364,28 @@ def test_realtime_metric_validator_accepts_the_three_garment_outfit() -> None:
         validate_realtime_benchmark.validate_metrics(_valid_outfit_realtime_benchmark_metrics())
         == []
     ), "canonical CI contract"
+
+
+def test_realtime_metric_validator_accepts_an_explicit_gil_interval_experiment() -> None:
+    """Accept a benchmark-only interpreter switch interval that matches its metadata."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gil_switch_interval_requested_seconds"] = 0.001
+    metrics["python_gil_switch_interval_during_measurement_seconds"] = 0.001
+    metrics["python_gil_switch_interval_applied_by_benchmark"] = True
+    assert validate_realtime_benchmark.validate_metrics(metrics) == []
+
+
+def test_realtime_metric_validator_rejects_a_gil_interval_metadata_mismatch() -> None:
+    """Reject a GIL interval experiment whose measured setting differs from its request."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gil_switch_interval_requested_seconds"] = 0.001
+    metrics["python_gil_switch_interval_during_measurement_seconds"] = 0.005
+    metrics["python_gil_switch_interval_applied_by_benchmark"] = True
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+    assert (
+        "python_gil_switch_interval_during_measurement_seconds must match the requested setting"
+        in errors
+    )
 
 
 def test_realtime_metric_validator_rejects_enabled_gc_during_disabled_experiment() -> None:

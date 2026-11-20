@@ -101,6 +101,17 @@ TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
 DISABLE_GC_DURING_MEASUREMENT = os.environ.get(
     "CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT", "false"
 ).strip().lower() in {"1", "true", "yes", "on"}
+GIL_SWITCH_INTERVAL_RAW = os.environ.get(
+    "CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS", ""
+).strip()
+GIL_SWITCH_INTERVAL_SECONDS = (
+    float(GIL_SWITCH_INTERVAL_RAW) if GIL_SWITCH_INTERVAL_RAW else None
+)
+if GIL_SWITCH_INTERVAL_SECONDS is not None and (
+    not math.isfinite(GIL_SWITCH_INTERVAL_SECONDS) or GIL_SWITCH_INTERVAL_SECONDS <= 0.0
+):
+    msg = "CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS must be positive and finite"
+    raise ValueError(msg)
 
 
 type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
@@ -611,6 +622,12 @@ def main() -> None:
     gc_disabled_by_benchmark = False
     gc_restore_needed = False
     gc_enabled_during_measurement = gc.isenabled()
+    python_gil_switch_interval_before_seconds = sys.getswitchinterval()
+    python_gil_switch_interval_during_measurement_seconds = (
+        python_gil_switch_interval_before_seconds
+    )
+    python_gil_switch_interval_applied_by_benchmark = False
+    python_gil_switch_interval_restore_needed = False
     try:
         init_gui = ROOT / "InitGui.py"
         runpy.run_path(str(init_gui))
@@ -890,6 +907,9 @@ def main() -> None:
         def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
             nonlocal frame_stage_timings_ms, in_tick, last_tick_at, native_timing_reset, tick_count
             nonlocal gc_disabled_by_benchmark, gc_enabled_during_measurement, gc_restore_needed
+            nonlocal python_gil_switch_interval_applied_by_benchmark
+            nonlocal python_gil_switch_interval_during_measurement_seconds
+            nonlocal python_gil_switch_interval_restore_needed
             started_at = time.perf_counter()
             previous_tick_at = last_tick_at
             tick_count += 1
@@ -912,6 +932,13 @@ def main() -> None:
                     gc_disabled_by_benchmark = True
                     gc_restore_needed = True
                 gc_enabled_during_measurement = gc.isenabled()
+                if GIL_SWITCH_INTERVAL_SECONDS is not None:
+                    sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
+                    python_gil_switch_interval_applied_by_benchmark = True
+                    python_gil_switch_interval_restore_needed = True
+                python_gil_switch_interval_during_measurement_seconds = (
+                    sys.getswitchinterval()
+                )
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
@@ -976,6 +1003,9 @@ def main() -> None:
         execute_loop()
         active_preview.stop_frame_clock()
         elapsed = time.perf_counter() - started
+        if python_gil_switch_interval_restore_needed:
+            sys.setswitchinterval(python_gil_switch_interval_before_seconds)
+            python_gil_switch_interval_restore_needed = False
         if gc_restore_needed:
             gc.enable()
             gc_restore_needed = False
@@ -1095,6 +1125,16 @@ def main() -> None:
             "python_gc_disable_requested": DISABLE_GC_DURING_MEASUREMENT,
             "python_gc_disabled_by_benchmark": gc_disabled_by_benchmark,
             "python_gc_enabled_during_measurement": gc_enabled_during_measurement,
+            "python_gil_switch_interval_requested_seconds": GIL_SWITCH_INTERVAL_SECONDS,
+            "python_gil_switch_interval_before_seconds": (
+                python_gil_switch_interval_before_seconds
+            ),
+            "python_gil_switch_interval_during_measurement_seconds": (
+                python_gil_switch_interval_during_measurement_seconds
+            ),
+            "python_gil_switch_interval_applied_by_benchmark": (
+                python_gil_switch_interval_applied_by_benchmark
+            ),
             "backend": getattr(backend, "name", "unknown"),
             "fixture": FIXTURE_NAME,
             "garment_count": fixture_metadata["garment_count"],
@@ -1191,6 +1231,8 @@ def main() -> None:
         if not passed:
             raise SystemExit(2)
     finally:
+        if python_gil_switch_interval_restore_needed:
+            sys.setswitchinterval(python_gil_switch_interval_before_seconds)
         if gc_restore_needed:
             gc.enable()
         if gc_callback is not None:

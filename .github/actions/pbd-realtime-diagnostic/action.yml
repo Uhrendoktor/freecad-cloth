@@ -1,6 +1,6 @@
 name: PBD realtime preview diagnostic
 description: Compare the original two-panel tunic control with a separate multi-garment outfit preview workload.
-# Keep the production preview unchanged; this action isolates timed-window GC cost.
+# Keep production preview unchanged; isolate measured-window GC and Python GIL scheduling.
 inputs:
   image:
     description: Immutable FreeCAD/PBD validation image.
@@ -25,6 +25,7 @@ runs:
           CLOTH_REALTIME_FRAMES=120
           CLOTH_REALTIME_WARMUP_FRAMES=30
           CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true
+          CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS=0.001
           OMP_NUM_THREADS=1
 
     - name: Measure three-garment outfit
@@ -43,6 +44,7 @@ runs:
           CLOTH_REALTIME_FRAMES=120
           CLOTH_REALTIME_WARMUP_FRAMES=30
           CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true
+          CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS=0.001
           OMP_NUM_THREADS=1
         artifact-name: realtime-preview-performance
         artifact-path: artifacts/freecad-realtime/**

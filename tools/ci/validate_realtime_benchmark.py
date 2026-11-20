@@ -558,6 +558,38 @@ def _validate_runtime(metrics: JsonObject, errors: list[str]) -> None:
     ):
         errors.append("python_gc_disabled_by_benchmark requires the explicit benchmark switch")
 
+    gil_requested_raw = metrics.get("python_gil_switch_interval_requested_seconds")
+    gil_requested = None if gil_requested_raw is None else _number(gil_requested_raw)
+    gil_before = _number(metrics.get("python_gil_switch_interval_before_seconds"))
+    gil_during = _number(metrics.get("python_gil_switch_interval_during_measurement_seconds"))
+    gil_applied = metrics.get("python_gil_switch_interval_applied_by_benchmark")
+    if gil_requested_raw is not None and (gil_requested is None or gil_requested <= 0.0):
+        errors.append("python_gil_switch_interval_requested_seconds must be positive and finite")
+    if gil_before is None or gil_before <= 0.0:
+        errors.append("python_gil_switch_interval_before_seconds must be positive and finite")
+    if gil_during is None or gil_during <= 0.0:
+        errors.append(
+            "python_gil_switch_interval_during_measurement_seconds must be positive and finite"
+        )
+    if not isinstance(gil_applied, bool):
+        errors.append("python_gil_switch_interval_applied_by_benchmark must be a boolean")
+    elif gil_requested is None:
+        if gil_applied:
+            errors.append("python_gil_switch_interval cannot be applied without an explicit request")
+        if (
+            gil_before is not None
+            and gil_during is not None
+            and abs(gil_during - gil_before) > 1e-9
+        ):
+            errors.append("python_gil_switch_interval changed without an explicit request")
+    else:
+        if gil_applied is not True:
+            errors.append("an explicit python_gil_switch_interval request must be applied")
+        if gil_during is not None and abs(gil_during - gil_requested) > 1e-9:
+            errors.append(
+                "python_gil_switch_interval_during_measurement_seconds must match the requested setting"
+            )
+
     counter_names = (
         "cgroup_cpu_stat_before",
         "cgroup_cpu_stat_after",
