@@ -867,7 +867,6 @@ class SkeletonPoseController:
             self._axis_draggers = {}
             return False
 
-
     def _start_native_dragger_polling(self) -> None:
         """Poll native Coin dragger fields through Qt instead of Pivy C callbacks.
 
