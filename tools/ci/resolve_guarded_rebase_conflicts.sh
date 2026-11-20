@@ -1003,6 +1003,7 @@ PY
       ! git show "$rebase_commit:freecad_cloth/avatar/AvatarPoseGui.py" | grep -Fq 'def _coin(self) -> _CoinModule:' ||
       ! git show "$rebase_commit:freecad_cloth/avatar/coin_protocols.py" | grep -Fq 'class _CoinModule(Protocol):' ||
       git cat-file -e origin/main:freecad_cloth/avatar/coin_protocols.py 2>/dev/null ||
+      ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fxq 'from typing import TYPE_CHECKING, Protocol' ||
       ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'GIZMO_SIZE = 88.0' ||
       ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'BONE_PICK_RADIUS = 16.0' ||
       ! git show origin/main:freecad_cloth/avatar/AvatarPoseGui.py | grep -Fq 'JOINT_PICK_RADIUS = 24.0' ||
@@ -1042,7 +1043,7 @@ def replace_once(old: str, new: str, label: str) -> None:
     source = source.replace(old, new, 1)
 
 replace_once("from collections.abc import Sequence\n", "from collections.abc import Callable, Sequence\n", "collections.abc import")
-replace_once("from typing import TYPE_CHECKING\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
+replace_once("from typing import TYPE_CHECKING, Protocol\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
 replace_once(
     "from typing import TYPE_CHECKING, Protocol, cast\n",
     "from typing import TYPE_CHECKING, Protocol, cast\n\n"
