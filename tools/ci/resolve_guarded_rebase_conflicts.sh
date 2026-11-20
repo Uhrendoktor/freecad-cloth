@@ -856,13 +856,13 @@ PY
       ! git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'ranges = getattr(self, "_range_values", ())' ||
       ! git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'self.table.item(row, column).text()' ||
       git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' ||
-      [[ "$(git rev-parse HEAD:freecad_cloth/sewing/SewingNetworkGui.py)" != "3c68946244ace48f3e96bb356b33422b55a49cdb" ]] ||
+      [[ "$(git rev-parse origin/main:freecad_cloth/sewing/SewingNetworkGui.py)" != "3c68946244ace48f3e96bb356b33422b55a49cdb" ]] ||
       [[ ! -f .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch ]]; then
       echo "::error::Refusing SewingNetworkGui replay outside exact f62b typing commit or expected current-main editor contract."
       exit 1
     fi
-    echo "::warning::Preserving paired A/B range rows and partial-init/table-text fallbacks; applying the reviewed static protocol patch."
-    git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py
+    echo "::warning::Restoring the exact current-main SewingNetworkGui blob, preserving paired A/B rows and defensive fallbacks, then applying the reviewed typing patch."
+    git checkout origin/main -- freecad_cloth/sewing/SewingNetworkGui.py
     git apply --check .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch
     git apply .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch
     if ! grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' freecad_cloth/sewing/SewingNetworkGui.py ||
