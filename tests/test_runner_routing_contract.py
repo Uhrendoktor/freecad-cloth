@@ -117,7 +117,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'helper_references" != "3"' in broker
     assert 'formatted_calls" != "2"' in broker
     assert 'parent_wrapped_calls" != "2"' in broker
-    assert 'historical_set - mainline_set' in broker
+    assert "historical_set - mainline_set" in broker
     assert "Current-main routing contract is missing required marker" in broker
     assert 'git checkout origin/main -- "${test_path}"' in broker
     assert 'git checkout "${rebase_commit}" -- "${benchmark_path}"' in broker
