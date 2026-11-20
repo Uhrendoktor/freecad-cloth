@@ -288,11 +288,18 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
         "elif [[ \"$conflicts\" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py' ]]",
+        'elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]',
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
     sewing_handler = resolver.index("f62b45d70533341c14e6f9909c233498c7d5ef01", loop_start)
     assert loop_start < sewing_handler < fail_closed
+    assert 'git checkout --ours -- "${test_path}"' in resolver
+    assert 'git add "${test_path}" "${benchmark_path}"' in resolver
+    assert "test_numstat" in resolver
+    assert "helper_references" in resolver
+    assert "_avatar_preview_dimensions(" in resolver
+    assert 'git show "origin/main:${test_path}" | grep -Fq "loop_done = resolver.index"' in resolver
     workflow_handler = resolver.index("bbd581e2df7ed83509755ef7a32850edd3441f49", loop_start)
     assert loop_start < workflow_handler < fail_closed
     assert resolver[loop_done + len("\ndone\n") :].strip() == ""
