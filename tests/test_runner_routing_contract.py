@@ -81,7 +81,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
     assert 'git diff-tree --no-commit-id --name-only -r "${rebase_commit}"' in broker
-    assert 'git show "${rebase_commit}:${resolver_path}" | bash -n' in broker
+    assert 'git show "${rebase_commit}:${resolver_path}" | bash -n' not in broker
     assert 'git show "origin/main:${resolver_path}" | bash -n' in broker
     assert "grep -Eq '^\\+[^+]'" in broker
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in broker

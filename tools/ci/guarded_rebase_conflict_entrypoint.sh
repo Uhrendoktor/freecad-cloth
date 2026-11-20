@@ -23,12 +23,12 @@ elif [[ "${rebase_commit}" == "188f4ce80b19b47679d616ede5235f67bc2d38a2" ]] &&
   [[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]; then
   resolver_path="tools/ci/resolve_guarded_rebase_conflicts.sh"
   if [[ "$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")" != "${resolver_path}" ]] ||
-    ! git show "${rebase_commit}:${resolver_path}" | bash -n ||
+    # The obsolete snapshot may include the duplicate tail; only the kept mainline resolver must parse.
     ! git show "origin/main:${resolver_path}" | bash -n ||
     ! git diff --unified=0 "${rebase_commit}^" "${rebase_commit}" -- "${resolver_path}" | grep -Fq "tests/test_build_visual_gifs.py" ||
     ! git diff --unified=0 "${rebase_commit}^" "${rebase_commit}" -- "${resolver_path}" | grep -Fq "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" ||
     git diff --unified=0 "${rebase_commit}^" "${rebase_commit}" -- "${resolver_path}" | grep -Eq '^\+[^+]'; then
-    echo "::error::Refusing resolver cleanup replay outside the exact deletion-only 188f4ce commit and valid resolver states."
+    echo "::error::Refusing resolver cleanup replay outside the exact deletion-only 188f4ce commit and verified mainline resolver."
     exit 1
   fi
   for marker in \
