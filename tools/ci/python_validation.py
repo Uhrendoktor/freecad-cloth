@@ -103,6 +103,7 @@ GROUPS = {
         "tests/test_sewing_commands.py",
         "tests/test_gui_structure.py",
         "tests/test_viewport_gizmo_style.py",
+        "tests/test_viewport_gizmo_geometry.py",
         "tests/test_simulation_scene.py",
         "tests/test_realtime_mesh_preview.py",
         "tests/test_realtime_preview_timing.py",
