@@ -229,7 +229,7 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
         assert 'xmlns="http://www.w3.org/2000/svg"' in content
 
 
-def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets():
+def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets() -> None:
     class DestroyedWidget:
         def property(self, _name: str) -> object:
             raise RuntimeError("Internal C++ object (QDoubleSpinBox) already deleted")
@@ -264,7 +264,7 @@ def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets():
     assert live.updated is True
 
 
-def test_avatar_measurement_focus_cleanup_detaches_filters_before_close():
+def test_avatar_measurement_focus_cleanup_detaches_filters_before_close() -> None:
     class Widget:
         def __init__(self) -> None:
             self.removed_filters: list[object] = []
