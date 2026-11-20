@@ -37,6 +37,9 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ROTATION_PIVOT_RADIUS,
     ROTATION_RING_RADIUS,
     ROTATION_RING_THICKNESS,
+    ROTATION_VIEW_COLOR,
+    ROTATION_VIEW_RING_RADIUS,
+    ROTATION_VIEW_RING_THICKNESS,
 )
 
 if TYPE_CHECKING:
@@ -193,6 +196,7 @@ class SkeletonPoseController:
         self.overlay = None
         self.overlay_content = None
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.gizmo_transform = None
         self.gizmo = None
         self.mouse_callback = None
@@ -428,6 +432,7 @@ class SkeletonPoseController:
             self.gizmo = None
             self.gizmo_transform = None
             self.gizmo_separator = None
+            self.gizmo_foreground = None
             self.overlay = None
             self.overlay_content = None
             self.scene_graph = None
@@ -452,8 +457,13 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         try:
-            if self.gizmo_separator is not None:
-                self.scene_graph.removeChild(self.gizmo_separator)
+            gizmo_parent = (
+                self.gizmo_foreground
+                if self.gizmo_foreground is not None
+                else self.gizmo_separator
+            )
+            if gizmo_parent is not None:
+                self.scene_graph.removeChild(gizmo_parent)
             if self.overlay is not None:
                 self.scene_graph.removeChild(self.overlay)
         except (AttributeError, RuntimeError):
@@ -464,6 +474,7 @@ class SkeletonPoseController:
         self.gizmo = None
         self.gizmo_transform = None
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.overlay = None
         self.overlay_content = None
         self.scene_graph = None
@@ -557,10 +568,16 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         """Remove the active rotation gizmo from the Coin scene graph."""
-        if self.scene_graph is not None and self.gizmo_separator is not None:
+        gizmo_parent = (
+            self.gizmo_foreground
+            if self.gizmo_foreground is not None
+            else self.gizmo_separator
+        )
+        if self.scene_graph is not None and gizmo_parent is not None:
             with contextlib.suppress(AttributeError, RuntimeError):
-                self.scene_graph.removeChild(self.gizmo_separator)
+                self.scene_graph.removeChild(gizmo_parent)
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.gizmo_transform = None
         self.gizmo = None
         self.gizmo_mode = None
@@ -577,18 +594,30 @@ class SkeletonPoseController:
             axis: Lowercase x/y/z axis key, or None to restore the semantic palette.
         """
         for name, dragger in self._axis_draggers.items():
-            color = ACTIVE_COLOR if axis == name.lower() else POSE_AXIS_COLORS[name]
+            semantic_color = (
+                ROTATION_VIEW_COLOR if name == "VIEW" else POSE_AXIS_COLORS[name]
+            )
+            color = ACTIVE_COLOR if axis == name.lower() else semantic_color
             with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 dragger.color.setValue(*color)
 
-    def _configure_axis_rotation_dragger(self, coin, dragger, rgb, geometry_scale):
-        """Configure one native FreeCAD rotation ring with cone tips and a pivot sphere.
+    def _configure_axis_rotation_dragger(
+        self,
+        coin,
+        dragger,
+        rgb,
+        geometry_scale,
+        *,
+        camera_facing: bool = False,
+    ):
+        """Configure one native rotation ring with either axis or view-space geometry.
 
         Args:
             coin: Pivy Coin module supplying scene-graph types.
             dragger: Coin dragger providing the current rotation state.
             rgb: Normalized color assigned to the rotation axis.
             geometry_scale: Scale applied to the rotation-ring geometry.
+            camera_facing: True for a full-circle, arrow-free ring in the camera plane.
         """
         rotator_type = coin.SoType.fromName("SoRotatorGeometry2")
         if rotator_type.isBad():
@@ -628,14 +657,20 @@ class SkeletonPoseController:
             0.0,
         )
 
-        rotator.arcAngle.setValue(math.radians(ROTATION_ARC_ANGLE_DEGREES))
-        rotator.arcRadius.setValue(ROTATION_RING_RADIUS)
-        rotator.arcThickness.setValue(ROTATION_RING_THICKNESS)
-        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS)
+        rotator.arcAngle.setValue(
+            math.tau if camera_facing else math.radians(ROTATION_ARC_ANGLE_DEGREES)
+        )
+        rotator.arcRadius.setValue(
+            ROTATION_VIEW_RING_RADIUS if camera_facing else ROTATION_RING_RADIUS
+        )
+        rotator.arcThickness.setValue(
+            ROTATION_VIEW_RING_THICKNESS if camera_facing else ROTATION_RING_THICKNESS
+        )
+        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS if not camera_facing else 0.25)
         rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
         rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
-        rotator.leftArrowVisible.setValue(True)
-        rotator.rightArrowVisible.setValue(True)
+        rotator.leftArrowVisible.setValue(not camera_facing)
+        rotator.rightArrowVisible.setValue(not camera_facing)
 
         dragger.color.setValue(*rgb)
         dragger.activeColor.setValue(*ACTIVE_COLOR)
@@ -721,17 +756,57 @@ class SkeletonPoseController:
                 dragger.addMotionCallback(self._gizmo_motion)
                 dragger.addFinishCallback(self._gizmo_finish)
 
-            getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(separator)
+            billboard_type = coin.SoType.fromName("SoVRMLBillboard")
+            has_view_ring = False
+            if not billboard_type.isBad():
+                billboard = billboard_type.createInstance()
+                view_dragger = type_id.createInstance()
+                if billboard is not None and view_dragger is not None:
+                    billboard.axisOfRotation.setValue(0.0, 0.0, 0.0)
+                    if self._configure_axis_rotation_dragger(
+                        coin,
+                        view_dragger,
+                        ROTATION_VIEW_COLOR,
+                        geometry_scale,
+                        camera_facing=True,
+                    ):
+                        view_dragger.setName("ClothPoseRotationView")
+                        billboard.addChild(view_dragger)
+                        view_branch = coin.SoSeparator()
+                        view_branch.addChild(billboard)
+                        separator.addChild(view_branch)
+                        view_dragger.addStartCallback(self._gizmo_start)
+                        view_dragger.addMotionCallback(self._gizmo_motion)
+                        view_dragger.addFinishCallback(self._gizmo_finish)
+                        self._axis_draggers["VIEW"] = view_dragger
+                        draggers.append(view_dragger)
+                        has_view_ring = True
+
+            from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+            self.gizmo_foreground = create_foreground_layer(
+                coin,
+                "ClothAvatarRotationOverlay",
+            )
+            self.gizmo_foreground.addChild(separator)
+            getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
             self._native_dragger = draggers
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
-            self.gizmo_style = "axis-rings-cones"
+            self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
+            gizmo_parent = (
+                self.gizmo_foreground
+                if self.gizmo_foreground is not None
+                else separator
+            )
             with contextlib.suppress(AttributeError, RuntimeError):
-                getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(separator)
+                getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(gizmo_parent)
+            self.gizmo_foreground = None
+            self._axis_draggers = {}
             return False
 
     def _create_trackball_gizmo(self, coin) -> None:
@@ -753,7 +828,14 @@ class SkeletonPoseController:
         )
         gizmo.setAnimationEnabled(False)
         getattr(separator, _COIN_ADD_CHILD_METHOD)(gizmo)
-        getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(separator)
+        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+        self.gizmo_foreground = create_foreground_layer(
+            coin,
+            "ClothAvatarRotationOverlay",
+        )
+        self.gizmo_foreground.addChild(separator)
+        getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
         self.gizmo_mode = "trackball-fallback"
         self._native_dragger = None
         self._axis_draggers = {}
@@ -829,7 +911,13 @@ class SkeletonPoseController:
             "ClothPoseRotationY": (0.0, 1.0, 0.0),
             "ClothPoseRotationZ": (0.0, 0.0, 1.0),
         }.get(name)
-        if name.endswith(("X", "Y", "Z")):
+        if name == "ClothPoseRotationView":
+            camera = self.view.getCameraNode()
+            orientation = camera.orientation.getValue()
+            view_axis = orientation.multVec(self._coin().SbVec3f(0.0, 0.0, 1.0))
+            self._active_gizmo_axis = tuple(float(view_axis[index]) for index in range(3))
+            self.panel._set_rotation_axis_highlight("view")
+        elif name.endswith(("X", "Y", "Z")):
             self.panel._set_rotation_axis_highlight(name[-1].lower())
 
         dragger.rotation.setValue(
