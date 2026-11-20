@@ -1,0 +1,214 @@
+diff --git a/freecad_cloth/sewing/SewingNetworkGui.py b/freecad_cloth/sewing/SewingNetworkGui.py
+--- a/freecad_cloth/sewing/SewingNetworkGui.py
++++ b/freecad_cloth/sewing/SewingNetworkGui.py
+@@ -7,14 +7,13 @@
+ 
+ from __future__ import annotations
+ 
++from collections.abc import Callable, Sequence
+ from itertools import starmap
+ from types import ModuleType
+-from typing import TYPE_CHECKING, Protocol
++from typing import TYPE_CHECKING, Protocol, TypedDict, cast
+ 
+ from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
+ 
+-if TYPE_CHECKING:
+-    from collections.abc import Sequence
+ 
+ 
+ def _modules():
+@@ -57,12 +56,86 @@
+     """Persistent network identity and its ordered canonical seam members."""
+ 
+     RelationshipId: str
++    Status: str
+     Seams: Sequence[_SeamFeature]
+ 
+ 
++class _SeamReferenceStatus(Protocol):
++    """Read-only seam identity and status used by reference validators."""
++
++    @property
++    def Status(self) -> str:
++        """Return the canonical seam-reference status."""
++        ...
++
++    @property
++    def SeamId(self) -> str:
++        """Return the stable seam identifier."""
++        ...
++
++
++class _NetworkReferenceCollection(Protocol):
++    """Ordered seam collection required by reference-status validators."""
++
++    @property
++    def Seams(self) -> Sequence[_SeamReferenceStatus]:
++        """Return the ordered canonical seam members."""
++        ...
++
++
++class _NetworkStatusFeature(Protocol):
++    """Read-only status consumed as a fallback by seam captions."""
++
++    @property
++    def Status(self) -> str:
++        """Return the aggregate network status."""
++        ...
++
++
++class _SeamSearchFeature(_SeamReferenceStatus, Protocol):
++    """Read-only seam fields used to build searchable row text."""
++
++    @property
++    def PieceA(self) -> str:
++        """Return the first connected pattern-piece identifier."""
++        ...
++
++    @property
++    def EdgeA(self) -> str:
++        """Return the first connected pattern-edge identifier."""
++        ...
++
++    @property
++    def PieceB(self) -> str:
++        """Return the second connected pattern-piece identifier."""
++        ...
++
++    @property
++    def EdgeB(self) -> str:
++        """Return the second connected pattern-edge identifier."""
++        ...
++
++
++class _FloatChangedSignal(Protocol):
++    """Qt signal that emits the updated floating-point endpoint."""
++
++    def connect(self, _slot: Callable[[float], None]) -> None:
++        """Connect one callback for numeric endpoint changes."""
++        ...
++
++
++class _NetworkEditorSnapshot(TypedDict):
++    """Original network editor values saved for abort/rollback."""
++
++    ranges: tuple[tuple[float, float, float, float], ...]
++    alignment: tuple[str, ...]
++    reversed_b: tuple[bool, ...]
++
+ class _RangeEditor(Protocol):
+     """Numeric Qt control used for one normalized seam-range endpoint."""
+ 
++    valueChanged: _FloatChangedSignal
++
+     def setRange(self, _minimum: float, _maximum: float) -> None:
+         """Limit the editor to a normalized parameter interval."""
+         ...
+@@ -88,7 +161,7 @@
+         ...
+ 
+ 
+-def network_reference_errors(network: _SewingNetworkFeature) -> tuple[tuple[str, str], ...]:
++def network_reference_errors(network: _NetworkReferenceCollection) -> tuple[tuple[str, str], ...]:
+     """Collect non-valid statuses from canonical sewing-network members.
+ 
+     Args:
+@@ -105,7 +178,7 @@
+     return tuple(errors)
+ 
+ 
+-def validate_network_for_edit(network: _SewingNetworkFeature) -> bool:
++def validate_network_for_edit(network: _NetworkReferenceCollection) -> bool:
+     """Check whether a persisted network can safely enter the editor.
+ 
+     Args:
+@@ -194,8 +267,8 @@
+         self.correspondence.setObjectName("ClothSewingNetworkCorrespondenceEvidence")
+         layout.addWidget(self.correspondence)
+ 
+-        self._seams = seam_values
+-        self._range_values = [
++        self._seams: tuple[_SeamFeature, ...] = seam_values
++        self._range_values: list[tuple[float, float, float, float]] = [
+             (
+                 float(getattr(seam, "StartA", 0.0)),
+                 float(getattr(seam, "EndA", 1.0)),
+@@ -238,10 +311,16 @@
+         configure_form_layout(range_form, QtWidgets)
+         from freecad_cloth.common.UiDesign import make_paired_range_row
+ 
+-        self.start_a, self.end_a, self.start_b, self.end_b = (
+-            self._range_spin(QtWidgets) for _ in range(4)
++        self.start_a = self._range_spin(QtWidgets)
++        self.end_a = self._range_spin(QtWidgets)
++        self.start_b = self._range_spin(QtWidgets)
++        self.end_b = self._range_spin(QtWidgets)
++        self._range_fields: tuple[_RangeEditor, ...] = (
++            self.start_a,
++            self.end_a,
++            self.start_b,
++            self.end_b,
+         )
+-        self._range_fields = (self.start_a, self.end_a, self.start_b, self.end_b)
+ 
+         range_form.addRow(
+             "Side A (0-1)",
+@@ -287,7 +366,7 @@
+         root.addWidget(make_scroll_area(content, QtWidgets), 1)
+         root.addWidget(self.status)
+ 
+-        self._original = {
++        self._original: _NetworkEditorSnapshot = {
+             "ranges": tuple(
+                 (
+                     float(getattr(seam, "StartA", 0.0)),
+@@ -348,7 +427,7 @@
+     def _restore_original(self) -> None:
+         """Restore the saved seam ranges, alignment, and correspondence direction."""
+         if hasattr(self, "_range_values"):
+-            self._range_values = [tuple(values) for values in self._original["ranges"]]
++            self._range_values = list(self._original["ranges"])
+             current_row = getattr(self, "_current_row", -1)
+             if hasattr(self, "_range_fields") and 0 <= current_row < len(self._range_values):
+                 self._current_row = -1
+@@ -374,14 +453,14 @@
+         Returns:
+             A native numeric editor constrained to the normalized edge interval.
+         """
+-        field = qt_widgets.QDoubleSpinBox()
++        field = cast(_RangeEditor, qt_widgets.QDoubleSpinBox())
+         field.setRange(0.0, 1.0)
+         field.setDecimals(4)
+         field.setSingleStep(0.01)
+         return field
+ 
+     @staticmethod
+-    def _seam_search_text(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
++    def _seam_search_text(seam: _SeamSearchFeature, network: _NetworkStatusFeature) -> str:
+         """Build searchable text from both seam sides and validation state.
+ 
+         Args:
+@@ -404,7 +483,7 @@
+         ).casefold()
+ 
+     @staticmethod
+-    def _seam_caption(seam: _SeamFeature, network: _SewingNetworkFeature) -> str:
++    def _seam_caption(seam: _SeamSearchFeature, network: _NetworkStatusFeature) -> str:
+         """Create a compact row caption identifying both connected edges.
+ 
+         Args:
+@@ -439,7 +518,12 @@
+         fields = getattr(self, "_range_fields", ())
+         if getattr(self, "_loading_range", False) or not 0 <= row < len(ranges) or len(fields) != 4:
+             return
+-        self._range_values[row] = tuple(float(field.value()) for field in fields)
++        self._range_values[row] = (
++            float(fields[0].value()),
++            float(fields[1].value()),
++            float(fields[2].value()),
++            float(fields[3].value()),
++        )
+ 
+     def _select_seam_row(self, row: int) -> None:
+         """Load a selected seam's staged range values into the detail editor.
