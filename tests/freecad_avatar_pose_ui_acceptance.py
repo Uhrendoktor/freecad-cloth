@@ -810,9 +810,8 @@ def run():
         msg = "Pose Mode did not select a default joint"
         raise RuntimeError(msg)
 
-    # Pivy mouse callbacks are unavailable in this FreeCAD/SWIG build.
-    # Select the joint through the controller API, then edit Exact angles using
-    # real Qt keyboard events and capture the resulting live UI/model preview.
+    # Native Coin rings now synchronize through the Qt poller above. Keep the
+    # exact-angle keyboard edit as an independent precision-entry regression.
     # The preceding screenshot helper has already sized and activated the main window.
     # Do not resize it again here: some FreeCAD task-panel builds recreate child widgets.
     window = Gui.getMainWindow()
