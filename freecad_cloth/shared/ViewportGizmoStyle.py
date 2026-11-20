@@ -25,12 +25,12 @@ DIMENSION_GUIDE_LINE_WIDTH = 1.8
 SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
 SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
-# Pose rig emphasis levels.
-RIG_PASSIVE_LINE_WIDTH = 1.4
-RIG_EDITABLE_LINE_WIDTH = 2.4
-RIG_ACTIVE_LINE_WIDTH = 4.0
-RIG_JOINT_POINT_SIZE = 7.0
-RIG_ACTIVE_JOINT_POINT_SIZE = 14.0
+# Pose rig geometry uses model-space radii so bones and joints read as rounded controls.
+RIG_PASSIVE_RADIUS = 2.5
+RIG_EDITABLE_RADIUS = 3.8
+RIG_ACTIVE_RADIUS = 6.0
+RIG_JOINT_RADIUS = 4.2
+RIG_ACTIVE_JOINT_RADIUS = 8.0
 
 # Native axis rotation dragger geometry (model-space dimensions).
 ROTATION_GIZMO_SCALE = 8.5
@@ -56,14 +56,13 @@ SEAM_CONNECTOR_LINE_WIDTH = 1.25
 SEAM_LABEL_FONT_SIZE = 16.0
 
 
-# Measurement guides use a restrained X-ray underlay for geometry hidden by the
-# avatar. The foreground handle is a three-layer, screen-sized target so it stays
-# recognisable against light and dark mannequin surfaces.
-DIMENSION_OCCLUDED_COLOR = (0.38, 0.53, 0.59)
-DIMENSION_OCCLUDED_LINE_WIDTH = 1.25
+# Measurement guides use a higher-contrast X-ray underlay behind the mannequin.
+# Foreground grips are nested 3D spheres whose radii are expressed in model units.
+DIMENSION_OCCLUDED_COLOR = (0.48, 0.65, 0.72)
+DIMENSION_OCCLUDED_LINE_WIDTH = 1.6
 DIMENSION_OCCLUDED_LINE_PATTERN = 0x0F0F
 DIMENSION_OCCLUDED_LINE_PATTERN_SCALE = 2
 DIMENSION_MARKER_HALO_COLOR = (0.96, 0.97, 0.98)
 DIMENSION_MARKER_OUTLINE_COLOR = (0.08, 0.10, 0.12)
-DIMENSION_MARKER_HALO_SIZE_INCREMENT = 12.0
-DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT = 6.0
+DIMENSION_MARKER_HALO_RADIUS_INCREMENT = 5.0
+DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT = 2.5
