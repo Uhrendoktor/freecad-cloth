@@ -153,3 +153,40 @@ def test_pose_mouse_down_does_not_rebuild_the_selected_dragger_branch() -> None:
 
     assert selected == []
 
+
+def test_native_pose_dragger_state_is_polled_on_qt_without_pivy_callback_trampolines() -> None:
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    source = (
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarPoseGui.py"
+    ).read_text(encoding="utf-8")
+    assert "timer.timeout.connect(self._poll_native_dragger_state)" in source
+    assert "dragger.isActive.getValue()" in source
+    assert "dragger.addStartCallback" not in source
+    assert "dragger.addMotionCallback" not in source
+    assert "dragger.addFinishCallback" not in source
+    assert "view_dragger.addStartCallback" not in source
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    active = {"value": True}
+    dragger = SimpleNamespace(
+        isActive=SimpleNamespace(getValue=lambda: active["value"])
+    )
+    controller._native_dragger = [dragger]
+    controller._gizmo_dragging = False
+    observed = []
+    controller._gizmo_start = lambda _data, current: observed.append(("start", current))
+    controller._gizmo_motion = lambda _data, current: observed.append(("motion", current))
+    controller._gizmo_finish = lambda _data, current: observed.append(("finish", current))
+
+    controller._poll_native_dragger_state()
+    active["value"] = False
+    controller._poll_native_dragger_state()
+
+    assert observed == [
+        ("start", dragger),
+        ("motion", dragger),
+        ("finish", None),
+    ]
+
