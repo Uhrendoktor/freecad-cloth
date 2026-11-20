@@ -37,7 +37,7 @@ The viewport is the primary manipulation surface. The task panel keeps only dire
 
 The current implementation is manual forward kinematics. Parent joint rotations propagate to descendants through the authored skeleton hierarchy.
 
-The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one per axis, with a near-complete colored ring, cone arrowheads and spherical pivot geometry. The selected bone is kept in a depth-independent overlay so the full X-ray rig remains visible. FreeCAD builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
+The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one per axis, with a near-complete colored ring, cone arrowheads and spherical pivot geometry. The full rig is drawn in a Coin annotation layer: rounded cylinder bone shafts, spherical joints and a stronger selected-bone/pivot treatment remain visible through the mannequin. Bone selection still uses projected screen-space hit testing; builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls. FreeCAD builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
 
 ## What a human should see
 
