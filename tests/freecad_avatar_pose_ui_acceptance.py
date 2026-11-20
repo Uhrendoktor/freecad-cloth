@@ -182,9 +182,6 @@ def _drag_native_pose_ring(
 
     viewport = viewport_widget(Gui, view)
     panel.angle_snap.setChecked(False)
-    # The three axis rings share a pivot. Try several points on the projected X
-    # ring until Coin activates that named dragger, rather than accepting a hit
-    # on the Y/Z or camera-facing ring as proof of X-axis interaction.
     candidate_arcs = ((30.0, 210.0), (60.0, 240.0), (90.0, 270.0), (0.0, 180.0), (120.0, 300.0))
     selected = None
     attempts = []
@@ -197,29 +194,31 @@ def _drag_native_pose_ring(
             try:
                 wait_until(
                     lambda: bool(controller._gizmo_dragging),
-                    description="native pose-ring drag start",
+                    description="projected native pose-ring drag start",
                 )
             except RuntimeError:
                 release_all_input()
                 _events()
-                attempts.append((start_angle, "no-dragger-hit"))
+                attempts.append((start_angle, "no-ring-hit"))
                 continue
 
             active_axis = controller._active_gizmo_axis
-            attempts.append((start_angle, active_axis))
+            axis_name = controller._manual_ring_axis_name
+            attempts.append((start_angle, axis_name, active_axis))
             progress(
                 "pose-ring-hit "
                 + repr(
                     {
                         "start_angle": start_angle,
-                        "active_axis": active_axis,
+                        "active_axis": axis_name,
+                        "axis_vector": active_axis,
                         "start": tuple(round(float(value), 1) for value in start),
                         "end": tuple(round(float(value), 1) for value in end),
                     }
                 )
             )
-            if active_axis == (1.0, 0.0, 0.0):
-                selected = (start_angle, end_angle, start, end, controller._axis_draggers["X"])
+            if axis_name == "X" and active_axis == (1.0, 0.0, 0.0):
+                selected = (start_angle, end_angle, start, end)
                 break
 
             mouse_release(viewport, start, delay_ms=50)
@@ -235,42 +234,49 @@ def _drag_native_pose_ring(
                 f"candidate hits={attempts!r}"
             )
 
-        start_angle, end_angle, start, end, x_dragger = selected
-        initial_rotation = controller._dragger_quaternion(x_dragger)
+        start_angle, end_angle, start, end = selected
+        samples = controller._manual_ring_samples
+        if not samples:
+            raise RuntimeError("native X-ring pointer hit did not retain projected ring samples")
         progress(
             "pose-ring-start "
             + repr(
                 {
-                    "active": bool(x_dragger.isActive.getValue()),
-                    "axis": controller._active_gizmo_axis,
-                    "rotation": initial_rotation,
+                    "active": controller._gizmo_dragging,
+                    "axis": controller._manual_ring_axis_name,
+                    "start_angle": controller._manual_ring_angle_start,
+                    "staged": repr(panel._staged_joint_rotations.get(bone)),
                 }
             )
         )
         for step in range(1, 13):
             angle = start_angle + (end_angle - start_angle) * step / 12.0
+            point = projected_ring_point(angle)
             mouse_move(
                 viewport,
-                projected_ring_point(angle),
+                point,
                 delay_ms=65,
                 buttons_down=True,
             )
             _events()
             if step in (3, 6, 9, 12):
+                _distance, screen_angle = controller._nearest_ring_angle(point, samples)
                 progress(
                     "pose-ring-motion "
                     + repr(
                         {
                             "step": step,
-                            "active": bool(x_dragger.isActive.getValue()),
-                            "rotation": controller._dragger_quaternion(x_dragger),
+                            "screen_angle": screen_angle,
                             "staged": repr(panel._staged_joint_rotations.get(bone)),
                             "motion_error": controller._last_gizmo_motion_error,
                         }
                     )
                 )
 
-        final_rotation = controller._dragger_quaternion(x_dragger)
+        final_angle = controller._manual_ring_angle_current
+        current = panel._staged_joint_rotations.get(bone)
+        after_x = before_x if current is None else float(current.x)
+        delta_x = after_x - before_x
         mouse_release(viewport, end, delay_ms=80)
         _events()
         wait_until(
@@ -281,9 +287,6 @@ def _drag_native_pose_ring(
         release_all_input()
         _events()
 
-    current = panel._staged_joint_rotations.get(bone)
-    after_x = before_x if current is None else float(current.x)
-    delta_x = after_x - before_x
     progress(
         "pose-ring-final "
         + repr(
@@ -291,8 +294,9 @@ def _drag_native_pose_ring(
                 "before": before_x,
                 "after": after_x,
                 "delta": delta_x,
-                "rotation": final_rotation,
+                "screen_angle": final_angle,
                 "attempts": attempts,
+                "motion_error": controller._last_gizmo_motion_error,
             }
         )
     )
@@ -300,7 +304,8 @@ def _drag_native_pose_ring(
         raise RuntimeError(
             "native X-axis ring received pointer input but staged no measurable rotation: "
             f"before={before_x:.3f} after={after_x:.3f} delta={delta_x:.3f} "
-            f"rotation={final_rotation!r} start={start} end={end} attempts={attempts!r}"
+            f"screen_angle={final_angle!r} attempts={attempts!r} "
+            f"motion_error={controller._last_gizmo_motion_error!r}"
         )
     result: _PoseRingDragResult = {
         "axis": "X",
@@ -819,8 +824,7 @@ def run():
     if window is None or not window.isVisible():
         msg = "FreeCAD main window is unavailable for Pose Mode GIF recording"
         raise RuntimeError(msg)
-    panel.controller.select_joint("upperarm01.L")
-    _events()
+    progress("pose-ring-recorder-start")
     recorder = UiGifRecorder(
         "artifacts/ui-gifs/pose-joint-rotation.gif",
         gui=Gui,
@@ -834,7 +838,9 @@ def run():
     ring_drag: _PoseRingDragResult | None = None
     try:
         recorder.hold(600)
+        progress("pose-ring-drag-helper-start")
         ring_drag = _drag_native_pose_ring(panel, view, progress)
+        progress("pose-ring-drag-helper-returned")
         recorder.hold(650)
         click_widget(panel.precision)
         _events()
