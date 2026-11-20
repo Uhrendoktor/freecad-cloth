@@ -90,6 +90,21 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 2
     assert "Current-main contract coverage does not supersede the exact cf3c1277 test addition" in broker
     assert "syntax_check.returncode == 0" in broker
+    for superseded_commit in (
+        "aca0d1ae82001b0c74347d106c08cf45bcb4ea8a",
+        "97b837b940384a9279af1884d44014bd8a89d453",
+        "a9ecc40952cad7377c0ca148d6a3e9a30c25bdd3",
+        "fb42ac86ef9685bdfd90aa369fbb70f9da630d75",
+        "5a4f3ff1bc99a09b064e0b9bfebbf611628b633f",
+    ):
+        assert f'elif [["' not in broker
+        assert f'elif [["' not in broker
+        assert f'elif [["' not in broker
+        assert f'elif [["' not in broker
+        assert superseded_commit in broker
+    assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 6
+    assert 'git checkout origin/main -- "${resolver_path}" "${test_path}"' in broker
+    assert 'git checkout origin/main -- "${test_path}"' in broker
     assert "grep -Eq '^\\+[^+]'" in broker
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in broker
     assert "69999107b2e8888a5d179835b8297b21fef19d74" in broker
