@@ -2,6 +2,7 @@
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
 import faulthandler
+import math
 import os
 import sys
 import time
@@ -22,7 +23,12 @@ import FreeCADGui as Gui
 from tests.support.freecad_input import (
     UiGifRecorder,
     click_widget,
+    mouse_move,
+    mouse_press,
+    mouse_release,
+    release_all_input,
     type_text,
+    viewport_widget,
     wait_until,
 )
 
@@ -116,6 +122,89 @@ def _events():
     Gui.updateGui()
     if app is not None:
         app.processEvents()
+
+
+
+def _drag_native_pose_ring(panel, view, progress):
+    """Drive the selected native X-axis ring through real viewport pointer events."""
+    from freecad_cloth.shared.ViewportGizmoStyle import (
+        ROTATION_GIZMO_SCALE,
+        ROTATION_RING_RADIUS,
+    )
+
+    controller = panel.controller
+    bone = "upperarm01.L"
+    controller.select_joint(bone)
+    _events()
+    if "X" not in controller._axis_draggers:
+        raise RuntimeError("native pose controller did not install the X rotation ring")
+
+    previous = panel._staged_joint_rotations.get(bone)
+    before_x = 0.0 if previous is None else float(previous.x)
+    center = App.Vector(*controller._positions[bone])
+    orientation = App.Rotation(App.Vector(0.0, 0.0, 1.0), App.Vector(1.0, 0.0, 0.0))
+    radius = float(ROTATION_RING_RADIUS * ROTATION_GIZMO_SCALE)
+
+    def projected_ring_point(degrees):
+        angle = math.radians(float(degrees))
+        local = App.Vector(
+            radius * math.cos(angle),
+            radius * math.sin(angle),
+            0.0,
+        )
+        world = center + orientation.multVec(local)
+        screen = controller._screen_position((world.x, world.y, world.z))
+        if screen is None:
+            raise RuntimeError("FreeCAD could not project the native X rotation ring")
+        return screen
+
+    start = projected_ring_point(45.0)
+    end = projected_ring_point(72.0)
+    viewport = viewport_widget(Gui, view)
+    panel.angle_snap.setChecked(False)
+    release_all_input()
+    try:
+        mouse_press(viewport, start, delay_ms=60)
+        wait_until(
+            lambda: bool(controller._gizmo_dragging),
+            description="native X-axis pose-ring drag start",
+        )
+        for step in range(1, 7):
+            angle = 45.0 + (72.0 - 45.0) * step / 6.0
+            mouse_move(
+                viewport,
+                projected_ring_point(angle),
+                delay_ms=45,
+                buttons_down=True,
+            )
+        mouse_release(viewport, end, delay_ms=60)
+        _events()
+        wait_until(
+            lambda: not bool(controller._gizmo_dragging),
+            description="native X-axis pose-ring drag finish",
+        )
+    finally:
+        release_all_input()
+        _events()
+
+    current = panel._staged_joint_rotations.get(bone)
+    after_x = before_x if current is None else float(current.x)
+    delta_x = after_x - before_x
+    if abs(delta_x) < 1.0:
+        raise RuntimeError(
+            "native X-axis ring received pointer input but staged no measurable rotation: "
+            f"before={before_x:.3f} after={after_x:.3f} start={start} end={end}"
+        )
+    result = {
+        "axis": "X",
+        "before": before_x,
+        "after": after_x,
+        "delta": delta_x,
+        "start": tuple(round(float(value), 1) for value in start),
+        "end": tuple(round(float(value), 1) for value in end),
+    }
+    progress("pose-ring-drag=" + repr(result))
+    return result
 
 
 def _capture_pose_screen(path, panel, view, *, camera: str = "three-quarter"):
@@ -636,8 +725,11 @@ def run():
         show_cursor=False,
     )
     recorder.start()
+    ring_drag = None
     try:
         recorder.hold(600)
+        ring_drag = _drag_native_pose_ring(panel, view, progress)
+        recorder.hold(650)
         click_widget(panel.precision)
         _events()
         recorder.hold(450)
@@ -730,15 +822,21 @@ def run():
         raise RuntimeError(msg)
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
+    ring_drag_log = (
+        "pose-ring-drag=passed axis={axis} before={before:.3f} "
+        "after={after:.3f} delta={delta:.3f}\n"
+    ).format(**ring_drag)
     Path("artifacts/avatar-pose-ui.log").write_text(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true\n"
-        "avatar-pose-ui-cancel=passed restored=true cleanup=true\n",
+        + ring_drag_log
+        + "avatar-pose-ui-cancel=passed restored=true cleanup=true\n",
         encoding="utf-8",
     )
     print(
         f"avatar-pose-ui=passed gizmo={gizmo_mode} preview=true symmetry=true persistent=true",
         flush=True,
     )
+    print(ring_drag_log.rstrip(), flush=True)
     print("avatar-pose-ui-cancel=passed restored=true cleanup=true", flush=True)
     App.closeDocument(doc.Name)
     trace.close()
