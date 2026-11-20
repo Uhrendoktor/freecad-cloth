@@ -1648,6 +1648,12 @@ def run_acceptance() -> None:
 
         saved_piece_ids = tuple(str(piece.PieceId) for piece in scene.ClothPieces)
         saved_groups = tuple(str(value) for value in scene.GarmentGroups)
+        saved_step_count = int(scene.Steps)
+        if saved_step_count != CHECKPOINTS[-1]:
+            raise RuntimeError(
+                "saved simulation step counter is %d; expected final checkpoint %d"
+                % (saved_step_count, CHECKPOINTS[-1])
+            )
         lifecycle_started = time.perf_counter()
         _log("save-reload-close-start document=%s" % doc.Name)
         App.closeDocument(doc.Name)
@@ -1682,16 +1688,43 @@ def run_acceptance() -> None:
             raise RuntimeError("independent garment-group assignments did not survive save/reload")
         if abs(float(scene.InterClothClearance) - 8.0) > 1e-9:
             raise RuntimeError("inter-cloth clearance did not survive save/reload")
-        lifecycle_started = time.perf_counter()
-        _log("save-reload-first-recompute-start")
-        reloaded.recompute()
-        _log("save-reload-first-recompute-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
+
+        restored_step_count = int(scene.Steps)
+        _log(
+            "save-reload-step-counter-restored saved=%d restored=%d"
+            % (saved_step_count, restored_step_count)
+        )
+        if restored_step_count != saved_step_count:
+            raise RuntimeError(
+                "saved solver step counter changed after reload: %d != %d"
+                % (restored_step_count, saved_step_count)
+            )
+
+        # Native solver state is intentionally transient and is rebuilt from the
+        # persisted scene properties. Reset the saved display counter before the
+        # first recompute so restore creates a fresh backend rather than replaying
+        # all sixty historical simulation steps a second time.
+        scene.Steps = 0
+        _log("save-reload-transient-step-counter-reset=0")
 
         lifecycle_started = time.perf_counter()
-        _log("save-reload-native-rebuild-start")
-        scene.Steps = int(scene.Steps) + 1
+        _log("save-reload-native-backend-build-start")
         reloaded.recompute()
-        _log("save-reload-native-rebuild-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
+        _log(
+            "save-reload-native-backend-build-finish elapsed_ms=%.1f"
+            % (1000.0 * (time.perf_counter() - lifecycle_started))
+        )
+
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-post-restore-step-start")
+        scene.Steps = 1
+        reloaded.recompute()
+        _log(
+            "save-reload-post-restore-step-finish step=%d elapsed_ms=%.1f"
+            % (int(scene.Steps), 1000.0 * (time.perf_counter() - lifecycle_started))
+        )
+        if int(scene.Steps) != 1:
+            raise RuntimeError("reloaded solver did not advance exactly one post-restore step")
         if not bool(scene.FiniteState):
             raise RuntimeError("reloaded multi-piece simulation rebuilt a non-finite solver")
         if int(scene.InterClothContactCount) < MINIMUM_CONTACTS:
@@ -1852,6 +1885,11 @@ def run_acceptance() -> None:
                 "contact_rebuilt_after_reload": True,
                 "support_pins_preserved": True,
                 "waistband_support_pins_preserved": True,
+                "saved_step_count": saved_step_count,
+                "restored_step_count": restored_step_count,
+                "post_reload_step_count": int(scene.Steps),
+                "native_backend_rebuilt": True,
+                "transient_solver_state_reinitialized": True,
             },
         }
         manifest_path = OUTPUT / "layered-outfit-manifest.json"

@@ -246,6 +246,11 @@ def _valid_artifact(root: Path) -> Path:
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
             "waistband_support_pins_preserved": True,
+            "saved_step_count": 60,
+            "restored_step_count": 60,
+            "post_reload_step_count": 1,
+            "native_backend_rebuilt": True,
+            "transient_solver_state_reinitialized": True,
         },
     }
     path = root / "layered-outfit-manifest.json"
@@ -339,6 +344,28 @@ def test_validator_rejects_inconsistent_cumulative_contact_activation(tmp_path: 
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="cumulative contact activation"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_changed_saved_step_counter_after_reload(tmp_path: Path) -> None:
+    """The persisted checkpoint counter must survive reopening the native document."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["persistence"]["restored_step_count"] = 59
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="saved solver step counter was not preserved"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_missing_native_solver_rebuild_evidence(tmp_path: Path) -> None:
+    """A reopened document must rebuild transient native solver state."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["persistence"]["native_backend_rebuilt"] = False
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="native solver state was not rebuilt"):
         validate_manifest(manifest_path)
 
 

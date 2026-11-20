@@ -638,6 +638,32 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         persistence.get("waistband_support_pins_preserved") is True,
         "waistband support pins were not preserved after save/reload",
     )
+    saved_step_count = persistence.get("saved_step_count")
+    restored_step_count = persistence.get("restored_step_count")
+    post_reload_step_count = persistence.get("post_reload_step_count")
+    _require(
+        isinstance(saved_step_count, int)
+        and not isinstance(saved_step_count, bool)
+        and saved_step_count == EXPECTED_CHECKPOINTS[-1],
+        "saved solver step counter does not match the final checkpoint",
+    )
+    _require(
+        isinstance(restored_step_count, int)
+        and not isinstance(restored_step_count, bool)
+        and restored_step_count == saved_step_count,
+        "saved solver step counter was not preserved after reload",
+    )
+    _require(
+        isinstance(post_reload_step_count, int)
+        and not isinstance(post_reload_step_count, bool)
+        and post_reload_step_count == 1,
+        "reloaded solver was not advanced exactly one fresh step",
+    )
+    _require(
+        persistence.get("native_backend_rebuilt") is True
+        and persistence.get("transient_solver_state_reinitialized") is True,
+        "native solver state was not rebuilt from persisted scene properties",
+    )
 
     _require(
         contact_observed_so_far,
