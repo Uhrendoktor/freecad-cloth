@@ -40,7 +40,7 @@ _PBD_SUBSTEPS_DEFAULT = 1
 _PBD_ITERATIONS_DEFAULT = 8
 _MAX_INTER_CLOTH_BODY_RECONCILIATION_PASSES = 2
 _PBD_COLLISION_TOLERANCE_DEFAULT_MM = 1.0
-_PBD_STITCH_STIFFNESS_DEFAULT = 100000.0
+_PBD_STITCH_STIFFNESS_MAX = 100000.0
 _PBD_CLOTH_STIFFNESS_DEFAULT = 100000.0
 _PBD_BENDING_STIFFNESS_DEFAULT = 50.0
 
@@ -517,13 +517,16 @@ def pbd_collision_resolution(surface: CollisionSurface) -> list[int]:
 
 
 def _pbd_stitch_stiffness(compliance: float) -> float:
-    """Convert stitch compliance to a bounded stiffness accepted by the PBD solver.
+    """Map zero or finite stitch compliance to the native XPBD stiffness contract.
+
+    pyPBD uses stiffness zero to select its alpha-zero hard-constraint path. Positive
+    compliance is converted to reciprocal stiffness and capped to a finite maximum.
 
     Args:
         compliance: The finite non-negative compliance of a stitch constraint.
 
     Returns:
-        The native solver stiffness corresponding to the requested compliance.
+        Zero for an inextensible stitch, otherwise the bounded reciprocal compliance.
 
     Raises:
         ValueError: Raised when compliance is negative.
@@ -533,8 +536,8 @@ def _pbd_stitch_stiffness(compliance: float) -> float:
         msg = "stitch compliance must be finite and non-negative"
         raise ValueError(msg)
     if value == 0.0:
-        return _PBD_STITCH_STIFFNESS_DEFAULT
-    return max(1.0, min(_PBD_STITCH_STIFFNESS_DEFAULT, 1.0 / value))
+        return 0.0
+    return max(1.0, min(_PBD_STITCH_STIFFNESS_MAX, 1.0 / value))
 
 
 def _to_pbd_position(position: Sequence[float]) -> tuple[float, float, float]:

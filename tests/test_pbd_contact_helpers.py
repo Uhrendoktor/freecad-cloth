@@ -21,6 +21,7 @@ from freecad_cloth.simulation.InterClothContact import (
 )
 from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     PositionBasedDynamicsBackend,
+    _pbd_stitch_stiffness,
     pbd_collision_resolution,
 )
 from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
@@ -84,6 +85,15 @@ def test_events_processes_qt_events_after_one_gui_refresh() -> None:
     assert calls == ["gui-update", "qt-events"], (
         "GUI refresh must precede Qt event processing exactly once"
     )
+
+
+def test_zero_stitch_compliance_selects_the_native_hard_xpbd_path() -> None:
+    """Zero compliance must use pyPBD's alpha-zero hard-constraint branch."""
+    assert _pbd_stitch_stiffness(0.0) == 0.0
+    assert _pbd_stitch_stiffness(0.01) == pytest.approx(100.0)
+    assert _pbd_stitch_stiffness(1e-8) == 100000.0
+    with pytest.raises(ValueError, match="compliance must be finite and non-negative"):
+        _pbd_stitch_stiffness(-1.0)
 
 
 def test_pbd_collision_resolution_uses_axis_spans_and_handles_empty_surfaces() -> None:
