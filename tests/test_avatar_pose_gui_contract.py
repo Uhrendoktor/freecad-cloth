@@ -280,9 +280,7 @@ def test_selecting_the_current_pose_joint_does_not_recreate_native_draggers() ->
     controller._positions = {"upperarm01.L": (0.0, 0.0, 0.0)}
     controller.selected_bone = "upperarm01.L"
     controller.gizmo = object()
-    controller.panel = SimpleNamespace(
-        _select_joint_without_preview=panel_selection.append
-    )
+    controller.panel = SimpleNamespace(_select_joint_without_preview=panel_selection.append)
     controller._set_hover_bone = lambda _bone: None
     controller.refresh_overlay = lambda **_kwargs: refresh_calls.append(True)
     controller._create_gizmo = create_calls.append
