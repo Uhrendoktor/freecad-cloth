@@ -426,6 +426,35 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         support_pins.get("count") == len(support_pin_indices),
         "shirt support-pin count disagrees with its index inventory",
     )
+    waistband_support_pins = outfit.get("waistband_support_pins")
+    _require(
+        isinstance(waistband_support_pins, dict),
+        "waistband support-pin record is missing",
+    )
+    _require(
+        waistband_support_pins.get("mode") == "Explicit",
+        "waistband support pins must use Explicit mode",
+    )
+    waistband_pin_indices = waistband_support_pins.get("particle_indices")
+    _require(
+        isinstance(waistband_pin_indices, list)
+        and len(waistband_pin_indices) == 12
+        and all(
+            isinstance(index, int) and not isinstance(index, bool) and index >= 0
+            for index in waistband_pin_indices
+        )
+        and len(set(waistband_pin_indices)) == 12,
+        "waistband support-pin inventory must contain twelve unique particle indices",
+    )
+    _require(
+        waistband_support_pins.get("count") == len(waistband_pin_indices),
+        "waistband support-pin count disagrees with its index inventory",
+    )
+    _require(
+        set(support_pin_indices).isdisjoint(waistband_pin_indices),
+        "shirt and waistband support-pin inventories must be disjoint",
+    )
+    total_support_pin_count = len(support_pin_indices) + len(waistband_pin_indices)
     scene_map_counts = _validate_scene_map(
         manifest.get("scene_map"), piece_ids, group_assignments, clearance
     )
@@ -471,12 +500,28 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             contact_count > 0 and corrected_particle_count > 0
         )
         _require(
-            checkpoint.get("support_pin_count") == 12,
+            checkpoint.get("support_pin_count") == total_support_pin_count,
+            "checkpoint must retain all twenty-four garment support pins at step %d" % step,
+        )
+        _require(
+            checkpoint.get("shirt_support_pin_count") == len(support_pin_indices),
             "checkpoint must retain all twelve shirt support pins at step %d" % step,
         )
         _require(
+            checkpoint.get("waistband_support_pin_count") == len(waistband_pin_indices),
+            "checkpoint must retain all twelve waistband support pins at step %d" % step,
+        )
+        _require(
             _number(checkpoint, "maximum_support_pin_drift_mm") <= 1e-6,
+            "garment support pin drift exceeds tolerance at step %d" % step,
+        )
+        _require(
+            _number(checkpoint, "maximum_shirt_support_pin_drift_mm") <= 1e-6,
             "shirt support pin drift exceeds tolerance at step %d" % step,
+        )
+        _require(
+            _number(checkpoint, "maximum_waistband_support_pin_drift_mm") <= 1e-6,
+            "waistband support pin drift exceeds tolerance at step %d" % step,
         )
         _require(
             checkpoint.get("contact_observed_so_far") is contact_observed_so_far,
@@ -588,6 +633,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         persistence.get("support_pins_preserved") is True,
         "shirt support pins were not preserved after save/reload",
+    )
+    _require(
+        persistence.get("waistband_support_pins_preserved") is True,
+        "waistband support pins were not preserved after save/reload",
     )
 
     _require(

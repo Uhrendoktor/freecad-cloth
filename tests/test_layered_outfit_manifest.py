@@ -96,8 +96,12 @@ def _valid_artifact(root: Path) -> Path:
             "contact_count": 0 if step == 60 else 24,
             "corrected_particle_count": 0 if step == 60 else 32,
             "contact_observed_so_far": True,
-            "support_pin_count": 12,
+            "support_pin_count": 24,
+            "shirt_support_pin_count": 12,
+            "waistband_support_pin_count": 12,
             "maximum_support_pin_drift_mm": 0.0,
+            "maximum_shirt_support_pin_drift_mm": 0.0,
+            "maximum_waistband_support_pin_drift_mm": 0.0,
             "remaining_contact_count": 0,
             "max_penetration_before_mm": 1.0,
             "residual_penetration_mm": 0.0,
@@ -226,6 +230,11 @@ def _valid_artifact(root: Path) -> Path:
                 "particle_indices": list(range(12)),
                 "count": 12,
             },
+            "waistband_support_pins": {
+                "mode": "Explicit",
+                "particle_indices": list(range(12, 24)),
+                "count": 12,
+            },
         },
         "scene_map": scene_map,
         "checkpoints": checkpoints,
@@ -236,6 +245,7 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups_preserved": True,
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
+            "waistband_support_pins_preserved": True,
         },
     }
     path = root / "layered-outfit-manifest.json"
@@ -270,6 +280,29 @@ def test_validator_rejects_missing_shirt_support_pins(tmp_path: Path) -> None:
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="twelve unique particle indices"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_missing_waistband_support_pins(tmp_path: Path) -> None:
+    """The waistband must retain twelve authored top-boundary support pins."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["waistband_support_pins"]["particle_indices"] = []
+    manifest["outfit"]["waistband_support_pins"]["count"] = 0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="twelve unique particle indices"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_waistband_support_pin_drift(tmp_path: Path) -> None:
+    """Waistband top anchors must remain fixed throughout all native checkpoints."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][1]["maximum_waistband_support_pin_drift_mm"] = 0.01
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="waistband support pin drift"):
         validate_manifest(manifest_path)
 
 
