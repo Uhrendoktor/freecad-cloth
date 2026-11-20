@@ -1649,6 +1649,82 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "${conflicts}" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "876177f738e9b2d44add162e589027f5fb68338c" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    test_path="tests/test_runner_routing_contract.py"
+    benchmark_path="tests/freecad_realtime_benchmark.py"
+    expected_paths="$(printf '%s\n' "${benchmark_path}" "${test_path}" | LC_ALL=C sort)"
+    changed_paths="$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}" | LC_ALL=C sort)"
+    benchmark_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${benchmark_path}")"
+    benchmark_additions="$(printf '%s' "${benchmark_numstat}" | cut -f1)"
+    benchmark_deletions="$(printf '%s' "${benchmark_numstat}" | cut -f2)"
+    helper_references="$(git show "${rebase_commit}:${benchmark_path}" | grep -Fc '_avatar_preview_dimensions(' || true)"
+    formatted_calls="$(git show "${rebase_commit}:${benchmark_path}" | grep -Fc 'body_width, body_depth, body_height, center_x, center_y, z_min = _avatar_preview_dimensions(' || true)"
+    parent_wrapped_calls="$(git show "${rebase_commit}^:${benchmark_path}" | grep -Fc 'body_width, body_depth, body_height, center_x, center_y, z_min = (' || true)"
+    if [[ "${rebase_commit}" != "876177f738e9b2d44add162e589027f5fb68338c" ]] ||
+      [[ "${conflicts}" != "${test_path}" ]] ||
+      [[ "${changed_paths}" != "${expected_paths}" ]] ||
+      [[ "${benchmark_additions}" != "4" ]] ||
+      [[ "${benchmark_deletions}" != "4" ]] ||
+      [[ "${helper_references}" != "3" ]] ||
+      [[ "${formatted_calls}" != "2" ]] ||
+      [[ "${parent_wrapped_calls}" != "2" ]] ||
+      ! git show "${rebase_commit}^:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      ! git show "${rebase_commit}:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions("; then
+      echo "::error::Refusing 876177f7 conflict outside the exact duplicate-test plus two-call Ruff formatting change."
+      exit 1
+    fi
+    if ! python3 - "${rebase_commit}" "${test_path}" <<'PY'
+import re
+import subprocess
+import sys
+
+commit, path = sys.argv[1:]
+def show(revision: str) -> str:
+    return subprocess.run(
+        ["git", "show", f"{revision}:{path}"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+historical = show(commit)
+mainline = show("origin/main")
+pattern = re.compile(r"^def (test_[A-Za-z0-9_]+)\(", re.MULTILINE)
+historical_names = pattern.findall(historical)
+mainline_names = pattern.findall(mainline)
+historical_set = set(historical_names)
+mainline_set = set(mainline_names)
+missing = sorted(historical_set - mainline_set)
+if missing:
+    raise SystemExit(f"Historical test functions absent from current main: {missing!r}")
+if len(historical_names) <= len(historical_set):
+    raise SystemExit("Expected the historical duplicate test-function tail in 876177f7.")
+if len(mainline_names) != len(mainline_set):
+    raise SystemExit("Current main routing contract unexpectedly contains duplicate test functions.")
+for marker in (
+    "syntax_check.returncode == 0, syntax_check.stderr",
+    "loop_done = resolver.index",
+    "for handler in (",
+    "tests/test_build_visual_gifs.py",
+    "tools/ci/build_visual_gifs.py",
+    "assert loop_start < position < fail_closed",
+):
+    if marker not in mainline:
+        raise SystemExit(f"Current-main routing contract is missing required marker: {marker}")
+PY
+    then
+      echo "::error::Current-main routing contract does not fully cover the historical test functions from 876177f7."
+      exit 1
+    fi
+    echo "::notice::Retaining the two exact Ruff-formatted avatar helper calls and keeping current main's single canonical routing contract."
+    git checkout origin/main -- "${test_path}"
+    git checkout "${rebase_commit}" -- "${benchmark_path}"
+    git add "${test_path}" "${benchmark_path}"
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+      bash tools/ci/guarded_rebase_conflict_entrypoint.sh
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
