@@ -214,3 +214,13 @@ def test_native_pose_dragger_quaternion_angle_wraps_into_joint_limits() -> None:
 
     assert -180.0 <= angle <= 180.0
     assert abs(angle + 173.0) < 0.2
+
+def test_freecad_yaw_pitch_roll_maps_to_mannequin_xyz_order() -> None:
+    from freecad_cloth.avatar.AvatarPoseGui import _pose_xyz_from_yaw_pitch_roll
+
+    assert _pose_xyz_from_yaw_pitch_roll((30.0, -20.0, 10.0)) == (
+        10.0,
+        -20.0,
+        30.0,
+    )
+
