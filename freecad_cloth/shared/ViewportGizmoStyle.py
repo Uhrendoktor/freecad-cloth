@@ -15,9 +15,9 @@ POSE_AXIS_COLORS = {
 
 # Active/selected controls should be readable without overwhelming the model.
 ACTIVE_COLOR = (1.0, 0.78, 0.20)
-RIG_PASSIVE_COLOR = (0.46, 0.48, 0.52)
-RIG_EDITABLE_COLOR = (0.72, 0.75, 0.80)
-JOINT_COLOR = (0.66, 0.68, 0.72)
+RIG_PASSIVE_COLOR = (0.61, 0.65, 0.72)
+RIG_EDITABLE_COLOR = (0.84, 0.88, 0.95)
+JOINT_COLOR = (0.77, 0.81, 0.89)
 DIMENSION_GUIDE_COLOR = (0.25, 0.68, 0.79)
 DIMENSION_GUIDE_LINE_WIDTH = 1.8
 
@@ -26,11 +26,11 @@ SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
 SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
 # Pose rig geometry uses model-space radii so bones and joints read as rounded controls.
-RIG_PASSIVE_RADIUS = 2.5
-RIG_EDITABLE_RADIUS = 3.8
-RIG_ACTIVE_RADIUS = 6.0
-RIG_JOINT_RADIUS = 4.2
-RIG_ACTIVE_JOINT_RADIUS = 8.0
+RIG_PASSIVE_RADIUS = 7.5
+RIG_EDITABLE_RADIUS = 10.5
+RIG_ACTIVE_RADIUS = 15.0
+RIG_JOINT_RADIUS = 10.0
+RIG_ACTIVE_JOINT_RADIUS = 16.0
 
 # Native axis rotation dragger geometry (model-space dimensions).
 ROTATION_GIZMO_SCALE = 8.5
