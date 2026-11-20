@@ -568,8 +568,13 @@ def run():
     panel.joint_list_toggle.setChecked(False)
     _events()
     view_metrics = {}
-    for camera in ("front", "right", "three-quarter"):
-        screenshot_path = Path("artifacts/avatar-pose-mode-" + camera + ".png")
+    screenshot_paths = {
+        "front": Path("artifacts/avatar-pose-mode-front.png"),
+        "right": Path("artifacts/avatar-pose-mode-right.png"),
+        # Preserve the canonical artifact path consumed by validate_acceptance.py.
+        "three-quarter": Path("artifacts/avatar-pose-mode.png"),
+    }
+    for camera, screenshot_path in screenshot_paths.items():
         view_metrics[camera] = _capture_pose_screen(
             screenshot_path,
             panel,
