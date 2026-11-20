@@ -25,7 +25,10 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     RIG_PASSIVE_RADIUS,
     ROTATION_GIZMO_SCALE,
     ROTATION_RING_RADIUS,
-    SEAM_CONNECTOR_LINE_WIDTH,
+    ROTATION_VIEW_COLOR,
+    ROTATION_VIEW_RING_RADIUS,
+    ROTATION_VIEW_RING_THICKNESS,
+     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
@@ -88,8 +91,9 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         DIMENSION_OCCLUDED_COLOR,
         DIMENSION_MARKER_HALO_COLOR,
         DIMENSION_MARKER_OUTLINE_COLOR,
+        ROTATION_VIEW_COLOR,
         JOINT_COLOR,
-        SNAP_TARGET_COLOR,
+         SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
     )
     for rgb in colors:
@@ -119,7 +123,12 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     assert ROTATION_RING_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Rotation ring radius must be positive."
     )
-    assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
+    assert ROTATION_VIEW_RING_RADIUS > ROTATION_RING_RADIUS, (
+        "The camera-facing ring must sit outside the anatomical axis rings."
+    )
+    assert ROTATION_VIEW_RING_THICKNESS > MINIMUM_POSITIVE_STYLE_VALUE
+    _assert_rgb(ROTATION_VIEW_COLOR)
+     assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Dimension guide line width must be positive."
     )
     assert DIMENSION_OCCLUDED_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE
@@ -164,7 +173,10 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "RIG_JOINT_RADIUS",
             "RIG_ACTIVE_JOINT_RADIUS",
             "ROTATION_GIZMO_SCALE",
-        },
+            "ROTATION_VIEW_COLOR",
+            "ROTATION_VIEW_RING_RADIUS",
+            "ROTATION_VIEW_RING_THICKNESS",
+         },
         "freecad_cloth/avatar/AvatarShapeGui.py": {
             "DIMENSION_GUIDE_COLOR",
             "DIMENSION_GUIDE_LINE_WIDTH",
