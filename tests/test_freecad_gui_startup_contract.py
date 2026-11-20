@@ -22,7 +22,10 @@ def test_pose_acceptance_waits_for_paint_before_screen_capture():
     capture = source.split("def _capture_pose_screen", 1)[1].split("def _bounds", 1)[0]
     assert run.index("Gui.Control.showDialog(panel)") < run.index("_events()")
     assert run.index("panel.controller.select_joint(") < run.index("_capture_pose_screen(")
-    assert capture.index("view.viewIsometric()") < capture.index("view.fitAll()")
+    assert '"front": view.viewFront' in capture
+    assert '"right": view.viewRight' in capture
+    assert '"three-quarter": view.viewIsometric' in capture
+    assert capture.index("camera_methods[camera]()") < capture.index("view.fitAll()")
     assert capture.index("view.fitAll()") < capture.index("panel.controller.select_joint")
     assert capture.index("view.redraw()") < capture.index("screen.grabWindow")
     assert capture.index("time.sleep(0.10)") < capture.index("screen.grabWindow")
