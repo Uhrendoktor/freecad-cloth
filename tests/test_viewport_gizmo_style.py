@@ -28,7 +28,7 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ROTATION_VIEW_COLOR,
     ROTATION_VIEW_RING_RADIUS,
     ROTATION_VIEW_RING_THICKNESS,
-     SEAM_CONNECTOR_LINE_WIDTH,
+    SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
     SEAM_LINE_WIDTH,
@@ -93,7 +93,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         DIMENSION_MARKER_OUTLINE_COLOR,
         ROTATION_VIEW_COLOR,
         JOINT_COLOR,
-         SNAP_TARGET_COLOR,
+        SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
     )
     for rgb in colors:
@@ -128,7 +128,7 @@ def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     )
     assert ROTATION_VIEW_RING_THICKNESS > MINIMUM_POSITIVE_STYLE_VALUE
     _assert_rgb(ROTATION_VIEW_COLOR)
-     assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
+    assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Dimension guide line width must be positive."
     )
     assert DIMENSION_OCCLUDED_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE
