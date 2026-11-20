@@ -88,6 +88,9 @@ def test_realtime_preview_contract_modules_are_routed_to_pytest_group() -> None:
 
     assert '"tests/test_realtime_mesh_preview.py"' in runner, "preview test routing"
     assert '"tests/test_realtime_preview_timing.py"' in runner, "preview test routing"
+    assert '"tests/test_realtime_benchmark_timing_contract.py"' in runner, (
+        "benchmark timing test routing"
+    )
 
 
 def test_rounded_foreground_gizmo_geometry_is_routed_to_pytest_group() -> None:
@@ -174,6 +177,48 @@ def test_group_collection_is_checked_during_the_execution_run() -> None:
     assert "collection_command" not in runner, "canonical CI contract"
 
 
+def _valid_frame_timing_samples() -> list[JsonObject]:
+    """Build aligned frame rows for the independent timing-trace validator."""
+    samples: list[JsonObject] = []
+    for frame_index in range(1, 121):
+        callback_start = 16.0 * frame_index
+        previous_callback_start = 16.0 * (frame_index - 1)
+        worker_emit = callback_start - 5.0
+        gui_dispatch = callback_start - 2.0
+        samples.append(
+            {
+                "frame_index": frame_index,
+                "tick_index": 30 + frame_index,
+                "callback_start_offset_ms": callback_start,
+                "previous_callback_start_offset_ms": previous_callback_start,
+                "scheduled_deadline_offset_ms": callback_start - 1.0,
+                "worker_emit_offset_ms": worker_emit,
+                "gui_dispatch_offset_ms": gui_dispatch,
+                "interval_ms": callback_start - previous_callback_start,
+                "queue_delay_ms": callback_start - worker_emit,
+                "gui_event_dispatch_delay_ms": gui_dispatch - worker_emit,
+                "gui_callback_after_dispatch_ms": callback_start - gui_dispatch,
+                "deadline_lateness_ms": 1.0,
+                "worker_wakeup_lateness_ms": 0.5,
+                "worker_schedule_debt_ms": 0.0,
+                "worker_missed_deadlines": 0,
+                "worker_coalesced_pulses": 0,
+                "worker_signals_emitted": 30 + frame_index,
+                "worker_pulse_pending": 1,
+                "callback_duration_ms": 4.0,
+                "stage_timings_ms": {
+                    "advance_preview_frame": 8.0,
+                    "solver_step": 2.0,
+                    "state_publish": 6.0,
+                    "preview_mesh_publish": 0.3,
+                    "overlay_schedule": 0.1,
+                    "viewport_redraw": 3.0,
+                },
+            }
+        )
+    return samples
+
+
 def _valid_realtime_benchmark_metrics() -> JsonObject:
     """Build a sample that satisfies the sustained 60 FPS metrics contract.
 
@@ -184,6 +229,9 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "schema_version": 1,
         "backend": "position-based-dynamics",
         "fixture": "two-panel-tunic-pattern",
+        "garment_count": 1,
+        "garments": {"tunic": {"panel_count": 2, "seam_count": 4}},
+        "seam_count": 4,
         "particles": 480,
         "panel_count": 2,
         "collision_triangles": 240,
@@ -195,6 +243,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
         "observed_ticks": 150,
         "expected_ticks": 150,
         "frames_advanced": 150,
+        "frame_timing_samples": _valid_frame_timing_samples(),
         "frame_scheduler": {
             "mode": "threaded-feedback-phase-locked",
             "target_fps": validate_realtime_benchmark.TARGET_FPS,
@@ -205,7 +254,7 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "coalesced_pulses": 0,
             "missed_deadlines": 0,
             "outstanding_pulses": 0,
-            "dispatch_mode": "Qt.QueuedConnection",
+            "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
             "queued_dispatches": 150,
         },
         "worker_wakeup_lateness": {
@@ -213,6 +262,12 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "mean_ms": 0.12,
             "p95_ms": 0.3,
             "max_ms": 0.5,
+        },
+        "worker_schedule_debt": {
+            "samples": 120,
+            "mean_ms": 0.0,
+            "p95_ms": 0.0,
+            "max_ms": 0.0,
         },
         "frame_dispatch_lateness": {
             "samples": 120,
@@ -241,6 +296,12 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
                 "max_ms": 10.0,
             },
             "solver_step": {"samples": 120, "mean_ms": 2.0, "p95_ms": 2.5, "max_ms": 3.0},
+            "positions_snapshot": {
+                "samples": 120,
+                "mean_ms": 0.6,
+                "p95_ms": 0.8,
+                "max_ms": 1.0,
+            },
             "state_publish": {"samples": 120, "mean_ms": 6.0, "p95_ms": 7.0, "max_ms": 8.0},
             "mesh_write": {"samples": 0, "mean_ms": None, "p95_ms": None, "max_ms": None},
             "preview_mesh_publish": {"samples": 240, "mean_ms": 0.3, "p95_ms": 0.4, "max_ms": 0.5},
@@ -254,6 +315,13 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
             "solver_substeps": 1,
             "pbd_substeps": 1,
         },
+        "python_gc_disable_requested": True,
+        "python_gc_disabled_by_benchmark": True,
+        "python_gc_enabled_during_measurement": False,
+        "python_gil_switch_interval_requested_seconds": None,
+        "python_gil_switch_interval_before_seconds": 0.005,
+        "python_gil_switch_interval_during_measurement_seconds": 0.005,
+        "python_gil_switch_interval_applied_by_benchmark": False,
         "runtime": {
             "platform": "Linux-test",
             "python_version": "3.12.0",
@@ -264,11 +332,70 @@ def _valid_realtime_benchmark_metrics() -> JsonObject:
     }
 
 
+def _valid_outfit_realtime_benchmark_metrics() -> JsonObject:
+    """Build a valid three-garment outfit sample for the complexity-scaling gate."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["fixture"] = "three-garment-outfit"
+    metrics["garment_count"] = 3
+    metrics["garments"] = {
+        "tshirt": {"panel_count": 4, "seam_count": 8},
+        "trousers": {"panel_count": 4, "seam_count": 6},
+        "hat": {"panel_count": 2, "seam_count": 4},
+    }
+    metrics["seam_count"] = 18
+    metrics["particles"] = 960
+    metrics["panel_count"] = 10
+    stages = _require_mapping(metrics["stage_timings"], label="stage timings")
+    publication = _require_mapping(stages["preview_mesh_publish"], label="mesh publication")
+    publication["samples"] = 1200
+    return metrics
+
+
 def test_realtime_metric_validator_accepts_a_valid_sustained_60_fps_sample() -> None:
     """Accept an artifact satisfying the sustained realtime cadence contract."""
     assert (
         validate_realtime_benchmark.validate_metrics(_valid_realtime_benchmark_metrics()) == []
     ), "canonical CI contract"
+
+
+def test_realtime_metric_validator_accepts_the_three_garment_outfit() -> None:
+    """Accept the separate ten-panel outfit stress workload."""
+    assert (
+        validate_realtime_benchmark.validate_metrics(_valid_outfit_realtime_benchmark_metrics())
+        == []
+    ), "canonical CI contract"
+
+
+def test_realtime_metric_validator_accepts_an_explicit_gil_interval_experiment() -> None:
+    """Accept a benchmark-only interpreter switch interval that matches its metadata."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gil_switch_interval_requested_seconds"] = 0.001
+    metrics["python_gil_switch_interval_during_measurement_seconds"] = 0.001
+    metrics["python_gil_switch_interval_applied_by_benchmark"] = True
+    assert validate_realtime_benchmark.validate_metrics(metrics) == []
+
+
+def test_realtime_metric_validator_rejects_a_gil_interval_metadata_mismatch() -> None:
+    """Reject a GIL interval experiment whose measured setting differs from its request."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gil_switch_interval_requested_seconds"] = 0.001
+    metrics["python_gil_switch_interval_during_measurement_seconds"] = 0.005
+    metrics["python_gil_switch_interval_applied_by_benchmark"] = True
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+    assert (
+        "python_gil_switch_interval_during_measurement_seconds must match the requested setting"
+        in errors
+    )
+
+
+def test_realtime_metric_validator_rejects_enabled_gc_during_disabled_experiment() -> None:
+    """Reject artifacts that claim the GC experiment while collection remains enabled."""
+    metrics = _valid_realtime_benchmark_metrics()
+    metrics["python_gc_enabled_during_measurement"] = True
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+    assert "python_gc must remain disabled throughout the measured preview window" in errors, (
+        "canonical CI contract"
+    )
 
 
 def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
@@ -286,6 +413,32 @@ def test_realtime_metric_validator_rejects_tampered_or_slow_samples() -> None:
     )
     assert "backend_finite must be true" in errors, "canonical CI contract"
     assert "profile.pbd_substeps must be 1" in errors, "canonical CI contract"
+
+
+def test_realtime_metric_validator_rejects_incomplete_garment_topology() -> None:
+    """Reject an outfit artifact that omits one of the hat's two pattern panels."""
+    metrics = _valid_outfit_realtime_benchmark_metrics()
+    garments = _require_mapping(metrics["garments"], label="garments")
+    hat = _require_mapping(garments["hat"], label="hat")
+    hat["panel_count"] = 1
+
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+
+    assert "garments.hat.panel_count must be 2" in errors, "canonical CI contract"
+
+
+def test_realtime_metric_validator_requires_one_mesh_publication_per_panel() -> None:
+    """Require all ten outfit panels to be published on every measured preview frame."""
+    metrics = _valid_outfit_realtime_benchmark_metrics()
+    stages = _require_mapping(metrics["stage_timings"], label="stage timings")
+    publication = _require_mapping(stages["preview_mesh_publish"], label="mesh publication")
+    publication["samples"] = 240
+
+    errors = validate_realtime_benchmark.validate_metrics(metrics)
+
+    assert "stage_timings.preview_mesh_publish.samples must be >= 1200" in errors, (
+        "canonical CI contract"
+    )
 
 
 def test_realtime_metric_validator_rejects_missing_stage_timings() -> None:
@@ -329,18 +482,38 @@ def test_realtime_benchmark_uses_the_production_frame_clock_and_event_loop() -> 
     assert "FRAMES" in identifiers, "canonical CI contract"
     assert "frame_scheduler" in string_constants, "canonical CI contract"
     assert "frame_dispatch_lateness" in string_constants, "canonical CI contract"
+    assert "frame_timing_samples" in string_constants, "canonical CI contract"
+    assert "worker_schedule_debt" in string_constants, "canonical CI contract"
+    assert "worker_schedule_debt_ms" in string_constants, "canonical CI contract"
+    assert "cgroup_cpu_stat_before" in string_constants, "canonical CI contract"
     assert "stage_timings" in identifiers, "canonical CI contract"
-    assert "solver_step" in string_constants, "canonical CI contract"
-    assert "viewport_redraw" in string_constants, "canonical CI contract"
+    assert "positions_snapshot" in string_constants, "canonical CI contract"
+    assert "python_gc_collections" in string_constants, "canonical CI contract"
     realtime_action = (
         ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
     ).read_text(encoding="utf-8")
+    assert "DISABLE_GC_DURING_MEASUREMENT" in identifiers, "canonical CI contract"
+    assert "gc" in identifiers, "canonical CI contract"
+    assert "disable" in attributes, "canonical CI contract"
+    assert "enable" in attributes, "canonical CI contract"
+    assert realtime_action.count("CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT=true") == 2, (
+        "canonical CI contract"
+    )
+    assert "solver_step" in string_constants, "canonical CI contract"
+    assert "viewport_redraw" in string_constants, "canonical CI contract"
     assert "validate_realtime_benchmark.py" in realtime_action, "canonical CI contract"
 
 
 def test_tunic_manifest_gate_accepts_current_realtime_metrics_schema() -> None:
     """Accept a tunic manifest using the current realtime metrics schema."""
     vars(validate_manifests)["_validate_realtime_metrics"](_valid_realtime_benchmark_metrics())
+
+
+def test_outfit_manifest_gate_accepts_multi_garment_realtime_metrics() -> None:
+    """Accept the outfit stress fixture through the shared manifest metadata gate."""
+    vars(validate_manifests)["_validate_realtime_metrics"](
+        _valid_outfit_realtime_benchmark_metrics()
+    )
 
 
 def test_tunic_manifest_gate_rejects_new_schema_above_the_60_fps_budget() -> None:
@@ -488,10 +661,26 @@ def test_workbench_benchmark_matrix_uses_the_dedicated_schema_validator() -> Non
     realtime_action = (
         ROOT / ".github" / "actions" / "pbd-realtime-diagnostic" / "action.yml"
     ).read_text(encoding="utf-8")
+    assert realtime_action.count("test-script: tests/freecad_realtime_benchmark.py") == 2, (
+        "canonical CI contract"
+    )
+    assert "CLOTH_REALTIME_FIXTURE=two-panel-tunic-pattern" in realtime_action, (
+        "tunic control fixture contract"
+    )
+    assert "CLOTH_REALTIME_FIXTURE=three-garment-outfit" in realtime_action, (
+        "outfit stress fixture contract"
+    )
     assert (
         "python3 tools/ci/validate_realtime_benchmark.py "
-        "artifacts/freecad-realtime/metrics.json" in realtime_action
-    ), "canonical CI contract"
+        "artifacts/freecad-realtime/control/metrics.json" in realtime_action
+    ), "tunic control validator contract"
+    assert (
+        "python3 tools/ci/validate_realtime_benchmark.py "
+        "artifacts/freecad-realtime/outfit/metrics.json" in realtime_action
+    ), "outfit validator contract"
+    assert "artifact-name: realtime-preview-performance" in realtime_action, (
+        "combined realtime diagnostics artifact contract"
+    )
 
 
 def test_pytest_modules_run_once_through_the_canonical_matrix() -> None:
