@@ -63,6 +63,7 @@ class _CoinRotationValueProtocol(Protocol):
 
     def getValue(self) -> Sequence[float]:
         """Return the vector-first quaternion components."""
+        ...
 
 
 class _CoinRotationFieldProtocol(Protocol):
@@ -70,14 +71,13 @@ class _CoinRotationFieldProtocol(Protocol):
 
     def getValue(self) -> _CoinRotationValueProtocol:
         """Return the current Coin rotation value."""
+        ...
 
 
 class _CoinRotationDraggerProtocol(Protocol):
     """Minimal native dragger surface used by pose rotation staging."""
 
     rotation: _CoinRotationFieldProtocol
-
-
 
 
 def _modules():
