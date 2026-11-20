@@ -14,11 +14,22 @@ from collections.abc import Callable
 from contextlib import suppress
 from itertools import product
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from freecad_cloth.avatar.AvatarPoseGui import AvatarPoseTaskPanel
     from tests.support.freecad_input import _QtView
+
+
+class _PoseRingDragResult(TypedDict):
+    """Measured result captured from an actual native pose-ring pointer gesture."""
+
+    axis: str
+    before: float
+    after: float
+    delta: float
+    start: tuple[float, float]
+    end: tuple[float, float]
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -136,7 +147,7 @@ def _drag_native_pose_ring(
     panel: AvatarPoseTaskPanel,
     view: _QtView,
     progress: Callable[[str], None],
-) -> dict[str, object]:
+) -> _PoseRingDragResult:
     """Drive the selected native X-axis ring through real viewport pointer events."""
     from freecad_cloth.shared.ViewportGizmoStyle import (
         ROTATION_GIZMO_SCALE,
@@ -206,7 +217,7 @@ def _drag_native_pose_ring(
             "native X-axis ring received pointer input but staged no measurable rotation: "
             f"before={before_x:.3f} after={after_x:.3f} start={start} end={end}"
         )
-    result = {
+    result: _PoseRingDragResult = {
         "axis": "X",
         "before": before_x,
         "after": after_x,
@@ -736,7 +747,7 @@ def run():
         show_cursor=False,
     )
     recorder.start()
-    ring_drag = None
+    ring_drag: _PoseRingDragResult | None = None
     try:
         recorder.hold(600)
         ring_drag = _drag_native_pose_ring(panel, view, progress)
