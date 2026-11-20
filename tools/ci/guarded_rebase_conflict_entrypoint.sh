@@ -70,8 +70,19 @@ elif [[ "${rebase_commit}" == "cf3c1277814794e364ca1548ad47b1b3673e0f2c" ]] &&
     echo "::error::Refusing resolver restoration replay outside the exact cf3c1277 two-file commit and verified current-main resolver."
     exit 1
   fi
+  # The historical cf3c1277 test uses subprocess.run(check=True); current main
+  # preserves the equivalent bash -n check with captured stderr and an explicit return-code assertion.
+  if ! git show "${rebase_commit}:${test_path}" | grep -Fq '["bash", "-n", str(ROOT / "tools" / "ci" / "resolve_guarded_rebase_conflicts.sh")],' ||
+    ! git show "${rebase_commit}:${test_path}" | grep -Fq "check=True," ||
+    ! git show "${rebase_commit}:${test_path}" | grep -Fq "capture_output=True," ||
+    ! git show "${rebase_commit}:${test_path}" | grep -Fq "text=True," ||
+    ! git show "origin/main:${test_path}" | grep -Fq 'syntax_check.returncode == 0, syntax_check.stderr' ||
+    ! git show "origin/main:${test_path}" | grep -Fq "capture_output=True," ||
+    ! git show "origin/main:${test_path}" | grep -Fq "text=True,"; then
+    echo "::error::Historical bash -n subprocess check or current-main stderr-aware return-code contract is missing."
+    exit 1
+  fi
   for marker in \
-    "syntax_check.returncode == 0" \
     "Strict checks and guarded safe Ruff batch" \
     "run_safe_ruff_batch.sh" \
     "[apply-safe-ruff]" \
