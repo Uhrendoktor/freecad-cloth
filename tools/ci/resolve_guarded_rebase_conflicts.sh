@@ -1205,7 +1205,7 @@ if axis_assignment_count != 4:
     raise SystemExit(
         f"Expected four current-main axis-dragger map assignments, found {axis_assignment_count}."
     )
-source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\\n")
+source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\n")
 
 for required in (
     "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol",
