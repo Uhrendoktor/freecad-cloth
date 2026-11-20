@@ -118,7 +118,7 @@ def _events():
         app.processEvents()
 
 
-def _capture_pose_screen(path, panel, view, *, camera="three-quarter"):
+def _capture_pose_screen(path, panel, view, *, camera: str = "three-quarter"):
     if TYPE_CHECKING:
         from PySide2 import QtWidgets
     else:
@@ -594,7 +594,6 @@ def run():
                 captured["distinct_rgb"],
             )
         )
-    metrics = view_metrics["three-quarter"]
 
     selected = str(panel.skeleton_joint_index)
     if not selected:
