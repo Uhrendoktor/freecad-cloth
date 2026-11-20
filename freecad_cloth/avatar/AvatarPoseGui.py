@@ -1068,9 +1068,7 @@ class SkeletonPoseController:
             float(values[3]),
         )
 
-    def _dragger_signed_angle_degrees(
-        self, dragger: _CoinRotationDraggerProtocol
-    ) -> float:
+    def _dragger_signed_angle_degrees(self, dragger: _CoinRotationDraggerProtocol) -> float:
         """Return the dragger's local-Z quaternion angle within joint limits.
 
         Coin's quaternion sign is double-valued: a +187 degree representation is
