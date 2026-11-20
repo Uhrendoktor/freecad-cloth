@@ -214,6 +214,7 @@ class SkeletonPoseController:
         self.gizmo_style = None
         self.gizmo_style_error = None
         self._native_dragger = None
+        self._dragger_poll_timer: _QT_TYPE_QtCore.QTimer | None = None
         self._axis_draggers = {}
         self._active_gizmo_axis = None
         self.fallback_gizmo_object = None
@@ -423,7 +424,11 @@ class SkeletonPoseController:
         self.gizmo = _FallbackGizmo()
 
     def deactivate(self):
-        """Remove transient viewport nodes and callbacks."""
+        """Remove transient viewport nodes and stop native dragger polling."""
+        if self._dragger_poll_timer is not None:
+            with contextlib.suppress(RuntimeError):
+                self._dragger_poll_timer.stop()
+            self._dragger_poll_timer = None
         if self.view is None:
             return
         if self.scene_graph is None:
@@ -778,9 +783,7 @@ class SkeletonPoseController:
                     "rotation",
                     "rotationIncrement",
                     "geometryScale",
-                    "addStartCallback",
-                    "addMotionCallback",
-                    "addFinishCallback",
+                    "isActive",
                     "setName",
                 )
                 if any(not hasattr(dragger, item) for item in required):
@@ -814,9 +817,6 @@ class SkeletonPoseController:
                 getattr(separator, _COIN_ADD_CHILD_METHOD)(axis_branch)
                 draggers.append(dragger)
                 self._axis_draggers[axis_name] = dragger
-                dragger.addStartCallback(self._gizmo_start)
-                dragger.addMotionCallback(self._gizmo_motion)
-                dragger.addFinishCallback(self._gizmo_finish)
 
             billboard_type = coin.SoType.fromName("SoVRMLBillboard")
             has_view_ring = False
@@ -837,9 +837,6 @@ class SkeletonPoseController:
                         view_branch = coin.SoSeparator()
                         view_branch.addChild(billboard)
                         separator.addChild(view_branch)
-                        view_dragger.addStartCallback(self._gizmo_start)
-                        view_dragger.addMotionCallback(self._gizmo_motion)
-                        view_dragger.addFinishCallback(self._gizmo_finish)
                         self._axis_draggers["VIEW"] = view_dragger
                         draggers.append(view_dragger)
                         has_view_ring = True
@@ -855,6 +852,7 @@ class SkeletonPoseController:
             self.gizmo_foreground.addChild(separator)
             getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
             self._native_dragger = draggers
+            self._start_native_dragger_polling()
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
             self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
@@ -868,6 +866,41 @@ class SkeletonPoseController:
             self.gizmo_foreground = None
             self._axis_draggers = {}
             return False
+
+
+    def _start_native_dragger_polling(self) -> None:
+        """Poll native Coin dragger fields through Qt instead of Pivy C callbacks.
+
+        Some FreeCAD/Pivy builds expose SoDragger callback methods but their
+        SWIG callback trampoline can crash the process when Coin invokes a
+        Python callback. The native draggers themselves remain functional;
+        their isActive and rotation fields can be read safely from a Qt timer.
+        """
+        if self._dragger_poll_timer is not None:
+            return
+        timer = self.panel.QtCore.QTimer(self.panel.form)
+        timer.setInterval(16)
+        timer.timeout.connect(self._poll_native_dragger_state)
+        self._dragger_poll_timer = timer
+        timer.start()
+
+    def _poll_native_dragger_state(self) -> None:
+        """Synchronize staged rotations from the active native Coin dragger."""
+        active_dragger = None
+        for dragger in tuple(self._native_dragger or ()):
+            try:
+                if bool(dragger.isActive.getValue()):
+                    active_dragger = dragger
+                    break
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+
+        if active_dragger is not None:
+            if not self._gizmo_dragging:
+                self._gizmo_start(None, active_dragger)
+            self._gizmo_motion(None, active_dragger)
+        elif self._gizmo_dragging:
+            self._gizmo_finish(None, None)
 
     def _create_trackball_gizmo(self, coin) -> None:
         """Create a trackball fallback when native axis draggers are unavailable.
