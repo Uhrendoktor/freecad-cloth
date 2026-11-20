@@ -106,3 +106,134 @@ def test_avatar_panel_initializes_preset_loading_guard_before_loading():
     assert "self._loading = False" in initialization
     assert initialization.index("self._loading = True") < initialization.index("self._load()")
     assert initialization.index("self._load()") < initialization.index("self._loading = False")
+
+
+def test_pose_ui_acceptance_drives_native_rotation_ring_with_real_viewport_input() -> None:
+    from pathlib import Path
+
+    acceptance = (
+        Path(__file__).resolve().parents[1] / "tests" / "freecad_avatar_pose_ui_acceptance.py"
+    ).read_text(encoding="utf-8")
+    assert "def _drag_native_pose_ring" in acceptance
+    assert "viewport_widget(Gui, view)" in acceptance
+    assert "mouse_press(viewport, start" in acceptance
+    assert "mouse_move(" in acceptance
+    assert "mouse_release(viewport, end" in acceptance
+    assert "wait_until(" in acceptance and "_gizmo_dragging" in acceptance
+    assert "pose-ring-drag=passed" in acceptance
+
+
+def test_pose_mouse_down_does_not_rebuild_the_selected_dragger_branch() -> None:
+    from types import SimpleNamespace
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller.view = SimpleNamespace(getSize=lambda: (800, 600))
+    controller._gizmo_dragging = False
+    controller.selected_bone = "upperarm01.L"
+    controller._coin = lambda: SimpleNamespace(
+        SoMouseButtonEvent=SimpleNamespace(DOWN=1, BUTTON1=1)
+    )
+    controller._pick_bone = lambda _screen, include_joint_fallback=False: (
+        "upperarm01.L" if include_joint_fallback else None
+    )
+    selected = []
+    controller.select_joint = selected.append
+
+    class MouseEvent:
+        def getState(self) -> int:
+            return 1
+
+        def getButton(self) -> int:
+            return 1
+
+        def getPosition(self) -> tuple[int, int]:
+            return (400, 300)
+
+    controller._mouse_event(SimpleNamespace(getEvent=lambda: MouseEvent()))
+
+    assert selected == []
+
+
+def test_native_pose_dragger_state_is_polled_on_qt_without_pivy_callback_trampolines() -> None:
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    source = (
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarPoseGui.py"
+    ).read_text(encoding="utf-8")
+    assert "timer.timeout.connect(self._poll_native_dragger_state)" in source
+    assert "dragger.isActive.getValue()" in source
+    assert "dragger.addStartCallback" not in source
+    assert "dragger.addMotionCallback" not in source
+    assert "dragger.addFinishCallback" not in source
+    assert "view_dragger.addStartCallback" not in source
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    active = {"value": True}
+    dragger = SimpleNamespace(isActive=SimpleNamespace(getValue=lambda: active["value"]))
+    controller._native_dragger = [dragger]
+    controller._gizmo_dragging = False
+    observed = []
+
+    def on_start(_data: int, current: int) -> None:
+        controller._gizmo_dragging = True
+        observed.append(("start", current))
+
+    def on_motion(_data: int, current: int) -> None:
+        observed.append(("motion", current))
+
+    def on_finish(_data: int, current: int) -> None:
+        controller._gizmo_dragging = False
+        observed.append(("finish", current))
+
+    controller._gizmo_start = on_start
+    controller._gizmo_motion = on_motion
+    controller._gizmo_finish = on_finish
+
+    controller._poll_native_dragger_state()
+    active["value"] = False
+    controller._poll_native_dragger_state()
+
+    assert observed == [
+        ("start", dragger),
+        ("motion", dragger),
+        ("finish", None),
+    ]
+
+
+def test_native_pose_dragger_quaternion_angle_wraps_into_joint_limits() -> None:
+    from types import SimpleNamespace
+
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    quaternion = (0.0, 0.0, 0.9981347918510437, -0.061048511415719986)
+    dragger = SimpleNamespace(
+        rotation=SimpleNamespace(getValue=lambda: SimpleNamespace(getValue=lambda: quaternion))
+    )
+
+    angle = controller._dragger_signed_angle_degrees(dragger)
+
+    assert -180.0 <= angle <= 180.0
+    assert abs(angle + 173.0) < 0.2
+
+
+def test_freecad_yaw_pitch_roll_maps_to_mannequin_xyz_order() -> None:
+    from freecad_cloth.avatar.AvatarPoseGui import _pose_xyz_from_yaw_pitch_roll
+
+    assert _pose_xyz_from_yaw_pitch_roll((30.0, -20.0, 10.0)) == (
+        10.0,
+        -20.0,
+        30.0,
+    )
+
+
+def test_pose_drag_defers_mesh_rebuild_until_native_drag_finishes() -> None:
+    from pathlib import Path
+
+    source = (
+        Path(__file__).resolve().parents[1] / "freecad_cloth" / "avatar" / "AvatarPoseGui.py"
+    ).read_text(encoding="utf-8")
+    motion = source.split("def _gizmo_motion", 1)[1].split("def _gizmo_finish", 1)[0]
+    finish = source.split("def _gizmo_finish", 1)[1].split("def _clear_hover_overlay", 1)[0]
+
+    assert "preview=False" in motion
+    assert "self.panel._preview_rebuild()" in finish

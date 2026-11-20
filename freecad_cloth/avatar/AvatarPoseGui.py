@@ -11,7 +11,7 @@ from __future__ import annotations
 import contextlib
 import math
 from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 from freecad_cloth.avatar.AvatarProperties import (
     PROPERTY_MAP as AVATAR_PROPERTY_MAP,
@@ -57,6 +57,41 @@ _VIEW_POSITION_METHOD = "getPointOnScreen"
 _VIEW_SIZE_METHOD = "getSize"
 _COIN_ADD_CHILD_METHOD = "addChild"
 _COIN_REMOVE_CHILD_METHOD = "removeChild"
+
+
+def _pose_xyz_from_yaw_pitch_roll(
+    angles: Sequence[float],
+) -> tuple[float, float, float]:
+    """Convert FreeCAD yaw-pitch-roll output to the model's XYZ Euler order.
+
+    FreeCAD composes yaw about Z, pitch about Y, then roll about X. The
+    mannequin's XYZ rotation matrix uses the same Rz * Ry * Rx composition,
+    but stores the components in X, Y, Z order.
+    """
+    yaw, pitch, roll = angles
+    return float(roll), float(pitch), float(yaw)
+
+
+class _CoinRotationValueProtocol(Protocol):
+    """Read-only view of the quaternion value returned by Coin."""
+
+    def getValue(self) -> Sequence[float]:
+        """Return the vector-first quaternion components."""
+        ...
+
+
+class _CoinRotationFieldProtocol(Protocol):
+    """Read-only view of a native Coin single-rotation field."""
+
+    def getValue(self) -> _CoinRotationValueProtocol:
+        """Return the current Coin rotation value."""
+        ...
+
+
+class _CoinRotationDraggerProtocol(Protocol):
+    """Minimal native dragger surface used by pose rotation staging."""
+
+    rotation: _CoinRotationFieldProtocol
 
 
 def _modules():
@@ -214,8 +249,10 @@ class SkeletonPoseController:
         self.gizmo_style = None
         self.gizmo_style_error = None
         self._native_dragger = None
+        self._dragger_poll_timer: _QT_TYPE_QtCore.QTimer | None = None
         self._axis_draggers = {}
         self._active_gizmo_axis = None
+        self._last_gizmo_motion_error: str | None = None
         self.fallback_gizmo_object = None
         self.viewport_runtime_error = None
 
@@ -423,7 +460,11 @@ class SkeletonPoseController:
         self.gizmo = _FallbackGizmo()
 
     def deactivate(self):
-        """Remove transient viewport nodes and callbacks."""
+        """Remove transient viewport nodes and stop native dragger polling."""
+        if self._dragger_poll_timer is not None:
+            with contextlib.suppress(RuntimeError):
+                self._dragger_poll_timer.stop()
+            self._dragger_poll_timer = None
         if self.view is None:
             return
         if self.scene_graph is None:
@@ -778,9 +819,7 @@ class SkeletonPoseController:
                     "rotation",
                     "rotationIncrement",
                     "geometryScale",
-                    "addStartCallback",
-                    "addMotionCallback",
-                    "addFinishCallback",
+                    "isActive",
                     "setName",
                 )
                 if any(not hasattr(dragger, item) for item in required):
@@ -814,9 +853,6 @@ class SkeletonPoseController:
                 getattr(separator, _COIN_ADD_CHILD_METHOD)(axis_branch)
                 draggers.append(dragger)
                 self._axis_draggers[axis_name] = dragger
-                dragger.addStartCallback(self._gizmo_start)
-                dragger.addMotionCallback(self._gizmo_motion)
-                dragger.addFinishCallback(self._gizmo_finish)
 
             billboard_type = coin.SoType.fromName("SoVRMLBillboard")
             has_view_ring = False
@@ -837,9 +873,6 @@ class SkeletonPoseController:
                         view_branch = coin.SoSeparator()
                         view_branch.addChild(billboard)
                         separator.addChild(view_branch)
-                        view_dragger.addStartCallback(self._gizmo_start)
-                        view_dragger.addMotionCallback(self._gizmo_motion)
-                        view_dragger.addFinishCallback(self._gizmo_finish)
                         self._axis_draggers["VIEW"] = view_dragger
                         draggers.append(view_dragger)
                         has_view_ring = True
@@ -855,6 +888,7 @@ class SkeletonPoseController:
             self.gizmo_foreground.addChild(separator)
             getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
             self._native_dragger = draggers
+            self._start_native_dragger_polling()
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
             self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
@@ -868,6 +902,40 @@ class SkeletonPoseController:
             self.gizmo_foreground = None
             self._axis_draggers = {}
             return False
+
+    def _start_native_dragger_polling(self) -> None:
+        """Poll native Coin dragger fields through Qt instead of Pivy C callbacks.
+
+        Some FreeCAD/Pivy builds expose SoDragger callback methods but their
+        SWIG callback trampoline can crash the process when Coin invokes a
+        Python callback. The native draggers themselves remain functional;
+        their isActive and rotation fields can be read safely from a Qt timer.
+        """
+        if self._dragger_poll_timer is not None:
+            return
+        timer = self.panel.QtCore.QTimer(self.panel.form)
+        timer.setInterval(16)
+        timer.timeout.connect(self._poll_native_dragger_state)
+        self._dragger_poll_timer = timer
+        timer.start()
+
+    def _poll_native_dragger_state(self) -> None:
+        """Synchronize staged rotations from the active native Coin dragger."""
+        active_dragger = None
+        for dragger in tuple(self._native_dragger or ()):
+            try:
+                if bool(dragger.isActive.getValue()):
+                    active_dragger = dragger
+                    break
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                continue
+
+        if active_dragger is not None:
+            if not self._gizmo_dragging:
+                self._gizmo_start(None, active_dragger)
+            self._gizmo_motion(None, active_dragger)
+        elif self._gizmo_dragging:
+            self._gizmo_finish(None, None)
 
     def _create_trackball_gizmo(self, coin) -> None:
         """Create a trackball fallback when native axis draggers are unavailable.
@@ -993,18 +1061,36 @@ class SkeletonPoseController:
             "release to keep the staged pose; Cancel restores it."
         )
 
-    def _dragger_quaternion(self, dragger):
-        """Return the native dragger quaternion in scalar-first component order.
+    def _dragger_quaternion(
+        self, dragger: _CoinRotationDraggerProtocol
+    ) -> tuple[float, float, float, float]:
+        """Return the native dragger quaternion in Coin's vector-first order.
 
         Args:
             dragger: Native Coin dragger whose current rotation is queried.
 
         Returns:
-            Four floating-point quaternion components in scalar-first order.
+            Four floating-point quaternion components ordered x, y, z, w.
         """
         rotation = dragger.rotation.getValue()
         values = rotation.getValue()
-        return tuple(float(values[index]) for index in range(4))
+        return (
+            float(values[0]),
+            float(values[1]),
+            float(values[2]),
+            float(values[3]),
+        )
+
+    def _dragger_signed_angle_degrees(self, dragger: _CoinRotationDraggerProtocol) -> float:
+        """Return the dragger's local-Z quaternion angle within joint limits.
+
+        Coin's quaternion sign is double-valued: a +187 degree representation is
+        equivalent to -173 degrees. JointRotation validates Euler components in
+        [-180, 180], so normalize the equivalent angle before staging it.
+        """
+        quaternion = self._dragger_quaternion(dragger)
+        angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
+        return (angle + 180.0) % 360.0 - 180.0
 
     def _gizmo_motion(self, _data, dragger):
         """Apply an in-progress drag rotation to the selected skeleton bone.
@@ -1016,8 +1102,7 @@ class SkeletonPoseController:
         if self.selected_bone is None or self.base_rotation is None:
             return
         try:
-            quaternion = self._dragger_quaternion(dragger)
-            angle = math.degrees(2.0 * math.atan2(float(quaternion[2]), float(quaternion[3])))
+            angle = self._dragger_signed_angle_degrees(dragger)
             if self._active_gizmo_axis is None:
                 return
             delta = self.App.Rotation(
@@ -1025,23 +1110,23 @@ class SkeletonPoseController:
                 angle,
             )
             base = self.App.Rotation()
-            base.setEulerAngles(
-                self.App.Rotation.Extrinsic_XYZ,
-                float(self.base_rotation.x),
-                float(self.base_rotation.y),
+            base.setYawPitchRoll(
                 float(self.base_rotation.z),
+                float(self.base_rotation.y),
+                float(self.base_rotation.x),
             )
             combined = delta.multiply(base)
-            angles = combined.getEulerAngles(self.App.Rotation.Extrinsic_XYZ)
-            x, y, z = (float(value) for value in angles)
+            x, y, z = _pose_xyz_from_yaw_pitch_roll(combined.getYawPitchRoll())
             self.panel._stage_joint_rotation(
                 self.selected_bone,
                 x,
                 y,
                 z,
-                preview=True,
+                preview=False,
             )
-        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            self._last_gizmo_motion_error = None
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError) as exc:
+            self._last_gizmo_motion_error = repr(exc)
             return
 
     def _gizmo_finish(self, _data, _dragger):
@@ -1060,7 +1145,9 @@ class SkeletonPoseController:
                 f"{self.panel._joint_label(self.selected_bone)} posed. "
                 "Click Apply & Rebuild to keep the change."
             )
-            self.refresh_overlay()
+            # Do not rebuild the mesh or Coin scene graph while its native dragger
+            # is active. Apply the latest staged pose once the pointer is released.
+            self.panel._preview_rebuild()
 
     def _clear_hover_overlay(self):
         """Remove the transient hover highlight from the skeleton overlay."""
@@ -1204,7 +1291,11 @@ class SkeletonPoseController:
         size = getattr(view, _VIEW_SIZE_METHOD)()
         screen = (float(position[0]), float(size[1] - position[1]))
         best = self._pick_bone(screen, include_joint_fallback=True)
-        if best is not None:
+        # Coin invokes this view callback while it is dispatching the same
+        # mouse-down event to scene-graph draggers. Rebuilding the selected
+        # dragger branch here can destroy the node Coin is about to activate.
+        # A click on the already-selected bone needs no scene-graph mutation.
+        if best is not None and best != self.selected_bone:
             self.select_joint(best)
 
 

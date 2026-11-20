@@ -253,7 +253,14 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "git rev-parse origin/main:freecad_cloth/sewing/SewingNetworkGui.py" in resolver
     assert "git checkout origin/main -- freecad_cloth/sewing/SewingNetworkGui.py" in resolver
     assert "git rev-parse HEAD:freecad_cloth/sewing/SewingNetworkGui.py" not in resolver
-    assert "git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py" not in resolver
+    assert (
+        'elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] '
+        '&& [[ "$(git rev-parse REBASE_HEAD)" == "5d84563005f984dec139794200ad57a77d29ca26" ]]; then'
+    ) in resolver
+    assert (
+        "Preserving the replayed typed seam editor and current-main defensive fallbacks" in resolver
+    )
+    assert "git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py" in resolver
     assert "Restoring the exact current-main SewingNetworkGui blob" in resolver
     assert "reconcile_sewing_network_gui_types.py" not in resolver
     assert "class _NetworkReferenceCollection(Protocol):" in resolver
