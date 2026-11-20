@@ -568,8 +568,14 @@ class AvatarDimensionController:
         if parent is None:
             return
         for marker_color, radius in (
-            (DIMENSION_MARKER_HALO_COLOR, float(size) + DIMENSION_MARKER_HALO_RADIUS_INCREMENT),
-            (DIMENSION_MARKER_OUTLINE_COLOR, float(size) + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT),
+            (
+                DIMENSION_MARKER_HALO_COLOR,
+                float(size) + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
+            ),
+            (
+                DIMENSION_MARKER_OUTLINE_COLOR,
+                float(size) + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
+            ),
             (color, float(size)),
         ):
             add_sphere(parent, coin, point, radius, marker_color)
