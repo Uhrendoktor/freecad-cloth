@@ -83,6 +83,12 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'git diff-tree --no-commit-id --name-only -r "${rebase_commit}"' in broker
     assert 'git show "${rebase_commit}:${resolver_path}" | bash -n' not in broker
     assert 'git show "origin/main:${resolver_path}" | bash -n' in broker
+    assert 'elif [[ "${rebase_commit}" == "cf3c1277814794e364ca1548ad47b1b3673e0f2c" ]] &&' in broker
+    assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
+    assert 'git checkout --ours -- "${resolver_path}" "${test_path}"' in broker
+    assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 2
+    assert "Current-main contract coverage does not supersede the exact cf3c1277 test addition" in broker
+    assert "syntax_check.returncode == 0" in broker
     assert "grep -Eq '^\\+[^+]'" in broker
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in broker
     assert "69999107b2e8888a5d179835b8297b21fef19d74" in broker
