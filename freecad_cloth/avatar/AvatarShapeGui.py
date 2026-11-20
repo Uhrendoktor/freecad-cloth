@@ -151,6 +151,8 @@ class AvatarDimensionController:
         self.view = None
         self.scene_graph = None
         self.overlay = None
+        self.guide_overlay = None
+        self.foreground_content = None
         self.mouse_callback = None
         self.location_callback = None
         self._drag_key = None
@@ -440,13 +442,15 @@ class AvatarDimensionController:
                 return False
             self.view = active.activeView()
             self.scene_graph = self.view.getSceneGraph()
-            self.overlay = coin.SoSeparator()
-            self.overlay.setName("ClothAvatarDimensionOverlay")
-            depth = coin.SoDepthBuffer()
-            depth.test = False
-            depth.write = False
-            self.overlay.addChild(depth)
+            from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+            self.guide_overlay = coin.SoSeparator()
+            self.guide_overlay.setName("ClothAvatarDimensionGuides")
+            self.overlay = create_foreground_layer(coin, "ClothAvatarDimensionOverlay")
+            self.foreground_content = coin.SoSeparator()
+            self.overlay.addChild(self.foreground_content)
             self._build_anchor_segments()
+            self.scene_graph.addChild(self.guide_overlay)
             self.scene_graph.addChild(self.overlay)
             self.mouse_callback = self.view.addEventCallbackPivy(
                 coin.SoMouseButtonEvent.getClassTypeId(), self._mouse_event
@@ -476,12 +480,17 @@ class AvatarDimensionController:
                     view.removeEventCallbackPivy(
                         coin.SoLocation2Event.getClassTypeId(), self.location_callback
                     )
-        if self.scene_graph is not None and self.overlay is not None:
+        if self.scene_graph is not None:
             with contextlib.suppress(AttributeError, RuntimeError, TypeError):
-                self.scene_graph.removeChild(self.overlay)
+                if self.guide_overlay is not None:
+                    self.scene_graph.removeChild(self.guide_overlay)
+                if self.overlay is not None:
+                    self.scene_graph.removeChild(self.overlay)
         self.view = None
         self.scene_graph = None
         self.overlay = None
+        self.guide_overlay = None
+        self.foreground_content = None
         self.mouse_callback = None
         self.location_callback = None
         self._drag_key = None
@@ -532,56 +541,38 @@ class AvatarDimensionController:
         separator.addChild(base)
         separator.addChild(coordinates)
         separator.addChild(line)
-        self.overlay.addChild(separator)
+        parent = self.guide_overlay if self.guide_overlay is not None else self.overlay
+        if parent is not None:
+            parent.addChild(separator)
 
     def _add_marker(self, coin: ModuleType, point: _Vector3, color: _Vector3, size: float) -> None:
-        """Draw an always-pickable foreground marker at a dimensional handle.
+        """Draw a rounded, always-visible 3D grip at a measurement handle.
 
         Args:
             coin: Pivy Coin module supplying scene-graph types.
             point: Three-dimensional handle position.
             color: Normalized RGB marker color.
-            size: Marker diameter in viewport pixels.
+            size: Marker sphere radius in mannequin model units.
         """
+        from freecad_cloth.shared.ViewportGizmoGeometry import add_sphere
         from freecad_cloth.shared.ViewportGizmoStyle import (
             DIMENSION_MARKER_HALO_COLOR,
-            DIMENSION_MARKER_HALO_SIZE_INCREMENT,
+            DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
             DIMENSION_MARKER_OUTLINE_COLOR,
-            DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT,
+            DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
         )
 
-        # A light outer halo and dark inner rim keep the semantic centre legible
-        # against both pale and dark mannequin surfaces. All layers are screen-sized
-        # and bypass depth testing so the handle remains visible and pickable.
-        for marker_color, marker_size in (
-            (
-                DIMENSION_MARKER_HALO_COLOR,
-                float(size) + DIMENSION_MARKER_HALO_SIZE_INCREMENT,
-            ),
-            (
-                DIMENSION_MARKER_OUTLINE_COLOR,
-                float(size) + DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT,
-            ),
+        # Concentric spheres form a pale halo, dark rim and semantic centre.
+        # They are real 3D geometry in the annotation layer, not square point sprites.
+        parent = self.foreground_content if self.foreground_content is not None else self.overlay
+        if parent is None:
+            return
+        for marker_color, radius in (
+            (DIMENSION_MARKER_HALO_COLOR, float(size) + DIMENSION_MARKER_HALO_RADIUS_INCREMENT),
+            (DIMENSION_MARKER_OUTLINE_COLOR, float(size) + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT),
             (color, float(size)),
         ):
-            marker = coin.SoSeparator()
-            depth = coin.SoDepthBuffer()
-            depth.test = False
-            depth.write = False
-            draw = coin.SoDrawStyle()
-            draw.pointSize = marker_size
-            base = coin.SoBaseColor()
-            base.rgb = marker_color
-            coordinates = coin.SoCoordinate3()
-            coordinates.point.setValues(0, 1, [point])
-            points = coin.SoPointSet()
-            points.numPoints = 1
-            marker.addChild(depth)
-            marker.addChild(draw)
-            marker.addChild(base)
-            marker.addChild(coordinates)
-            marker.addChild(points)
-            self.overlay.addChild(marker)
+            add_sphere(parent, coin, point, radius, marker_color)
 
     def _add_label(self, coin: ModuleType, point: _Vector3, label: str, color: _Vector3) -> None:
         """Draw the one-line value tooltip for the currently linked dimension.
@@ -608,7 +599,9 @@ class AvatarDimensionController:
         separator.addChild(translation)
         separator.addChild(base)
         separator.addChild(text)
-        self.overlay.addChild(separator)
+        parent = self.foreground_content if self.foreground_content is not None else self.overlay
+        if parent is not None:
+            parent.addChild(separator)
 
     def _specs(self, *, force: bool = False) -> tuple[_DimensionSpec, ...]:
         """Build current handle geometry from staged values and fitted rig landmarks.
@@ -836,8 +829,12 @@ class AvatarDimensionController:
             return
         try:
             coin = self._coin()
-            while self.overlay.getNumChildren() > 1:
-                self.overlay.removeChild(1)
+            if self.guide_overlay is not None:
+                while self.guide_overlay.getNumChildren():
+                    self.guide_overlay.removeChild(0)
+            if self.foreground_content is not None:
+                while self.foreground_content.getNumChildren():
+                    self.foreground_content.removeChild(0)
             from freecad_cloth.shared.ViewportGizmoStyle import (
                 ACTIVE_COLOR,
                 DIMENSION_GUIDE_COLOR,
