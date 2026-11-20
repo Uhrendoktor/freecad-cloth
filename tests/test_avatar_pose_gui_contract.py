@@ -294,6 +294,7 @@ def test_pose_drag_defers_mesh_rebuild_until_native_drag_finishes() -> None:
     assert "preview=False" in motion
     assert "self.panel._preview_rebuild()" in finish
 
+
 def test_remove_gizmo_clears_manual_ring_state_before_dropping_nodes() -> None:
     controller = SkeletonPoseController.__new__(SkeletonPoseController)
     controller._manual_ring_axis_name = "X"
@@ -339,4 +340,3 @@ def test_selecting_the_current_pose_joint_does_not_recreate_native_draggers() ->
     controller.select_joint("upperarm01.L")
 
     assert calls == []
-
