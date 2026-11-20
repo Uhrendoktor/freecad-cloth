@@ -107,6 +107,18 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         assert 'elif [[ "${rebase_commit}" == "' + superseded_commit + '" ]]' in broker
     assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 6
     assert (
+        'test_numstat="$(git diff --numstat '
+        '"${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"' in broker
+    )
+    assert '[[ "${test_additions}" != "0" ]]' in broker
+    assert '[[ "${test_deletions}" != "296" ]]' in broker
+    assert "parent_names" in broker
+    assert "replay_names" in broker
+    assert "main_names" in broker
+    assert "parent_set != main_set or replay_set != main_set" in broker
+    assert "5a4f3ff1 replay still contains duplicate test function" in broker
+    assert "definitions." in broker
+    assert (
         'elif [[ "${conflicts}" == "tests/test_runner_routing_contract.py" ]] && '
         '[[ "$(git rev-parse REBASE_HEAD)" == "876177f738e9b2d44add162e589027f5fb68338c" ]]'
     ) in resolver
