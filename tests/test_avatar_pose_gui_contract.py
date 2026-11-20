@@ -106,3 +106,19 @@ def test_avatar_panel_initializes_preset_loading_guard_before_loading():
     assert "self._loading = False" in initialization
     assert initialization.index("self._loading = True") < initialization.index("self._load()")
     assert initialization.index("self._load()") < initialization.index("self._loading = False")
+
+
+
+def test_pose_ui_acceptance_drives_native_rotation_ring_with_real_viewport_input():
+    from pathlib import Path
+
+    acceptance = (
+        Path(__file__).resolve().parents[1] / "tests" / "freecad_avatar_pose_ui_acceptance.py"
+    ).read_text(encoding="utf-8")
+    assert "def _drag_native_pose_ring" in acceptance
+    assert "viewport_widget(Gui, view)" in acceptance
+    assert "mouse_press(viewport, start" in acceptance
+    assert "mouse_move(" in acceptance
+    assert "mouse_release(viewport, end" in acceptance
+    assert "wait_until(" in acceptance and "_gizmo_dragging" in acceptance
+    assert "pose-ring-drag=passed" in acceptance
