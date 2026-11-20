@@ -1208,6 +1208,62 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
+        # This fixture uses an open-top shirt shell. Support only its authored
+        # shoulder/top boundary so the shirt remains worn while the skirt and
+        # waistband stay fully dynamic and independently collidable.
+        shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
+        support_pin_indices: set[int] = set()
+        for panel_name, piece_name in base.panel_piece_names.items():
+            if piece_name not in shirt_piece_names:
+                continue
+            boundary_chains = base.panel_boundary_edges.get(panel_name, ())
+            if len(boundary_chains) <= SEAM_TOP_EDGE:
+                raise RuntimeError("shirt panel has no semantic top boundary: " + panel_name)
+            top_chain = tuple(int(index) for index in boundary_chains[SEAM_TOP_EDGE])
+            if len(top_chain) < 3:
+                raise RuntimeError("shirt panel top boundary has fewer than three particles")
+            support_pin_indices.update(
+                (top_chain[0], top_chain[len(top_chain) // 2], top_chain[-1])
+            )
+        if len(support_pin_indices) != 12:
+            raise RuntimeError(
+                "expected twelve distributed shirt-top support particles, got %d"
+                % len(support_pin_indices)
+            )
+        scene.PinMode = "Explicit"
+        scene.PinSelection = [str(index) for index in sorted(support_pin_indices)]
+        doc.recompute()
+        base = scene.Proxy._base_or_restore()
+        backend = base.backend
+        if backend is None:
+            raise RuntimeError("shirt support-pin rebuild did not initialize the solver backend")
+        if set(backend._pin_indices) != support_pin_indices:
+            raise RuntimeError("native PBD did not register the authored shirt-top support pins")
+        initial_positions = backend.positions()
+        support_pin_positions = {
+            index: tuple(float(value) for value in initial_positions[index])
+            for index in support_pin_indices
+        }
+        top_z_values = [support_pin_positions[index][2] for index in support_pin_indices]
+        if max(top_z_values) - min(top_z_values) > 1e-5:
+            raise RuntimeError("shirt support pins do not lie on one authored top boundary")
+        if max(abs(value - shirt_top_z) for value in top_z_values) > 1e-3:
+            raise RuntimeError("shirt support pins are not at the authored shoulder height")
+        _log(
+            "shirt-support-pins="
+            + json.dumps(
+                {
+                    "mode": str(scene.PinMode),
+                    "count": len(support_pin_indices),
+                    "particle_indices": sorted(support_pin_indices),
+                    "positions_mm": {
+                        str(index): list(support_pin_positions[index])
+                        for index in sorted(support_pin_indices)
+                    },
+                },
+                sort_keys=True,
+            )
+        )
         _log(
             "seam-stitch-index-map="
             + json.dumps(
@@ -1276,6 +1332,23 @@ def run_acceptance() -> None:
             )
             if not bool(scene.FiniteState):
                 raise RuntimeError("solver state became non-finite at step %d" % step)
+            current_positions = backend.positions()
+            maximum_support_pin_drift_mm = max(
+                (
+                    math.dist(support_pin_positions[index], current_positions[index])
+                    for index in support_pin_indices
+                ),
+                default=0.0,
+            )
+            _log(
+                "shirt-support-pin-drift-step=%d count=%d maximum_mm=%.9f"
+                % (step, len(support_pin_indices), maximum_support_pin_drift_mm)
+            )
+            if maximum_support_pin_drift_mm > 1e-6:
+                raise RuntimeError(
+                    "shirt support pin drift %.9f mm exceeds 0.000001 mm at step %d"
+                    % (maximum_support_pin_drift_mm, step)
+                )
             contact_count = int(scene.InterClothContactCount)
             corrected_particle_count = int(scene.InterClothCorrectedParticleCount)
             contact_observed_so_far = contact_observed_so_far or (
@@ -1359,6 +1432,8 @@ def run_acceptance() -> None:
                 "contact_count": contact_count,
                 "corrected_particle_count": corrected_particle_count,
                 "contact_observed_so_far": contact_observed_so_far,
+                "support_pin_count": len(support_pin_indices),
+                "maximum_support_pin_drift_mm": maximum_support_pin_drift_mm,
                 "remaining_contact_count": int(scene.InterClothRemainingContactCount),
                 "max_penetration_before_mm": float(scene.InterClothMaxPenetration),
                 "residual_penetration_mm": float(scene.InterClothResidualPenetration),
@@ -1425,6 +1500,31 @@ def run_acceptance() -> None:
             raise RuntimeError("reloaded solver retained contacts below requested clearance")
         reloaded_base = scene.Proxy._base_or_restore()
         reloaded_backend = reloaded_base.backend
+        reloaded_selection = tuple(
+            sorted(int(value) for value in getattr(scene, "PinSelection", ()))
+        )
+        if str(scene.PinMode) != "Explicit":
+            raise RuntimeError("explicit shirt support-pin mode did not survive save/reload")
+        if reloaded_selection != tuple(sorted(support_pin_indices)):
+            raise RuntimeError("shirt support-pin selections changed after save/reload")
+        if reloaded_backend is None or set(reloaded_backend._pin_indices) != support_pin_indices:
+            raise RuntimeError("native shirt support pins were not rebuilt after save/reload")
+        reloaded_positions = reloaded_backend.positions()
+        reloaded_pin_drift = max(
+            (
+                math.dist(support_pin_positions[index], reloaded_positions[index])
+                for index in support_pin_indices
+            ),
+            default=0.0,
+        )
+        if reloaded_pin_drift > 1e-6:
+            raise RuntimeError(
+                "shirt support pins moved %.9f mm after save/reload" % reloaded_pin_drift
+            )
+        _log(
+            "shirt-support-pins-save-reload=passed count=%d maximum_drift_mm=%.9f"
+            % (len(support_pin_indices), reloaded_pin_drift)
+        )
         _log(
             "save-reload=passed pieces=%d groups=%d contacts=%d"
             % (
@@ -1457,6 +1557,11 @@ def run_acceptance() -> None:
                 "garment_groups": list(saved_groups),
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
                 "particle_distance_mm": float(scene.ParticleDistance),
+                "support_pins": {
+                    "mode": str(scene.PinMode),
+                    "particle_indices": sorted(support_pin_indices),
+                    "count": len(support_pin_indices),
+                },
             },
             "scene_map": {
                 "coordinate_system": {
@@ -1515,6 +1620,7 @@ def run_acceptance() -> None:
                 "piece_links_preserved": True,
                 "garment_groups_preserved": True,
                 "contact_rebuilt_after_reload": True,
+                "support_pins_preserved": True,
             },
         }
         manifest_path = OUTPUT / "layered-outfit-manifest.json"

@@ -408,6 +408,24 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
     clearance = _number(outfit, "inter_cloth_clearance_mm")
     _require(clearance > 0.0, "inter-cloth clearance must be positive")
+    support_pins = outfit.get("support_pins")
+    _require(isinstance(support_pins, dict), "shirt support-pin record is missing")
+    _require(support_pins.get("mode") == "Explicit", "shirt support pins must use Explicit mode")
+    support_pin_indices = support_pins.get("particle_indices")
+    _require(
+        isinstance(support_pin_indices, list)
+        and len(support_pin_indices) == 12
+        and all(
+            isinstance(index, int) and not isinstance(index, bool) and index >= 0
+            for index in support_pin_indices
+        )
+        and len(set(support_pin_indices)) == 12,
+        "shirt support-pin inventory must contain twelve unique particle indices",
+    )
+    _require(
+        support_pins.get("count") == len(support_pin_indices),
+        "shirt support-pin count disagrees with its index inventory",
+    )
     scene_map_counts = _validate_scene_map(
         manifest.get("scene_map"), piece_ids, group_assignments, clearance
     )
@@ -451,6 +469,14 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         )
         contact_observed_so_far = contact_observed_so_far or (
             contact_count > 0 and corrected_particle_count > 0
+        )
+        _require(
+            checkpoint.get("support_pin_count") == 12,
+            "checkpoint must retain all twelve shirt support pins at step %d" % step,
+        )
+        _require(
+            _number(checkpoint, "maximum_support_pin_drift_mm") <= 1e-6,
+            "shirt support pin drift exceeds tolerance at step %d" % step,
         )
         _require(
             checkpoint.get("contact_observed_so_far") is contact_observed_so_far,
@@ -558,6 +584,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         persistence.get("contact_rebuilt_after_reload") is True,
         "contact was not rebuilt after reload",
+    )
+    _require(
+        persistence.get("support_pins_preserved") is True,
+        "shirt support pins were not preserved after save/reload",
     )
 
     _require(

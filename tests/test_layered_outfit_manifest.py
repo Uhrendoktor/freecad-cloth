@@ -96,6 +96,8 @@ def _valid_artifact(root: Path) -> Path:
             "contact_count": 0 if step == 60 else 24,
             "corrected_particle_count": 0 if step == 60 else 32,
             "contact_observed_so_far": True,
+            "support_pin_count": 12,
+            "maximum_support_pin_drift_mm": 0.0,
             "remaining_contact_count": 0,
             "max_penetration_before_mm": 1.0,
             "residual_penetration_mm": 0.0,
@@ -219,6 +221,11 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
             "particle_distance_mm": 24.0,
+            "support_pins": {
+                "mode": "Explicit",
+                "particle_indices": list(range(12)),
+                "count": 12,
+            },
         },
         "scene_map": scene_map,
         "checkpoints": checkpoints,
@@ -228,6 +235,7 @@ def _valid_artifact(root: Path) -> Path:
             "piece_links_preserved": True,
             "garment_groups_preserved": True,
             "contact_rebuilt_after_reload": True,
+            "support_pins_preserved": True,
         },
     }
     path = root / "layered-outfit-manifest.json"
@@ -251,6 +259,29 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
         "images": 9,
         "document": "layered-outfit.FCStd",
     }
+
+
+def test_validator_rejects_missing_shirt_support_pins(tmp_path: Path) -> None:
+    """The shirt must retain its twelve authored top-boundary support pins."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["support_pins"]["particle_indices"] = []
+    manifest["outfit"]["support_pins"]["count"] = 0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="twelve unique particle indices"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_shirt_support_pin_drift(tmp_path: Path) -> None:
+    """Support anchors must remain fixed throughout all native solver checkpoints."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][1]["maximum_support_pin_drift_mm"] = 0.01
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shirt support pin drift"):
+        validate_manifest(manifest_path)
 
 
 def test_validator_rejects_no_contact_activation_during_the_run(tmp_path: Path) -> None:
