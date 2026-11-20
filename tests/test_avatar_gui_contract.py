@@ -267,9 +267,9 @@ class _CoinField:
     """Small Coin field stub supporting scalar and multi-point assignments."""
 
     def __init__(self) -> None:
-        self.value: object | None = None
+        self.value: float | tuple[float, ...] | None = None
 
-    def setValue(self, value: object) -> None:
+    def setValue(self, value: float | tuple[float, ...]) -> None:
         self.value = value
 
     def setValues(
