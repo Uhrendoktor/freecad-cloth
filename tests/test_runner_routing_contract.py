@@ -89,7 +89,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert '[[ "${conflicted_files}" == "tools/ci/resolve_guarded_rebase_conflicts.sh" ]]' in broker
     assert 'git checkout --ours -- "${resolver_path}"' in broker
     assert 'git checkout origin/main -- "${test_path}"' in broker
-    assert "grep -Fq 'check=True,'" in broker
+    assert 'grep -Fq "check=True,"' in broker
     assert "syntax_check.returncode == 0, syntax_check.stderr" in broker
     assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 2
     assert (
