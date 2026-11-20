@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Real FreeCAD/Xvfb acceptance for the focused mannequin Pose Mode UI."""
 
+from __future__ import annotations
+
 import faulthandler
 import math
 import os
@@ -8,6 +10,7 @@ import sys
 import time
 import traceback
 from collections import defaultdict
+from collections.abc import Callable
 from contextlib import suppress
 from itertools import product
 from pathlib import Path
@@ -124,7 +127,11 @@ def _events():
         app.processEvents()
 
 
-def _drag_native_pose_ring(panel, view, progress):
+def _drag_native_pose_ring(
+    panel: object,
+    view: object,
+    progress: Callable[[str], None],
+) -> dict[str, object]:
     """Drive the selected native X-axis ring through real viewport pointer events."""
     from freecad_cloth.shared.ViewportGizmoStyle import (
         ROTATION_GIZMO_SCALE,
@@ -144,7 +151,7 @@ def _drag_native_pose_ring(panel, view, progress):
     orientation = App.Rotation(App.Vector(0.0, 0.0, 1.0), App.Vector(1.0, 0.0, 0.0))
     radius = float(ROTATION_RING_RADIUS * ROTATION_GIZMO_SCALE)
 
-    def projected_ring_point(degrees):
+    def projected_ring_point(degrees: float) -> tuple[float, float]:
         angle = math.radians(float(degrees))
         local = App.Vector(
             radius * math.cos(angle),
