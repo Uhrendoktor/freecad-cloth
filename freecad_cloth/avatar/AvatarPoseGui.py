@@ -1285,7 +1285,6 @@ class SkeletonPoseController:
             self.select_joint(best)
 
 
-
 class AvatarPoseTaskPanel:
     """Compact pose editor designed around direct 3D manipulation."""
 
