@@ -97,11 +97,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         "fb42ac86ef9685bdfd90aa369fbb70f9da630d75",
         "5a4f3ff1bc99a09b064e0b9bfebbf611628b633f",
     ):
-        assert f'elif [["' not in broker
-        assert f'elif [["' not in broker
-        assert f'elif [["' not in broker
-        assert f'elif [["' not in broker
-        assert superseded_commit in broker
+        assert 'elif [[ "${rebase_commit}" == "' + superseded_commit + '" ]]' in broker
     assert broker.count("bash tools/ci/guarded_rebase_conflict_entrypoint.sh") >= 6
     assert 'git checkout origin/main -- "${resolver_path}" "${test_path}"' in broker
     assert 'git checkout origin/main -- "${test_path}"' in broker
