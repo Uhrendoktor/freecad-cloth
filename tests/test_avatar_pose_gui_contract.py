@@ -256,9 +256,11 @@ def test_pose_dragger_interaction_does_not_poll_coin_swig_fields() -> None:
     assert "_poll_native_dragger_state" not in source
     assert "dragger.isActive.getValue()" not in source
     assert "dragger.rotation.getValue()" not in source
-    assert "addStartCallback" not in source
-    assert "addMotionCallback" not in source
-    assert "addFinishCallback" not in source
+    assert "dragger.addStartCallback" not in source
+    assert "dragger.addMotionCallback" not in source
+    assert "dragger.addFinishCallback" not in source
+    assert "view_dragger.addStartCallback" not in source
+    assert "gizmo.addStartCallback" in source
     assert "self._nearest_ring_angle(screen, self._manual_ring_samples)" in source
     assert "self._gizmo_motion(None, _normalize_signed_angle_degrees(angle - start_angle))" in source
 
