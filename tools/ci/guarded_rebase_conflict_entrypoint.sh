@@ -222,15 +222,32 @@ elif [[ "${rebase_commit}" == "5a4f3ff1bc99a09b064e0b9bfebbf611628b633f" ]] &&
   [[ "${conflicted_files}" == "tests/test_runner_routing_contract.py" ]]; then
   test_path="tests/test_runner_routing_contract.py"
   changed_paths="$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")"
+  test_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"
+  parent_test_count="$(git show "${rebase_commit}^:${test_path}" | grep -Ec "^def test_")"
+  commit_test_count="$(git show "${rebase_commit}:${test_path}" | grep -Ec "^def test_")"
+  main_test_count="$(git show "origin/main:${test_path}" | grep -Ec "^def test_")"
+  parent_container_count="$(git show "${rebase_commit}^:${test_path}" | grep -Fc "def test_freecad_container_transfers_checkout_and_returns_evidence()")"
+  commit_container_count="$(git show "${rebase_commit}:${test_path}" | grep -Fc "def test_freecad_container_transfers_checkout_and_returns_evidence()")"
+  main_container_count="$(git show "origin/main:${test_path}" | grep -Fc "def test_freecad_container_transfers_checkout_and_returns_evidence()")"
+  parent_test_names="$(git show "${rebase_commit}^:${test_path}" | grep -E "^def test_" | sort -u)"
+  commit_test_names="$(git show "${rebase_commit}:${test_path}" | grep -E "^def test_" | sort -u)"
+  main_test_names="$(git show "origin/main:${test_path}" | grep -E "^def test_" | sort -u)"
   if [[ "${changed_paths}" != "${test_path}" ]] ||
-    git diff --unified=0 "${rebase_commit}^" "${rebase_commit}" -- "${test_path}" | grep -Eq '^\+[^+]' ||
+    [[ "${test_numstat}" != $'0\t296\ttests/test_runner_routing_contract.py' ]] ||
+    [[ "${parent_test_count}" != "28" ]] ||
+    [[ "${commit_test_count}" != "15" ]] ||
+    [[ "${main_test_count}" != "15" ]] ||
+    [[ "${parent_container_count}" != "2" ]] ||
+    [[ "${commit_container_count}" != "1" ]] ||
+    [[ "${main_container_count}" != "1" ]] ||
+    [[ "${parent_test_names}" != "${commit_test_names}" ]] ||
+    [[ "${commit_test_names}" != "${main_test_names}" ]] ||
     ! git show "origin/main:${test_path}" | grep -Fq "def test_guarded_rebase_uses_the_verified_conflict_resolver" ||
-    ! git show "origin/main:${test_path}" | grep -Fq "def test_freecad_container_transfers_checkout_and_returns_evidence()" ||
-    ! git show "origin/main:${test_path}" | grep -Fq '"--shm-size=1g" in action' ||
-    git show "${rebase_commit}:${test_path}" | grep -Fq "def test_freecad_container_transfers_checkout_and_returns_evidence()"; then
-    echo "::error::Refusing duplicate test-tail removal outside the exact deletion-only 5a4f3ff1 commit and verified current-main contract."
+    ! git show "origin/main:${test_path}" | grep -Fq '"--shm-size=1g" in action'; then
+    echo "::error::Refusing 5a4f3ff1 duplicate-tail replay outside the exact 28-to-15 deletion-only transition with identical test names."
     exit 1
   fi
+
   echo "::notice::Skipping exact 5a4f3ff1 duplicate test-tail removal; retaining current main's complete repository-container contract."
   git checkout origin/main -- "${test_path}"
   git add "${test_path}"

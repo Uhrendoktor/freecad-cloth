@@ -97,6 +97,20 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         in broker
     )
     assert "syntax_check.returncode == 0" in broker
+    for marker in (
+        "test_numstat",
+        "parent_test_count",
+        "commit_test_count",
+        "main_test_count",
+        "parent_container_count",
+        "commit_container_count",
+        "main_container_count",
+        "parent_test_names",
+        "commit_test_names",
+        "main_test_names",
+    ):
+        assert marker in broker
+    assert "0\\t296\\ttests/test_runner_routing_contract.py" in broker
     for superseded_commit in (
         "aca0d1ae82001b0c74347d106c08cf45bcb4ea8a",
         "97b837b940384a9279af1884d44014bd8a89d453",
