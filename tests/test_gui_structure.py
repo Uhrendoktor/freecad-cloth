@@ -231,24 +231,24 @@ def test_workbench_icons_are_present_and_valid_svg_resources():
 
 def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets():
     class DestroyedWidget:
-        def property(self, _name):
+        def property(self, _name: str) -> object:
             raise RuntimeError("Internal C++ object (QDoubleSpinBox) already deleted")
 
     class LiveWidget:
-        def __init__(self):
+        def __init__(self) -> None:
             self.properties = {"clothViewportLinked": False}
             self.updated = False
 
-        def property(self, name):
+        def property(self, name: str) -> object | None:
             return self.properties.get(name)
 
-        def setProperty(self, name, value):
+        def setProperty(self, name: str, value: object) -> None:
             self.properties[name] = value
 
-        def style(self):
+        def style(self) -> None:
             return None
 
-        def update(self):
+        def update(self) -> None:
             self.updated = True
 
     panel = AvatarTaskPanel.__new__(AvatarTaskPanel)
@@ -266,16 +266,16 @@ def test_avatar_measurement_highlights_ignore_destroyed_qt_widgets():
 
 def test_avatar_measurement_focus_cleanup_detaches_filters_before_close():
     class Widget:
-        def __init__(self):
-            self.removed_filters = []
+        def __init__(self) -> None:
+            self.removed_filters: list[object] = []
 
-        def removeEventFilter(self, focus_filter):
+        def removeEventFilter(self, focus_filter: object) -> None:
             self.removed_filters.append(focus_filter)
 
     class Controller:
         focused_key = "hip"
 
-        def set_field_focus(self, key):
+        def set_field_focus(self, key: str | None) -> None:
             self.focused_key = key
 
     panel = AvatarTaskPanel.__new__(AvatarTaskPanel)
