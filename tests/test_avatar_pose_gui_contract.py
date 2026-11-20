@@ -78,8 +78,12 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     assert 'coin.SoType.fromName("SoRotationDragger")' in source
     assert 'coin.SoType.fromName("SoRotatorGeometry2")' in source
     assert "_configure_axis_rotation_dragger" in source
+    assert '"axis-rings-camera"' in source
     assert '"axis-rings-cones"' in source
-    assert "ClothPoseRotationX" in source
+    assert 'coin.SoType.fromName("SoVRMLBillboard")' in source
+    assert '"ClothPoseRotationView"' in source
+    assert 'camera_facing=True' in source
+     assert "ClothPoseRotationX" in source
     assert "ClothPoseRotationY" in source
     assert "ClothPoseRotationZ" in source
     assert "axis_branch = coin.SoSeparator()" in source
