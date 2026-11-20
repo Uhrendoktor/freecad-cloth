@@ -229,6 +229,49 @@ def test_qt_left_button_watchdog_keeps_pointer_drag_active_while_button_is_down(
     assert controller._gizmo_dragging
 
 
+def test_qt_left_button_release_finishes_pointer_drag_if_coin_consumes_release() -> None:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace(mouseButtons=lambda: 0)
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller._gizmo_dragging = True
+    controller._pointer_release_timer = None
+    controller.panel = SimpleNamespace(
+        QtWidgets=SimpleNamespace(
+            QApplication=SimpleNamespace(instance=lambda: app),
+        ),
+        QtCore=SimpleNamespace(Qt=SimpleNamespace(LeftButton=1)),
+    )
+    calls = []
+    controller._gizmo_finish = lambda _data, _dragger: calls.append("finish")
+
+    controller._poll_qt_pointer_release_state()
+
+    assert calls == ["finish"]
+
+
+def test_qt_left_button_watchdog_keeps_pointer_drag_active_while_button_is_down() -> None:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace(mouseButtons=lambda: 1)
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller._gizmo_dragging = True
+    controller._pointer_release_timer = None
+    controller.panel = SimpleNamespace(
+        QtWidgets=SimpleNamespace(
+            QApplication=SimpleNamespace(instance=lambda: app),
+        ),
+        QtCore=SimpleNamespace(Qt=SimpleNamespace(LeftButton=1)),
+    )
+    calls = []
+    controller._gizmo_finish = lambda _data, _dragger: calls.append("finish")
+
+    controller._poll_qt_pointer_release_state()
+
+    assert calls == []
+    assert controller._gizmo_dragging
+
+
 def test_mouse_down_on_ring_starts_axis_drag_before_bone_selection() -> None:
     from types import SimpleNamespace
 
