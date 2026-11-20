@@ -457,11 +457,7 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         try:
-            gizmo_parent = (
-                self.gizmo_foreground
-                if self.gizmo_foreground is not None
-                else self.gizmo_separator
-            )
+            gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
             if gizmo_parent is not None:
                 self.scene_graph.removeChild(gizmo_parent)
             if self.overlay is not None:
@@ -568,11 +564,7 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         """Remove the active rotation gizmo from the Coin scene graph."""
-        gizmo_parent = (
-            self.gizmo_foreground
-            if self.gizmo_foreground is not None
-            else self.gizmo_separator
-        )
+        gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
         if self.scene_graph is not None and gizmo_parent is not None:
             with contextlib.suppress(AttributeError, RuntimeError):
                 self.scene_graph.removeChild(gizmo_parent)
@@ -594,9 +586,7 @@ class SkeletonPoseController:
             axis: Lowercase x/y/z axis key, or None to restore the semantic palette.
         """
         for name, dragger in self._axis_draggers.items():
-            semantic_color = (
-                ROTATION_VIEW_COLOR if name == "VIEW" else POSE_AXIS_COLORS[name]
-            )
+            semantic_color = ROTATION_VIEW_COLOR if name == "VIEW" else POSE_AXIS_COLORS[name]
             color = ACTIVE_COLOR if axis == name.lower() else semantic_color
             with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 dragger.color.setValue(*color)
@@ -666,9 +656,7 @@ class SkeletonPoseController:
         rotator.arcThickness.setValue(
             ROTATION_VIEW_RING_THICKNESS if camera_facing else ROTATION_RING_THICKNESS
         )
-        rotator.sphereRadius.setValue(
-            ROTATION_PIVOT_RADIUS if not camera_facing else 0.25
-        )
+        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS if not camera_facing else 0.25)
         rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
         rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
         rotator.leftArrowVisible.setValue(not camera_facing)
@@ -797,18 +785,12 @@ class SkeletonPoseController:
             self._native_dragger = draggers
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
-            self.gizmo_style = (
-                "axis-rings-camera" if has_view_ring else "axis-rings-cones"
-            )
+            self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
-            gizmo_parent = (
-                self.gizmo_foreground
-                if self.gizmo_foreground is not None
-                else separator
-            )
+            gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else separator
             with contextlib.suppress(AttributeError, RuntimeError):
                 getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(gizmo_parent)
             self.gizmo_foreground = None
@@ -921,9 +903,7 @@ class SkeletonPoseController:
             camera = self.view.getCameraNode()
             orientation = camera.orientation.getValue()
             view_axis = orientation.multVec(self._coin().SbVec3f(0.0, 0.0, 1.0))
-            self._active_gizmo_axis = tuple(
-                float(view_axis[index]) for index in range(3)
-            )
+            self._active_gizmo_axis = tuple(float(view_axis[index]) for index in range(3))
             self.panel._set_rotation_axis_highlight("view")
         elif name.endswith(("X", "Y", "Z")):
             self.panel._set_rotation_axis_highlight(name[-1].lower())

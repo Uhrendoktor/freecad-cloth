@@ -448,9 +448,8 @@ def run():
     ):
         msg = "Pose Mode did not install the rounded joint/bone overlay geometry"
         raise RuntimeError(msg)
-    if (
-        panel.controller.gizmo_foreground is None
-        or not isinstance(panel.controller.gizmo_foreground, annotation_type)
+    if panel.controller.gizmo_foreground is None or not isinstance(
+        panel.controller.gizmo_foreground, annotation_type
     ):
         msg = "Pose Mode rotation rings are not in the topmost foreground annotation layer"
         raise RuntimeError(msg)

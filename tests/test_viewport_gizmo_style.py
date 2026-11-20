@@ -176,7 +176,7 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "ROTATION_VIEW_COLOR",
             "ROTATION_VIEW_RING_RADIUS",
             "ROTATION_VIEW_RING_THICKNESS",
-         },
+        },
         "freecad_cloth/avatar/AvatarShapeGui.py": {
             "DIMENSION_GUIDE_COLOR",
             "DIMENSION_GUIDE_LINE_WIDTH",

@@ -1,6 +1,8 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for rounded Coin3D foreground gizmo primitives."""
 
+from __future__ import annotations
+
 from types import SimpleNamespace
 from typing import TypeAlias
 
@@ -15,9 +17,7 @@ class _Field:
     """Small Coin-field stand-in that retains scalar and vector assignments."""
 
     def __init__(self) -> None:
-        self.value: (
-            float | tuple[float, ...] | tuple[tuple[float, ...], ...] | None
-        ) = None
+        self.value: float | tuple[float, ...] | tuple[tuple[float, ...], ...] | None = None
 
     def setValue(
         self,
@@ -78,9 +78,7 @@ class _Cylinder:
         self.height = _Field()
 
 
-_CoinSceneNode: TypeAlias = (
-    _Group | _DepthBuffer | _Transform | _Color | _Sphere | _Cylinder
-)
+_CoinSceneNode: TypeAlias = _Group | _DepthBuffer | _Transform | _Color | _Sphere | _Cylinder
 
 
 def _coin(*, annotation: bool = True) -> SimpleNamespace:

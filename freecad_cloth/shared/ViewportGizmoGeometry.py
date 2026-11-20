@@ -122,7 +122,7 @@ def add_capsule(
     center = tuple(
         (float(start[index]) + float(end[index])) * 0.5 for index in range(3)
     )
-     segment = coin.SoSeparator()
+    segment = coin.SoSeparator()
     transform = coin.SoTransform()
     transform.translation.setValue(coin.SbVec3f(*(float(value) for value in center)))
     transform.rotation.setValue(

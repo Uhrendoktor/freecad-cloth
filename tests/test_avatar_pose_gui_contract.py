@@ -83,7 +83,7 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     assert 'coin.SoType.fromName("SoVRMLBillboard")' in source
     assert '"ClothPoseRotationView"' in source
     assert 'camera_facing=True' in source
-     assert "ClothPoseRotationX" in source
+    assert "ClothPoseRotationX" in source
     assert "ClothPoseRotationY" in source
     assert "ClothPoseRotationZ" in source
     assert "axis_branch = coin.SoSeparator()" in source
