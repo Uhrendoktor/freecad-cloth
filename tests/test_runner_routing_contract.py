@@ -258,6 +258,11 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "reconcile_sewing_network_gui_types.py" not in resolver
     assert "class _NetworkReferenceCollection(Protocol):" in resolver
     assert "class _NetworkEditorSnapshot(TypedDict):" in resolver
+    assert "5d84563005f984dec139794200ad57a77d29ca26" in resolver
+    assert 'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())' in resolver
+    assert (
+        "Preserving the replayed typed seam editor and current-main defensive fallbacks" in resolver
+    )
     assert "valueChanged: _FloatChangedSignal" in resolver
     assert "make_paired_range_row(self.start_a, self.end_a, QtWidgets)" in resolver
     assert "self.table.item(row, column).text()" in resolver
@@ -282,6 +287,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     loop_done = resolver.index("\ndone\n", fail_closed)
     for handler in (
+        'elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "5d84563005f984dec139794200ad57a77d29ca26" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f62b45d70533341c14e6f9909c233498c7d5ef01" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]',
         "elif [[ \"$conflicts\" == $'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py' ]]",
@@ -292,6 +298,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
+    sewing_ruff_handler = resolver.index("5d84563005f984dec139794200ad57a77d29ca26", loop_start)
+    assert loop_start < sewing_ruff_handler < fail_closed
     sewing_handler = resolver.index("f62b45d70533341c14e6f9909c233498c7d5ef01", loop_start)
     assert loop_start < sewing_handler < fail_closed
     assert 'git checkout --ours -- "${test_path}"' in resolver
