@@ -249,8 +249,8 @@ The current workbench model mostly supports these stages. Keep cross-workbench e
 
 ## Implemented in this pass
 
-- Measurement guides render a subdued dashed X-ray underlay through occluding avatar geometry, then redraw visible guide segments solid with depth testing.
-- Measurement handles use a three-layer screen-sized marker (light halo, dark rim, semantic centre) so the pick target remains legible on both light and dark mannequin surfaces.
+- Measurement guides render a higher-contrast dashed X-ray underlay through occluding avatar geometry, then redraw visible guide segments solid with depth testing.
+- Measurement handles use concentric spherical halo/rim/semantic geometry in a Coin annotation layer, so the rounded pick target remains legible above light and dark mannequin surfaces.
 - Diagnostics provides explicit front/rear/left/right/top/bottom viewport actions, with orientation changes separate from Focus Panels.
 - Diagnostics packs metric + Refresh together and places its two secondary actions on one row rather than spending one full row per button.
 - Sewing Operation and Sewing Network now use matching paired A/B start–end rows; the precision validation/stitch count fields are disclosed as Advanced.
