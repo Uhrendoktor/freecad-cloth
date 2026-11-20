@@ -2,6 +2,7 @@
 """Contract tests for rounded Coin3D foreground gizmo primitives."""
 
 from types import SimpleNamespace
+from typing import TypeAlias
 
 from freecad_cloth.shared.ViewportGizmoGeometry import (
     add_capsule,
@@ -14,9 +15,9 @@ class _Field:
     """Small Coin-field stand-in that retains scalar and vector assignments."""
 
     def __init__(self) -> None:
-        self.value = None
+        self.value: float | tuple[float, ...] | None = None
 
-    def setValue(self, *values: object) -> None:
+    def setValue(self, *values: float | tuple[float, ...]) -> None:
         self.value = values[0] if len(values) == 1 else values
 
 
@@ -27,7 +28,7 @@ class _Group:
         self.children: list[object] = []
         self.name = ""
 
-    def addChild(self, child: object) -> None:
+    def addChild(self, child: _CoinSceneNode) -> None:
         self.children.append(child)
 
     def setName(self, name: str) -> None:
@@ -70,6 +71,11 @@ class _Cylinder:
     def __init__(self) -> None:
         self.radius = _Field()
         self.height = _Field()
+
+
+_CoinSceneNode: TypeAlias = (
+    _Group | _DepthBuffer | _Transform | _Color | _Sphere | _Cylinder
+)
 
 
 def _coin(*, annotation: bool = True) -> SimpleNamespace:
