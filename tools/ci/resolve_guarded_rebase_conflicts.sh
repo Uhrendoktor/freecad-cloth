@@ -986,9 +986,9 @@ def replace_once(old: str, new: str, label: str) -> None:
 replace_once("from collections.abc import Sequence\n", "from collections.abc import Callable, Sequence\n", "collections.abc import")
 replace_once("from typing import TYPE_CHECKING\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
 replace_once(
-    "from freecad_cloth.avatar.AvatarProperties import (\n",
-    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n\n"
-    "from freecad_cloth.avatar.AvatarProperties import (\n",
+    "from typing import TYPE_CHECKING, Protocol, cast\n",
+    "from typing import TYPE_CHECKING, Protocol, cast\n\n"
+    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n",
     "runtime FreeCAD object protocol import",
 )
 replace_once(
@@ -1146,7 +1146,9 @@ for key, typed_node in typed_defs.items():
     typed_args = {arg.arg: arg for arg in iter_arguments(typed_node.args)}
     main_args = {arg.arg: arg for arg in iter_arguments(main_node.args)}
     if set(typed_args) != set(main_args):
-        raise SystemExit(f"Function parameter names changed across typed transplant: {key}")
+        # Current main has newer methods in a few shared scopes. Do not graft
+        # annotations onto a semantically different call signature.
+        continue
     for name, main_arg in main_args.items():
         typed_arg = typed_args[name]
         if typed_arg.annotation is None or main_arg.annotation is not None:
@@ -1198,9 +1200,12 @@ for offset in sorted(patches, reverse=True):
     source = source[:offset] + fragments[0] + source[offset:]
 
 old_axes = "        self._axis_draggers = {}\n"
-if source.count(old_axes) != 2:
-    raise SystemExit("Expected exactly two current-main axis-dragger map assignments.")
-source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\n")
+axis_assignment_count = source.count(old_axes)
+if axis_assignment_count != 4:
+    raise SystemExit(
+        f"Expected four current-main axis-dragger map assignments, found {axis_assignment_count}."
+    )
+source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\\n")
 
 for required in (
     "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol",
