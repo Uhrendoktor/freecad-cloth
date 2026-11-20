@@ -1519,6 +1519,40 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    test_path="tests/test_runner_routing_contract.py"
+    benchmark_path="tests/freecad_realtime_benchmark.py"
+    expected_paths=    exit 1
+  fi
+done
+tests/freecad_realtime_benchmark.py\ntests/test_runner_routing_contract.py'
+    test_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"
+    helper_references="$(git show "${rebase_commit}:${benchmark_path}" | grep -Fc '_avatar_preview_dimensions(' || true)"
+    if [[ "$rebase_commit" != "50ede88397daff95154ba5e3386f4914b08ee3e9" ]] ||
+      [[ "$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")" != "$expected_paths" ]] ||
+      [[ "$test_numstat" !=     exit 1
+  fi
+done
+1\t3\ttests/test_runner_routing_contract.py' ]] ||
+      ! git show "${rebase_commit}:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      [[ "$helper_references" != "3" ]] ||
+      git show "${rebase_commit}^:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      git show "origin/main:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "loop_done = resolver.index" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "for handler in (" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "tests/test_build_visual_gifs.py" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "tools/ci/build_visual_gifs.py" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "assert loop_start < position < fail_closed"; then
+      echo "::error::Refusing 50ede883 routing-test conflict outside the exact formatting-only test hunk and new shared avatar-bounds helper."
+      exit 1
+    fi
+    echo "::warning::Keeping current main's stronger canonical routing contract and preserving only the exact new shared avatar-bounds fixture helper."
+    git checkout --ours -- "${test_path}"
+    git add "${test_path}" "${benchmark_path}"
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
