@@ -262,6 +262,13 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         encoding="utf-8"
     )
     assert "69999107b2e8888a5d179835b8297b21fef19d74" in resolver
+    assert "561071281bb387794029dbbfda720a581b028d04" in resolver
+    assert "ruff==0.17.2" in resolver
+    assert "ruff format --config pyproject.toml" in resolver
+    assert "ruff check --config pyproject.toml --fix" in resolver
+    assert "ruff check --config pyproject.toml" in resolver
+    assert "changed_after_ruff" in resolver
+    assert "git diff --cached --quiet" in resolver
     assert "f62b45d70533341c14e6f9909c233498c7d5ef01" in resolver
     assert ".agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch" in resolver
     assert "git apply --check" in resolver
@@ -335,6 +342,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
         "elif [[ \"$conflicts\" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py' ]]",
         'elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]',
+        'elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "561071281bb387794029dbbfda720a581b028d04" ]]',
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
@@ -349,6 +357,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "_avatar_preview_dimensions(" in resolver
     assert 'git show "origin/main:${test_path}" | grep -Fq "loop_done = resolver.index"' in resolver
     workflow_handler = resolver.index("bbd581e2df7ed83509755ef7a32850edd3441f49", loop_start)
+    avatar_ruff_handler = resolver.index("561071281bb387794029dbbfda720a581b028d04", loop_start)
+    assert loop_start < avatar_ruff_handler < fail_closed
     assert loop_start < workflow_handler < fail_closed
     assert resolver[loop_done + len("\ndone\n") :].strip() == ""
     assert "a59f58d25537de846677f89a7858562cfcfc9672" in resolver
