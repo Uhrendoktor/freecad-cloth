@@ -1549,6 +1549,40 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    test_path="tests/test_runner_routing_contract.py"
+    benchmark_path="tests/freecad_realtime_benchmark.py"
+    changed_paths="$(git diff-tree --no-commit-id --name-only -r "${rebase_commit}")"
+    changed_path_count="$(printf '%s\n' "$changed_paths" | grep -c .)"
+    test_numstat="$(git diff --numstat "${rebase_commit}^" "${rebase_commit}" -- "${test_path}")"
+    test_additions="$(printf '%s' "$test_numstat" | cut -f1)"
+    test_deletions="$(printf '%s' "$test_numstat" | cut -f2)"
+    helper_references="$(git show "${rebase_commit}:${benchmark_path}" | grep -Fc '_avatar_preview_dimensions(' || true)"
+    if [[ "$rebase_commit" != "50ede88397daff95154ba5e3386f4914b08ee3e9" ]] ||
+      [[ "$changed_path_count" != "2" ]] ||
+      ! printf '%s\n' "$changed_paths" | grep -Fxq "$benchmark_path" ||
+      ! printf '%s\n' "$changed_paths" | grep -Fxq "$test_path" ||
+      [[ "$test_additions" != "1" ]] ||
+      [[ "$test_deletions" != "3" ]] ||
+      ! git show "${rebase_commit}:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      [[ "$helper_references" != "3" ]] ||
+      git show "${rebase_commit}^:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      git show "origin/main:${benchmark_path}" | grep -Fq "def _avatar_preview_dimensions(" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "loop_done = resolver.index" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "for handler in (" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "tests/test_build_visual_gifs.py" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "tools/ci/build_visual_gifs.py" ||
+      ! git show "origin/main:${test_path}" | grep -Fq "assert loop_start < position < fail_closed"; then
+      echo "::error::Refusing 50ede883 conflict outside the exact test-format hunk and expected new avatar-bounds helper."
+      exit 1
+    fi
+    echo "::warning::Keeping main current routing contracts and retaining the exact shared avatar-bounds helper."
+    git checkout --ours -- "${test_path}"
+    git add "${test_path}" "${benchmark_path}"
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   else
     echo "::error::Unsupported rebase conflict; refusing automatic resolution: ${conflicts:-(none)}"
     exit 1
