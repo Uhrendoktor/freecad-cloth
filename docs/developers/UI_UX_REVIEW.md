@@ -74,7 +74,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 - Pick and drag spatial geometry in the viewport. Keep an exact numeric field in the panel when a user must specify a measurement or transformation accurately.
 - Make selected/hovered/active states differ in size and shape as well as color.
-- Occlusion must not erase the affordance. Use a subdued dashed X-ray underlay for hidden measurement guides and a high-contrast screen-sized handle with a halo/rim. Keep the solid depth-tested guide on visible surfaces.
+- Occlusion must not erase the affordance. Keep hidden measurement guides as a readable dashed X-ray underlay, keep visible front segments solid and depth-tested, and render rounded 3D grips in a Coin annotation layer above the mannequin. Avoid square point sprites for body handles or skeleton joints.
 - Expose high-frequency scene controls close to the viewport: avatar show/hide, measurement visibility, skeleton/landmark visibility, arrangement points, seam highlights and orthographic inspection views.
 - Use the host's standard camera/navigation controls for general navigation. Add explicit view buttons where a task requires a repeatable audit, such as diagnostics six-side review.
 
