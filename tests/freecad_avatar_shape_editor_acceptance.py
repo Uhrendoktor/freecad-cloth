@@ -428,6 +428,15 @@ def run():
         if controller is None or controller.view is None or controller.overlay is None:
             msg = "3D Dimensions did not activate; viewport shape editing must remain visible"
             raise RuntimeError(msg)
+        from pivy import coin
+
+        annotation_type = getattr(coin, "SoAnnotation", None)
+        if annotation_type is None or not isinstance(controller.overlay, annotation_type):
+            msg = "Measurement grips are not using Coin's foreground annotation layer"
+            raise RuntimeError(msg)
+        if controller.guide_overlay is None or controller.foreground_content is None:
+            msg = "Measurement guides and foreground grips were not separated into render layers"
+            raise RuntimeError(msg)
         if {str(obj.Name) for obj in doc.Objects} != original_names:
             msg = "viewport dimension overlay created persistent document objects"
             raise RuntimeError(msg)
@@ -540,10 +549,27 @@ def run():
         if controller is None or controller.view is None or controller.overlay is None:
             msg = "3D dimensions did not reactivate for hip-drag recording"
             raise RuntimeError(msg)
+        if not isinstance(controller.overlay, coin.SoAnnotation):
+            msg = "Measurement handles lost their foreground annotation layer after reactivation"
+            raise RuntimeError(msg)
+
+        # Capture the same measurement controls from orthographic front/side and
+        # three-quarter views so occlusion cannot be judged from one camera angle.
+        for camera, camera_method in (
+            ("front", view.viewFront),
+            ("side", view.viewRight),
+            ("three-quarter", view.viewIsometric),
+        ):
+            camera_method()
+            view.fitAll()
+            _events()
+            _capture_screen(Path("artifacts/avatar-dimensions-" + camera + ".png"))
+        view.viewIsometric()
+        view.fitAll()
+        _events()
 
         # Record a distinct viewport-first circumference edit: drag the hip
         # handle, watch the ring/readout update, then commit via Apply & Rebuild.
-        from pivy import coin
 
         dimension_recorder = UiGifRecorder(
             "artifacts/ui-gifs/avatar-dimension-drag.gif",

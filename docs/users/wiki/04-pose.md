@@ -2,7 +2,7 @@
 
 <p align="center"><img src="https://raw.githubusercontent.com/Uhrendoktor/freecad-cloth/refs/heads/docs/screenshots/docs/images/generated/avatar-pose-mode.png" alt="Pose Mode task panel with visible mannequin joints and a selected shoulder rotation gizmo" width="900"></p>
 
-The image above is the dedicated Pose Mode interaction fixture. It is captured from the active FreeCAD window after the viewport is fitted and painted, with the left shoulder selected so the native three-axis Coin3D rotation gizmo with cone tips and spherical pivot is visible.
+The image above is the dedicated Pose Mode interaction fixture. It is captured from the active FreeCAD window after the viewport is fitted and painted, with the left shoulder selected so the native three-axis Coin3D rotation gizmo with cone tips and spherical pivot is visible. A fourth, camera-facing outer ring provides screen-space rotation around the view axis.
 
 Before posing, set proportions and garment-facing measurements in the [Avatar shape and dimensions editor](09-avatar-shape.md). Shape editing changes body surface proportions and named measurement values; Pose Mode changes joint rotations. They are separate controls and are usually most useful in that order.
 
@@ -37,7 +37,7 @@ The viewport is the primary manipulation surface. The task panel keeps only dire
 
 The current implementation is manual forward kinematics. Parent joint rotations propagate to descendants through the authored skeleton hierarchy.
 
-The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one per axis, with a near-complete colored ring, cone arrowheads and spherical pivot geometry. The selected bone is kept in a depth-independent overlay so the full X-ray rig remains visible. FreeCAD builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
+The native interaction path uses three FreeCAD Coin3D SoRotationDraggers, one per axis, with a near-complete colored ring, cone arrowheads and spherical pivot geometry. The full rig is drawn in a Coin annotation layer: rounded cylinder bone shafts, spherical joints and a stronger selected-bone/pivot treatment remain visible through the mannequin. The XYZ rotation rings and camera-facing full-circle outer ring occupy a second, later annotation layer so they render above the skeleton. Bone selection still uses projected screen-space hit testing. Builds without the native rotation dragger use SoTrackballDragger as an interactive compatibility fallback; builds without the Coin/SWIG bridge retain the joint list and exact angle entry as non-viewport fallback controls.
 
 ## What a human should see
 

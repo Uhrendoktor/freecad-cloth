@@ -15,9 +15,10 @@ POSE_AXIS_COLORS = {
 
 # Active/selected controls should be readable without overwhelming the model.
 ACTIVE_COLOR = (1.0, 0.78, 0.20)
-RIG_PASSIVE_COLOR = (0.46, 0.48, 0.52)
-RIG_EDITABLE_COLOR = (0.72, 0.75, 0.80)
-JOINT_COLOR = (0.66, 0.68, 0.72)
+RIG_OUTLINE_COLOR = (0.055, 0.07, 0.10)
+RIG_PASSIVE_COLOR = (0.61, 0.65, 0.72)
+RIG_EDITABLE_COLOR = (0.84, 0.88, 0.95)
+JOINT_COLOR = (0.86, 0.89, 0.95)
 DIMENSION_GUIDE_COLOR = (0.25, 0.68, 0.79)
 DIMENSION_GUIDE_LINE_WIDTH = 1.8
 
@@ -25,12 +26,13 @@ DIMENSION_GUIDE_LINE_WIDTH = 1.8
 SNAP_TARGET_COLOR = (0.15, 0.75, 1.0)
 SNAP_STALE_COLOR = (0.95, 0.24, 0.16)
 
-# Pose rig emphasis levels.
-RIG_PASSIVE_LINE_WIDTH = 1.4
-RIG_EDITABLE_LINE_WIDTH = 2.4
-RIG_ACTIVE_LINE_WIDTH = 4.0
-RIG_JOINT_POINT_SIZE = 7.0
-RIG_ACTIVE_JOINT_POINT_SIZE = 14.0
+# Pose rig radii are screen-space pixels converted locally through the active camera.
+RIG_PASSIVE_RADIUS = 3.2
+RIG_EDITABLE_RADIUS = 4.4
+RIG_ACTIVE_RADIUS = 6.2
+RIG_JOINT_RADIUS = 4.1
+RIG_ACTIVE_JOINT_RADIUS = 7.5
+RIG_OUTLINE_RADIUS_SCALE = 1.55
 
 # Native axis rotation dragger geometry (model-space dimensions).
 ROTATION_GIZMO_SCALE = 8.5
@@ -40,6 +42,10 @@ ROTATION_RING_THICKNESS = 3.2
 ROTATION_PIVOT_RADIUS = 0.9
 ROTATION_ARROW_RADIUS = 1.5
 ROTATION_ARROW_HEIGHT = 4.2
+# Camera-facing outer ring provides a screen-space roll control around the view axis.
+ROTATION_VIEW_COLOR = (0.82, 0.85, 0.90)
+ROTATION_VIEW_RING_RADIUS = 14.5
+ROTATION_VIEW_RING_THICKNESS = 2.2
 
 # Arrangement snap markers are intentionally simple and spatially legible.
 SNAP_LINE_WIDTH = 2.0
@@ -56,14 +62,13 @@ SEAM_CONNECTOR_LINE_WIDTH = 1.25
 SEAM_LABEL_FONT_SIZE = 16.0
 
 
-# Measurement guides use a restrained X-ray underlay for geometry hidden by the
-# avatar. The foreground handle is a three-layer, screen-sized target so it stays
-# recognisable against light and dark mannequin surfaces.
-DIMENSION_OCCLUDED_COLOR = (0.38, 0.53, 0.59)
-DIMENSION_OCCLUDED_LINE_WIDTH = 1.25
+# Measurement guides use a higher-contrast X-ray underlay behind the mannequin.
+# Foreground grips are nested 3D spheres; radii and increments are screen-space pixels.
+DIMENSION_OCCLUDED_COLOR = (0.48, 0.65, 0.72)
+DIMENSION_OCCLUDED_LINE_WIDTH = 1.6
 DIMENSION_OCCLUDED_LINE_PATTERN = 0x0F0F
 DIMENSION_OCCLUDED_LINE_PATTERN_SCALE = 2
 DIMENSION_MARKER_HALO_COLOR = (0.96, 0.97, 0.98)
 DIMENSION_MARKER_OUTLINE_COLOR = (0.08, 0.10, 0.12)
-DIMENSION_MARKER_HALO_SIZE_INCREMENT = 12.0
-DIMENSION_MARKER_OUTLINE_SIZE_INCREMENT = 6.0
+DIMENSION_MARKER_HALO_RADIUS_INCREMENT = 6.0
+DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT = 3.0

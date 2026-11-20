@@ -90,6 +90,13 @@ def test_realtime_preview_contract_modules_are_routed_to_pytest_group() -> None:
     assert '"tests/test_realtime_preview_timing.py"' in runner, "preview test routing"
 
 
+def test_rounded_foreground_gizmo_geometry_is_routed_to_pytest_group() -> None:
+    """Keep the rounded Coin3D helper tests in canonical pytest execution."""
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+
+    assert '"tests/test_viewport_gizmo_geometry.py"' in runner, "gizmo geometry test routing"
+
+
 def test_gui_acceptance_validator_uses_visual_artifacts_only() -> None:
     """Require GUI acceptance cases to be verified from visual artifacts."""
     assert set(validate_acceptance.CASES) == {

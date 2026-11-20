@@ -267,10 +267,10 @@ class _CoinField:
     """Small Coin field stub supporting scalar and multi-point assignments."""
 
     def __init__(self) -> None:
-        self.value: float | tuple[tuple[float, float, float], ...] | None = None
+        self.value: float | tuple[float, ...] | None = None
 
-    def setValue(self, value: float) -> None:
-        self.value = float(value)
+    def setValue(self, value: float | tuple[float, ...]) -> None:
+        self.value = value
 
     def setValues(
         self,
@@ -327,6 +327,23 @@ class _CoinDepthBuffer(_CoinNode):
         self.write = True
 
 
+class _CoinTransform(_CoinNode):
+    """Transform stub retaining translation and rotation assignments."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.translation = _CoinField()
+        self.rotation = _CoinField()
+
+
+class _CoinSphere(_CoinNode):
+    """Sphere primitive stub used by rounded measurement grips."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.radius = _CoinField()
+
+
 class _CoinPointSet(_CoinNode):
     """Point primitive stub used by foreground dimension markers."""
 
@@ -353,32 +370,43 @@ def _coin_stub() -> SimpleNamespace:
         SoCoordinate3=_CoinCoordinate3,
         SoPointSet=_CoinPointSet,
         SoLineSet=_CoinLineSet,
+        SoTransform=_CoinTransform,
+        SoSphere=_CoinSphere,
+        SbVec3f=lambda *values: tuple(float(value) for value in values),
     )
 
 
-def test_measurement_marker_uses_three_foreground_contrast_layers() -> None:
-    """Keep a visible semantic pick target over both light and dark avatar surfaces."""
+def test_measurement_marker_uses_three_rounded_foreground_spheres() -> None:
+    """Keep a spherical semantic grip legible over light and dark mannequin surfaces."""
     from freecad_cloth.avatar.AvatarShapeGui import AvatarDimensionController
     from freecad_cloth.shared.ViewportGizmoStyle import (
         DIMENSION_MARKER_HALO_COLOR,
+        DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
         DIMENSION_MARKER_OUTLINE_COLOR,
+        DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
     )
 
     coin = _coin_stub()
     controller = AvatarDimensionController.__new__(AvatarDimensionController)
     controller.overlay = coin.SoSeparator()
+    controller.foreground_content = None
     controller._add_marker(coin, (0.0, 0.0, 0.0), (0.9, 0.8, 0.2), 8.0)
 
     assert len(controller.overlay.children) == 3
-    sizes = [layer.children[1].pointSize for layer in controller.overlay.children]
-    colors = [layer.children[2].rgb for layer in controller.overlay.children]
-    assert sizes[0] > sizes[1] > sizes[2]
+    radii = [layer.children[2].radius.value for layer in controller.overlay.children]
+    colors = [layer.children[1].rgb for layer in controller.overlay.children]
+    assert radii == [
+        4.0 + DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
+        4.0 + DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
+        4.0,
+    ]
+    assert radii[0] > radii[1] > radii[2]
     assert colors == [
         DIMENSION_MARKER_HALO_COLOR,
         DIMENSION_MARKER_OUTLINE_COLOR,
         (0.9, 0.8, 0.2),
     ]
-    assert all(layer.children[0].test is False for layer in controller.overlay.children)
+    assert all(len(layer.children) == 3 for layer in controller.overlay.children)
 
 
 def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
@@ -392,6 +420,7 @@ def test_measurement_guides_can_use_dashed_occluded_xray_underlay() -> None:
     coin = _coin_stub()
     controller = AvatarDimensionController.__new__(AvatarDimensionController)
     controller.overlay = coin.SoSeparator()
+    controller.guide_overlay = None
     controller._add_line(
         coin,
         ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),

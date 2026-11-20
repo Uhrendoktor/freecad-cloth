@@ -9,20 +9,27 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     DIMENSION_GUIDE_COLOR,
     DIMENSION_GUIDE_LINE_WIDTH,
     DIMENSION_MARKER_HALO_COLOR,
+    DIMENSION_MARKER_HALO_RADIUS_INCREMENT,
     DIMENSION_MARKER_OUTLINE_COLOR,
+    DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT,
     DIMENSION_OCCLUDED_COLOR,
     DIMENSION_OCCLUDED_LINE_PATTERN,
     DIMENSION_OCCLUDED_LINE_PATTERN_SCALE,
     DIMENSION_OCCLUDED_LINE_WIDTH,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
-    RIG_ACTIVE_JOINT_POINT_SIZE,
-    RIG_ACTIVE_LINE_WIDTH,
-    RIG_EDITABLE_LINE_WIDTH,
-    RIG_JOINT_POINT_SIZE,
-    RIG_PASSIVE_LINE_WIDTH,
+    RIG_ACTIVE_JOINT_RADIUS,
+    RIG_ACTIVE_RADIUS,
+    RIG_EDITABLE_RADIUS,
+    RIG_JOINT_RADIUS,
+    RIG_OUTLINE_COLOR,
+    RIG_OUTLINE_RADIUS_SCALE,
+    RIG_PASSIVE_RADIUS,
     ROTATION_GIZMO_SCALE,
     ROTATION_RING_RADIUS,
+    ROTATION_VIEW_COLOR,
+    ROTATION_VIEW_RING_RADIUS,
+    ROTATION_VIEW_RING_THICKNESS,
     SEAM_CONNECTOR_LINE_WIDTH,
     SEAM_FOCUSED_LINE_WIDTH,
     SEAM_LABEL_FONT_SIZE,
@@ -86,7 +93,9 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
         DIMENSION_OCCLUDED_COLOR,
         DIMENSION_MARKER_HALO_COLOR,
         DIMENSION_MARKER_OUTLINE_COLOR,
+        ROTATION_VIEW_COLOR,
         JOINT_COLOR,
+        RIG_OUTLINE_COLOR,
         SNAP_TARGET_COLOR,
         SNAP_STALE_COLOR,
     )
@@ -101,20 +110,39 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
 def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     """Guard line and marker hierarchy without pinning rendering to exact pixels."""
     assert (
-        MINIMUM_POSITIVE_STYLE_VALUE
-        < RIG_PASSIVE_LINE_WIDTH
-        < RIG_EDITABLE_LINE_WIDTH
-        < RIG_ACTIVE_LINE_WIDTH
-    ), "Passive, editable, and active rig lines must increase in emphasis."
-    assert MINIMUM_POSITIVE_STYLE_VALUE < RIG_JOINT_POINT_SIZE < RIG_ACTIVE_JOINT_POINT_SIZE, (
-        "Active joint markers must be larger than ordinary joint markers."
+        MINIMUM_POSITIVE_STYLE_VALUE < RIG_PASSIVE_RADIUS < RIG_EDITABLE_RADIUS < RIG_ACTIVE_RADIUS
+    ), "Passive, editable, and active capsule radii must increase in emphasis."
+    assert MINIMUM_POSITIVE_STYLE_VALUE < RIG_JOINT_RADIUS < RIG_ACTIVE_JOINT_RADIUS, (
+        "Active spherical joints must be larger than ordinary joints."
     )
+    assert RIG_PASSIVE_RADIUS >= 3.0, (
+        "Passive bone shafts must retain a visible inner core inside the outline."
+    )
+    assert RIG_EDITABLE_RADIUS >= 4.0, "Editable bone shafts must have a readable viewport width."
+    assert RIG_ACTIVE_RADIUS >= 6.0, (
+        "The active bone must remain distinguishable over the mannequin."
+    )
+    assert RIG_JOINT_RADIUS >= 4.0, "Spherical joints must remain visible at fitted avatar scale."
+    assert RIG_OUTLINE_RADIUS_SCALE >= 1.5, (
+        "Bone/joint outlines must be wider than their semantic center geometry."
+    )
+    _assert_rgb(RIG_OUTLINE_COLOR)
+    assert (
+        MINIMUM_POSITIVE_STYLE_VALUE
+        < DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT
+        < DIMENSION_MARKER_HALO_RADIUS_INCREMENT
+    ), "The spherical measurement grip must have nested rim and halo radii."
     assert ROTATION_GIZMO_SCALE > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Rotation gizmo scale must be positive."
     )
     assert ROTATION_RING_RADIUS > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Rotation ring radius must be positive."
     )
+    assert ROTATION_VIEW_RING_RADIUS > ROTATION_RING_RADIUS, (
+        "The camera-facing ring must sit outside the anatomical axis rings."
+    )
+    assert ROTATION_VIEW_RING_THICKNESS > MINIMUM_POSITIVE_STYLE_VALUE
+    _assert_rgb(ROTATION_VIEW_COLOR)
     assert DIMENSION_GUIDE_LINE_WIDTH > MINIMUM_POSITIVE_STYLE_VALUE, (
         "Dimension guide line width must be positive."
     )
@@ -154,7 +182,17 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "POSE_AXIS_COLORS",
             "RIG_PASSIVE_COLOR",
             "RIG_EDITABLE_COLOR",
+            "RIG_OUTLINE_COLOR",
+            "RIG_OUTLINE_RADIUS_SCALE",
+            "RIG_PASSIVE_RADIUS",
+            "RIG_EDITABLE_RADIUS",
+            "RIG_ACTIVE_RADIUS",
+            "RIG_JOINT_RADIUS",
+            "RIG_ACTIVE_JOINT_RADIUS",
             "ROTATION_GIZMO_SCALE",
+            "ROTATION_VIEW_COLOR",
+            "ROTATION_VIEW_RING_RADIUS",
+            "ROTATION_VIEW_RING_THICKNESS",
         },
         "freecad_cloth/avatar/AvatarShapeGui.py": {
             "DIMENSION_GUIDE_COLOR",
@@ -164,7 +202,9 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
             "DIMENSION_OCCLUDED_LINE_PATTERN_SCALE",
             "DIMENSION_OCCLUDED_LINE_WIDTH",
             "DIMENSION_MARKER_HALO_COLOR",
+            "DIMENSION_MARKER_HALO_RADIUS_INCREMENT",
             "DIMENSION_MARKER_OUTLINE_COLOR",
+            "DIMENSION_MARKER_OUTLINE_RADIUS_INCREMENT",
         },
         "freecad_cloth/avatar/FittingGui.py": {
             "SNAP_TARGET_COLOR",
@@ -197,4 +237,16 @@ def test_each_shared_style_overlay_uses_visual_tokens() -> None:
         assert names <= imports, f"{relative_path}: missing one or more shared style imports."
         assert names <= loaded_names, (
             f"{relative_path}: required style tokens are imported but unused."
+        )
+
+    for relative_path in (
+        "freecad_cloth/avatar/AvatarPoseGui.py",
+        "freecad_cloth/avatar/AvatarShapeGui.py",
+    ):
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert "SoPointSet" not in source, (
+            f"{relative_path}: avatar bone and measurement controls must not use square point sprites."
+        )
+        assert "ViewportGizmoGeometry" in source, (
+            f"{relative_path}: rounded avatar controls must use the shared Coin3D geometry helpers."
         )

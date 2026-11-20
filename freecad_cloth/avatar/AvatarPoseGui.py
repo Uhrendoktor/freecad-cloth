@@ -23,13 +23,15 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
-    RIG_ACTIVE_JOINT_POINT_SIZE,
-    RIG_ACTIVE_LINE_WIDTH,
+    RIG_ACTIVE_JOINT_RADIUS,
+    RIG_ACTIVE_RADIUS,
     RIG_EDITABLE_COLOR,
-    RIG_EDITABLE_LINE_WIDTH,
-    RIG_JOINT_POINT_SIZE,
+    RIG_EDITABLE_RADIUS,
+    RIG_JOINT_RADIUS,
+    RIG_OUTLINE_COLOR,
+    RIG_OUTLINE_RADIUS_SCALE,
     RIG_PASSIVE_COLOR,
-    RIG_PASSIVE_LINE_WIDTH,
+    RIG_PASSIVE_RADIUS,
     ROTATION_ARC_ANGLE_DEGREES,
     ROTATION_ARROW_HEIGHT,
     ROTATION_ARROW_RADIUS,
@@ -37,6 +39,9 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ROTATION_PIVOT_RADIUS,
     ROTATION_RING_RADIUS,
     ROTATION_RING_THICKNESS,
+    ROTATION_VIEW_COLOR,
+    ROTATION_VIEW_RING_RADIUS,
+    ROTATION_VIEW_RING_THICKNESS,
 )
 
 if TYPE_CHECKING:
@@ -191,7 +196,9 @@ class SkeletonPoseController:
         self.view = None
         self.scene_graph = None
         self.overlay = None
+        self.overlay_content = None
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.gizmo_transform = None
         self.gizmo = None
         self.mouse_callback = None
@@ -350,14 +357,11 @@ class SkeletonPoseController:
             )
             return
 
-        self.overlay = coin.SoSeparator()
-        self.overlay.setName("ClothAvatarPoseOverlay")
-        # Pose controls are an interaction overlay: keep them visible even when
-        # the mannequin surface would otherwise win the depth test.
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        self.overlay.addChild(depth)
+        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+        self.overlay = create_foreground_layer(coin, "ClothAvatarPoseOverlay")
+        self.overlay_content = coin.SoSeparator()
+        self.overlay.addChild(self.overlay_content)
         self.scene_graph.addChild(self.overlay)
 
         self._add_skeleton_overlay(coin)
@@ -430,7 +434,9 @@ class SkeletonPoseController:
             self.gizmo = None
             self.gizmo_transform = None
             self.gizmo_separator = None
+            self.gizmo_foreground = None
             self.overlay = None
+            self.overlay_content = None
             self.scene_graph = None
             self._native_dragger = None
             self._gizmo_dragging = False
@@ -453,8 +459,11 @@ class SkeletonPoseController:
         except (AttributeError, RuntimeError):
             pass
         try:
-            if self.gizmo_separator is not None:
-                self.scene_graph.removeChild(self.gizmo_separator)
+            gizmo_parent = (
+                self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+            )
+            if gizmo_parent is not None:
+                self.scene_graph.removeChild(gizmo_parent)
             if self.overlay is not None:
                 self.scene_graph.removeChild(self.overlay)
         except (AttributeError, RuntimeError):
@@ -465,7 +474,9 @@ class SkeletonPoseController:
         self.gizmo = None
         self.gizmo_transform = None
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.overlay = None
+        self.overlay_content = None
         self.scene_graph = None
         self._native_dragger = None
         self._gizmo_dragging = False
@@ -476,109 +487,110 @@ class SkeletonPoseController:
         self.view = None
 
     def _add_skeleton_overlay(self, coin) -> None:
-        """Draw the complete posed skeleton with selectable controls highlighted.
+        """Draw the complete posed skeleton as rounded foreground 3D controls.
 
         Args:
             coin: Pivy Coin module supplying scene-graph types.
         """
-        overlay = self.overlay
-        if overlay is None:
-            return
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
-
-        selected_bone = self.selected_bone
-        joints = self._build_skeleton()
-        editable = set(CONTROLLABLE_BONES)
-
-        def add_lines(parent, segments, width, rgb):
-            """Draw the requested skeleton segments into the supplied scene graph.
-
-            Args:
-                parent: Parent Qt layout that receives the controls.
-                segments: Ordered head/tail pairs to draw.
-                width: Line width in viewport pixels.
-                rgb: Red, green, and blue color components.
-            """
-            if not segments:
-                return
-            coordinates = []
-            counts = []
-            for head, tail in segments:
-                coordinates.extend((head, tail))
-                counts.append(2)
-            separator = coin.SoSeparator()
-            draw = coin.SoDrawStyle()
-            draw.lineWidth = float(width)
-            color = coin.SoBaseColor()
-            color.rgb = rgb
-            coord = coin.SoCoordinate3()
-            coord.point.setValues(0, len(coordinates), coordinates)
-            line_set = coin.SoLineSet()
-            line_set.numVertices.setValues(0, len(counts), counts)
-            separator.addChild(draw)
-            separator.addChild(color)
-            separator.addChild(coord)
-            separator.addChild(line_set)
-            parent.addChild(separator)
-
-        passive_segments = [
-            segment
-            for bone, segment in self._skeleton_segments.items()
-            if bone not in editable and bone != selected_bone
-        ]
-        editable_segments = [
-            segment
-            for bone, segment in self._skeleton_segments.items()
-            if bone in editable and bone != selected_bone
-        ]
-        selected_segments = (
-            [self._skeleton_segments[selected_bone]]
-            if selected_bone is not None and selected_bone in self._skeleton_segments
-            else []
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            add_capsule,
+            add_sphere,
+            world_radius_for_screen_pixels,
         )
 
-        # Blender-style posing convention: the full rig remains visible, while
-        # editable/active bones are visually stronger than structural bones.
-        add_lines(overlay, passive_segments, RIG_PASSIVE_LINE_WIDTH, RIG_PASSIVE_COLOR)
-        add_lines(overlay, editable_segments, RIG_EDITABLE_LINE_WIDTH, RIG_EDITABLE_COLOR)
-        add_lines(overlay, selected_segments, RIG_ACTIVE_LINE_WIDTH, ACTIVE_COLOR)
+        parent = self.overlay_content if self.overlay_content is not None else self.overlay
+        if parent is None:
+            return
+        joints = self._build_skeleton()
+        editable = set(CONTROLLABLE_BONES)
+        selected_bone = self.selected_bone
+        camera_right = None
+        try:
+            orientation = self.view.getCameraNode().orientation.getValue()
+            right = orientation.multVec(coin.SbVec3f(1.0, 0.0, 0.0))
+            camera_right = tuple(float(right[index]) for index in range(3))
+        except (AttributeError, IndexError, RuntimeError, TypeError, ValueError):
+            pass
 
-        point_list = list(joints.values())
-        if point_list:
-            point_draw = coin.SoDrawStyle()
-            point_draw.pointSize = RIG_JOINT_POINT_SIZE
-            joint_color = coin.SoBaseColor()
-            joint_color.rgb = JOINT_COLOR
-            points = coin.SoCoordinate3()
-            points.point.setValues(0, len(point_list), point_list)
-            point_set = coin.SoPointSet()
-            point_set.numPoints = len(point_list)
-            points_sep = coin.SoSeparator()
-            points_sep.addChild(point_draw)
-            points_sep.addChild(joint_color)
-            points_sep.addChild(points)
-            points_sep.addChild(point_set)
-            getattr(overlay, _COIN_ADD_CHILD_METHOD)(points_sep)
+        # Draw a dark outline and bright centerline for every bone. The larger
+        # outline remains legible against both the mannequin mesh and white viewport.
+        bone_controls = []
+        for bone, segment in self._skeleton_segments.items():
+            midpoint = tuple(
+                (float(segment[0][index]) + float(segment[1][index])) * 0.5 for index in range(3)
+            )
+            if bone == selected_bone:
+                radius_pixels, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
+            elif bone in editable:
+                radius_pixels, rgb = RIG_EDITABLE_RADIUS, RIG_EDITABLE_COLOR
+            else:
+                radius_pixels, rgb = RIG_PASSIVE_RADIUS, RIG_PASSIVE_COLOR
+            radius = world_radius_for_screen_pixels(
+                midpoint,
+                camera_right,
+                self._screen_position,
+                radius_pixels,
+                radius_pixels * 3.0,
+            )
+            bone_controls.append((bone, segment, radius, rgb))
+
+        # Keep the selected bone last so its amber core is not lost beneath another shaft.
+        bone_controls.sort(key=lambda control: control[0] == selected_bone)
+        for _bone, segment, radius, _rgb in bone_controls:
+            add_capsule(
+                parent,
+                coin,
+                segment[0],
+                segment[1],
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
+            )
+        for _bone, segment, radius, rgb in bone_controls:
+            add_capsule(parent, coin, segment[0], segment[1], radius, rgb)
+
+        # Joint grips use the same dark rim/bright center treatment as bone shafts.
+        joint_controls = [
+            (
+                point,
+                world_radius_for_screen_pixels(
+                    point,
+                    camera_right,
+                    self._screen_position,
+                    RIG_JOINT_RADIUS,
+                    RIG_JOINT_RADIUS * 3.0,
+                ),
+            )
+            for point in joints.values()
+        ]
+        for point, radius in joint_controls:
+            add_sphere(
+                parent,
+                coin,
+                point,
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
+            )
+        for point, radius in joint_controls:
+            add_sphere(parent, coin, point, radius, JOINT_COLOR)
 
         if selected_bone is not None and selected_bone in self._positions:
-            selected_draw = coin.SoDrawStyle()
-            selected_draw.pointSize = RIG_ACTIVE_JOINT_POINT_SIZE
-            selected_color = coin.SoBaseColor()
-            selected_color.rgb = ACTIVE_COLOR
-            selected_points = coin.SoCoordinate3()
-            selected_points.point.setValues(
-                0,
-                1,
-                [self._positions[selected_bone]],
+            point = self._positions[selected_bone]
+            radius = world_radius_for_screen_pixels(
+                point,
+                camera_right,
+                self._screen_position,
+                RIG_ACTIVE_JOINT_RADIUS,
+                RIG_ACTIVE_JOINT_RADIUS * 3.0,
             )
-            selected_point_set = coin.SoPointSet()
-            selected_point_set.numPoints = 1
-            selected_sep = coin.SoSeparator()
-            selected_sep.addChild(selected_draw)
-            selected_sep.addChild(selected_color)
-            selected_sep.addChild(selected_points)
-            selected_sep.addChild(selected_point_set)
-            getattr(overlay, _COIN_ADD_CHILD_METHOD)(selected_sep)
+            add_sphere(
+                parent,
+                coin,
+                point,
+                radius * RIG_OUTLINE_RADIUS_SCALE,
+                RIG_OUTLINE_COLOR,
+            )
+            add_sphere(parent, coin, point, radius, ACTIVE_COLOR)
 
     def _joint_connections(self):
         """Return the line segments associated with the currently displayed skeleton.
@@ -592,8 +604,11 @@ class SkeletonPoseController:
         """Detach transient children from the skeleton overlay node."""
         if self.overlay is None:
             return
-        while self.overlay.getNumChildren():
-            self.overlay.removeChild(0)
+        parent = self.overlay_content if self.overlay_content is not None else self.overlay
+        if parent is None:
+            return
+        while parent.getNumChildren():
+            parent.removeChild(0)
 
     def refresh_overlay(self, keep_gizmo=False):
         """Refresh the skeleton overlay and optionally preserve the active gizmo.
@@ -619,10 +634,14 @@ class SkeletonPoseController:
 
     def _remove_gizmo(self):
         """Remove the active rotation gizmo from the Coin scene graph."""
-        if self.scene_graph is not None and self.gizmo_separator is not None:
+        gizmo_parent = (
+            self.gizmo_foreground if self.gizmo_foreground is not None else self.gizmo_separator
+        )
+        if self.scene_graph is not None and gizmo_parent is not None:
             with contextlib.suppress(AttributeError, RuntimeError):
-                self.scene_graph.removeChild(self.gizmo_separator)
+                self.scene_graph.removeChild(gizmo_parent)
         self.gizmo_separator = None
+        self.gizmo_foreground = None
         self.gizmo_transform = None
         self.gizmo = None
         self.gizmo_mode = None
@@ -639,18 +658,28 @@ class SkeletonPoseController:
             axis: Lowercase x/y/z axis key, or None to restore the semantic palette.
         """
         for name, dragger in self._axis_draggers.items():
-            color = ACTIVE_COLOR if axis == name.lower() else POSE_AXIS_COLORS[name]
+            semantic_color = ROTATION_VIEW_COLOR if name == "VIEW" else POSE_AXIS_COLORS[name]
+            color = ACTIVE_COLOR if axis == name.lower() else semantic_color
             with contextlib.suppress(AttributeError, RuntimeError, TypeError):
                 dragger.color.setValue(*color)
 
-    def _configure_axis_rotation_dragger(self, coin, dragger, rgb, geometry_scale):
-        """Configure one native FreeCAD rotation ring with cone tips and a pivot sphere.
+    def _configure_axis_rotation_dragger(
+        self,
+        coin,
+        dragger,
+        rgb,
+        geometry_scale,
+        *,
+        camera_facing: bool = False,
+    ):
+        """Configure one native rotation ring with either axis or view-space geometry.
 
         Args:
             coin: Pivy Coin module supplying scene-graph types.
             dragger: Coin dragger providing the current rotation state.
             rgb: Normalized color assigned to the rotation axis.
             geometry_scale: Scale applied to the rotation-ring geometry.
+            camera_facing: True for a full-circle, arrow-free ring in the camera plane.
         """
         rotator_type = coin.SoType.fromName("SoRotatorGeometry2")
         if rotator_type.isBad():
@@ -690,14 +719,20 @@ class SkeletonPoseController:
             0.0,
         )
 
-        rotator.arcAngle.setValue(math.radians(ROTATION_ARC_ANGLE_DEGREES))
-        rotator.arcRadius.setValue(ROTATION_RING_RADIUS)
-        rotator.arcThickness.setValue(ROTATION_RING_THICKNESS)
-        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS)
+        rotator.arcAngle.setValue(
+            math.tau if camera_facing else math.radians(ROTATION_ARC_ANGLE_DEGREES)
+        )
+        rotator.arcRadius.setValue(
+            ROTATION_VIEW_RING_RADIUS if camera_facing else ROTATION_RING_RADIUS
+        )
+        rotator.arcThickness.setValue(
+            ROTATION_VIEW_RING_THICKNESS if camera_facing else ROTATION_RING_THICKNESS
+        )
+        rotator.sphereRadius.setValue(ROTATION_PIVOT_RADIUS if not camera_facing else 0.25)
         rotator.coneBottomRadius.setValue(ROTATION_ARROW_RADIUS)
         rotator.coneHeight.setValue(ROTATION_ARROW_HEIGHT)
-        rotator.leftArrowVisible.setValue(True)
-        rotator.rightArrowVisible.setValue(True)
+        rotator.leftArrowVisible.setValue(not camera_facing)
+        rotator.rightArrowVisible.setValue(not camera_facing)
 
         dragger.color.setValue(*rgb)
         dragger.activeColor.setValue(*ACTIVE_COLOR)
@@ -783,17 +818,55 @@ class SkeletonPoseController:
                 dragger.addMotionCallback(self._gizmo_motion)
                 dragger.addFinishCallback(self._gizmo_finish)
 
-            getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(separator)
+            billboard_type = coin.SoType.fromName("SoVRMLBillboard")
+            has_view_ring = False
+            if not billboard_type.isBad():
+                billboard = billboard_type.createInstance()
+                view_dragger = type_id.createInstance()
+                if billboard is not None and view_dragger is not None:
+                    billboard.axisOfRotation.setValue(0.0, 0.0, 0.0)
+                    if self._configure_axis_rotation_dragger(
+                        coin,
+                        view_dragger,
+                        ROTATION_VIEW_COLOR,
+                        geometry_scale,
+                        camera_facing=True,
+                    ):
+                        view_dragger.setName("ClothPoseRotationView")
+                        billboard.addChild(view_dragger)
+                        view_branch = coin.SoSeparator()
+                        view_branch.addChild(billboard)
+                        separator.addChild(view_branch)
+                        view_dragger.addStartCallback(self._gizmo_start)
+                        view_dragger.addMotionCallback(self._gizmo_motion)
+                        view_dragger.addFinishCallback(self._gizmo_finish)
+                        self._axis_draggers["VIEW"] = view_dragger
+                        draggers.append(view_dragger)
+                        has_view_ring = True
+
+            from freecad_cloth.shared.ViewportGizmoGeometry import (
+                create_foreground_layer,
+            )
+
+            self.gizmo_foreground = create_foreground_layer(
+                coin,
+                "ClothAvatarRotationOverlay",
+            )
+            self.gizmo_foreground.addChild(separator)
+            getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
             self._native_dragger = draggers
             self.gizmo = _NativeGizmoHandle(draggers[0], self)
             self.gizmo_mode = "native"
-            self.gizmo_style = "axis-rings-cones"
+            self.gizmo_style = "axis-rings-camera" if has_view_ring else "axis-rings-cones"
             return True
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             self.gizmo_style = None
             self.gizmo_style_error = repr(exc)
+            gizmo_parent = self.gizmo_foreground if self.gizmo_foreground is not None else separator
             with contextlib.suppress(AttributeError, RuntimeError):
-                getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(separator)
+                getattr(scene_graph, _COIN_REMOVE_CHILD_METHOD)(gizmo_parent)
+            self.gizmo_foreground = None
+            self._axis_draggers = {}
             return False
 
     def _create_trackball_gizmo(self, coin) -> None:
@@ -815,7 +888,14 @@ class SkeletonPoseController:
         )
         gizmo.setAnimationEnabled(False)
         getattr(separator, _COIN_ADD_CHILD_METHOD)(gizmo)
-        getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(separator)
+        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+        self.gizmo_foreground = create_foreground_layer(
+            coin,
+            "ClothAvatarRotationOverlay",
+        )
+        self.gizmo_foreground.addChild(separator)
+        getattr(scene_graph, _COIN_ADD_CHILD_METHOD)(self.gizmo_foreground)
         self.gizmo_mode = "trackball-fallback"
         self._native_dragger = None
         self._axis_draggers = {}
@@ -863,6 +943,7 @@ class SkeletonPoseController:
         self.selected_bone = bone
         self._set_hover_bone(None)
         self.panel._select_joint_without_preview(bone)
+        self.refresh_overlay(keep_gizmo=True)
         self._create_gizmo(bone)
 
     def _gizmo_start(self, _data, dragger) -> None:
@@ -890,7 +971,13 @@ class SkeletonPoseController:
             "ClothPoseRotationY": (0.0, 1.0, 0.0),
             "ClothPoseRotationZ": (0.0, 0.0, 1.0),
         }.get(name)
-        if name.endswith(("X", "Y", "Z")):
+        if name == "ClothPoseRotationView":
+            camera = self.view.getCameraNode()
+            orientation = camera.orientation.getValue()
+            view_axis = orientation.multVec(self._coin().SbVec3f(0.0, 0.0, 1.0))
+            self._active_gizmo_axis = tuple(float(view_axis[index]) for index in range(3))
+            self.panel._set_rotation_axis_highlight("view")
+        elif name.endswith(("X", "Y", "Z")):
             self.panel._set_rotation_axis_highlight(name[-1].lower())
 
         dragger.rotation.setValue(

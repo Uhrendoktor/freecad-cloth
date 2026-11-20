@@ -74,7 +74,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 - Pick and drag spatial geometry in the viewport. Keep an exact numeric field in the panel when a user must specify a measurement or transformation accurately.
 - Make selected/hovered/active states differ in size and shape as well as color.
-- Occlusion must not erase the affordance. Use a subdued dashed X-ray underlay for hidden measurement guides and a high-contrast screen-sized handle with a halo/rim. Keep the solid depth-tested guide on visible surfaces.
+- Occlusion must not erase the affordance. Keep hidden measurement guides as a readable dashed X-ray underlay, keep visible front segments solid and depth-tested, and render rounded 3D grips in a Coin annotation layer above the mannequin. Avoid square point sprites for body handles or skeleton joints.
 - Expose high-frequency scene controls close to the viewport: avatar show/hide, measurement visibility, skeleton/landmark visibility, arrangement points, seam highlights and orthographic inspection views.
 - Use the host's standard camera/navigation controls for general navigation. Add explicit view buttons where a task requires a repeatable audit, such as diagnostics six-side review.
 
@@ -168,7 +168,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Layout decision:** maintain the two-up measurement grid, with consistent field widths and visible units. Keep measurement names as labels; short two-up display abbreviations are acceptable only when the full measurement name is available on hover and in accessible text. Keep numeric precision fields visible—the viewport is not a substitute. Keep provider-specific morph lists under a single searchable Advanced disclosure.
 
-**Viewport:** each canonical dimension is linked to one rig-aligned handle and field. The previous all-depth-tested guide could be hard to perceive when the surface occluded the ring. The implementation now draws a dashed X-ray underlay plus solid depth-tested front segments and a layered foreground pick target. Hovering a handle highlights its field; focusing a field emphasizes its handle; a click transfers focus and starts a drag. Use the same semantic state on both surfaces.
+**Viewport:** each canonical dimension is linked to one rig-aligned spherical 3D grip and field. Hidden guide paths use a clearer dashed X-ray underlay; solid front segments still depth-test against the mannequin. The grips use nested halo/rim/semantic spheres in a Coin annotation layer above the mesh. Hovering a handle highlights its field; focusing a field emphasizes its grip; a click transfers focus and starts a drag. Use the same semantic state on both surfaces.
 
 **Do not:** put every measurement name permanently in the viewport; label only the hovered/active measurement. Avoid a second full measurement table floating over the model.
 
@@ -180,7 +180,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Layout decision:** retain the three axis fields together as one XYZ row. Mirror and Snap share one tool row. Keep presets together. The selected joint and current action/status come before the optional joint list. Do not merge pose editing into the anthropometric editor: they are distinct tasks and already have a clear handoff.
 
-**Viewport:** the gizmo is primary. Keep standard X/Y/Z colors, selected bone/joint emphasis and readable skeleton connections. When the avatar mesh occludes the skeleton, keep the skeleton's X-ray treatment consistent. A visible selected-joint label in the task panel must update from either viewport or list selection.
+**Viewport:** the gizmo is primary. Keep standard X/Y/Z rotation rings, capsule-like bone shafts, spherical joints and selected-bone/pivot emphasis. Render the skeleton in a Coin annotation layer so the mannequin cannot occlude it; keep screen-space hit testing for bone selection and native dragger interaction for rotation. A visible selected-joint label in the task panel must update from either viewport or list selection.
 
 ### 11. Interactive Arrange / Fitting
 
@@ -249,8 +249,8 @@ The current workbench model mostly supports these stages. Keep cross-workbench e
 
 ## Implemented in this pass
 
-- Measurement guides render a subdued dashed X-ray underlay through occluding avatar geometry, then redraw visible guide segments solid with depth testing.
-- Measurement handles use a three-layer screen-sized marker (light halo, dark rim, semantic centre) so the pick target remains legible on both light and dark mannequin surfaces.
+- Measurement guides render a higher-contrast dashed X-ray underlay through occluding avatar geometry, then redraw visible guide segments solid with depth testing.
+- Measurement handles use concentric spherical halo/rim/semantic geometry in a Coin annotation layer, so the rounded pick target remains legible above light and dark mannequin surfaces.
 - Diagnostics provides explicit front/rear/left/right/top/bottom viewport actions, with orientation changes separate from Focus Panels.
 - Diagnostics packs metric + Refresh together and places its two secondary actions on one row rather than spending one full row per button.
 - Sewing Operation and Sewing Network now use matching paired A/B start–end rows; the precision validation/stitch count fields are disclosed as Advanced.
