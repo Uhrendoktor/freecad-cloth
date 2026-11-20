@@ -233,7 +233,29 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" in resolver
     assert "9a43f60fabacfcd894a560d58b10ed6bdd2533e6" in resolver
     assert "bbd581e2df7ed83509755ef7a32850edd3441f49" in resolver
+    patch_file = ROOT / ".agent" / "rebase-patches" / "PR-2842-f62b45-sewing-network-gui.patch"
+    patch_check = subprocess.run(
+        ["git", "apply", "--check", str(patch_file)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert patch_check.returncode == 0, patch_check.stderr
+    assert "from typing import TYPE_CHECKING, Protocol, TypedDict, cast" in patch_file.read_text(
+        encoding="utf-8"
+    )
     assert "69999107b2e8888a5d179835b8297b21fef19d74" in resolver
+    assert "f62b45d70533341c14e6f9909c233498c7d5ef01" in resolver
+    assert ".agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch" in resolver
+    assert "git apply --check" in resolver
+    assert "git apply .agent/rebase-patches/" in resolver
+    assert "3c68946244ace48f3e96bb356b33422b55a49cdb" in resolver
+    assert "reconcile_sewing_network_gui_types.py" not in resolver
+    assert "class _NetworkReferenceCollection(Protocol):" in resolver
+    assert "class _NetworkEditorSnapshot(TypedDict):" in resolver
+    assert "valueChanged: _FloatChangedSignal" in resolver
+    assert "make_paired_range_row(self.start_a, self.end_a, QtWidgets)" in resolver
+    assert "self.table.item(row, column).text()" in resolver
     assert "class _PoseVector(Protocol):" in resolver
     assert "class _CoinModule(Protocol):" in resolver
     assert "Preserving current-main three-axis draggers and focus highlight" in resolver
@@ -255,6 +277,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     )
     loop_done = resolver.index("\ndone\n", fail_closed)
     for handler in (
+        'elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f62b45d70533341c14e6f9909c233498c7d5ef01" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]',
         "elif [[ \"$conflicts\" == $'tests/test_build_visual_gifs.py\\ntools/ci/build_visual_gifs.py' ]]",
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
@@ -263,6 +286,8 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
+    sewing_handler = resolver.index("f62b45d70533341c14e6f9909c233498c7d5ef01", loop_start)
+    assert loop_start < sewing_handler < fail_closed
     workflow_handler = resolver.index("bbd581e2df7ed83509755ef7a32850edd3441f49", loop_start)
     assert loop_start < workflow_handler < fail_closed
     assert resolver[loop_done + len("\ndone\n") :].strip() == ""
