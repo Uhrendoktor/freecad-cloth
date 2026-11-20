@@ -110,7 +110,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         'elif [[ "${conflicts}" == "tests/test_runner_routing_contract.py" ]] && '
         '[[ "$(git rev-parse REBASE_HEAD)" == "876177f738e9b2d44add162e589027f5fb68338c" ]]'
     ) in resolver
-    assert '[[ "${conflicts}" == "${test_path}" ]]' in resolver
+    assert '[[ "${conflicts}" != "${test_path}" ]]' in resolver
     assert 'benchmark_path="tests/freecad_realtime_benchmark.py"' in resolver
     assert 'benchmark_additions" != "4"' in resolver
     assert 'benchmark_deletions" != "4"' in resolver
