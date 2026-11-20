@@ -30,6 +30,7 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from support.freecad_bootstrap import prepare_repository_root
+from support.layered_outfit_support import select_top_boundary_supports
 
 ROOT = prepare_repository_root(__file__)
 
@@ -1212,7 +1213,7 @@ def run_acceptance() -> None:
         # shoulder/top boundary so the shirt remains worn while the skirt and
         # waistband stay fully dynamic and independently collidable.
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
-        support_pin_indices: set[int] = set()
+        shirt_top_chains: dict[str, tuple[int, ...]] = {}
         for panel_name, piece_name in base.panel_piece_names.items():
             if piece_name not in shirt_piece_names:
                 continue
@@ -1222,14 +1223,78 @@ def run_acceptance() -> None:
             top_chain = tuple(int(index) for index in boundary_chains[SEAM_TOP_EDGE])
             if len(top_chain) < 3:
                 raise RuntimeError("shirt panel top boundary has fewer than three particles")
-            support_pin_indices.update(
-                (top_chain[0], top_chain[len(top_chain) // 2], top_chain[-1])
+            shirt_top_chains[str(panel_name)] = top_chain
+
+        # A shoulder boundary can overlap the mannequin's upper-arm surface even
+        # when its torso-derived ellipse has a positive unsigned distance. Only
+        # anchor top-edge particles that are outside the full closed body mesh.
+        import numpy as np
+
+        from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
+
+        collision_surface = base.collision_surface
+        initial_positions = np.asarray(backend.positions(), dtype=np.float64)
+        candidate_indices = tuple(
+            dict.fromkeys(index for chain in shirt_top_chains.values() for index in chain)
+        )
+        candidate_points = tuple(
+            tuple(float(value) for value in initial_positions[index])
+            for index in candidate_indices
+        )
+        candidate_inside = points_inside_closed_mesh(
+            candidate_points,
+            collision_surface.vertices,
+            collision_surface.triangles,
+            prefer_trimesh=False,
+        )
+        exterior_by_particle = {
+            index: not bool(is_inside)
+            for index, is_inside in zip(candidate_indices, candidate_inside, strict=True)
+        }
+        projector = getattr(backend, "_collision_projector", None)
+        if projector is None:
+            raise RuntimeError("shirt support selection requires the active body collision projector")
+        clearance_by_particle: dict[int, float] = {}
+        for index in candidate_indices:
+            nearest_point, _normal = projector._nearest_surface_point(initial_positions[index])
+            clearance_by_particle[index] = float(
+                np.linalg.norm(initial_positions[index] - nearest_point)
             )
+
+        selected_by_panel = select_top_boundary_supports(
+            shirt_top_chains,
+            exterior_by_particle,
+            clearance_by_particle,
+            minimum_clearance_mm=MINIMUM_BODY_CLEARANCE_MM,
+            samples_per_chain=3,
+        )
+        support_pin_indices = {
+            index for selected in selected_by_panel.values() for index in selected
+        }
         if len(support_pin_indices) != 12:
             raise RuntimeError(
-                "expected twelve distributed shirt-top support particles, got %d"
+                "expected twelve unique exterior shirt-top support particles, got %d"
                 % len(support_pin_indices)
             )
+        _log(
+            "shirt-support-pin-candidate-audit="
+            + json.dumps(
+                {
+                    panel_name: [
+                        {
+                            "particle": index,
+                            "position_mm": [float(value) for value in initial_positions[index]],
+                            "inside_mannequin": not exterior_by_particle[index],
+                            "nearest_surface_clearance_mm": clearance_by_particle[index],
+                            "selected": index in selected_by_panel[panel_name],
+                        }
+                        for index in chain
+                    ]
+                    for panel_name, chain in sorted(shirt_top_chains.items())
+                },
+                sort_keys=True,
+            )
+        )
         scene.PinMode = "Explicit"
         scene.PinSelection = [str(index) for index in sorted(support_pin_indices)]
         doc.recompute()
