@@ -194,6 +194,16 @@ def test_screen_radius_uses_fallback_when_projection_is_unavailable() -> None:
         )
         == 9.0
     )
+    assert (
+        world_radius_for_screen_pixels(
+            (1.0, 2.0, 3.0),
+            None,
+            lambda point: (float(point[0]), float(point[1])),
+            4.0,
+            11.0,
+        )
+        == 11.0
+    )
 
 
 def test_screen_radius_rejects_invalid_camera_and_radius_inputs() -> None:
@@ -202,10 +212,10 @@ def test_screen_radius_rejects_invalid_camera_and_radius_inputs() -> None:
 
     from freecad_cloth.shared.ViewportGizmoGeometry import world_radius_for_screen_pixels
 
-    with pytest.raises(ValueError, match="camera directions"):
+    with pytest.raises(ValueError, match="camera-right direction"):
         world_radius_for_screen_pixels(
-            (1.0, 2.0),
-            (1.0, 0.0, 0.0),
+            (1.0, 2.0, 3.0),
+            (1.0, 0.0),
             lambda point: (float(point[0]), float(point[1])),
             4.0,
             9.0,
