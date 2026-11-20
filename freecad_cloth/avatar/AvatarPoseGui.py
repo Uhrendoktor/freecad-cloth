@@ -23,13 +23,13 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     ACTIVE_COLOR,
     JOINT_COLOR,
     POSE_AXIS_COLORS,
-    RIG_ACTIVE_JOINT_POINT_SIZE,
-    RIG_ACTIVE_LINE_WIDTH,
+    RIG_ACTIVE_JOINT_RADIUS,
+    RIG_ACTIVE_RADIUS,
     RIG_EDITABLE_COLOR,
-    RIG_EDITABLE_LINE_WIDTH,
-    RIG_JOINT_POINT_SIZE,
+    RIG_EDITABLE_RADIUS,
+    RIG_JOINT_RADIUS,
     RIG_PASSIVE_COLOR,
-    RIG_PASSIVE_LINE_WIDTH,
+    RIG_PASSIVE_RADIUS,
     ROTATION_ARC_ANGLE_DEGREES,
     ROTATION_ARROW_HEIGHT,
     ROTATION_ARROW_RADIUS,
@@ -191,6 +191,7 @@ class SkeletonPoseController:
         self.view = None
         self.scene_graph = None
         self.overlay = None
+        self.overlay_content = None
         self.gizmo_separator = None
         self.gizmo_transform = None
         self.gizmo = None
@@ -350,14 +351,11 @@ class SkeletonPoseController:
             )
             return
 
-        self.overlay = coin.SoSeparator()
-        self.overlay.setName("ClothAvatarPoseOverlay")
-        # Pose controls are an interaction overlay: keep them visible even when
-        # the mannequin surface would otherwise win the depth test.
-        depth = coin.SoDepthBuffer()
-        depth.test = False
-        depth.write = False
-        self.overlay.addChild(depth)
+        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+
+        self.overlay = create_foreground_layer(coin, "ClothAvatarPoseOverlay")
+        self.overlay_content = coin.SoSeparator()
+        self.overlay.addChild(self.overlay_content)
         self.scene_graph.addChild(self.overlay)
 
         self._add_skeleton_overlay(coin)
@@ -431,6 +429,7 @@ class SkeletonPoseController:
             self.gizmo_transform = None
             self.gizmo_separator = None
             self.overlay = None
+            self.overlay_content = None
             self.scene_graph = None
             self._native_dragger = None
             self._gizmo_dragging = False
@@ -466,6 +465,7 @@ class SkeletonPoseController:
         self.gizmo_transform = None
         self.gizmo_separator = None
         self.overlay = None
+        self.overlay_content = None
         self.scene_graph = None
         self._native_dragger = None
         self._gizmo_dragging = False
@@ -476,109 +476,44 @@ class SkeletonPoseController:
         self.view = None
 
     def _add_skeleton_overlay(self, coin) -> None:
-        """Draw the complete posed skeleton with selectable controls highlighted.
+        """Draw the complete posed skeleton as rounded foreground 3D controls.
 
         Args:
             coin: Pivy Coin module supplying scene-graph types.
         """
-        overlay = self.overlay
-        if overlay is None:
-            return
         from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
+        from freecad_cloth.shared.ViewportGizmoGeometry import add_capsule, add_sphere
 
-        selected_bone = self.selected_bone
+        parent = self.overlay_content if self.overlay_content is not None else self.overlay
+        if parent is None:
+            return
         joints = self._build_skeleton()
         editable = set(CONTROLLABLE_BONES)
+        selected_bone = self.selected_bone
 
-        def add_lines(parent, segments, width, rgb):
-            """Draw the requested skeleton segments into the supplied scene graph.
+        # Keep the full authored rig available through the mannequin. Passive
+        # structure is quiet; editable and selected bones use wider rounded shafts.
+        for bone, segment in self._skeleton_segments.items():
+            if bone == selected_bone:
+                radius, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
+            elif bone in editable:
+                radius, rgb = RIG_EDITABLE_RADIUS, RIG_EDITABLE_COLOR
+            else:
+                radius, rgb = RIG_PASSIVE_RADIUS, RIG_PASSIVE_COLOR
+            add_capsule(parent, coin, segment[0], segment[1], radius, rgb)
 
-            Args:
-                parent: Parent Qt layout that receives the controls.
-                segments: Ordered head/tail pairs to draw.
-                width: Line width in viewport pixels.
-                rgb: Red, green, and blue color components.
-            """
-            if not segments:
-                return
-            coordinates = []
-            counts = []
-            for head, tail in segments:
-                coordinates.extend((head, tail))
-                counts.append(2)
-            separator = coin.SoSeparator()
-            draw = coin.SoDrawStyle()
-            draw.lineWidth = float(width)
-            color = coin.SoBaseColor()
-            color.rgb = rgb
-            coord = coin.SoCoordinate3()
-            coord.point.setValues(0, len(coordinates), coordinates)
-            line_set = coin.SoLineSet()
-            line_set.numVertices.setValues(0, len(counts), counts)
-            separator.addChild(draw)
-            separator.addChild(color)
-            separator.addChild(coord)
-            separator.addChild(line_set)
-            parent.addChild(separator)
-
-        passive_segments = [
-            segment
-            for bone, segment in self._skeleton_segments.items()
-            if bone not in editable and bone != selected_bone
-        ]
-        editable_segments = [
-            segment
-            for bone, segment in self._skeleton_segments.items()
-            if bone in editable and bone != selected_bone
-        ]
-        selected_segments = (
-            [self._skeleton_segments[selected_bone]]
-            if selected_bone is not None and selected_bone in self._skeleton_segments
-            else []
-        )
-
-        # Blender-style posing convention: the full rig remains visible, while
-        # editable/active bones are visually stronger than structural bones.
-        add_lines(overlay, passive_segments, RIG_PASSIVE_LINE_WIDTH, RIG_PASSIVE_COLOR)
-        add_lines(overlay, editable_segments, RIG_EDITABLE_LINE_WIDTH, RIG_EDITABLE_COLOR)
-        add_lines(overlay, selected_segments, RIG_ACTIVE_LINE_WIDTH, ACTIVE_COLOR)
-
-        point_list = list(joints.values())
-        if point_list:
-            point_draw = coin.SoDrawStyle()
-            point_draw.pointSize = RIG_JOINT_POINT_SIZE
-            joint_color = coin.SoBaseColor()
-            joint_color.rgb = JOINT_COLOR
-            points = coin.SoCoordinate3()
-            points.point.setValues(0, len(point_list), point_list)
-            point_set = coin.SoPointSet()
-            point_set.numPoints = len(point_list)
-            points_sep = coin.SoSeparator()
-            points_sep.addChild(point_draw)
-            points_sep.addChild(joint_color)
-            points_sep.addChild(points)
-            points_sep.addChild(point_set)
-            getattr(overlay, _COIN_ADD_CHILD_METHOD)(points_sep)
+        # Spherical joints connect the capsule shafts and replace square point sprites.
+        for point in joints.values():
+            add_sphere(parent, coin, point, RIG_JOINT_RADIUS, JOINT_COLOR)
 
         if selected_bone is not None and selected_bone in self._positions:
-            selected_draw = coin.SoDrawStyle()
-            selected_draw.pointSize = RIG_ACTIVE_JOINT_POINT_SIZE
-            selected_color = coin.SoBaseColor()
-            selected_color.rgb = ACTIVE_COLOR
-            selected_points = coin.SoCoordinate3()
-            selected_points.point.setValues(
-                0,
-                1,
-                [self._positions[selected_bone]],
+            add_sphere(
+                parent,
+                coin,
+                self._positions[selected_bone],
+                RIG_ACTIVE_JOINT_RADIUS,
+                ACTIVE_COLOR,
             )
-            selected_point_set = coin.SoPointSet()
-            selected_point_set.numPoints = 1
-            selected_sep = coin.SoSeparator()
-            selected_sep.addChild(selected_draw)
-            selected_sep.addChild(selected_color)
-            selected_sep.addChild(selected_points)
-            selected_sep.addChild(selected_point_set)
-            getattr(overlay, _COIN_ADD_CHILD_METHOD)(selected_sep)
 
     def _joint_connections(self):
         """Return the line segments associated with the currently displayed skeleton.
@@ -592,8 +527,11 @@ class SkeletonPoseController:
         """Detach transient children from the skeleton overlay node."""
         if self.overlay is None:
             return
-        while self.overlay.getNumChildren():
-            self.overlay.removeChild(0)
+        parent = self.overlay_content if self.overlay_content is not None else self.overlay
+        if parent is None:
+            return
+        while parent.getNumChildren():
+            parent.removeChild(0)
 
     def refresh_overlay(self, keep_gizmo=False):
         """Refresh the skeleton overlay and optionally preserve the active gizmo.
@@ -863,6 +801,7 @@ class SkeletonPoseController:
         self.selected_bone = bone
         self._set_hover_bone(None)
         self.panel._select_joint_without_preview(bone)
+        self.refresh_overlay(keep_gizmo=True)
         self._create_gizmo(bone)
 
     def _gizmo_start(self, _data, dragger) -> None:
