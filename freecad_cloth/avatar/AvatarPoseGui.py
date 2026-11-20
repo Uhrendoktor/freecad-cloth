@@ -1204,7 +1204,11 @@ class SkeletonPoseController:
         size = getattr(view, _VIEW_SIZE_METHOD)()
         screen = (float(position[0]), float(size[1] - position[1]))
         best = self._pick_bone(screen, include_joint_fallback=True)
-        if best is not None:
+        # Coin invokes this view callback while it is dispatching the same
+        # mouse-down event to scene-graph draggers. Rebuilding the selected
+        # dragger branch here can destroy the node Coin is about to activate.
+        # A click on the already-selected bone needs no scene-graph mutation.
+        if best is not None and best != self.selected_bone:
             self.select_joint(best)
 
 
