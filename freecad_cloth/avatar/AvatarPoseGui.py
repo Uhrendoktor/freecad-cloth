@@ -27,9 +27,9 @@ from freecad_cloth.shared.ViewportGizmoStyle import (
     RIG_ACTIVE_RADIUS,
     RIG_EDITABLE_COLOR,
     RIG_OUTLINE_COLOR,
-    RIG_OUTLINE_RADIUS_SCALE,
     RIG_EDITABLE_RADIUS,
     RIG_JOINT_RADIUS,
+    RIG_OUTLINE_RADIUS_SCALE,
     RIG_PASSIVE_COLOR,
     RIG_PASSIVE_RADIUS,
     ROTATION_ARC_ANGLE_DEGREES,
@@ -518,8 +518,7 @@ class SkeletonPoseController:
         bone_controls = []
         for bone, segment in self._skeleton_segments.items():
             midpoint = tuple(
-                (float(segment[0][index]) + float(segment[1][index])) * 0.5
-                for index in range(3)
+                (float(segment[0][index]) + float(segment[1][index])) * 0.5 for index in range(3)
             )
             if bone == selected_bone:
                 radius_pixels, rgb = RIG_ACTIVE_RADIUS, ACTIVE_COLOR
