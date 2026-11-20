@@ -122,7 +122,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert 'git checkout origin/main -- "${test_path}"' in resolver
     assert 'git checkout "${rebase_commit}" -- "${benchmark_path}"' in resolver
     assert 'git add "${test_path}" "${benchmark_path}"' in resolver
-    assert 'bash tools/ci/guarded_rebase_conflict_entrypoint.sh' in resolver
+    assert "bash tools/ci/guarded_rebase_conflict_entrypoint.sh" in resolver
     assert 'git checkout origin/main -- "${resolver_path}" "${test_path}"' in broker
     assert 'git checkout origin/main -- "${test_path}"' in broker
     assert "grep -Eq '^\\+[^+]'" in broker
