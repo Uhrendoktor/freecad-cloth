@@ -927,8 +927,8 @@ def _body_clearance(
 
             triangle_records = []
             for panel_name, local_triangles in base.panel_triangles.items():
-                particle_indices = np.asarray(base.panel_indices[panel_name], dtype=np.int64)
-                triangles = particle_indices[np.asarray(local_triangles, dtype=np.int64)]
+                # SimulationProxy.panel_triangles retains combined global particle indices.
+                triangles = np.asarray(local_triangles, dtype=np.int64)
                 before = np.asarray(positions, dtype=np.float64)[triangles]
                 after = trial_positions[triangles]
                 before_edges = np.stack(
