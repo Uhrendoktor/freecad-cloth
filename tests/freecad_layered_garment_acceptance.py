@@ -800,9 +800,14 @@ def _capture_six_views(
     checkpoint: int,
 ) -> list[JsonObject]:
     """Capture all six principal orthographic views for one solver checkpoint."""
+    # FreeCAD animates viewFront/viewRear transitions by default. Disable
+    # animation before the six captures so saveImage cannot sample an
+    # intermediate blank frame. The mannequin's anatomical front is negative Y;
+    # the existing avatar screenshot audit maps that direction to viewRear.
+    view.setAnimationEnabled(False)
     actions = (
-        ("front", view.viewFront),
-        ("rear", view.viewRear),
+        ("front", view.viewRear),
+        ("rear", view.viewFront),
         ("right", view.viewRight),
         ("left", view.viewLeft),
         ("top", view.viewTop),

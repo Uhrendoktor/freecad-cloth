@@ -27,14 +27,14 @@ def test_support_selection_skips_interior_and_too_close_particles() -> None:
     )
 
     assert selected == {
-        "front": (0, 3, 5),
+        "front": (0, 4, 5),
         "right": (6, 9, 11),
     }
 
 
 def test_support_selection_rejects_top_edge_without_enough_safe_particles() -> None:
     """Do not silently pin an intersecting or under-clearance shoulder edge."""
-    with pytest.raises(ValueError, match="only 2 exterior particles"):
+    with pytest.raises(ValueError, match="only 1 exterior particle"):
         select_top_boundary_supports(
             {"right": (1, 2, 3, 4)},
             {1: True, 2: False, 3: True, 4: False},

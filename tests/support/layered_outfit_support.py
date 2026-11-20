@@ -64,10 +64,16 @@ def select_top_boundary_supports(
                 eligible.append(index)
 
         if len(eligible) < samples_per_chain:
+            particle_label = "particle" if len(eligible) == 1 else "particles"
             raise ValueError(
-                "top boundary %s has only %d exterior particles with %.3f mm clearance; "
-                "requires %d"
-                % (panel_name, len(eligible), minimum_clearance, samples_per_chain)
+                "top boundary %s has only %d exterior %s with %.3f mm clearance; requires %d"
+                % (
+                    panel_name,
+                    len(eligible),
+                    particle_label,
+                    minimum_clearance,
+                    samples_per_chain,
+                )
             )
 
         if samples_per_chain == 1:
