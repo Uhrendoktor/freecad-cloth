@@ -618,6 +618,64 @@ def _body_clearance(
                         max(moved, default=0.0),
                     )
                 )
+
+            # Separate exact-nearest exit probing from the local face-normal path.
+            # This probe never writes to the live PBD particle model.
+            exact_probe = MeshCollisionProjector(
+                surface,
+                clearance_mm=float(projector.clearance_mm),
+                candidate_count=max(4, int(projector._candidate_count)),
+            )
+            exact_points = np.asarray(inside_points, dtype=np.float64)
+            particle_ids = np.asarray(inside_indices, dtype=np.int64)
+            for attempt in range(1, 6):
+                exact_corrected, exact_directions = exact_probe._project_inside_points(
+                    exact_points
+                )
+                exact_inside = points_inside_closed_mesh(
+                    tuple(tuple(float(value) for value in point) for point in exact_corrected),
+                    surface.vertices,
+                    surface.triangles,
+                    prefer_trimesh=False,
+                )
+                exact_moved = np.linalg.norm(exact_corrected - exact_points, axis=1)
+                _log(
+                    "body-projection-exact-exit-probe attempt=%d input_inside=%d "
+                    "corrected=%d remaining_inside=%d maximum_move_mm=%.4f"
+                    % (
+                        attempt,
+                        int(np.count_nonzero(exact_probe._inside_mask(exact_points))),
+                        int(np.count_nonzero(exact_moved > 1e-7)),
+                        sum(exact_inside),
+                        float(exact_moved.max(initial=0.0)),
+                    )
+                )
+                if attempt == 1:
+                    records = []
+                    for local_index, raw_point in enumerate(inside_points):
+                        point = np.asarray(raw_point, dtype=np.float64)
+                        nearest, face_normal = exact_probe._nearest_surface_point(point)
+                        delta = nearest - point
+                        distance_mm = float(np.linalg.norm(delta))
+                        direction = delta / distance_mm if distance_mm > 1e-10 else face_normal
+                        records.append(
+                            {
+                                "particle": int(particle_ids[local_index]),
+                                "origin_mm": [float(value) for value in point],
+                                "nearest_surface_mm": [float(value) for value in nearest],
+                                "face_normal": [float(value) for value in face_normal],
+                                "distance_mm": distance_mm,
+                                "exact_exit_mm": [
+                                    float(value)
+                                    for value in nearest + float(exact_probe.clearance_mm) * direction
+                                ],
+                                "exact_exit_inside": bool(exact_inside[local_index]),
+                            }
+                        )
+                    _log("body-projection-exact-exit-details " + json.dumps(records, sort_keys=True))
+                exact_points = exact_corrected
+                if not any(exact_inside):
+                    break
     return {
         "inside_particle_count": int(len(inside_indices)),
         "minimum_unsigned_clearance_mm": float(clearance),
