@@ -124,7 +124,6 @@ def _events():
         app.processEvents()
 
 
-
 def _drag_native_pose_ring(panel, view, progress):
     """Drive the selected native X-axis ring through real viewport pointer events."""
     from freecad_cloth.shared.ViewportGizmoStyle import (
@@ -822,6 +821,8 @@ def run():
         raise RuntimeError(msg)
 
     Path("artifacts").mkdir(parents=True, exist_ok=True)
+    if ring_drag is None:
+        raise RuntimeError("native pose-ring drag was not executed")
     ring_drag_log = (
         "pose-ring-drag=passed axis={axis} before={before:.3f} "
         "after={after:.3f} delta={delta:.3f}\n"
