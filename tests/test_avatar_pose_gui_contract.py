@@ -83,9 +83,10 @@ def test_pose_mode_uses_native_axis_rotation_gizmo():
     assert 'coin.SoType.fromName("SoVRMLBillboard")' in source
     assert '"ClothPoseRotationView"' in source
     assert "camera_facing=True" in source
-    assert "ClothPoseRotationX" in source
-    assert "ClothPoseRotationY" in source
-    assert "ClothPoseRotationZ" in source
+    assert 'dragger.setName("ClothPoseRotation" + axis_name)' in source
+    assert '("X", (1.0, 0.0, 0.0), POSE_AXIS_COLORS["X"])' in source
+    assert '("Y", (0.0, 1.0, 0.0), POSE_AXIS_COLORS["Y"])' in source
+    assert '("Z", (0.0, 0.0, 1.0), POSE_AXIS_COLORS["Z"])' in source
     assert "axis_branch = coin.SoSeparator()" in source
     assert "axis_branch.addChild(dragger)" in source
     assert 'self.gizmo_mode = "fallback-panel"' in source
@@ -133,7 +134,7 @@ def test_pose_mouse_down_does_not_rebuild_the_selected_dragger_branch() -> None:
     controller.selected_bone = "upperarm01.L"
     controller._pick_rotation_ring = lambda _screen: None
     controller._coin = lambda: SimpleNamespace(
-        SoMouseButtonEvent=SimpleNamespace(DOWN=1, BUTTON1=1)
+        SoMouseButtonEvent=SimpleNamespace(UP=0, DOWN=1, BUTTON1=1)
     )
     controller._pick_bone = lambda _screen, include_joint_fallback=False: (
         "upperarm01.L" if include_joint_fallback else None
@@ -176,6 +177,56 @@ def test_mouse_release_finishes_pointer_driven_pose_drag() -> None:
     controller._mouse_event(SimpleNamespace(getEvent=lambda: event))
 
     assert calls == ["finish"]
+
+
+def test_qt_left_button_release_finishes_pointer_drag_if_coin_consumes_release() -> None:
+    from types import SimpleNamespace
+
+    class Timer:
+        stopped = False
+
+        def stop(self) -> None:
+            self.stopped = True
+
+    app = SimpleNamespace(mouseButtons=lambda: 0)
+    timer = Timer()
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller._gizmo_dragging = True
+    controller._pointer_release_timer = timer
+    controller.panel = SimpleNamespace(
+        QtWidgets=SimpleNamespace(
+            QApplication=SimpleNamespace(instance=lambda: app),
+        ),
+        QtCore=SimpleNamespace(Qt=SimpleNamespace(LeftButton=1)),
+    )
+    calls = []
+    controller._gizmo_finish = lambda _data, _dragger: calls.append("finish")
+
+    controller._poll_qt_pointer_release_state()
+
+    assert calls == ["finish"]
+
+
+def test_qt_left_button_watchdog_keeps_pointer_drag_active_while_button_is_down() -> None:
+    from types import SimpleNamespace
+
+    app = SimpleNamespace(mouseButtons=lambda: 1)
+    controller = SkeletonPoseController.__new__(SkeletonPoseController)
+    controller._gizmo_dragging = True
+    controller._pointer_release_timer = None
+    controller.panel = SimpleNamespace(
+        QtWidgets=SimpleNamespace(
+            QApplication=SimpleNamespace(instance=lambda: app),
+        ),
+        QtCore=SimpleNamespace(Qt=SimpleNamespace(LeftButton=1)),
+    )
+    calls = []
+    controller._gizmo_finish = lambda _data, _dragger: calls.append("finish")
+
+    controller._poll_qt_pointer_release_state()
+
+    assert calls == []
+    assert controller._gizmo_dragging
 
 
 def test_mouse_down_on_ring_starts_axis_drag_before_bone_selection() -> None:
@@ -292,7 +343,7 @@ def test_pose_drag_defers_mesh_rebuild_until_native_drag_finishes() -> None:
     finish = source.split("def _gizmo_finish", 1)[1].split("def _clear_hover_overlay", 1)[0]
 
     assert "preview=False" in motion
-    assert "self.panel._preview_rebuild()" in finish
+    assert "QTimer.singleShot(0, self.panel._preview_rebuild)" in finish
 
 
 def test_remove_gizmo_clears_manual_ring_state_before_dropping_nodes() -> None:
