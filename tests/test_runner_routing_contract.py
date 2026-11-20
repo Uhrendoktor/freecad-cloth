@@ -283,7 +283,7 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "a59f58d25537de846677f89a7858562cfcfc9672" ]]',
         'elif [[ "$conflicts" == "freecad_cloth/pattern/PatternTopologyRepairGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f7cc118eb4aafafbaf1e5bcc7526140ad2e6f28e" ]]',
         "elif [[ \"$conflicts\" == $'freecad_cloth/pattern/PatternTopologyRepairGui.py\\ntests/test_simulation_gui.py\\ntests/test_tunic_audit_contract.py' ]]",
-        'elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]'
+        'elif [[ "$conflicts" == "tests/test_runner_routing_contract.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "50ede88397daff95154ba5e3386f4914b08ee3e9" ]]' ,
     ):
         position = resolver.index(handler, loop_start)
         assert loop_start < position < fail_closed
