@@ -354,6 +354,7 @@ class AvatarTaskPanel:
         self._dimension_controller = None
         self._focused_measurement_key = None
         self._hovered_measurement_key = None
+        self._measurement_focus_filter_active = True
 
         class _MeasurementFocusFilter(QtCore.QObject):
             def eventFilter(
@@ -362,11 +363,19 @@ class AvatarTaskPanel:
                 event: _QT_TYPE_QtCore.QEvent,
             ) -> bool:
                 """Link numeric focus to the matching viewport dimension control."""
-                key = watched.property("clothDimensionKey")
-                if event.type() == QtCore.QEvent.FocusIn:
+                if not self._measurement_focus_filter_active:
+                    return False
+                try:
+                    key = watched.property("clothDimensionKey")
+                    event_type = event.type()
+                except RuntimeError:
+                    # Qt can deliver a queued FocusOut while the watched C++
+                    # widget is already being destroyed with its task panel.
+                    return False
+                if event_type == QtCore.QEvent.FocusIn:
                     self._set_measurement_focus(str(key) if key else None)
                 elif (
-                    event.type() == QtCore.QEvent.FocusOut
+                    event_type == QtCore.QEvent.FocusOut
                     and key
                     and self._focused_measurement_key == str(key)
                 ):
@@ -387,6 +396,7 @@ class AvatarTaskPanel:
         """Open the pose editor for the current mannequin."""
         if self.avatar is None:
             return None
+        self._cleanup_measurement_focus_filters()
         with contextlib.suppress(AttributeError, RuntimeError):
             self.Gui.Control.closeDialog()
         from freecad_cloth.avatar.AvatarCommands import pose_avatar
@@ -1072,8 +1082,25 @@ class AvatarTaskPanel:
         self.gender_slider.blockSignals(False)
         self._shape_changed()
 
+    def _cleanup_measurement_focus_filters(self) -> None:
+        """Detach focus callbacks before the task panel's Qt children are destroyed."""
+        self._measurement_focus_filter_active = False
+        focus_filter = getattr(self, "_measurement_focus_filter", None)
+        if focus_filter is not None:
+            for box in tuple(self._boxes.values()):
+                with contextlib.suppress(AttributeError, RuntimeError):
+                    box.removeEventFilter(focus_filter)
+        self._focused_measurement_key = None
+        self._hovered_measurement_key = None
+        controller = self._dimension_controller
+        if controller is not None:
+            with contextlib.suppress(AttributeError, RuntimeError):
+                controller.set_field_focus(None)
+
     def _set_measurement_focus(self, key: str | None) -> None:
         """Link a focused numeric measurement to its transient viewport control."""
+        if not self._measurement_focus_filter_active:
+            return
         self._focused_measurement_key = key
         self._update_measurement_link_highlights()
         if self._dimension_controller is not None:
@@ -1081,6 +1108,8 @@ class AvatarTaskPanel:
 
     def _set_measurement_hover(self, key: str | None) -> None:
         """Highlight the matching numeric field while a viewport handle is hovered."""
+        if not self._measurement_focus_filter_active:
+            return
         self._hovered_measurement_key = key
         self._update_measurement_link_highlights()
 
@@ -1088,16 +1117,24 @@ class AvatarTaskPanel:
         """Style linked numeric inputs without changing the host application's palette."""
         active = {self._focused_measurement_key, self._hovered_measurement_key}
         active.discard(None)
-        for key, box in self._boxes.items():
-            linked = key in active
-            if bool(box.property("clothViewportLinked")) == linked:
-                continue
-            box.setProperty("clothViewportLinked", linked)
-            style = box.style()
-            if style is not None:
-                style.unpolish(box)
-                style.polish(box)
-            box.update()
+        expired = []
+        for key, box in tuple(self._boxes.items()):
+            try:
+                linked = key in active
+                if bool(box.property("clothViewportLinked")) == linked:
+                    continue
+                box.setProperty("clothViewportLinked", linked)
+                style = box.style()
+                if style is not None:
+                    style.unpolish(box)
+                    style.polish(box)
+                box.update()
+            except RuntimeError:
+                # A wrapped QWidget may outlive its deleted C++ object during
+                # task-panel teardown. Forget it instead of aborting FocusOut.
+                expired.append(key)
+        for key in expired:
+            self._boxes.pop(key, None)
 
     def _focus_measurement(self, key: str) -> None:
         """Focus and reveal the numeric field linked to a clicked viewport handle."""
@@ -1308,8 +1345,10 @@ class AvatarTaskPanel:
             True when the panel can close after applying its values, otherwise False.
         """
         success = self._apply()
-        if success and self._dimension_controller is not None:
-            self._dimension_controller.deactivate()
+        if success:
+            self._cleanup_measurement_focus_filters()
+            if self._dimension_controller is not None:
+                self._dimension_controller.deactivate()
         return success
 
     def reject(self):
@@ -1318,6 +1357,7 @@ class AvatarTaskPanel:
         Returns:
             True to allow FreeCAD to close the task panel.
         """
+        self._cleanup_measurement_focus_filters()
         if self._dimension_controller is not None:
             self._dimension_controller.deactivate()
         if self.Gui.activeDocument() and self.Gui.Control.activeDialog():
