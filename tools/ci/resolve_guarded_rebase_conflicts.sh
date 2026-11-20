@@ -846,6 +846,36 @@ PY
     if ! GIT_EDITOR=true git rebase --continue; then
       [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
     fi
+  elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f62b45d70533341c14e6f9909c233498c7d5ef01" ]]; then
+    rebase_commit="$(git rev-parse REBASE_HEAD)"
+    if [[ "$rebase_commit" != "f62b45d70533341c14e6f9909c233498c7d5ef01" ]] ||
+      ! git show "$rebase_commit:freecad_cloth/sewing/SewingNetworkGui.py" | grep -Fq 'class _NetworkReferenceCollection(Protocol):' ||
+      ! git show "$rebase_commit:freecad_cloth/sewing/SewingNetworkGui.py" | grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' ||
+      ! git show "$rebase_commit:freecad_cloth/sewing/SewingNetworkGui.py" | grep -Fq 'valueChanged: _FloatChangedSignal' ||
+      ! git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'make_paired_range_row(self.start_a, self.end_a, QtWidgets)' ||
+      ! git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'ranges = getattr(self, "_range_values", ())' ||
+      ! git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'self.table.item(row, column).text()' ||
+      git show origin/main:freecad_cloth/sewing/SewingNetworkGui.py | grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' ||
+      [[ "$(git rev-parse HEAD:freecad_cloth/sewing/SewingNetworkGui.py)" != "3c68946244ace48f3e96bb356b33422b55a49cdb" ]] ||
+      [[ ! -f .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch ]]; then
+      echo "::error::Refusing SewingNetworkGui replay outside exact f62b typing commit or expected current-main editor contract."
+      exit 1
+    fi
+    echo "::warning::Preserving paired A/B range rows and partial-init/table-text fallbacks; applying the reviewed static protocol patch."
+    git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py
+    git apply --check .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch
+    git apply .agent/rebase-patches/PR-2842-f62b45-sewing-network-gui.patch
+    if ! grep -Fq 'class _NetworkEditorSnapshot(TypedDict):' freecad_cloth/sewing/SewingNetworkGui.py ||
+      ! grep -Fq 'self._range_fields: tuple[_RangeEditor, ...] = (' freecad_cloth/sewing/SewingNetworkGui.py ||
+      ! grep -Fq 'ranges = getattr(self, "_range_values", ())' freecad_cloth/sewing/SewingNetworkGui.py ||
+      ! grep -Fq 'self.table.item(row, column).text()' freecad_cloth/sewing/SewingNetworkGui.py; then
+      echo "::error::Static sewing GUI patch lost typed state or current-main defensive fallbacks."
+      exit 1
+    fi
+    git add freecad_cloth/sewing/SewingNetworkGui.py
+    if ! GIT_EDITOR=true git rebase --continue; then
+      [[ -d "$rebase_merge" || -d "$rebase_apply" ]] || exit 1
+    fi
   elif [[ "$conflicts" == "freecad_cloth/avatar/AvatarPoseGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "69999107b2e8888a5d179835b8297b21fef19d74" ]]; then
     rebase_commit="$(git rev-parse REBASE_HEAD)"
     if [[ "$rebase_commit" != "69999107b2e8888a5d179835b8297b21fef19d74" ]] ||
