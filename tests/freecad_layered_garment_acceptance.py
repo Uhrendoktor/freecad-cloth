@@ -1674,12 +1674,18 @@ def run_acceptance() -> None:
         lifecycle_started = time.perf_counter()
         _log("save-reload-events-start")
         _events()
-        _log("save-reload-events-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
+        _log(
+            "save-reload-events-finish elapsed_ms=%.1f"
+            % (1000.0 * (time.perf_counter() - lifecycle_started))
+        )
 
         lifecycle_started = time.perf_counter()
         _log("save-reload-scene-lookup-start")
         scene = reloaded.getObject("ClothSimulation")
-        _log("save-reload-scene-lookup-finish found=%s elapsed_ms=%.1f" % (scene is not None, 1000.0 * (time.perf_counter() - lifecycle_started)))
+        _log(
+            "save-reload-scene-lookup-finish found=%s elapsed_ms=%.1f"
+            % (scene is not None, 1000.0 * (time.perf_counter() - lifecycle_started))
+        )
         if scene is None:
             raise RuntimeError("ClothSimulation was not restored from the saved FCStd")
         if tuple(str(piece.PieceId) for piece in scene.ClothPieces) != saved_piece_ids:
@@ -1735,7 +1741,10 @@ def run_acceptance() -> None:
         _log("save-reload-backend-lookup-start")
         reloaded_base = scene.Proxy._base_or_restore()
         reloaded_backend = reloaded_base.backend
-        _log("save-reload-backend-lookup-finish ready=%s elapsed_ms=%.1f" % (reloaded_backend is not None, 1000.0 * (time.perf_counter() - lifecycle_started)))
+        _log(
+            "save-reload-backend-lookup-finish ready=%s elapsed_ms=%.1f"
+            % (reloaded_backend is not None, 1000.0 * (time.perf_counter() - lifecycle_started))
+        )
         reloaded_selection = tuple(
             sorted(int(value) for value in getattr(scene, "PinSelection", ()))
         )
