@@ -98,13 +98,17 @@ def _coin(*, annotation: bool = True) -> SimpleNamespace:
     return SimpleNamespace(**values)
 
 
-def test_foreground_layer_prefers_coin_annotation() -> None:
-    """Use Coin's delayed annotation pass rather than scene-order depth-state tricks."""
+def test_foreground_layer_prefers_coin_annotation_with_depth_disabled() -> None:
+    """Keep avatar controls above the mannequin even in the native annotation path."""
     layer = create_foreground_layer(_coin(), "avatar-test-overlay")
 
     assert isinstance(layer, _Group)
     assert layer.name == "avatar-test-overlay"
-    assert layer.children == []
+    assert len(layer.children) == 1
+    depth = layer.children[0]
+    assert isinstance(depth, _DepthBuffer)
+    assert depth.test is False
+    assert depth.write is False
 
 
 def test_foreground_layer_falls_back_to_depth_disabled_separator() -> None:
