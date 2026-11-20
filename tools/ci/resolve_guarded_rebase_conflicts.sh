@@ -877,24 +877,18 @@ elif source.count(old_cast) == 0 and source.count(new_cast) == 1:
 else:
     raise SystemExit("Expected exactly one current Ruff cast expression.")
 
-old_gap = (
-    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
-    "\n"
-    "def _modules():\n"
-)
-new_gap = (
-    "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
-    "\n"
-    "\n"
-    "def _modules():\n"
-)
-if source.count(old_gap) == 1 and source.count(new_gap) == 0:
-    source = source.replace(old_gap, new_gap, 1)
-elif source.count(old_gap) == 0 and source.count(new_gap) == 1:
-    pass
-else:
-    raise SystemExit("Expected exactly one module-boundary blank-line expression.")
-
+import_line = "from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol\n"
+if source.count(import_line) != 1:
+    raise SystemExit("Expected exactly one FreeCAD document Protocol import.")
+import_end = source.index(import_line) + len(import_line)
+module_start = source.find("def _modules():\n", import_end)
+if module_start < 0:
+    raise SystemExit("Expected _modules() immediately after the FreeCAD document Protocol import.")
+gap = source[import_end:module_start]
+if gap.strip():
+    raise SystemExit("Unexpected code between the FreeCAD document Protocol import and _modules().")
+# Normalize to Ruff two-empty-line separation; accept any whitespace-only prior gap.
+source = source[:import_end] + "\n\n" + source[module_start:]
 required = (
     'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())',
     "class _NetworkEditorSnapshot(TypedDict):",

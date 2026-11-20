@@ -259,6 +259,9 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
     assert "class _NetworkReferenceCollection(Protocol):" in resolver
     assert "class _NetworkEditorSnapshot(TypedDict):" in resolver
     assert "5d84563005f984dec139794200ad57a77d29ca26" in resolver
+    assert "gap = source[import_end:module_start]" in resolver
+    assert "if gap.strip():" in resolver
+    assert 'source = source[:import_end] + "\\n\\n" + source[module_start:]' in resolver
     assert 'field = cast("_RangeEditor", qt_widgets.QDoubleSpinBox())' in resolver
     assert (
         "Preserving the replayed typed seam editor and current-main defensive fallbacks" in resolver
