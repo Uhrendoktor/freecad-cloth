@@ -206,7 +206,9 @@ def test_native_pose_dragger_quaternion_angle_wraps_into_joint_limits() -> None:
 
     controller = SkeletonPoseController.__new__(SkeletonPoseController)
     quaternion = (0.0, 0.0, 0.9981347918510437, -0.061048511415719986)
-    dragger = SimpleNamespace(rotation=SimpleNamespace(getValue=lambda: SimpleNamespace(getValue=lambda: quaternion)))
+    dragger = SimpleNamespace(
+        rotation=SimpleNamespace(getValue=lambda: SimpleNamespace(getValue=lambda: quaternion))
+    )
 
     angle = controller._dragger_signed_angle_degrees(dragger)
 
