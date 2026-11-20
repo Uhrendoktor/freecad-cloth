@@ -103,10 +103,7 @@ def test_gizmo_semantic_colors_are_valid_and_distinct() -> None:
 def test_gizmo_dimensions_keep_clear_visual_hierarchy() -> None:
     """Guard line and marker hierarchy without pinning rendering to exact pixels."""
     assert (
-        MINIMUM_POSITIVE_STYLE_VALUE
-        < RIG_PASSIVE_RADIUS
-        < RIG_EDITABLE_RADIUS
-        < RIG_ACTIVE_RADIUS
+        MINIMUM_POSITIVE_STYLE_VALUE < RIG_PASSIVE_RADIUS < RIG_EDITABLE_RADIUS < RIG_ACTIVE_RADIUS
     ), "Passive, editable, and active capsule radii must increase in emphasis."
     assert MINIMUM_POSITIVE_STYLE_VALUE < RIG_JOINT_RADIUS < RIG_ACTIVE_JOINT_RADIUS, (
         "Active spherical joints must be larger than ordinary joints."
