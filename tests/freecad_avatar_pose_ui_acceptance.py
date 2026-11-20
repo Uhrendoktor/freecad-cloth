@@ -442,11 +442,18 @@ def run():
     if annotation_type is None or not isinstance(panel.controller.overlay, annotation_type):
         msg = "Pose Mode bone controls are not using Coin's foreground annotation layer"
         raise RuntimeError(msg)
+    expected_joint_count = len(panel.controller._build_skeleton())
+    expected_bone_count = len(panel.controller._skeleton_segments)
+    expected_geometry_count = expected_joint_count + expected_bone_count
     if (
         panel.controller.overlay_content is None
-        or panel.controller.overlay_content.getNumChildren() < 1
+        or panel.controller.overlay_content.getNumChildren() < expected_geometry_count
     ):
-        msg = "Pose Mode did not install the rounded joint/bone overlay geometry"
+        msg = (
+            "Pose Mode did not install every rounded bone shaft and spherical joint "
+            f"(expected={expected_geometry_count}, "
+            f"actual={0 if panel.controller.overlay_content is None else panel.controller.overlay_content.getNumChildren()})"
+        )
         raise RuntimeError(msg)
     if panel.controller.gizmo_foreground is None or not isinstance(
         panel.controller.gizmo_foreground, annotation_type
