@@ -586,6 +586,7 @@ def _body_clearance(
         projector = getattr(backend, "_collision_projector", None)
         if projector is not None:
             from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+            import numpy as np
 
             inside_points = tuple(positions[index] for index in inside_indices)
             candidate_counts = tuple(dict.fromkeys((int(projector._candidate_count), 4, 8, 16, 32)))
