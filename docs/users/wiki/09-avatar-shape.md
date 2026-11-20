@@ -40,7 +40,7 @@ For a small end-to-end exercise, follow [Example 3: Prepare a mannequin for sewi
 
 ## How the viewport editor behaves
 
-The labelled lines, markers, and circumference rings are transient viewport overlay geometry. They do not add FreeCAD document objects. A drag updates the staged task-panel value; hovered handles show the exact millimetre readout while idle labels stay compact. **Apply & Rebuild** is the commit boundary. Closing the editor removes the overlay and its callbacks. The 3D Pattern Pen remains a separate authoring tool and is not reused by this editor.
+The labelled lines, circumference rings and spherical 3D grips are transient viewport geometry. Foreground grips use a Coin annotation layer so the mannequin cannot hide the pick target; the hidden guide path remains a stronger dashed X-ray line while visible front segments remain depth-tested. These controls do not add FreeCAD document objects. A drag updates the staged task-panel value; hovered handles show the exact millimetre readout while idle labels stay compact. **Apply & Rebuild** is the commit boundary. Closing the editor removes the overlay and its callbacks. The 3D Pattern Pen remains a separate authoring tool and is not reused by this editor.
 
 If a build cannot initialise the viewport interaction, use the numeric measurement fields. Imported FreeCAD geometry is a surface provider rather than a parametric human body, so its shape and measurement controls are disabled.
 
