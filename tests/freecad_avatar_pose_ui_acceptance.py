@@ -118,7 +118,7 @@ def _events():
         app.processEvents()
 
 
-def _capture_pose_screen(path, panel, view):
+def _capture_pose_screen(path, panel, view, *, camera="three-quarter"):
     if TYPE_CHECKING:
         from PySide2 import QtWidgets
     else:
@@ -155,7 +155,14 @@ def _capture_pose_screen(path, panel, view):
     if scroll_area.horizontalScrollBar().maximum() > 0:
         raise RuntimeError("Pose Mode XYZ controls overflow the task panel horizontally")
 
-    view.viewIsometric()
+    camera_methods = {
+        "front": view.viewFront,
+        "right": view.viewRight,
+        "three-quarter": view.viewIsometric,
+    }
+    if camera not in camera_methods:
+        raise ValueError("unsupported avatar gizmo acceptance camera: " + str(camera))
+    camera_methods[camera]()
     view.fitAll()
     panel.controller.select_joint("upperarm01.L")
     _events()
@@ -429,8 +436,17 @@ def run():
             f"error={getattr(panel.controller, 'gizmo_style_error', None)!r})"
         )
         raise RuntimeError(msg)
-    if panel.controller.overlay is None or panel.controller.overlay.getNumChildren() < 2:
-        msg = "Pose Mode did not install the visible joint/bone overlay"
+    from pivy import coin
+
+    annotation_type = getattr(coin, "SoAnnotation", None)
+    if annotation_type is None or not isinstance(panel.controller.overlay, annotation_type):
+        msg = "Pose Mode bone controls are not using Coin's foreground annotation layer"
+        raise RuntimeError(msg)
+    if (
+        panel.controller.overlay_content is None
+        or panel.controller.overlay_content.getNumChildren() < 1
+    ):
+        msg = "Pose Mode did not install the rounded joint/bone overlay geometry"
         raise RuntimeError(msg)
     from freecad_cloth.avatar.SkeletonPose import CONTROLLABLE_BONES
 
@@ -551,22 +567,29 @@ def run():
         raise RuntimeError(msg)
     panel.joint_list_toggle.setChecked(False)
     _events()
-    metrics = _capture_pose_screen(
-        Path("artifacts/avatar-pose-mode.png"),
-        panel,
-        view,
-    )
-    progress(
-        "screenshot=artifacts/avatar-pose-mode.png width=%d height=%d opaque_pixels=%d "
-        "nonwhite_pixels=%d distinct_rgb=%d"
-        % (
-            metrics["width"],
-            metrics["height"],
-            metrics["opaque_pixels"],
-            metrics["nonwhite_pixels"],
-            metrics["distinct_rgb"],
+    view_metrics = {}
+    for camera in ("front", "right", "three-quarter"):
+        screenshot_path = Path("artifacts/avatar-pose-mode-" + camera + ".png")
+        view_metrics[camera] = _capture_pose_screen(
+            screenshot_path,
+            panel,
+            view,
+            camera=camera,
         )
-    )
+        captured = view_metrics[camera]
+        progress(
+            "screenshot=%s width=%d height=%d opaque_pixels=%d nonwhite_pixels=%d "
+            "distinct_rgb=%d"
+            % (
+                screenshot_path,
+                captured["width"],
+                captured["height"],
+                captured["opaque_pixels"],
+                captured["nonwhite_pixels"],
+                captured["distinct_rgb"],
+            )
+        )
+    metrics = view_metrics["three-quarter"]
 
     selected = str(panel.skeleton_joint_index)
     if not selected:
