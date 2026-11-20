@@ -168,7 +168,7 @@ A status/readiness message should describe what blocks the next action and how t
 
 **Layout decision:** maintain the two-up measurement grid, with consistent field widths and visible units. Keep measurement names as labels; short two-up display abbreviations are acceptable only when the full measurement name is available on hover and in accessible text. Keep numeric precision fields visible—the viewport is not a substitute. Keep provider-specific morph lists under a single searchable Advanced disclosure.
 
-**Viewport:** each canonical dimension is linked to one rig-aligned handle and field. The previous all-depth-tested guide could be hard to perceive when the surface occluded the ring. The implementation now draws a dashed X-ray underlay plus solid depth-tested front segments and a layered foreground pick target. Hovering a handle highlights its field; focusing a field emphasizes its handle; a click transfers focus and starts a drag. Use the same semantic state on both surfaces.
+**Viewport:** each canonical dimension is linked to one rig-aligned spherical 3D grip and field. Hidden guide paths use a clearer dashed X-ray underlay; solid front segments still depth-test against the mannequin. The grips use nested halo/rim/semantic spheres in a Coin annotation layer above the mesh. Hovering a handle highlights its field; focusing a field emphasizes its grip; a click transfers focus and starts a drag. Use the same semantic state on both surfaces.
 
 **Do not:** put every measurement name permanently in the viewport; label only the hovered/active measurement. Avoid a second full measurement table floating over the model.
 
