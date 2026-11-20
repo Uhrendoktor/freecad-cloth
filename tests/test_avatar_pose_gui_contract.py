@@ -214,4 +214,3 @@ def test_native_pose_dragger_quaternion_angle_wraps_into_joint_limits() -> None:
 
     assert -180.0 <= angle <= 180.0
     assert abs(angle + 173.0) < 0.2
-
