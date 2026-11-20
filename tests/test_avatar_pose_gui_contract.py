@@ -174,9 +174,21 @@ def test_native_pose_dragger_state_is_polled_on_qt_without_pivy_callback_trampol
     controller._native_dragger = [dragger]
     controller._gizmo_dragging = False
     observed = []
-    controller._gizmo_start = lambda _data, current: observed.append(("start", current))
-    controller._gizmo_motion = lambda _data, current: observed.append(("motion", current))
-    controller._gizmo_finish = lambda _data, current: observed.append(("finish", current))
+
+    def on_start(_data: object, current: object) -> None:
+        controller._gizmo_dragging = True
+        observed.append(("start", current))
+
+    def on_motion(_data: object, current: object) -> None:
+        observed.append(("motion", current))
+
+    def on_finish(_data: object, current: object) -> None:
+        controller._gizmo_dragging = False
+        observed.append(("finish", current))
+
+    controller._gizmo_start = on_start
+    controller._gizmo_motion = on_motion
+    controller._gizmo_finish = on_finish
 
     controller._poll_native_dragger_state()
     active["value"] = False
