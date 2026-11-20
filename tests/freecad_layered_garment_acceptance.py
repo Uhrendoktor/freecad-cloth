@@ -1648,11 +1648,32 @@ def run_acceptance() -> None:
 
         saved_piece_ids = tuple(str(piece.PieceId) for piece in scene.ClothPieces)
         saved_groups = tuple(str(value) for value in scene.GarmentGroups)
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-close-start document=%s" % doc.Name)
         App.closeDocument(doc.Name)
+        _log(
+            "save-reload-close-finish elapsed_ms=%.1f"
+            % (1000.0 * (time.perf_counter() - lifecycle_started))
+        )
         doc = None
+
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-open-start path=%s" % save_path)
         reloaded = App.openDocument(str(save_path))
+        _log(
+            "save-reload-open-finish document=%s elapsed_ms=%.1f"
+            % (reloaded.Name, 1000.0 * (time.perf_counter() - lifecycle_started))
+        )
+
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-events-start")
         _events()
+        _log("save-reload-events-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
+
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-scene-lookup-start")
         scene = reloaded.getObject("ClothSimulation")
+        _log("save-reload-scene-lookup-finish found=%s elapsed_ms=%.1f" % (scene is not None, 1000.0 * (time.perf_counter() - lifecycle_started)))
         if scene is None:
             raise RuntimeError("ClothSimulation was not restored from the saved FCStd")
         if tuple(str(piece.PieceId) for piece in scene.ClothPieces) != saved_piece_ids:
@@ -1661,17 +1682,27 @@ def run_acceptance() -> None:
             raise RuntimeError("independent garment-group assignments did not survive save/reload")
         if abs(float(scene.InterClothClearance) - 8.0) > 1e-9:
             raise RuntimeError("inter-cloth clearance did not survive save/reload")
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-first-recompute-start")
         reloaded.recompute()
+        _log("save-reload-first-recompute-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
+
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-native-rebuild-start")
         scene.Steps = int(scene.Steps) + 1
         reloaded.recompute()
+        _log("save-reload-native-rebuild-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - lifecycle_started)))
         if not bool(scene.FiniteState):
             raise RuntimeError("reloaded multi-piece simulation rebuilt a non-finite solver")
         if int(scene.InterClothContactCount) < MINIMUM_CONTACTS:
             raise RuntimeError("reloaded solver did not retain inter-garment contact activation")
         if int(scene.InterClothRemainingContactCount) > 0:
             raise RuntimeError("reloaded solver retained contacts below requested clearance")
+        lifecycle_started = time.perf_counter()
+        _log("save-reload-backend-lookup-start")
         reloaded_base = scene.Proxy._base_or_restore()
         reloaded_backend = reloaded_base.backend
+        _log("save-reload-backend-lookup-finish ready=%s elapsed_ms=%.1f" % (reloaded_backend is not None, 1000.0 * (time.perf_counter() - lifecycle_started)))
         reloaded_selection = tuple(
             sorted(int(value) for value in getattr(scene, "PinSelection", ()))
         )
@@ -1724,6 +1755,10 @@ def run_acceptance() -> None:
             )
         )
 
+        _log("save-reload-validation-finish")
+
+        manifest_started = time.perf_counter()
+        _log("manifest-build-start")
         manifest = {
             "schema": "freecad-cloth.layered-outfit",
             "schema_version": 1,
@@ -1822,6 +1857,7 @@ def run_acceptance() -> None:
         manifest_path = OUTPUT / "layered-outfit-manifest.json"
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
         _log("manifest=" + str(manifest_path))
+        _log("manifest-build-finish elapsed_ms=%.1f" % (1000.0 * (time.perf_counter() - manifest_started)))
         _log("layered-outfit-acceptance=passed")
         App.closeDocument(reloaded.Name)
         doc = None

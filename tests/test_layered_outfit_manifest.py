@@ -310,7 +310,7 @@ def test_validator_rejects_shirt_support_pin_drift(tmp_path: Path) -> None:
     """Support anchors must remain fixed throughout all native solver checkpoints."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["checkpoints"][1]["maximum_support_pin_drift_mm"] = 0.01
+    manifest["checkpoints"][1]["maximum_shirt_support_pin_drift_mm"] = 0.01
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="shirt support pin drift"):
