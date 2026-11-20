@@ -108,7 +108,7 @@ def test_avatar_panel_initializes_preset_loading_guard_before_loading():
     assert initialization.index("self._load()") < initialization.index("self._loading = False")
 
 
-def test_pose_ui_acceptance_drives_native_rotation_ring_with_real_viewport_input():
+def test_pose_ui_acceptance_drives_native_rotation_ring_with_real_viewport_input() -> None:
     from pathlib import Path
 
     acceptance = (
