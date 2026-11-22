@@ -1335,7 +1335,10 @@ def run_acceptance() -> None:
                 sort_keys=True,
             )
 
-        _log("shirt-support-pin-candidate-audit=" + _candidate_audit(shirt_top_chains, shirt_selected_by_panel))
+        _log(
+            "shirt-support-pin-candidate-audit="
+            + _candidate_audit(shirt_top_chains, shirt_selected_by_panel)
+        )
         _log(
             "waistband-support-pin-candidate-audit="
             + _candidate_audit(waistband_top_chains, waistband_selected_by_panel)
@@ -1534,10 +1537,7 @@ def run_acceptance() -> None:
                     )
                 )
             seam_metrics = _seam_measurements(backend, base.seam_stitch_pairs, seam_objects)
-            _log(
-                "seam-metrics-step=%d %s"
-                % (step, json.dumps(seam_metrics, sort_keys=True))
-            )
+            _log("seam-metrics-step=%d %s" % (step, json.dumps(seam_metrics, sort_keys=True)))
             max_seam_gap = max(
                 (float(item["maximum_gap_mm"]) for item in seam_metrics),
                 default=0.0,

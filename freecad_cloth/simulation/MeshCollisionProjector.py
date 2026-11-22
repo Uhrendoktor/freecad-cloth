@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 
-
 class MeshCollisionProjector:
     """Project points to the exterior clearance shell of a closed triangle mesh."""
 
