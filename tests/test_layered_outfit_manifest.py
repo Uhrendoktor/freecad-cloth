@@ -26,15 +26,14 @@ def _write_png(path: Path, *, blank: bool = False) -> None:
 
 
 def _valid_artifact(root: Path) -> Path:
-    """Write a complete manifest and its referenced document/PNG artifacts."""
+    """Write a shaped two-panel shirt and four-panel skirt/waistband artifact."""
     (root / "layered-outfit.FCStd").write_bytes(b"native-freecad-document-fixture")
     image_records = []
     image_inventory = (
-        ("step-000-axonometric.png", "initial arranged layered outfit"),
         ("step-001-axonometric.png", "layered outfit motion at step 1"),
-        ("step-015-axonometric.png", "layered outfit motion at step 15"),
+        ("step-030-axonometric.png", "layered outfit motion at step 30"),
         *(
-            ("final-six-view/step-060-%s.png" % side, side)
+            ("final-six-view/step-120-%s.png" % side, side)
             for side in ("front", "rear", "right", "left", "top", "bottom")
         ),
     )
@@ -52,19 +51,22 @@ def _valid_artifact(root: Path) -> Path:
             }
         )
 
-    piece_ids = ["piece-%02d" % index for index in range(12)]
+    piece_ids = ["piece-%02d" % index for index in range(10)]
     assignments = [
-        ("shirt" if index < 4 else "skirt") + "|" + piece_id
+        ("shirt" if index < 2 else "skirt") + "|" + piece_id
         for index, piece_id in enumerate(piece_ids)
     ]
-    seams = []
-    seam_links = (
-        *((index, (index + 1) % 4) for index in range(4)),
-        *((4 + index, 4 + (index + 1) % 4) for index in range(4)),
-        *((8 + index, 8 + (index + 1) % 4) for index in range(4)),
-        *((4 + index, 8 + index) for index in range(4)),
+    seam_edge_links = (
+        (0, 1, 1, 1),
+        (0, 3, 1, 3),
+        (0, 5, 1, 5),
+        (0, 7, 1, 7),
+        *((2 + index, 1, 2 + (index + 1) % 4, 3) for index in range(4)),
+        *((6 + index, 1, 6 + (index + 1) % 4, 3) for index in range(4)),
+        *((2 + index, 2, 6 + index, 0) for index in range(4)),
     )
-    for index, (piece_a_index, piece_b_index) in enumerate(seam_links):
+    seams = []
+    for index, (piece_a_index, edge_a, piece_b_index, edge_b) in enumerate(seam_edge_links):
         piece_a_id = piece_ids[piece_a_index]
         piece_b_id = piece_ids[piece_b_index]
         seams.append(
@@ -72,13 +74,13 @@ def _valid_artifact(root: Path) -> Path:
                 "seam_id": "seam-%02d" % index,
                 "piece_a_id": piece_a_id,
                 "piece_b_id": piece_b_id,
-                "edge_a_id": piece_a_id + ":e1",
-                "edge_b_id": piece_b_id + ":e3",
+                "edge_a_id": piece_a_id + ":e%d" % edge_a,
+                "edge_b_id": piece_b_id + ":e%d" % edge_b,
                 "start_a": 0.0,
                 "end_a": 1.0,
                 "start_b": 0.0,
                 "end_b": 1.0,
-                "reversed_b": True,
+                "reversed_b": index >= 4,
                 "alignment": "uniform",
                 "stitch_group": "garment-assembly",
                 "kind": "plain",
@@ -93,12 +95,12 @@ def _valid_artifact(root: Path) -> Path:
             "step": step,
             "elapsed_ms": 100.0,
             "finite": True,
-            "contact_count": 0 if step == 60 else 24,
-            "corrected_particle_count": 0 if step == 60 else 32,
+            "contact_count": 0 if step == 120 else 24,
+            "corrected_particle_count": 0 if step == 120 else 32,
             "contact_observed_so_far": True,
-            "support_pin_count": 24,
-            "shirt_support_pin_count": 12,
-            "waistband_support_pin_count": 12,
+            "support_pin_count": 4,
+            "shirt_support_pin_count": 0,
+            "waistband_support_pin_count": 4,
             "maximum_support_pin_drift_mm": 0.0,
             "maximum_shirt_support_pin_drift_mm": 0.0,
             "maximum_waistband_support_pin_drift_mm": 0.0,
@@ -113,20 +115,21 @@ def _valid_artifact(root: Path) -> Path:
             "seams": seams,
             "images": [],
         }
-        for step in (1, 15, 60)
+        for step in (1, 30, 120)
     ]
     pieces_scene = []
     for index, piece_id in enumerate(piece_ids):
-        group_id = "shirt" if index < 4 else "skirt"
-        semantic_ids = [piece_id + ":e%d" % edge for edge in range(4)]
+        group_id = "shirt" if index < 2 else "skirt"
+        edge_count = 8 if group_id == "shirt" else 4
+        semantic_ids = [piece_id + ":e%d" % edge for edge in range(edge_count)]
         boundaries = [
             {
                 "id": semantic_ids[edge],
-                "kind": "line",
+                "kind": "arc" if group_id == "shirt" and edge in (1, 2, 4, 6, 7) else "line",
                 "length_mm": 100.0,
                 "samples_local_mm": [[0.0, 0.0, 0.0], [100.0, 0.0, 0.0]],
             }
-            for edge in range(4)
+            for edge in range(edge_count)
         ]
         pieces_scene.append(
             {
@@ -155,7 +158,7 @@ def _valid_artifact(root: Path) -> Path:
             "units": "mm",
             "origin": "FreeCAD document world origin",
             "x_axis": "mannequin left-right",
-            "y_axis": "mannequin front-back",
+            "y_axis": "front-back",
             "z_axis": "world up",
             "front_direction": "negative Y",
             "placement_quaternion_order": "x,y,z,w",
@@ -186,8 +189,8 @@ def _valid_artifact(root: Path) -> Path:
             },
         },
         "garment_groups": [
-            {"id": "shirt", "piece_ids": piece_ids[:4], "independent_of": ["skirt"]},
-            {"id": "skirt", "piece_ids": piece_ids[4:], "independent_of": ["shirt"]},
+            {"id": "shirt", "piece_ids": piece_ids[:2], "independent_of": ["skirt"]},
+            {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
         "pieces": pieces_scene,
         "seams": seams,
@@ -218,7 +221,7 @@ def _valid_artifact(root: Path) -> Path:
             },
         },
         "outfit": {
-            "piece_count": 12,
+            "piece_count": 10,
             "seam_count": 16,
             "garment_group_count": 2,
             "piece_ids": piece_ids,
@@ -226,14 +229,14 @@ def _valid_artifact(root: Path) -> Path:
             "inter_cloth_clearance_mm": 8.0,
             "particle_distance_mm": 24.0,
             "support_pins": {
-                "mode": "Explicit",
-                "particle_indices": list(range(12)),
-                "count": 12,
+                "mode": "None",
+                "particle_indices": [],
+                "count": 0,
             },
             "waistband_support_pins": {
                 "mode": "Explicit",
-                "particle_indices": list(range(12, 24)),
-                "count": 12,
+                "particle_indices": list(range(4)),
+                "count": 4,
             },
         },
         "scene_map": scene_map,
@@ -245,9 +248,10 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups_preserved": True,
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
+            "shirt_unpinned_after_reload": True,
             "waistband_support_pins_preserved": True,
-            "saved_step_count": 60,
-            "restored_step_count": 60,
+            "saved_step_count": 120,
+            "restored_step_count": 120,
             "post_reload_step_count": 1,
             "native_backend_rebuilt": True,
             "transient_solver_state_reinitialized": True,
@@ -257,7 +261,6 @@ def _valid_artifact(root: Path) -> Path:
     path.write_text(json.dumps(manifest), encoding="utf-8")
     return path
 
-
 def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> None:
     """A full pack must retain early contact activation and zero residual at all checkpoints."""
     manifest = _valid_artifact(tmp_path)
@@ -266,39 +269,38 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
 
     assert result == {
         "commit_sha": "a" * 40,
-        "pieces": 12,
+        "pieces": 10,
         "seams": 16,
         "garment_groups": 2,
-        "scene_map": {"landmarks": 3, "pieces": 12, "seams": 16, "camera_views": 6},
+        "scene_map": {"landmarks": 3, "pieces": 10, "seams": 16, "camera_views": 6},
         "checkpoints": 3,
         "images": 9,
         "document": "layered-outfit.FCStd",
     }
 
 
-def test_validator_rejects_missing_shirt_support_pins(tmp_path: Path) -> None:
-    """The shirt must retain its twelve authored top-boundary support pins."""
+def test_validator_rejects_artificial_shirt_support_pins(tmp_path: Path) -> None:
+    """The shaped shirt must remain unpinned and fall onto the mannequin under gravity."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["outfit"]["support_pins"]["particle_indices"] = []
-    manifest["outfit"]["support_pins"]["count"] = 0
+    manifest["outfit"]["support_pins"]["particle_indices"] = [99]
+    manifest["outfit"]["support_pins"]["count"] = 1
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="twelve unique particle indices"):
+    with pytest.raises(ValueError, match="shirt must not contain artificial support pins"):
         validate_manifest(manifest_path)
 
 
 def test_validator_rejects_missing_waistband_support_pins(tmp_path: Path) -> None:
-    """The waistband must retain twelve authored top-boundary support pins."""
+    """The waistband must retain four local support pins around the waist."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["waistband_support_pins"]["particle_indices"] = []
     manifest["outfit"]["waistband_support_pins"]["count"] = 0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="twelve unique particle indices"):
+    with pytest.raises(ValueError, match="four unique particle indices"):
         validate_manifest(manifest_path)
-
 
 def test_validator_rejects_waistband_support_pin_drift(tmp_path: Path) -> None:
     """Waistband top anchors must remain fixed throughout all native checkpoints."""
@@ -384,7 +386,7 @@ def test_validator_rejects_duplicate_piece_assignment(tmp_path: Path) -> None:
     """A piece cannot silently be assigned to both the shirt and skirt."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["outfit"]["garment_groups"][4] = manifest["outfit"]["garment_groups"][0].replace(
+    manifest["outfit"]["garment_groups"][2] = manifest["outfit"]["garment_groups"][0].replace(
         "shirt|", "skirt|"
     )
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
@@ -397,7 +399,7 @@ def test_validator_rejects_blank_rendered_view(tmp_path: Path) -> None:
     """A present but visually blank PNG must not satisfy the six-view contract."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    blank_path = tmp_path / "final-six-view" / "step-060-left.png"
+    blank_path = tmp_path / "final-six-view" / "step-120-left.png"
     _write_png(blank_path, blank=True)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
@@ -410,8 +412,8 @@ def test_validator_rejects_a_seam_that_connects_two_independent_garments(tmp_pat
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     seam = manifest["scene_map"]["seams"][0]
-    seam["piece_b_id"] = "piece-04"
-    seam["edge_b_id"] = "piece-04:e3"
+    seam["piece_b_id"] = "piece-02"
+    seam["edge_b_id"] = "piece-02:e3"
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="joins two independent garment groups"):
