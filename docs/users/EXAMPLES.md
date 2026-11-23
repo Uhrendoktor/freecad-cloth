@@ -6,7 +6,7 @@ The project uses a complexity ladder so a new user can validate the installation
 |---|---|---|---|
 | Blanket over Cube | Basic | one native Sketcher pattern, one FreeCAD collision target, pins, gravity and drape | five checkpoints + motion GIF |
 | Tunic | Advanced | multiple native pattern pieces, semantic seams, mannequin collision, material/quality controls, diagnostics and production export | six views + diagnostic map + arranged/draped turntables + motion GIF |
-| Layered multi-garment outfit | Advanced preview | two independent garment groups: a longline shirt shell plus a four-panel A-line skirt and separate waistband | arranged checkpoint + six final orthographic views + contact/persistence manifest |
+| Layered multi-garment contact test | Experimental; visual review failed | two independent garment groups and cloth-to-cloth contact; current four-panel shell geometry is too boxy and the drape is visually rejected | diagnostic captures only; no approved garment-fit images |
 | Prepare a mannequin for sewing | Focused | body-shape blend, breast fullness, named measurements, viewport dimension handles, and staged rebuild | seven-profile mannequin gallery, shape-editor screenshot, and two interaction GIFs in the [avatar-shape guide](wiki/09-avatar-shape.md) |
 
 ## 1. Blanket over Cube
@@ -38,9 +38,9 @@ For a first garment, use the tunic as the narrative thread from editable pattern
 
 The README animations currently come from focused acceptance fixtures, not one continuous GUI recording over the same saved tunic document. `arrangement-anchor.gif` and `interactive-arrange.gif` use tunic panels and a mannequin; `seam-assignment.gif` isolates sewing interaction, and `pose-joint-rotation.gif` isolates the posing controls. Treat them as feature demonstrations, not evidence that one FCStd session flowed between those exact screens. The integrated tunic audit validates the garment path; a single-document, start-to-finish interaction recording remains a worthwhile follow-up.
 
-## 3. Layered multi-garment outfit
+## 3. Layered multi-garment contact test (visual review failed)
 
-The [Layered outfit example](examples/layered-outfit.md) is a native-FreeCAD preview of a shirt and skirt simulated together as two independent garment groups. It documents the actual checkpoint and six-view captures, the semantic seam/contact checks, and the current construction limits. This is an acceptance fixture rather than a one-click user-facing garment preset.
+The [Layered multi-garment contact test](examples/layered-outfit.md) records an experimental shirt/skirt contact fixture with two independent garment groups. Its current screenshots have been rejected in visual review: the four-sided panels form a box-like shell and collapse into poor shapes during early steps. The page preserves the failure evidence and measured cause; it is not yet a user-facing garment example.
 
 ## 4. Prepare a mannequin for sewing
 
