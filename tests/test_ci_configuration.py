@@ -150,11 +150,17 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/pbd-tunic-audit")[
         1:
     ]
-    assert workflow.count("timeout-seconds:") == 6
+    assert workflow.count("timeout-seconds:") == 7
     assert workflow.count('timeout-seconds: "240"') == 1
     assert workflow.count('timeout-seconds: "360"') == 3
     assert "matrix.group == 'core' && 360 || 120" in workflow
     assert simulation_ladder.count('timeout-seconds: "360"') == 1
+    avatar_ladder_step = simulation_ladder.split(
+        "test-script: tests/freecad_pbd_avatar_ladder.py", 1
+    )[0].rsplit("      - uses: ./.github/actions/freecad-test", 1)[1]
+    assert 'timeout-seconds: "180"' in avatar_ladder_step
+    avatar_shape_entry = workflow.split("- {case: avatar-shape-editor", 1)[1].split("\n", 1)[0]
+    assert 'timeout: "180"' in avatar_shape_entry
     assert "matrix.group == 'core' && 360 || 120" in python_validation
     assert turntable_validation.count('timeout-seconds: "360"') == 1
     assert blanket_visual.count('timeout-seconds: "360"') == 1
