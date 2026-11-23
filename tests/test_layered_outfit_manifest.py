@@ -399,6 +399,42 @@ def test_validator_rejects_missing_native_solver_rebuild_evidence(tmp_path: Path
         validate_manifest(manifest_path)
 
 
+
+def test_validator_allows_transient_shirt_seam_gap_during_settling(tmp_path: Path) -> None:
+    """Initial side-seam convergence is diagnostic; final garment seams must close."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][0]["max_seam_gap_mm"] = 84.8
+    manifest["checkpoints"][1]["max_seam_gap_mm"] = 42.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = validate_manifest(manifest_path)
+
+    assert result["checkpoints"] == 3
+
+
+def test_validator_rejects_unclosed_final_shirt_seam(tmp_path: Path) -> None:
+    """The final saved garment cannot pass with an open side or shoulder seam."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][-1]["max_seam_gap_mm"] = 12.01
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="sewn panel gap exceeds 12.000 mm"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_excessive_transient_shirt_seam_gap(tmp_path: Path) -> None:
+    """Transient side-seam mismatch is bounded instead of silently ignored."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["checkpoints"][0]["max_seam_gap_mm"] = 100.01
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="sewn panel gap exceeds 100.000 mm"):
+        validate_manifest(manifest_path)
+
+
 def test_validator_rejects_residual_inter_cloth_penetration(tmp_path: Path) -> None:
     """A drape cannot pass while two independent fabric groups still penetrate."""
     manifest_path = _valid_artifact(tmp_path)
