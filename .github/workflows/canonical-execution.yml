@@ -268,6 +268,7 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
+          timeout-seconds: "180"
           test-script: tests/freecad_pbd_avatar_ladder.py
           log-file: artifacts/simulation-ladder/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py simulation
