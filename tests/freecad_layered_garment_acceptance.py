@@ -58,7 +58,6 @@ MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 SKIRT_HEM_FLARE_MM = 65.0
-SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM = 6.0
 
 
 def _log(message: str) -> None:
@@ -920,7 +919,7 @@ def _capture_six_views(
 
 
 def run_acceptance() -> None:
-    """Build, sew, simulate, save/reload and capture a twelve-piece layered outfit."""
+    """Build, sew, simulate, save/reload and capture a ten-piece layered outfit."""
     from freecad_cloth.avatar.AvatarCommands import create_avatar
     from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
@@ -977,12 +976,12 @@ def run_acceptance() -> None:
             min(float(vertex[1]) for vertex in hip_slice)
             + max(float(vertex[1]) for vertex in hip_slice)
         )
-        radius_x = (
-            max(
-                0.5 * shoulder_width,
-                max(abs(float(vertex[0]) - center_x) for vertex in hip_slice),
-            )
-            + 28.0
+        # Waist dimensions must come from the hip slice itself. Using half
+        # the shoulder width here turns the waistband into a broad rectangular
+        # cage and places its side supports far outside the actual waist.
+        radius_x = max(
+            150.0,
+            max(abs(float(vertex[0]) - center_x) for vertex in hip_slice) + 28.0,
         )
         radius_y = (
             0.5
@@ -1216,7 +1215,7 @@ def run_acceptance() -> None:
         )
         expected_ids = {str(piece.PieceId) for piece in pieces}
         if len(pieces) != MINIMUM_PIECES or len(expected_ids) != MINIMUM_PIECES:
-            raise RuntimeError("outfit fixture must contain twelve distinct native PatternPieces")
+            raise RuntimeError("outfit fixture must contain ten distinct native PatternPieces")
         scene.ClothPieces = pieces
         scene.GarmentGroups = (
             ["shirt|" + str(shirt[side].PieceId) for side in ("front", "back")]
@@ -1232,7 +1231,7 @@ def run_acceptance() -> None:
         scene.InterClothClearance = 8.0
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
-        # Twelve interlocked pattern panels need more than the six-iteration
+        # Ten interlocked pattern panels need more than the six-iteration
         # smoke setting to keep authored XPBD seam joins within the 12 mm
         # acceptance bound under gravity; keep timestep and physical limits fixed.
         scene.SolverIterations = 12
@@ -1258,7 +1257,7 @@ def run_acceptance() -> None:
             % (len(pieces), len(shirt_seams + skirt_seams + waistband_seams + waistband_join_seams))
         )
         if not bool(scene.FiniteState) or int(scene.ParticleCount) <= 0:
-            raise RuntimeError("initial twelve-panel solver build did not produce finite particles")
+            raise RuntimeError("initial ten-panel solver build did not produce finite particles")
 
         base = scene.Proxy._base_or_restore()
         backend = base.backend
