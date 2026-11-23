@@ -276,6 +276,7 @@ def _valid_artifact(root: Path) -> Path:
     path.write_text(json.dumps(manifest), encoding="utf-8")
     return path
 
+
 def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> None:
     """A full pack must retain early contact activation and zero residual at all checkpoints."""
     manifest = _valid_artifact(tmp_path)
@@ -316,6 +317,7 @@ def test_validator_rejects_missing_waistband_support_pins(tmp_path: Path) -> Non
 
     with pytest.raises(ValueError, match="four unique particle indices"):
         validate_manifest(manifest_path)
+
 
 def test_validator_rejects_airborne_waistband_support(tmp_path: Path) -> None:
     """A waistband pin far from its anatomical target must invalidate the artifact."""
