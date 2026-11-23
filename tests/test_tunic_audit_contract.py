@@ -651,11 +651,16 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "compare_pbd_openmp_team_reuse.py" in gui
-    assert openmp_marker in gui.split("      - name: Compare matched native production profiles", 1)[1]
+    assert (
+        openmp_marker in gui.split("      - name: Compare matched native production profiles", 1)[1]
+    )
     assert "artifacts/pbd-openmp-team-reuse/comparison.json" in gui
     assert "OPENMP_EXPERIMENT:" in gui
     assert "The 90-step baseline physical/visual audit must pass." in gui
-    assert "All four complete 90-step audits and the matched timing comparison are blocking for the OpenMP experiment." in gui
+    assert (
+        "All four complete 90-step audits and the matched timing comparison are blocking for the OpenMP experiment."
+        in gui
+    )
     assert "5% projection" in gui
     assert "non-regressing wall-time gates" in gui
 
