@@ -148,7 +148,6 @@ def _make_piece(
     return piece
 
 
-
 def _make_tunic_piece(
     doc: App.Document,
     name: str,
@@ -176,11 +175,7 @@ def _make_tunic_piece(
     dimensions = (panel_width, garment_height, hem_width)
     if not all(math.isfinite(value) and value > 0.0 for value in dimensions):
         raise ValueError("tunic panel dimensions must be finite and positive")
-    if (
-        hem_width < panel_width
-        or not 0.5 < neck_ratio < 1.0
-        or not 0.0 < neck_drop < 0.2
-    ):
+    if hem_width < panel_width or not 0.5 < neck_ratio < 1.0 or not 0.0 < neck_drop < 0.2:
         raise ValueError("tunic panel proportions are invalid")
 
     neck_z = (1.0 - neck_drop) * garment_height
@@ -1181,20 +1176,44 @@ def run_acceptance() -> None:
         shirt = {"front": shirt_front, "back": shirt_back}
         shirt_seams = [
             _add_seam(
-                doc, shirt_front, 1, shirt_back, 1, "Shirt-Right-Side",
-                reversed_b=False, stitch_group="shirt",
+                doc,
+                shirt_front,
+                1,
+                shirt_back,
+                1,
+                "Shirt-Right-Side",
+                reversed_b=False,
+                stitch_group="shirt",
             ),
             _add_seam(
-                doc, shirt_front, 3, shirt_back, 3, "Shirt-Right-Shoulder",
-                reversed_b=False, stitch_group="shirt",
+                doc,
+                shirt_front,
+                3,
+                shirt_back,
+                3,
+                "Shirt-Right-Shoulder",
+                reversed_b=False,
+                stitch_group="shirt",
             ),
             _add_seam(
-                doc, shirt_front, 5, shirt_back, 5, "Shirt-Left-Shoulder",
-                reversed_b=False, stitch_group="shirt",
+                doc,
+                shirt_front,
+                5,
+                shirt_back,
+                5,
+                "Shirt-Left-Shoulder",
+                reversed_b=False,
+                stitch_group="shirt",
             ),
             _add_seam(
-                doc, shirt_front, 7, shirt_back, 7, "Shirt-Left-Side",
-                reversed_b=False, stitch_group="shirt",
+                doc,
+                shirt_front,
+                7,
+                shirt_back,
+                7,
+                "Shirt-Left-Side",
+                reversed_b=False,
+                stitch_group="shirt",
             ),
         ]
         _log(
