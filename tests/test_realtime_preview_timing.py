@@ -2,8 +2,13 @@
 """Contracts for the feedback-paced realtime preview frame clock."""
 
 from math import inf, isclose, nan
+from types import SimpleNamespace
 
-from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
+from freecad_cloth.simulation.RealtimePreview import (
+    _FrameClock,
+    _qt_high_event_priority,
+    _sample_p95_ms,
+)
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
@@ -102,3 +107,29 @@ def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
     assert _sample_p95_ms([]) == 0.0
     assert _sample_p95_ms([4.25]) == 4.25
     assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0
+
+
+
+def test_qt_high_event_priority_supports_legacy_enum_layout() -> None:
+    """Read the Qt 5 top-level HighEventPriority enum value."""
+    qt_core = SimpleNamespace(Qt=SimpleNamespace(HighEventPriority=1))
+    assert _qt_high_event_priority(qt_core) == 1
+
+
+def test_qt_high_event_priority_supports_nested_qt6_enum_layout() -> None:
+    """Read the Qt 6 EventPriority.HighEventPriority enum value."""
+    qt_core = SimpleNamespace(
+        Qt=SimpleNamespace(EventPriority=SimpleNamespace(HighEventPriority=1))
+    )
+    assert _qt_high_event_priority(qt_core) == 1
+
+
+def test_qt_high_event_priority_rejects_missing_enum_value() -> None:
+    """Fail explicitly rather than silently falling back to normal event priority."""
+    qt_core = SimpleNamespace(Qt=SimpleNamespace())
+    try:
+        _qt_high_event_priority(qt_core)
+    except RuntimeError as exc:
+        assert "does not expose HighEventPriority" in str(exc)
+    else:
+        raise AssertionError("Qt without HighEventPriority was accepted.")
