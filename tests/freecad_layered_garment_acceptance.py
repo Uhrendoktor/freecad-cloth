@@ -30,7 +30,7 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from support.freecad_bootstrap import prepare_repository_root
-from support.layered_outfit_support import select_top_boundary_supports
+from support.layered_outfit_support import select_landmark_supports
 
 ROOT = prepare_repository_root(__file__)
 
@@ -46,16 +46,17 @@ os.environ["CLOTH_INTER_CLOTH_DIAGNOSTICS"] = "1"
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
-CHECKPOINTS = (0, 1, 15, 60)
+CHECKPOINTS = (0, 1, 30, 120)
 SEAM_EDGE_A = 1
 SEAM_EDGE_B = 3
 SEAM_BOTTOM_EDGE = 0
 SEAM_TOP_EDGE = 2
-MINIMUM_PIECES = 12
+MINIMUM_PIECES = 10
 MINIMUM_SEAMS = 16
 MINIMUM_CONTACTS = 1
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
+MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 SKIRT_HEM_FLARE_MM = 65.0
 SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM = 6.0
 
@@ -139,6 +140,108 @@ def _make_piece(
     if len(tuple(getattr(sketch, "SemanticEdgeIds", ()) or ())) != 4:
         raise RuntimeError("PatternPiece did not retain four semantic edge IDs: " + name)
 
+    piece.Placement = placement
+    sketch.Placement = placement
+    piece.Label = name.replace("-", " ").title()
+    piece.ViewObject.Visibility = False
+    sketch.ViewObject.Visibility = False
+    doc.recompute()
+    return piece
+
+
+
+def _make_tunic_piece(
+    doc: App.Document,
+    name: str,
+    placement: App.Placement,
+    panel_width_mm: float,
+    garment_height_mm: float,
+    hem_width_mm: float,
+    *,
+    neckline_ratio: float = 0.72,
+    neckline_drop: float = 0.03,
+) -> App.DocumentObject:
+    """Create one shaped front/back tunic panel with open neckline and armholes.
+
+    The eight-edge native Sketcher outline mirrors the canonical tunic fixture:
+    eased side edges, curved armholes and a scooped neckline remain editable
+    semantic boundaries rather than a rectangular ring approximation.
+    """
+    from tests.support.freecad_arc_geometry import arc_through_midpoint
+
+    panel_width = float(panel_width_mm)
+    garment_height = float(garment_height_mm)
+    hem_width = float(hem_width_mm)
+    neck_ratio = float(neckline_ratio)
+    neck_drop = float(neckline_drop)
+    if not all(math.isfinite(value) and value > 0.0 for value in (panel_width, garment_height, hem_width)):
+        raise ValueError("tunic panel dimensions must be finite and positive")
+    if hem_width < panel_width or not 0.5 < neck_ratio < 1.0 or not 0.0 < neck_drop < 0.2:
+        raise ValueError("tunic panel proportions are invalid")
+
+    neck_z = (1.0 - neck_drop) * garment_height
+    x_offset = 0.5 * (hem_width - panel_width)
+    armhole_z = 0.62 * garment_height
+    shoulder_z = 0.94 * garment_height
+    scoop_depth = 0.12 * garment_height
+    scoop_z = neck_z - scoop_depth
+    armhole_mid_z = armhole_z + 0.5 * (shoulder_z - armhole_z)
+    points = (
+        (0.0, 0.0),
+        (hem_width, 0.0),
+        (x_offset + 0.74 * panel_width, armhole_z),
+        (x_offset + 0.94 * panel_width, shoulder_z),
+        (x_offset + neck_ratio * panel_width, neck_z),
+        (x_offset + (1.0 - neck_ratio) * panel_width, neck_z),
+        (x_offset + 0.06 * panel_width, shoulder_z),
+        (x_offset + 0.26 * panel_width, armhole_z),
+    )
+    sketch = doc.addObject("Sketcher::SketchObject", name + "Source")
+    geometry = []
+    for index, (start, end) in enumerate(zip(points, points[1:] + points[:1], strict=True)):
+        start_vector = App.Vector(start[0], start[1], 0.0)
+        end_vector = App.Vector(end[0], end[1], 0.0)
+        midpoint = None
+        if index == 1:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) + 4.0,
+                0.5 * (start[1] + end[1]),
+                0.0,
+            )
+        elif index == 2:
+            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0.0)
+        elif index == 4:
+            midpoint = App.Vector(0.5 * (start[0] + end[0]), scoop_z, 0.0)
+        elif index == 6:
+            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0.0)
+        elif index == 7:
+            midpoint = App.Vector(
+                0.5 * (start[0] + end[0]) - 4.0,
+                0.5 * (start[1] + end[1]),
+                0.0,
+            )
+        if midpoint is None:
+            geometry.append(Part.LineSegment(start_vector, end_vector))
+        else:
+            geometry.append(arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
+    sketch.addGeometry(geometry, False)
+    sketch.addConstraint([Sketcher.Constraint("Block", index) for index in range(8)])
+    doc.recompute()
+
+    from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
+
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch)
+    piece = create_pattern_piece_from_selected_sketch(
+        name=name,
+        allowance=10.0,
+        grainline=0.0,
+    )
+    if piece.Sketch is not sketch:
+        raise RuntimeError("shaped tunic panel lost its authoritative Sketcher source: " + name)
+    identifiers = tuple(str(value) for value in (getattr(sketch, "SemanticEdgeIds", ()) or ()))
+    if len(identifiers) != 8 or any(not value for value in identifiers):
+        raise RuntimeError("shaped tunic panel did not retain eight semantic edge IDs: " + name)
     piece.Placement = placement
     sketch.Placement = placement
     piece.Label = name.replace("-", " ").title()
