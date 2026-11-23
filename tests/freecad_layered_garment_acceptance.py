@@ -1168,7 +1168,10 @@ def run_acceptance() -> None:
         scene.InterClothClearance = 8.0
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
-        scene.SolverIterations = 6
+        # Twelve interlocked pattern panels need more than the six-iteration
+        # smoke setting to keep authored XPBD seam joins within the 12 mm
+        # acceptance bound under gravity; keep timestep and physical limits fixed.
+        scene.SolverIterations = 12
         scene.SolverSubsteps = 1
         scene.TimeStep = 1.0 / 120.0
         scene.StartHeight = 0.0
