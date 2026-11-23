@@ -239,6 +239,16 @@ def _valid_artifact(root: Path) -> Path:
                 "particle_indices": list(range(4)),
                 "count": 4,
             },
+            "waistband_supports": [
+                {
+                    "panel_id": "waistband-" + side,
+                    "particle_index": index,
+                    "target_mm": [float(index), 0.0, 100.0],
+                    "position_mm": [float(index), 25.0, 100.0],
+                    "clearance_mm": 25.0,
+                }
+                for index, side in enumerate(("front", "right", "back", "left"))
+            ],
         },
         "scene_map": scene_map,
         "checkpoints": checkpoints,
