@@ -399,7 +399,6 @@ def test_validator_rejects_missing_native_solver_rebuild_evidence(tmp_path: Path
         validate_manifest(manifest_path)
 
 
-
 def test_validator_allows_transient_shirt_seam_gap_during_settling(tmp_path: Path) -> None:
     """Initial side-seam convergence is diagnostic; final garment seams must close."""
     manifest_path = _valid_artifact(tmp_path)
