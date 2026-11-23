@@ -196,7 +196,7 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
     assert "compare_pbd_openmp_team_reuse.py" in tunic_audit
     assert "artifacts/pbd-openmp-team-reuse/comparison.json" in tunic_audit
-    assert "Report paired native production audit outcome" in tunic_audit
+    assert "Report production tunic audit outcome" in tunic_audit
     for step_id in (
         "baseline_1_audit",
         "candidate_1_audit",
