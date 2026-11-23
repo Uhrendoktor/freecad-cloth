@@ -399,6 +399,19 @@ def test_validator_rejects_missing_native_solver_rebuild_evidence(tmp_path: Path
         validate_manifest(manifest_path)
 
 
+
+def test_validator_rejects_duplicate_semantic_edge_ids(tmp_path: Path) -> None:
+    """Every source panel boundary must map to a distinct persistent edge ID."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    panel = manifest["scene_map"]["pieces"][0]
+    panel["semantic_edge_ids"][-1] = panel["semantic_edge_ids"][0]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="panel semantic edge IDs are duplicated"):
+        validate_manifest(manifest_path)
+
+
 def test_validator_allows_transient_shirt_seam_gap_during_settling(tmp_path: Path) -> None:
     """Initial side-seam convergence is diagnostic; final garment seams must close."""
     manifest_path = _valid_artifact(tmp_path)

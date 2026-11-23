@@ -180,7 +180,10 @@ def _validate_scene_map(
             and all(isinstance(value, str) and value for value in semantic_ids),
             "source panel must retain %d semantic edge IDs" % expected_edges,
         )
-        _require(len(set(semantic_ids)) == 4, "panel semantic edge IDs are duplicated")
+        _require(
+            len(set(semantic_ids)) == expected_edges,
+            "panel semantic edge IDs are duplicated",
+        )
         _require(
             isinstance(boundaries, list) and len(boundaries) == expected_edges,
             "panel boundary sample list is incomplete",
