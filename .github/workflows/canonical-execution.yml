@@ -370,7 +370,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -380,19 +380,30 @@ jobs:
         continue-on-error: true
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+      # Every full run executes the 90-step physical/visual baseline audit.
+      # The matched OpenMP A/B comparison is scoped to the PR that changes it.
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-1}
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          mode: "0"
+          profile-name: baseline-1
+          timeout-seconds: "600"
+          collect-evidence: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: candidate_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1, timeout-seconds: "600"}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: baseline_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2, timeout-seconds: "600"}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: candidate_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, timeout-seconds: "600", collect-evidence: "true"}
       - name: Compare matched native production profiles
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: compare_paired_profiles
         shell: bash
         run: |
@@ -403,13 +414,13 @@ jobs:
             --candidate-2 artifacts/pbd-openmp-team-reuse/candidate-2.json \
             --output artifacts/pbd-openmp-team-reuse/comparison.json
       - name: Upload matched PBD experiment profiles
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        if: ${{ always() && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: pbd-openmp-team-reuse-comparison
           path: artifacts/pbd-openmp-team-reuse/**
           if-no-files-found: error
-      - name: Report paired native production audit outcome
+      - name: Report production tunic audit outcome
         if: always()
         env:
           BASELINE_1_OUTCOME: ${{ steps.baseline_1_audit.outcome }}
@@ -417,16 +428,26 @@ jobs:
           BASELINE_2_OUTCOME: ${{ steps.baseline_2_audit.outcome }}
           CANDIDATE_2_OUTCOME: ${{ steps.candidate_2_audit.outcome }}
           COMPARISON_OUTCOME: ${{ steps.compare_paired_profiles.outcome }}
+          OPENMP_EXPERIMENT: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         shell: bash
         run: |
           set -euo pipefail
-          for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
-            if [[ "$outcome" != "success" ]]; then
-              echo "::error title=Paired production audit failed::All four complete 90-step audits and the matched timing comparison are blocking."
+          if [[ "$OPENMP_EXPERIMENT" == "true" ]]; then
+            for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
+              if [[ "$outcome" != "success" ]]; then
+                echo "::error title=Paired production audit failed::All four complete 90-step audits and the matched timing comparison are blocking for the OpenMP experiment."
+                exit 1
+              fi
+            done
+            echo "::notice title=OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+          else
+            if [[ "$BASELINE_1_OUTCOME" != "success" ]]; then
+              echo "::error title=Production tunic audit failed::The 90-step baseline physical/visual audit must pass."
               exit 1
             fi
-          done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+            echo "native-production-tunic-audit=passed"
+          fi
+
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
