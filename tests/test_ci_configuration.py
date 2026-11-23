@@ -186,7 +186,8 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     assert "profile-name: candidate-2" in production_tunic_steps[3]
     assert 'collect-evidence: "true"' in production_tunic_steps[3]
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
-    assert 'timeout-seconds: "360"' in production_action
+    assert 'default: "600"' in production_action
+    assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
     assert "inputs.mode" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
