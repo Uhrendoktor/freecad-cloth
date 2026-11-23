@@ -150,7 +150,9 @@ def test_ci_consumers_do_not_duplicate_the_application_timeout() -> None:
     production_tunic_steps = tunic_audit.split("      - uses: ./.github/actions/pbd-tunic-audit")[
         1:
     ]
-    assert workflow.count("timeout-seconds:") == 7
+    # Four paired production-profile runs each have their own explicit 600-second cap.
+    assert workflow.count("timeout-seconds:") == 11
+    assert tunic_audit.count('timeout-seconds: "600"') == 4
     assert workflow.count('timeout-seconds: "240"') == 1
     assert workflow.count('timeout-seconds: "360"') == 3
     assert "matrix.group == 'core' && 360 || 120" in workflow
