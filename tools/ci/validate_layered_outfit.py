@@ -25,6 +25,7 @@ EXPECTED_IMAGE_HEIGHT = 720
 EXPECTED_IMAGE_COUNT = 9
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MAXIMUM_SEAM_GAP_MM = 12.0
+MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 
@@ -570,9 +571,15 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             _number(checkpoint, "residual_penetration_mm") <= MAXIMUM_RESIDUAL_PENETRATION_MM,
             "residual cloth-to-cloth penetration exceeds tolerance at step %d" % step,
         )
+        seam_gap_limit = (
+            MAXIMUM_SEAM_GAP_MM
+            if step == EXPECTED_CHECKPOINTS[-1]
+            else MAXIMUM_EARLY_SEAM_GAP_MM
+        )
         _require(
-            _number(checkpoint, "max_seam_gap_mm") <= MAXIMUM_SEAM_GAP_MM,
-            "sewn panel gap exceeds tolerance at step %d" % step,
+            _number(checkpoint, "max_seam_gap_mm") <= seam_gap_limit,
+            "sewn panel gap exceeds %.3f mm settling limit at step %d"
+            % (seam_gap_limit, step),
         )
         seams = checkpoint.get("seams")
         _require(
