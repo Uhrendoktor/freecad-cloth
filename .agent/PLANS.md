@@ -1,34 +1,31 @@
-# Benchmark parallel exact KDTree query workers in cloth collision projection
+# Cache immutable stitch topology during PBD collision reconciliation
 
 ## Objective and hypothesis
 
-Measure whether four workers for the batched exact nearest-centroid query reduce production mesh collision projector time. The strongest alternative is that the KDTree batch is too small and scheduling overhead offsets any parallel-query gain.
+Measure whether precomputing connected components for the backend's immutable stitch-pair tuple reduces repeated work in position-level collision reconciliation. The strongest alternative is that midpoint exact KDTree queries and vectorized projection dominate the stage, making union-find reconstruction a small fraction of total time.
 
-## Scope and invariant boundaries
+## Evidence
 
-- Keep the installed `pyPBD==2.2.2` runtime as normal; use the existing isolated source-built pyPBD validation extension only for the canonical production audit.
-- Keep `CLOTH_PBD_OPENMP_TEAM_REUSE=1` in both A/B arms (the merged PR #2866 path).
-- Baseline: `CLOTH_PBD_COLLISION_QUERY_WORKERS=1`; candidate: `=4`.
-- Apply the variable only to the vectorized particle-batch query in `MeshCollisionProjector.project()`. The stitched-pair scalar midpoint queries remain at `workers=1`.
-- Preserve `eps=0.0`, Euclidean metric, candidate count, triangle refinement, collision clearance, candidate triangles, geometry, solver, time step, native substeps/iterations, stitches, pins, and all physical/visual acceptance gates.
-- Exact output equivalence between one and four query workers is covered by focused projector tests.
-- Record the environment value in every production profile; the comparator allows only that one value to differ.
+The rejected four-profile exact KDTree worker audit (#2876, run #44316139423) records a median of approximately 753 ms in `stitched_pair_reconciliation` per 90-step production audit (360 samples). The backend's `self._stitches` is a tuple established at backend construction and remains unchanged, but `project_stitched_pairs()` currently allocates and fills union-find parent/rank arrays, touched sets, and component dictionaries on every call.
 
-## Measurement and acceptance
+The measured KDTree parallelism candidate was slower; this task keeps all midpoint queries serial and exact.
 
-Use the existing canonical workflow and four sequential matched production audits: baseline, candidate, baseline, candidate. Do not add another workflow.
+## Design constraints
 
-Every audit must complete 90/90 scene steps and 360/360 backend steps and pass all seven existing physical/visual gates. The comparator must require identical runtime/build/runner context, production settings, constraint grouping, and native pyPBD provenance.
+- Build deterministic, immutable components once from the fixed stitch tuple.
+- Preserve the current sorted component/member ordering.
+- Validate pair indices when building the topology.
+- Keep per-step position/normal validation, pin checks, group eligibility, endpoint spread checks, AABB checks, exact midpoint query (`eps=0.0, workers=1`), signed-plane test, and all projection operations unchanged.
+- Keep an uncached baseline path available through `CLOTH_PBD_STITCH_GROUP_CACHE=0`; candidate/default path is `=1`.
+- Keep `CLOTH_PBD_OPENMP_TEAM_REUSE=1` fixed in both modes and do not alter any PBD solver or physical settings.
+- Reuse the existing canonical workflow and comparator CLI; do not add a second workflow or a separate comparator entrypoint.
 
-Accept only when median `mesh_collision_projector` time improves by at least 10% and median full-production wall time does not regress. The projector timing must contain exactly 360 samples per audit. Any incomplete audit, failed physical/visual gate, context mismatch, sub-threshold improvement, or production wall-time regression rejects the candidate. Do not weaken thresholds or alter physical/numerical settings after seeing results.
+## Acceptance
 
-## Current implementation
+Four sequential matched production runs (uncached, cached, uncached, cached). All must complete 90/90 scene steps and 360/360 backend steps and pass all seven physical/visual gates. The comparator requires matching runner/runtime/native build/solver context apart from the cache toggle and exactly 360 stitch-stage timing samples per run.
 
-- The worker count is defaulted to one and passed only to the batch `KDTree.query` call.
-- Runtime profiling records `CLOTH_PBD_COLLISION_QUERY_WORKERS`.
-- The comparison helper reuses the existing fail-closed production-profile validation and compares the isolated projector stage plus total production wall time.
-- The source-built pyPBD image and standard installed runtime are unchanged.
+Accept only if median `stitched_pair_reconciliation` time improves by at least 10% and median full-production wall time does not regress. Reject on any output/physical mismatch, incomplete audit, context mismatch, sub-threshold stage gain, or total wall-time regression.
 
 ## Falsifier
 
-If the measured projector stage does not improve by at least 10%, conclude that parallel exact centroid queries are not a useful optimization at this batch size. Do not extend the worker count to scalar stitch queries or tune other parameters as an unmeasured workaround.
+If the cached topology does not pass the registered stage and wall-time gates, keep the simpler uncached implementation. Do not tune KDTree workers, alter midpoint projection, or change solver/physical settings to compensate.

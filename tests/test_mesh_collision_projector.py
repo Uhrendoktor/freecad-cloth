@@ -8,7 +8,11 @@ from freecad_cloth.shared.Collision import CollisionSurface
 from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 from freecad_cloth.simulation.MeshCollisionProjector import (
     MeshCollisionProjector,
+    build_stitch_group_topology,
     project_stitched_pairs,
+)
+from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
+    _pbd_stitch_group_cache_enabled,
 )
 from tests.support.closed_mesh_fixtures import CUBE_TRIANGLES
 
@@ -332,3 +336,103 @@ def test_closed_mesh_orientation_repairs_local_face_winding() -> None:
         prefer_trimesh=False,
         chunk_size=1,
     )[0]
+
+
+def test_stitch_group_topology_builds_deterministic_transitive_components() -> None:
+    """Union chains and duplicates once while omitting isolated/self-paired particles."""
+    topology = build_stitch_group_topology(
+        ((3, 2), (1, 2), (2, 1), (7, 7), (5, 4)),
+        particle_count=9,
+    )
+
+    assert topology.particle_count == 9
+    assert topology.groups == ((1, 2, 3), (4, 5))
+
+
+def test_stitch_group_topology_rejects_invalid_particle_counts_and_indices() -> None:
+    """Cached topology must fail closed before entering a per-step projection path."""
+    for count in (-1, True, 2.5):
+        try:
+            build_stitch_group_topology((), particle_count=count)  # type: ignore[arg-type]
+        except ValueError as exc:
+            assert "particle count" in str(exc)
+        else:
+            raise AssertionError("invalid particle count was accepted")
+
+    for stitches in (((-1, 0),), ((0, 3),)):
+        try:
+            build_stitch_group_topology(stitches, particle_count=3)
+        except ValueError as exc:
+            assert "stitch pair index" in str(exc)
+        else:
+            raise AssertionError("out-of-range stitch index was accepted")
+
+
+def test_cached_stitch_topology_matches_uncached_positions_and_normals() -> None:
+    """Precomputed components preserve the exact contact and seam reconciliation result."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    positions = np.asarray(
+        (
+            (-0.5, 50.0, 50.0),
+            (100.5, 50.0, 50.0),
+            (-2.0, 20.0, 20.0),
+            (-2.0, 20.0, 24.0),
+            (-100.0, 50.0, 50.0),
+            (-90.0, 50.0, 50.0),
+        ),
+        dtype=np.float64,
+    )
+    contact_positions, contact_normals = projector.project(positions)
+    stitches = ((0, 1), (2, 3), (4, 5))
+    topology = build_stitch_group_topology(stitches, particle_count=len(positions))
+
+    uncached = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        stitches,
+        pinned_indices=(4,),
+    )
+    cached = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        stitches,
+        pinned_indices=(4,),
+        stitch_topology=topology,
+    )
+
+    assert np.array_equal(cached[0], uncached[0])
+    assert np.array_equal(cached[1], uncached[1])
+
+
+def test_stitch_topology_particle_count_must_match_positions() -> None:
+    """A cached component graph cannot be reused with a different particle layout."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    topology = build_stitch_group_topology(((0, 1),), particle_count=3)
+
+    try:
+        project_stitched_pairs(
+            projector,
+            np.zeros((2, 3), dtype=np.float64),
+            np.zeros((2, 3), dtype=np.float64),
+            ((0, 1),),
+            stitch_topology=topology,
+        )
+    except ValueError as exc:
+        assert "particle count" in str(exc)
+    else:
+        raise AssertionError("mismatched cached topology was accepted")
+
+
+def test_stitch_group_cache_environment_defaults_on_and_validates() -> None:
+    """Production uses the precomputed topology unless an audit explicitly disables it."""
+    assert _pbd_stitch_group_cache_enabled({}) is True
+    assert _pbd_stitch_group_cache_enabled({"CLOTH_PBD_STITCH_GROUP_CACHE": "0"}) is False
+    assert _pbd_stitch_group_cache_enabled({"CLOTH_PBD_STITCH_GROUP_CACHE": "1"}) is True
+    try:
+        _pbd_stitch_group_cache_enabled({"CLOTH_PBD_STITCH_GROUP_CACHE": "true"})
+    except ValueError as exc:
+        assert "must be '0' or '1'" in str(exc)
+    else:
+        raise AssertionError("invalid cache toggle was accepted")

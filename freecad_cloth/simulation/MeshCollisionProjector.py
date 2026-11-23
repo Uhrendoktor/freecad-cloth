@@ -8,6 +8,7 @@ keeps cloth particles outside a closed collision mesh after each native substep.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -240,55 +241,32 @@ class MeshCollisionProjector:
         return corrected, contact_normals
 
 
-def project_stitched_pairs(
-    projector: MeshCollisionProjector,
-    positions_mm: npt.ArrayLike,
-    contact_normals: npt.ArrayLike,
+@dataclass(frozen=True, slots=True)
+class StitchGroupTopology:
+    """Immutable connected components for a fixed set of sewn particle pairs."""
+
+    particle_count: int
+    groups: tuple[tuple[int, ...], ...]
+
+
+def build_stitch_group_topology(
     stitches: Sequence[tuple[int, int]],
-    pinned_indices: Sequence[int] = (),
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    """Close stitch groups after contact projection, including near-shell residuals.
-
-    The native PBD pass projects stitches before the backend's position-level
-    collision response. Independent contact corrections can therefore separate
-    two sewn vertices. Reconcile contact-touched groups at a shared point and
-    project that point to the exterior clearance shell.
-
-    A residual stitch can also stall when both endpoints sit just outside the
-    shell on different sides of a curved body. Probe the midpoint of near-closed
-    groups and share it between endpoints: project it to the exterior shell if
-    needed, or use it unchanged when the projector reports that it is already
-    safe. Groups beyond the capture distance and groups containing fixed
-    particles remain unchanged, avoiding early capture of distant stitches.
+    particle_count: int,
+) -> StitchGroupTopology:
+    """Build deterministic connected components for an immutable stitch graph.
 
     Args:
-        projector: Target-surface projector used for residual contact correction.
-        positions_mm: Current finite cloth particle positions in world millimetres.
-        contact_normals: Per-particle contact normals from the preceding projection.
-        stitches: Particle-index pairs that must remain coincident after contact response.
-        pinned_indices: Particle indices whose positions must not be reconciled.
+        stitches: Validated particle-index pairs that form the authored seam graph.
+        particle_count: Number of particles in the cloth system.
 
     Returns:
-        Corrected positions and contact normals with eligible stitch groups reconciled.
+        Sorted, immutable particle-index components. Isolated particles are omitted.
 
     Raises:
-        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
-    corrected = np.asarray(positions_mm, dtype=np.float64).copy()
-    normals = np.asarray(contact_normals, dtype=np.float64).copy()
-    if corrected.ndim != 2 or corrected.shape[1] != 3:
-        msg = "stitched collision positions must have shape (N, 3)"
-        raise ValueError(msg)
-    if normals.shape != corrected.shape:
-        msg = "stitched collision normals must match the position array"
-        raise ValueError(msg)
-    if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
-        msg = "stitched collision positions and normals must be finite"
-        raise ValueError(msg)
-
-    particle_count = len(corrected)
-    pinned = {int(index) for index in pinned_indices}
-    if any(index < 0 or index >= particle_count for index in pinned):
-        msg = "pinned index is outside the collision position array"
+        ValueError: If the particle count or any stitch index is invalid.
+    """
+    if isinstance(particle_count, bool) or not isinstance(particle_count, int) or particle_count < 0:
+        msg = "stitch topology particle count must be a non-negative integer"
         raise ValueError(msg)
 
     parent = list(range(particle_count))
@@ -326,11 +304,80 @@ def project_stitched_pairs(
     for index in sorted(touched):
         groups.setdefault(find(index), []).append(index)
 
-    eligible_groups: list[list[int]] = []
+    return StitchGroupTopology(
+        particle_count=particle_count,
+        groups=tuple(tuple(group) for group in groups.values()),
+    )
+
+
+def project_stitched_pairs(
+    projector: MeshCollisionProjector,
+    positions_mm: npt.ArrayLike,
+    contact_normals: npt.ArrayLike,
+    stitches: Sequence[tuple[int, int]],
+    pinned_indices: Sequence[int] = (),
+    *,
+    stitch_topology: StitchGroupTopology | None = None,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    """Close stitch groups after contact projection, including near-shell residuals.
+
+    The native PBD pass projects stitches before the backend's position-level
+    collision response. Independent contact corrections can therefore separate
+    two sewn vertices. Reconcile contact-touched groups at a shared point and
+    project that point to the exterior clearance shell.
+
+    A residual stitch can also stall when both endpoints sit just outside the
+    shell on different sides of a curved body. Probe the midpoint of near-closed
+    groups and share it between endpoints: project it to the exterior shell if
+    needed, or use it unchanged when the projector reports that it is already
+    safe. Groups beyond the capture distance and groups containing fixed
+    particles remain unchanged, avoiding early capture of distant stitches.
+
+    Args:
+        projector: Target-surface projector used for residual contact correction.
+        positions_mm: Current finite cloth particle positions in world millimetres.
+        contact_normals: Per-particle contact normals from the preceding projection.
+        stitches: Particle-index pairs that must remain coincident after contact response.
+        pinned_indices: Particle indices whose positions must not be reconciled.
+        stitch_topology: Optional precomputed immutable components for this stitch graph.
+
+    Returns:
+        Corrected positions and contact normals with eligible stitch groups reconciled.
+
+    Raises:
+        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
+    corrected = np.asarray(positions_mm, dtype=np.float64).copy()
+    normals = np.asarray(contact_normals, dtype=np.float64).copy()
+    if corrected.ndim != 2 or corrected.shape[1] != 3:
+        msg = "stitched collision positions must have shape (N, 3)"
+        raise ValueError(msg)
+    if normals.shape != corrected.shape:
+        msg = "stitched collision normals must match the position array"
+        raise ValueError(msg)
+    if not bool(np.isfinite(corrected).all() and np.isfinite(normals).all()):
+        msg = "stitched collision positions and normals must be finite"
+        raise ValueError(msg)
+
+    particle_count = len(corrected)
+    pinned = {int(index) for index in pinned_indices}
+    if any(index < 0 or index >= particle_count for index in pinned):
+        msg = "pinned index is outside the collision position array"
+        raise ValueError(msg)
+
+    topology = (
+        build_stitch_group_topology(stitches, particle_count)
+        if stitch_topology is None
+        else stitch_topology
+    )
+    if topology.particle_count != particle_count:
+        msg = "stitch topology particle count does not match collision positions"
+        raise ValueError(msg)
+
+    eligible_groups: list[tuple[int, ...]] = []
     shared_points: list[npt.NDArray[np.float64]] = []
-    near_shell_groups: list[list[int]] = []
+    near_shell_groups: list[tuple[int, ...]] = []
     near_shell_midpoints: list[npt.NDArray[np.float64]] = []
-    for group in groups.values():
+    for group in topology.groups:
         if len(group) < 2 or pinned.intersection(group):
             continue
         points = corrected[group]
