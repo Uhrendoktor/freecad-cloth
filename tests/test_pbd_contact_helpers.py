@@ -554,19 +554,25 @@ def test_measured_inter_cloth_projection_preserves_pinned_particles() -> None:
     )
 
 
-def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
+def _install_inter_cloth_body_reconciliation_mocks(
     monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Only measured residual contacts trigger one fresh cloth/body correction."""
-    backend = object.__new__(PositionBasedDynamicsBackend)
-    backend._inter_cloth_metrics = InterClothContactMetrics(100, 50, 12, 7.1, 0.71)
-    backend._inter_cloth_residual_constraints = ()
-    residual_measurements = iter(((12, 0.71), (0, 0.0)))
-    calls = {"project": 0, "body": 0, "measure": 0}
+    backend: PositionBasedDynamicsBackend,
+    *,
+    residual_measurements: tuple[tuple[int, float], ...],
+    projected_metrics: InterClothContactMetrics,
+    projected_residual: bool,
+    track_measurement_calls: bool = False,
+) -> dict[str, int]:
+    """Install deterministic body/cloth projection doubles for reconciliation tests."""
+    calls = {"project": 0, "body": 0}
+    if track_measurement_calls:
+        calls["measure"] = 0
+    measurements = iter(residual_measurements)
 
     def measure_residual() -> None:
-        calls["measure"] += 1
-        remaining, deficit = next(residual_measurements)
+        if track_measurement_calls:
+            calls["measure"] += 1
+        remaining, deficit = next(measurements)
         backend._inter_cloth_residual_constraints = (object(),) if remaining else ()
         metrics = backend._inter_cloth_metrics
         backend._inter_cloth_metrics = metrics._replace(
@@ -580,8 +586,8 @@ def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
         calls["project"] += 1
         assert iterations == 8
         assert not measure_residual
-        backend._inter_cloth_residual_constraints = ()
-        backend._inter_cloth_metrics = InterClothContactMetrics(10, 8, 0, 0.71, 0.0)
+        backend._inter_cloth_residual_constraints = (object(),) if projected_residual else ()
+        backend._inter_cloth_metrics = projected_metrics
         return backend._inter_cloth_metrics
 
     def project_body() -> None:
@@ -590,6 +596,24 @@ def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
     monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
     monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_full_broad_phase)
     monkeypatch.setattr(backend, "_project_collision_positions", project_body)
+    return calls
+
+
+def test_backend_reconciles_cloth_contacts_reintroduced_by_body_projection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Only measured residual contacts trigger one fresh cloth/body correction."""
+    backend = object.__new__(PositionBasedDynamicsBackend)
+    backend._inter_cloth_metrics = InterClothContactMetrics(100, 50, 12, 7.1, 0.71)
+    backend._inter_cloth_residual_constraints = ()
+    calls = _install_inter_cloth_body_reconciliation_mocks(
+        monkeypatch,
+        backend,
+        residual_measurements=((12, 0.71), (0, 0.0)),
+        projected_metrics=InterClothContactMetrics(10, 8, 0, 0.71, 0.0),
+        projected_residual=False,
+        track_measurement_calls=True,
+    )
 
     backend._resolve_inter_cloth_body_contacts()
 
@@ -609,34 +633,13 @@ def test_backend_bounds_inter_cloth_body_reconciliation_passes(
     backend = object.__new__(PositionBasedDynamicsBackend)
     backend._inter_cloth_metrics = InterClothContactMetrics(10, 5, 3, 1.0, 0.2)
     backend._inter_cloth_residual_constraints = ()
-    residual_measurements = iter(((3, 0.2), (2, 0.1), (1, 0.05)))
-    calls = {"project": 0, "body": 0}
-
-    def measure_residual() -> None:
-        remaining, deficit = next(residual_measurements)
-        backend._inter_cloth_residual_constraints = (object(),) if remaining else ()
-        metrics = backend._inter_cloth_metrics
-        backend._inter_cloth_metrics = metrics._replace(
-            remaining_contact_count=remaining,
-            max_penetration_after_mm=deficit,
-        )
-
-    def project_full_broad_phase(
-        *, iterations: int, measure_residual: bool
-    ) -> InterClothContactMetrics:
-        calls["project"] += 1
-        assert iterations == 8
-        assert not measure_residual
-        backend._inter_cloth_residual_constraints = (object(),)
-        backend._inter_cloth_metrics = InterClothContactMetrics(1, 1, 0, 0.2, 0.0)
-        return backend._inter_cloth_metrics
-
-    def project_body() -> None:
-        calls["body"] += 1
-
-    monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
-    monkeypatch.setattr(backend, "_project_inter_cloth_positions", project_full_broad_phase)
-    monkeypatch.setattr(backend, "_project_collision_positions", project_body)
+    calls = _install_inter_cloth_body_reconciliation_mocks(
+        monkeypatch,
+        backend,
+        residual_measurements=((3, 0.2), (2, 0.1), (1, 0.05)),
+        projected_metrics=InterClothContactMetrics(1, 1, 0, 0.2, 0.0),
+        projected_residual=True,
+    )
 
     backend._resolve_inter_cloth_body_contacts()
 
