@@ -1533,7 +1533,9 @@ def run_acceptance() -> None:
         if max(shirt_shoulder_z_values) - min(shirt_shoulder_z_values) > 1e-5:
             raise RuntimeError("shirt shoulder support pins do not share one authored height")
         if max(abs(value - shirt_shoulder_target_z) for value in shirt_shoulder_z_values) > 1e-3:
-            raise RuntimeError("shirt shoulder support pins are not at the authored shoulder height")
+            raise RuntimeError(
+                "shirt shoulder support pins are not at the authored shoulder height"
+            )
         waistband_top_z_values = [
             waistband_support_pin_positions[index][2] for index in waistband_support_pin_indices
         ]
