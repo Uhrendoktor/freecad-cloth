@@ -399,7 +399,6 @@ def test_validator_rejects_missing_native_solver_rebuild_evidence(tmp_path: Path
         validate_manifest(manifest_path)
 
 
-
 def test_validator_rejects_duplicate_semantic_edge_ids(tmp_path: Path) -> None:
     """Every source panel boundary must map to a distinct persistent edge ID."""
     manifest_path = _valid_artifact(tmp_path)
