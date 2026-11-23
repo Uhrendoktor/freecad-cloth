@@ -298,6 +298,25 @@ def test_guarded_rebase_uses_the_verified_conflict_resolver() -> None:
         "Preserving the replayed typed seam editor and current-main defensive fallbacks" in resolver
     )
     assert "git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py" in resolver
+    sewing_ruff_start = resolver.index(
+        '  elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "5d84563005f984dec139794200ad57a77d29ca26" ]]; then',
+    )
+    sewing_typed_start = resolver.index(
+        '  elif [[ "$conflicts" == "freecad_cloth/sewing/SewingNetworkGui.py" ]] && [[ "$(git rev-parse REBASE_HEAD)" == "f62b45d70533341c14e6f9909c233498c7d5ef01" ]]; then',
+        sewing_ruff_start,
+    )
+    sewing_ruff = resolver[sewing_ruff_start:sewing_typed_start]
+    assert "git checkout --ours -- freecad_cloth/sewing/SewingNetworkGui.py" in sewing_ruff
+    assert 'git show "$rebase_commit^:freecad_cloth/sewing/SewingNetworkGui.py"' in sewing_ruff
+    assert "git show HEAD:freecad_cloth/sewing/SewingNetworkGui.py" in sewing_ruff
+    assert "class _NetworkEditorSnapshot(TypedDict):" in sewing_ruff
+    assert "if gap.strip():" in sewing_ruff
+    assert 'source = source[:import_end] + "\\n\\n" + source[module_start:]' in sewing_ruff
+    assert "git add freecad_cloth/sewing/SewingNetworkGui.py" in sewing_ruff
+    assert (
+        "Refusing SewingNetworkGui Ruff replay outside the exact 5d845630 safe-format commit"
+        in sewing_ruff
+    )
     assert "Restoring the exact current-main SewingNetworkGui blob" in resolver
     assert "reconcile_sewing_network_gui_types.py" not in resolver
     assert "class _NetworkReferenceCollection(Protocol):" in resolver
