@@ -22,6 +22,17 @@ def test_blanket_visual_fixture_has_no_runtime_backend_selector():
     assert "CLOTH_SIMULATION_BACKEND" not in source
 
 
+def test_interactive_arrange_gifs_use_a_bounded_palette_for_pr_evidence() -> None:
+    source = (ROOT / "tests" / "freecad_interactive_arrange_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    recorder = (ROOT / "tests" / "support" / "freecad_input.py").read_text(encoding="utf-8")
+
+    assert source.count("stop(max_colors=80)") == 2
+    assert "max_colors: int = 96" in recorder
+    assert "write_gif(self.frames, self.path, fps=self.fps, max_colors=max_colors)" in recorder
+
+
 def test_turntable_still_uses_persistent_drape_target():
     source = (ROOT / "tests" / "freecad_simulation_turntable.py").read_text(encoding="utf-8")
     target = (ROOT / "freecad_cloth" / "simulation" / "DrapeTarget.py").read_text(encoding="utf-8")

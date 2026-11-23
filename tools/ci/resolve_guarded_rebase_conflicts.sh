@@ -1041,8 +1041,31 @@ def replace_once(old: str, new: str, label: str) -> None:
         raise SystemExit(f"Expected one exact {label} anchor in current-main AvatarPoseGui.")
     source = source.replace(old, new, 1)
 
-replace_once("from collections.abc import Sequence\n", "from collections.abc import Callable, Sequence\n", "collections.abc import")
-replace_once("from typing import TYPE_CHECKING\n", "from typing import TYPE_CHECKING, Protocol, cast\n", "typing import")
+collection_import_options = (
+    "from collections.abc import Sequence\n",
+    "from collections.abc import Callable, Sequence\n",
+)
+collection_matches = [line for line in collection_import_options if source.count(line) == 1]
+if len(collection_matches) != 1:
+    raise SystemExit("Expected one exact supported collections.abc import anchor in current-main AvatarPoseGui.")
+if collection_matches[0] == "from collections.abc import Sequence\n":
+    source = source.replace(
+        collection_matches[0],
+        "from collections.abc import Callable, Sequence\n",
+        1,
+    )
+typing_import_options = (
+    "from typing import TYPE_CHECKING\n",
+    "from typing import TYPE_CHECKING, Protocol\n",
+)
+typing_matches = [line for line in typing_import_options if source.count(line) == 1]
+if len(typing_matches) != 1:
+    raise SystemExit("Expected one exact supported typing import anchor in current-main AvatarPoseGui.")
+source = source.replace(
+    typing_matches[0],
+    "from typing import TYPE_CHECKING, Protocol, cast\n",
+    1,
+)
 replace_once(
     "from typing import TYPE_CHECKING, Protocol, cast\n",
     "from typing import TYPE_CHECKING, Protocol, cast\n\n"
@@ -1071,15 +1094,173 @@ replace_once(
 protocol_start = typed_source.index("type PosePoint =")
 protocol_end = typed_source.index("\ndef _modules()", protocol_start)
 protocol_block = typed_source[protocol_start:protocol_end].rstrip() + "\n"
-panel_method = (
+
+vector_anchor = (
+    "    z: float\n"
+)
+vector_extension = (
+    vector_anchor
+    + "\n"
+    + "    def __add__(self, other: _PoseVector) -> _PoseVector:\n"
+    + "        \"\"\"Add two native FreeCAD vectors component by component.\"\"\"\n"
+    + "        ...\n"
+)
+if protocol_block.count(vector_anchor) != 1:
+    raise SystemExit("Expected one exact _PoseVector coordinate block.")
+protocol_block = protocol_block.replace(vector_anchor, vector_extension, 1)
+
+rotation_anchor = (
+    "    def getEulerAngles(self, mode: int) -> Sequence[float]:\n"
+    "        \"\"\"Return Euler components in the requested FreeCAD convention.\"\"\"\n"
+    "        ...\n"
+)
+rotation_extension = (
+    rotation_anchor
+    + "\n"
+    + "    def setYawPitchRoll(self, yaw: float, pitch: float, roll: float) -> None:\n"
+    + "        \"\"\"Set the rotation using FreeCAD's yaw-pitch-roll convention.\"\"\"\n"
+    + "        ...\n"
+    + "\n"
+    + "    def getYawPitchRoll(self) -> Sequence[float]:\n"
+    + "        \"\"\"Return yaw, pitch and roll components in degrees.\"\"\"\n"
+    + "        ...\n"
+    + "\n"
+    + "    def multVec(self, vector: _PoseVector) -> _PoseVector:\n"
+    + "        \"\"\"Transform a vector using this rotation.\"\"\"\n"
+    + "        ...\n"
+)
+if protocol_block.count(rotation_anchor) != 1:
+    raise SystemExit("Expected one exact _PoseRotation method block.")
+protocol_block = protocol_block.replace(rotation_anchor, rotation_extension, 1)
+
+view_size_anchor = (
+    "    def getSize(self) -> tuple[int, int]:\n"
+    "        \"\"\"Return viewport dimensions in pixels.\"\"\"\n"
+    "        ...\n"
+)
+view_size_extension = (
+    view_size_anchor
+    + "\n"
+    + "    def getCameraOrientation(self) -> _PoseRotation:\n"
+    + "        \"\"\"Return the viewport camera's world-space orientation.\"\"\"\n"
+    + "        ...\n"
+)
+if protocol_block.count(view_size_anchor) != 1:
+    raise SystemExit("Expected one exact _PoseView size method.")
+protocol_block = protocol_block.replace(view_size_anchor, view_size_extension, 1)
+
+qt_protocol_block = (
+    "class _PoseQtMouseButtons(Protocol):\n"
+    "    \"\"\"Minimal Qt mouse-button flags supporting a left-button test.\"\"\"\n"
+    "\n"
+    "    def __and__(self, other: object) -> object:\n"
+    "        \"\"\"Return the flags selected by a Qt button mask.\"\"\"\n"
+    "        ...\n"
+    "\n"
+    "\n"
+    "class _PoseQtApplication(Protocol):\n"
+    "    \"\"\"Application input-state API used by the pose release watchdog.\"\"\"\n"
+    "\n"
+    "    def mouseButtons(self) -> _PoseQtMouseButtons:\n"
+    "        \"\"\"Return the currently held mouse-button flags.\"\"\"\n"
+    "        ...\n"
+    "\n"
+    "\n"
+    "class _PoseQtApplicationFactory(Protocol):\n"
+    "    \"\"\"Static QApplication factory surface used by the controller.\"\"\"\n"
+    "\n"
+    "    def instance(self) -> _PoseQtApplication | None:\n"
+    "        \"\"\"Return the active Qt application, when available.\"\"\"\n"
+    "        ...\n"
+    "\n"
+    "\n"
+    "class _PoseQtWidgets(Protocol):\n"
+    "    \"\"\"Qt widget module surface used by viewport input handling.\"\"\"\n"
+    "\n"
+    "    QApplication: _PoseQtApplicationFactory\n"
+    "\n"
+    "\n"
+    "class _PoseQtNamespace(Protocol):\n"
+    "    \"\"\"Qt enum namespace exposing the mouse-button flag used by Pose Mode.\"\"\"\n"
+    "\n"
+    "    LeftButton: object\n"
+    "\n"
+    "\n"
+    "class _PoseQtTimerFactory(Protocol):\n"
+    "    \"\"\"Constructors and one-shot scheduling operations for Qt timers.\"\"\"\n"
+    "\n"
+    "    def __call__(self, parent: _QT_TYPE_QtWidgets.QWidget) -> _QtTimerProtocol:\n"
+    "        \"\"\"Create a timer with the supplied QObject parent.\"\"\"\n"
+    "        ...\n"
+    "\n"
+    "    def singleShot(self, milliseconds: int, callback: Callable[[], None]) -> None:\n"
+    "        \"\"\"Schedule a no-argument callback after a delay in milliseconds.\"\"\"\n"
+    "        ...\n"
+    "\n"
+    "\n"
+    "class _PoseQtCore(Protocol):\n"
+    "    \"\"\"Qt core module surface used by the pose release watchdog.\"\"\"\n"
+    "\n"
+    "    QTimer: _PoseQtTimerFactory\n"
+    "    Qt: _PoseQtNamespace\n"
+    "\n"
+    "\n"
+)
+pose_panel_anchor = "class _PosePanel(Protocol):\n"
+if protocol_block.count(pose_panel_anchor) != 1:
+    raise SystemExit("Expected one exact _PosePanel protocol insertion point.")
+protocol_block = protocol_block.replace(pose_panel_anchor, qt_protocol_block + pose_panel_anchor, 1)
+
+panel_fields_anchor = (
+    "    App: _PoseApplication\n"
+    "    Gui: _PoseGui\n"
+)
+panel_fields = (
+    "    App: _PoseApplication\n"
+    "    Gui: _PoseGui\n"
+    "    QtCore: _PoseQtCore\n"
+    "    QtWidgets: _PoseQtWidgets\n"
+    "    form: _QT_TYPE_QtWidgets.QWidget\n"
+)
+if protocol_block.count(panel_fields_anchor) != 1:
+    raise SystemExit("Expected one exact _PosePanel application/gui field block.")
+protocol_block = protocol_block.replace(panel_fields_anchor, panel_fields, 1)
+
+panel_status_anchor = (
+    "    def _set_status(self, message: str) -> None:\n"
+    "        \"\"\"Update the task panel status.\"\"\"\n"
+    "        ...\n"
+)
+panel_status_extension = (
+    panel_status_anchor
+    + "\n"
+    + "    def _preview_rebuild(self) -> None:\n"
+    + "        \"\"\"Regenerate the visible mannequin preview from staged pose data.\"\"\"\n"
+    + "        ...\n"
+)
+if protocol_block.count(panel_status_anchor) != 1:
+    raise SystemExit("Expected one exact _PosePanel status method.")
+protocol_block = protocol_block.replace(panel_status_anchor, panel_status_extension, 1)
+panel_method_original = (
     "    def _stage_joint_rotation(\n"
     "        self, bone: str, x: float, y: float, z: float, *, preview: bool\n"
     "    ) -> None:\n"
     "        \"\"\"Stage one joint rotation from an interactive viewport drag.\"\"\"\n"
     "        ...\n"
 )
+panel_method = (
+    "    def _stage_joint_rotation(\n"
+    "        self, bone: str, x: float, y: float, z: float, *, preview: bool, "
+    "snap: bool | None = None\n"
+    "    ) -> None:\n"
+    "        \"\"\"Stage one joint rotation from an interactive viewport drag.\"\"\"\n"
+    "        ...\n"
+)
+if protocol_block.count(panel_method_original) != 1:
+    raise SystemExit("Expected one exact historical _PosePanel staged-rotation protocol declaration.")
+protocol_block = protocol_block.replace(panel_method_original, panel_method, 1)
 if protocol_block.count(panel_method) != 1:
-    raise SystemExit("Expected one exact _PosePanel staged-rotation protocol declaration.")
+    raise SystemExit("Expected one updated _PosePanel staged-rotation protocol declaration.")
 protocol_block = protocol_block.replace(
     panel_method,
     panel_method
@@ -1259,9 +1440,9 @@ for offset in sorted(patches, reverse=True):
 
 old_axes = "        self._axis_draggers = {}\n"
 axis_assignment_count = source.count(old_axes)
-if axis_assignment_count != 4:
+if axis_assignment_count != 3:
     raise SystemExit(
-        f"Expected four current-main axis-dragger map assignments, found {axis_assignment_count}."
+        f"Expected three current-main axis-dragger map assignments, found {axis_assignment_count}."
     )
 source = source.replace(old_axes, "        self._axis_draggers: dict[str, _CoinDynamicDragger] = {}\n")
 
@@ -1280,7 +1461,19 @@ for required in (
     "def highlight_axis(self, axis: str | None) -> None:",
     "class _PoseAxisFocusFilter",
     "axis_branch = coin.SoSeparator()",
-    "self.panel._set_rotation_axis_highlight(name[-1].lower())",
+    "self.panel.QtCore.QTimer.singleShot(0, self.panel._preview_rebuild)",
+    "self.panel.QtWidgets.QApplication.instance()",
+    "self._pointer_release_timer: _QtTimerProtocol | None = None",
+    "def _poll_qt_pointer_release_state(self) -> None:",
+    "camera_rotation = self.view.getCameraOrientation()",
+    "def setYawPitchRoll(self, yaw: float, pitch: float, roll: float) -> None:",
+    "def getYawPitchRoll(self) -> Sequence[float]:",
+    "def multVec(self, vector: _PoseVector) -> _PoseVector:",
+    "class _PoseQtCore(Protocol):",
+    "class _PoseQtWidgets(Protocol):",
+    "QtCore: _PoseQtCore",
+    "form: _QT_TYPE_QtWidgets.QWidget",
+    "def _preview_rebuild(self) -> None:",
 ):
     if required not in source:
         raise SystemExit(f"AvatarPoseGui typed-boundary transplant lost required state: {required}")
