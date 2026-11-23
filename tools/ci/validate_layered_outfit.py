@@ -15,10 +15,10 @@ from freecad_cloth.common.JsonTypes import JsonObject, JsonValue
 if TYPE_CHECKING:
     from collections.abc import Mapping
 
-EXPECTED_PIECES = 12
+EXPECTED_PIECES = 10
 EXPECTED_SEAMS = 16
 EXPECTED_GROUPS = frozenset({"shirt", "skirt"})
-EXPECTED_CHECKPOINTS = (1, 15, 60)
+EXPECTED_CHECKPOINTS = (1, 30, 120)
 EXPECTED_VIEWS = frozenset({"front", "rear", "right", "left", "top", "bottom"})
 EXPECTED_IMAGE_WIDTH = 960
 EXPECTED_IMAGE_HEIGHT = 720
@@ -152,7 +152,7 @@ def _validate_scene_map(
 
     _require(
         isinstance(piece_records, list) and len(piece_records) == EXPECTED_PIECES,
-        "scene map needs twelve panel geometry records",
+        "scene map needs ten panel geometry records",
     )
     pieces_by_id: dict[str, Mapping[str, JsonValue]] = {}
     for piece in piece_records:
@@ -171,15 +171,16 @@ def _validate_scene_map(
         )
         semantic_ids = piece.get("semantic_edge_ids")
         boundaries = piece.get("boundaries")
+        expected_edges = 8 if group_id == "shirt" else 4
         _require(
             isinstance(semantic_ids, list)
-            and len(semantic_ids) == 4
+            and len(semantic_ids) == expected_edges
             and all(isinstance(value, str) and value for value in semantic_ids),
-            "each rectangular source panel must retain four semantic edge IDs",
+            "source panel must retain %d semantic edge IDs" % expected_edges,
         )
         _require(len(set(semantic_ids)) == 4, "panel semantic edge IDs are duplicated")
         _require(
-            isinstance(boundaries, list) and len(boundaries) == 4,
+            isinstance(boundaries, list) and len(boundaries) == expected_edges,
             "panel boundary sample list is incomplete",
         )
         boundary_ids: set[str] = set()
@@ -370,9 +371,9 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         len(piece_ids) == EXPECTED_PIECES
         and len(set(str(value) for value in piece_ids)) == EXPECTED_PIECES,
-        "layered outfit must contain twelve distinct native pattern pieces",
+        "layered outfit must contain ten distinct native pattern pieces",
     )
-    _require(outfit.get("piece_count") == EXPECTED_PIECES, "manifest piece count is not twelve")
+    _require(outfit.get("piece_count") == EXPECTED_PIECES, "manifest piece count is not ten")
     _require(outfit.get("seam_count") == EXPECTED_SEAMS, "manifest seam count is not sixteen")
     _require(isinstance(group_assignments, list), "garment group assignments are missing")
     _require(
@@ -410,21 +411,18 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(clearance > 0.0, "inter-cloth clearance must be positive")
     support_pins = outfit.get("support_pins")
     _require(isinstance(support_pins, dict), "shirt support-pin record is missing")
-    _require(support_pins.get("mode") == "Explicit", "shirt support pins must use Explicit mode")
+    _require(
+        support_pins.get("mode") == "None",
+        "shaped shirt must remain unpinned so it can drape under gravity",
+    )
     support_pin_indices = support_pins.get("particle_indices")
     _require(
-        isinstance(support_pin_indices, list)
-        and len(support_pin_indices) == 12
-        and all(
-            isinstance(index, int) and not isinstance(index, bool) and index >= 0
-            for index in support_pin_indices
-        )
-        and len(set(support_pin_indices)) == 12,
-        "shirt support-pin inventory must contain twelve unique particle indices",
+        isinstance(support_pin_indices, list) and len(support_pin_indices) == 0,
+        "shirt must not contain artificial support pins",
     )
     _require(
-        support_pins.get("count") == len(support_pin_indices),
-        "shirt support-pin count disagrees with its index inventory",
+        support_pins.get("count") == 0,
+        "shirt support-pin count must be zero",
     )
     waistband_support_pins = outfit.get("waistband_support_pins")
     _require(
@@ -438,13 +436,13 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     waistband_pin_indices = waistband_support_pins.get("particle_indices")
     _require(
         isinstance(waistband_pin_indices, list)
-        and len(waistband_pin_indices) == 12
+        and len(waistband_pin_indices) == 4
         and all(
             isinstance(index, int) and not isinstance(index, bool) and index >= 0
             for index in waistband_pin_indices
         )
-        and len(set(waistband_pin_indices)) == 12,
-        "waistband support-pin inventory must contain twelve unique particle indices",
+        and len(set(waistband_pin_indices)) == 4,
+        "waistband support-pin inventory must contain four unique particle indices",
     )
     _require(
         waistband_support_pins.get("count") == len(waistband_pin_indices),
@@ -472,7 +470,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         checkpoint_map[step] = raw_checkpoint
     _require(
         tuple(sorted(checkpoint_map)) == EXPECTED_CHECKPOINTS,
-        "required garment checkpoints are steps 1, 15 and 60",
+        "required garment checkpoints are steps 1, 30 and 120",
     )
 
     scene_map = manifest["scene_map"]
@@ -501,15 +499,15 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         )
         _require(
             checkpoint.get("support_pin_count") == total_support_pin_count,
-            "checkpoint must retain all twenty-four garment support pins at step %d" % step,
+            "checkpoint must retain all four waistband support pins at step %d" % step,
         )
         _require(
             checkpoint.get("shirt_support_pin_count") == len(support_pin_indices),
-            "checkpoint must retain all twelve shirt support pins at step %d" % step,
+            "checkpoint must keep the shirt unpinned at step %d" % step,
         )
         _require(
             checkpoint.get("waistband_support_pin_count") == len(waistband_pin_indices),
-            "checkpoint must retain all twelve waistband support pins at step %d" % step,
+            "checkpoint must retain all four waistband support pins at step %d" % step,
         )
         _require(
             _number(checkpoint, "maximum_support_pin_drift_mm") <= 1e-6,
@@ -632,7 +630,12 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
     _require(
         persistence.get("support_pins_preserved") is True,
-        "shirt support pins were not preserved after save/reload",
+        "support-pin configuration was not preserved after save/reload",
+    )
+
+    _require(
+        persistence.get("shirt_unpinned_after_reload") is True,
+        "shirt was not verified unpinned after save/reload",
     )
     _require(
         persistence.get("waistband_support_pins_preserved") is True,
