@@ -1121,122 +1121,83 @@ def run_acceptance() -> None:
             for side in ("front", "right", "back", "left")
         ]
 
-        # Keep the shell envelope on the torso: a full-height X bound also
-        # captures the mannequin's outstretched hands and turns the shirt into a
-        # metre-wide box. Measure separate shoulder/chest and hem cross-sections
-        # in the same FreeCAD world frame as the collision surface.
+        # Use the same shaped front/back torso patterns as the canonical tunic
+        # audit instead of a four-sided rectangular tube. The open neckline and
+        # armholes are retained as authored Sketcher arcs and semantic edges.
         shirt_bottom_z = hip_z - 85.0
-        shirt_top_z = shoulder_z + 35.0
-        shirt_top_samples = [
-            vertex
-            for vertex in body_surface.vertices
-            if shoulder_z - 55.0 <= float(vertex[2]) <= shoulder_z + 30.0
-            and abs(float(vertex[0]) - center_x) <= torso_x_limit
-        ]
-        shirt_hem_samples = [
-            vertex
-            for vertex in body_surface.vertices
-            if shirt_bottom_z - 35.0 <= float(vertex[2]) <= shirt_bottom_z + 35.0
-            and abs(float(vertex[0]) - center_x) <= torso_x_limit
-        ]
-        if len(shirt_top_samples) < 50 or len(shirt_hem_samples) < 50:
-            raise RuntimeError(
-                "authoritative torso surface has insufficient shoulder or shirt-hem samples"
-            )
-
-        shirt_top_radius_x = (
-            max(
-                0.5 * shoulder_width,
-                max(abs(float(vertex[0]) - center_x) for vertex in shirt_top_samples),
-            )
-            + 28.0
+        shirt_panel_width = max(420.0, shoulder_width + 105.0) * 1.10
+        shirt_hem_width = max(500.0, shirt_panel_width + 100.0)
+        shirt_garment_height = max(
+            560.0,
+            (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
         )
-        measured_shirt_hem_radius_x = (
-            max(
-                0.5 * shoulder_width,
-                max(abs(float(vertex[0]) - center_x) for vertex in shirt_hem_samples),
-            )
-            + 28.0
-        )
-        shirt_top_radius_y = (
-            0.5
-            * (
-                max(float(vertex[1]) for vertex in shirt_top_samples)
-                - min(float(vertex[1]) for vertex in shirt_top_samples)
-            )
-            + 28.0
-        )
-        measured_shirt_hem_radius_y = (
-            0.5
-            * (
-                max(float(vertex[1]) for vertex in shirt_hem_samples)
-                - min(float(vertex[1]) for vertex in shirt_hem_samples)
-            )
-            + 28.0
-        )
-        shirt_top_center_y = 0.5 * (
-            min(float(vertex[1]) for vertex in shirt_top_samples)
-            + max(float(vertex[1]) for vertex in shirt_top_samples)
-        )
-        shirt_hem_center_y = 0.5 * (
-            min(float(vertex[1]) for vertex in shirt_hem_samples)
-            + max(float(vertex[1]) for vertex in shirt_hem_samples)
-        )
-        # Keep the source garment shells nested at every shared height. The
-        # shirt hem overlaps the upper skirt by 45 mm and the waistband by
-        # 100 mm; using only the body-fitted radius made both side panels
-        # co-planar at x=+/-248 mm. Start the shirt 6 mm outside the skirt's
-        # interpolated envelope so the 8 mm contact projector has a measurable
-        # clearance deficit to resolve without opposing coincident surfaces.
-        skirt_fraction_at_shirt_hem = (shirt_bottom_z - skirt_bottom_z) / skirt_height
-        skirt_hem_radius_x = radius_x + SKIRT_HEM_FLARE_MM * (1.0 - skirt_fraction_at_shirt_hem)
-        skirt_hem_radius_y = radius_y + SKIRT_HEM_FLARE_MM * (1.0 - skirt_fraction_at_shirt_hem)
-        shirt_hem_radius_x = max(
-            measured_shirt_hem_radius_x,
-            skirt_hem_radius_x + SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
-        )
-        shirt_hem_radius_y = max(
-            measured_shirt_hem_radius_y,
-            skirt_hem_radius_y + SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
-        )
-        measured_shirt_center_y = 0.5 * (shirt_top_center_y + shirt_hem_center_y)
-        # The shirt's skirt overlap and waistband must share the skirt's measured
-        # centre; a body-derived average centre displaced the side boundaries.
-        shirt_center_y = center_y
-        _log(
-            "shirt-torso-envelope x_limit_mm=%.3f top_samples=%d hem_samples=%d "
-            "top_radii_mm=(%.3f,%.3f) measured_hem_radii_mm=(%.3f,%.3f) "
-            "layered_hem_radii_mm=(%.3f,%.3f) center_y_mm=%.3f measured_body_center_y_mm=%.3f "
-            "initial_layer_gap_mm=%.3f"
-            % (
-                torso_x_limit,
-                len(shirt_top_samples),
-                len(shirt_hem_samples),
-                shirt_top_radius_x,
-                shirt_top_radius_y,
-                measured_shirt_hem_radius_x,
-                measured_shirt_hem_radius_y,
-                shirt_hem_radius_x,
-                shirt_hem_radius_y,
-                shirt_center_y,
-                measured_shirt_center_y,
-                SHIRT_SKIRT_INITIAL_CONTACT_GAP_MM,
-            )
-        )
-        shirt = _make_ring(
+        torso_front_y = min(float(vertex[1]) for vertex in body_depth_samples)
+        torso_back_y = max(float(vertex[1]) for vertex in body_depth_samples)
+        torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
+        shirt_clearance = max(20.0, 0.08 * torso_depth)
+        shirt_rotation = rotation_front
+        shirt_front = _make_tunic_piece(
             doc,
-            "Shirt",
-            shirt_hem_radius_x,
-            shirt_hem_radius_y,
-            shirt_bottom_z,
-            shirt_top_z - shirt_bottom_z,
-            *rotations,
-            center_x,
-            shirt_center_y,
-            top_radius_x_mm=shirt_top_radius_x,
-            top_radius_y_mm=shirt_top_radius_y,
+            "Shirt-Front",
+            App.Placement(
+                App.Vector(
+                    center_x - shirt_hem_width / 2.0,
+                    torso_front_y - shirt_clearance,
+                    shirt_bottom_z,
+                ),
+                shirt_rotation,
+            ),
+            shirt_panel_width,
+            shirt_garment_height,
+            shirt_hem_width,
         )
-        shirt_seams = _sew_ring(doc, "Shirt", shirt)
+        shirt_back = _make_tunic_piece(
+            doc,
+            "Shirt-Back",
+            App.Placement(
+                App.Vector(
+                    center_x - shirt_hem_width / 2.0,
+                    torso_back_y + shirt_clearance,
+                    shirt_bottom_z,
+                ),
+                shirt_rotation,
+            ),
+            shirt_panel_width,
+            shirt_garment_height,
+            shirt_hem_width,
+        )
+        shirt = {"front": shirt_front, "back": shirt_back}
+        shirt_seams = [
+            _add_seam(
+                doc, shirt_front, 1, shirt_back, 1, "Shirt-Right-Side",
+                reversed_b=False, stitch_group="shirt",
+            ),
+            _add_seam(
+                doc, shirt_front, 3, shirt_back, 3, "Shirt-Right-Shoulder",
+                reversed_b=False, stitch_group="shirt",
+            ),
+            _add_seam(
+                doc, shirt_front, 5, shirt_back, 5, "Shirt-Left-Shoulder",
+                reversed_b=False, stitch_group="shirt",
+            ),
+            _add_seam(
+                doc, shirt_front, 7, shirt_back, 7, "Shirt-Left-Side",
+                reversed_b=False, stitch_group="shirt",
+            ),
+        ]
+        _log(
+            "shaped-shirt-pattern panel_width_mm=%.3f hem_width_mm=%.3f "
+            "garment_height_mm=%.3f front_y_mm=%.3f back_y_mm=%.3f "
+            "clearance_mm=%.3f open_armholes=2"
+            % (
+                shirt_panel_width,
+                shirt_hem_width,
+                shirt_garment_height,
+                torso_front_y - shirt_clearance,
+                torso_back_y + shirt_clearance,
+                shirt_clearance,
+            )
+        )
         doc.recompute()
 
         from freecad_cloth.simulation.DrapeTarget import create_drape_target
@@ -1249,7 +1210,7 @@ def run_acceptance() -> None:
         scene.Proxy = QualitySimulationProxy()
 
         pieces = (
-            [shirt[side] for side in ("front", "right", "back", "left")]
+            [shirt[side] for side in ("front", "back")]
             + [skirt[side] for side in ("front", "right", "back", "left")]
             + [waistband[side] for side in ("front", "right", "back", "left")]
         )
@@ -1258,7 +1219,7 @@ def run_acceptance() -> None:
             raise RuntimeError("outfit fixture must contain twelve distinct native PatternPieces")
         scene.ClothPieces = pieces
         scene.GarmentGroups = (
-            ["shirt|" + str(shirt[side].PieceId) for side in ("front", "right", "back", "left")]
+            ["shirt|" + str(shirt[side].PieceId) for side in ("front", "back")]
             + ["skirt|" + str(skirt[side].PieceId) for side in ("front", "right", "back", "left")]
             + [
                 "skirt|" + str(waistband[side].PieceId)
@@ -1762,9 +1723,7 @@ def run_acceptance() -> None:
         saved_garment_group_records = [
             {
                 "id": "shirt",
-                "piece_ids": [
-                    str(shirt[side].PieceId) for side in ("front", "right", "back", "left")
-                ],
+                "piece_ids": [str(shirt[side].PieceId) for side in ("front", "back")],
                 "independent_of": ["skirt"],
             },
             {
@@ -1944,7 +1903,7 @@ def run_acceptance() -> None:
                 },
             },
             "outfit": {
-                "description": "Longline shirt shell overlapping a flared A-line skirt and separate waistband; twelve panels in two independent groups",
+                "description": "Shaped front/back tunic panels with open neckline and armholes, layered over a flared four-panel skirt and four-panel waistband; ten panels in two independent groups",
                 "piece_count": len(scene.ClothPieces),
                 "seam_count": len(reloaded_base.seam_stitch_pairs),
                 "garment_group_count": len({entry.split("|", 1)[0] for entry in saved_groups}),
