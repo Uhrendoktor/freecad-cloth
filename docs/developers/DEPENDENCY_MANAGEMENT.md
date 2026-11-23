@@ -16,7 +16,7 @@ A green dependency-update check does not authorize changes to lint scope, type-c
 
 ## Current maintained toolchain pins
 
-The following versions are the repository's declared baseline on 6 November 2026. The exact dependency declarations remain authoritative in `pyproject.toml` and the immutable action references in `.github/workflows/`.
+The following versions are the repository's declared baseline on 23 November 2026. The exact dependency declarations remain authoritative in `pyproject.toml` and the immutable action references in `.github/workflows/`.
 
 | Component | Declared version or range | Source |
 | --- | --- | --- |
@@ -27,6 +27,7 @@ The following versions are the repository's declared baseline on 6 November 2026
 | ty | `0.0.91` | `pyproject.toml` |
 | Pillow | `>=11,<14` | `pyproject.toml` |
 | actions/setup-python | `7.1.0` | Immutable workflow action reference |
-| jscpd | `5.4.2` | Immutable workflow action reference |
+| jscpd | `5.4.3` | Immutable workflow action reference |
+| actions/upload-artifact | `7.0.2` | Immutable workflow action reference |
 
 Update this table in the same reviewed change as any corresponding declaration or action pin. It is a human-readable index, not an alternative dependency lockfile.
