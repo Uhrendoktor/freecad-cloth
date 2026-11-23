@@ -1405,7 +1405,9 @@ def run_acceptance() -> None:
         base = scene.Proxy._base_or_restore()
         backend = base.backend
         if backend is None:
-            raise RuntimeError("waistband support-pin rebuild did not initialize the solver backend")
+            raise RuntimeError(
+                "waistband support-pin rebuild did not initialize the solver backend"
+            )
         if set(backend._pin_indices) != support_pin_indices:
             raise RuntimeError("native PBD did not register the four waistband support pins")
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
@@ -1896,7 +1898,11 @@ def run_acceptance() -> None:
                 },
             },
             "outfit": {
-                "description": "Shaped front/back tunic panels with open neckline and armholes, layered over a flared four-panel skirt and four-panel waistband; ten panels in two independent groups",
+                "description": (
+                    "Shaped front/back tunic panels with open neckline and armholes, layered "
+                    "over a flared four-panel skirt and four-panel waistband; ten panels in "
+                    "two independent groups"
+                ),
                 "piece_count": len(scene.ClothPieces),
                 "seam_count": len(reloaded_base.seam_stitch_pairs),
                 "garment_group_count": len({entry.split("|", 1)[0] for entry in saved_groups}),
@@ -1939,7 +1945,11 @@ def run_acceptance() -> None:
                     "garment_group_b": "skirt",
                     "minimum_requested_clearance_mm": float(scene.InterClothClearance),
                     "measurement_method": "two-sided edge-to-triangle position projection",
-                    "metric_semantics": "positive residual value is the requested clearance deficit (requested gap minus closest sampled edge/triangle distance), not signed volumetric intersection depth",
+                    "metric_semantics": (
+                        "positive residual value is the requested clearance deficit "
+                        "(requested gap minus closest sampled edge/triangle distance), "
+                        "not signed volumetric intersection depth"
+                    ),
                 },
             },
             "checkpoints": checkpoints,
