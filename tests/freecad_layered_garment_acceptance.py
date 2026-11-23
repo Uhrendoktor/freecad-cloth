@@ -996,7 +996,6 @@ def run_acceptance() -> None:
             )
             + 28.0
         )
-        radius_x = max(150.0, radius_x)
         radius_y = max(100.0, radius_y)
 
         hip_x_extreme = max(
@@ -1135,8 +1134,16 @@ def run_acceptance() -> None:
             560.0,
             (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
         )
-        torso_front_y = min(float(vertex[1]) for vertex in body_depth_samples)
-        torso_back_y = max(float(vertex[1]) for vertex in body_depth_samples)
+        shirt_torso_depth_samples = [
+            vertex
+            for vertex in body_surface.vertices
+            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
+            and abs(float(vertex[0]) - center_x) <= max(80.0, 0.30 * shoulder_width)
+        ]
+        if len(shirt_torso_depth_samples) < 50:
+            raise RuntimeError("mannequin has insufficient central torso depth samples")
+        torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
+        torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
         shirt_clearance = max(20.0, 0.08 * torso_depth)
         shirt_rotation = rotation_front
@@ -1192,7 +1199,7 @@ def run_acceptance() -> None:
         _log(
             "shaped-shirt-pattern panel_width_mm=%.3f hem_width_mm=%.3f "
             "garment_height_mm=%.3f front_y_mm=%.3f back_y_mm=%.3f "
-            "clearance_mm=%.3f open_armholes=2"
+            "clearance_mm=%.3f torso_depth_samples=%d open_armholes=2"
             % (
                 shirt_panel_width,
                 shirt_hem_width,
@@ -1200,6 +1207,7 @@ def run_acceptance() -> None:
                 torso_front_y - shirt_clearance,
                 torso_back_y + shirt_clearance,
                 shirt_clearance,
+                len(shirt_torso_depth_samples),
             )
         )
         doc.recompute()
