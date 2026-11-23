@@ -146,16 +146,23 @@ def select_landmark_supports(
     for panel_name, authored_chain in candidate_chains.items():
         chain = tuple(authored_chain)
         if not chain or len(chain) != len(set(chain)):
-            raise ValueError("support boundary is empty or contains duplicate particles: " + panel_name)
+            raise ValueError(
+                "support boundary is empty or contains duplicate particles: " + panel_name
+            )
         if any(
-            isinstance(index, bool) or not isinstance(index, int) or index < 0 or index >= len(positions)
+            isinstance(index, bool)
+            or not isinstance(index, int)
+            or index < 0
+            or index >= len(positions)
             for index in chain
         ):
             raise ValueError("support boundary contains an invalid particle index: " + panel_name)
 
         target = tuple(float(value) for value in targets_by_chain[panel_name])
         if len(target) != 3 or not all(isfinite(value) for value in target):
-            raise ValueError("support target must contain three finite world coordinates: " + panel_name)
+            raise ValueError(
+                "support target must contain three finite world coordinates: " + panel_name
+            )
 
         eligible: list[int] = []
         for index in chain:
