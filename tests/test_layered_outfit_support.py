@@ -69,6 +69,7 @@ def test_landmark_supports_choose_nearest_bounded_exterior_particle() -> None:
     )
     exterior = dict.fromkeys(range(6), True)
     exterior[0] = False
+    exterior[3] = False
     clearance = {0: 20.0, 1: 28.0, 2: 85.0, 3: 30.0, 4: 25.0, 5: 90.0}
 
     selected = select_landmark_supports(
@@ -92,7 +93,7 @@ def test_landmark_supports_reject_targets_without_nearby_safe_particles() -> Non
             {"waist-front": (0.0, 0.0, 100.0)},
             ((0.0, 0.0, 100.0), (0.0, 80.0, 100.0)),
             {0: True, 1: True},
-            {0: 5.0, 1: 80.0},
+            {0: 4.0, 1: 80.0},
             minimum_clearance_mm=5.0,
             maximum_clearance_mm=45.0,
         )
