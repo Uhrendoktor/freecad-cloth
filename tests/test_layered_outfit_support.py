@@ -3,7 +3,7 @@
 
 import pytest
 
-from tests.support.layered_outfit_support import select_top_boundary_supports
+from tests.support.layered_outfit_support import (\n    select_landmark_supports,\n    select_top_boundary_supports,\n)
 
 
 def test_support_selection_skips_interior_and_too_close_particles() -> None:
@@ -52,3 +52,59 @@ def test_support_selection_rejects_particles_shared_by_panel_boundaries() -> Non
             dict.fromkeys(range(1, 6), 6.0),
             minimum_clearance_mm=5.0,
         )
+
+def test_landmark_supports_choose_nearest_bounded_exterior_particle() -> None:
+    """Choose one support near each anatomical target and reject excessive stand-off."""
+    chains = {"left_shoulder": (0, 1, 2), "right_shoulder": (3, 4, 5)}
+    positions = (
+        (-100.0, 0.0, 150.0),
+        (-100.0, 28.0, 150.0),
+        (-100.0, 85.0, 150.0),
+        (100.0, 0.0, 150.0),
+        (100.0, -25.0, 150.0),
+        (100.0, -90.0, 150.0),
+    )
+    exterior = dict.fromkeys(range(6), True)
+    exterior[0] = False
+    clearance = {0: 20.0, 1: 28.0, 2: 85.0, 3: 30.0, 4: 25.0, 5: 90.0}
+
+    selected = select_landmark_supports(
+        chains,
+        {"left_shoulder": (-100.0, 0.0, 150.0), "right_shoulder": (100.0, 0.0, 150.0)},
+        positions,
+        exterior,
+        clearance,
+        minimum_clearance_mm=5.0,
+        maximum_clearance_mm=40.0,
+    )
+
+    assert selected == {"left_shoulder": 1, "right_shoulder": 4}
+
+
+def test_landmark_supports_reject_targets_without_nearby_safe_particles() -> None:
+    """A distant edge point must not be accepted merely because it is outside the body."""
+    with pytest.raises(ValueError, match="no exterior particle within"):
+        select_landmark_supports(
+            {"waist-front": (0, 1)},
+            {"waist-front": (0.0, 0.0, 100.0)},
+            ((0.0, 0.0, 100.0), (0.0, 80.0, 100.0)),
+            {0: True, 1: True},
+            {0: 5.0, 1: 80.0},
+            minimum_clearance_mm=5.0,
+            maximum_clearance_mm=45.0,
+        )
+
+
+def test_landmark_supports_reject_particle_reused_by_two_targets() -> None:
+    """One native particle cannot be registered as two distinct body supports."""
+    with pytest.raises(ValueError, match="reused by multiple anatomical targets"):
+        select_landmark_supports(
+            {"waist-front": (0,), "waist-back": (0,)},
+            {"waist-front": (0.0, 0.0, 100.0), "waist-back": (0.0, 0.0, 100.0)},
+            ((0.0, 0.0, 100.0),),
+            {0: True},
+            {0: 10.0},
+            minimum_clearance_mm=5.0,
+            maximum_clearance_mm=45.0,
+        )
+
