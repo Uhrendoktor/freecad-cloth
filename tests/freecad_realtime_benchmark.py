@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import contextlib
+import gc
 import json
 import math
 import os
@@ -12,7 +13,7 @@ import runpy
 import sys
 import time
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, cast
+from typing import TYPE_CHECKING, Protocol, TypedDict, cast
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -22,8 +23,67 @@ if TYPE_CHECKING:
 
     import numpy as np
     import numpy.typing as npt
+    import Part
+    import Sketcher
 
+    from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
     from freecad_cloth.simulation.MeshCollisionProjector import MeshCollisionProjector
+    from freecad_cloth.simulation.PatternSimulationAdapter import (
+        _NativePlacement,
+        _PatternPieceFeature,
+        _SeamFeature,
+    )
+    from freecad_cloth.simulation.simulation_protocols import SimulationDocument
+
+    class _RealtimeSimulationScene(Protocol):
+        """Persisted scene fields needed to build and measure the outfit preview fixture."""
+
+        DrapeTarget: FreeCADDocumentObjectProtocol | None
+        PinMode: str
+        PinSelection: list[str]
+        ClothPieces: Sequence[_PatternPieceFeature]
+        StartHeight: float
+        TimeStep: float
+
+
+class _GarmentFixtureMetrics(TypedDict):
+    """Expected authored panel/seam inventory for one independently sewn garment."""
+
+    panel_count: int
+    seam_count: int
+
+
+class _OutfitFixtureMetrics(TypedDict):
+    """Deterministic outfit size metadata returned by the authored preview fixture."""
+
+    garment_count: int
+    panel_count: int
+    seam_count: int
+    garments: dict[str, _GarmentFixtureMetrics]
+
+
+class _SketcherViewObjectProtocol(Protocol):
+    """Expose the visibility property used to hide an authored source sketch."""
+
+    Visibility: bool
+
+
+class _SketcherDocumentObjectProtocol(Protocol):
+    """Expose the native sketch placement and view object."""
+
+    Placement: _NativePlacement
+    ViewObject: _SketcherViewObjectProtocol
+
+
+class _SketcherFeatureProtocol(_SketcherDocumentObjectProtocol, Protocol):
+    """Expose the Sketcher methods used by the deterministic fixture builder."""
+
+    def addGeometry(
+        self, geometry: Sequence[Part.Geometry], construction: bool
+    ) -> int | list[int]: ...
+
+    def addConstraint(self, constraints: Sequence[Sketcher.Constraint]) -> int | list[int]: ...
+
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -34,9 +94,24 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 TARGET_FPS = 60.0
 FRAME_BUDGET_MS = 1000.0 / TARGET_FPS
+FIXTURE_NAME = os.environ.get("CLOTH_REALTIME_FIXTURE", "two-panel-tunic-pattern")
 FRAMES = int(os.environ.get("CLOTH_REALTIME_FRAMES", "120"))
 WARMUP_FRAMES = int(os.environ.get("CLOTH_REALTIME_WARMUP_FRAMES", "30"))
 TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
+DISABLE_GC_DURING_MEASUREMENT = os.environ.get(
+    "CLOTH_REALTIME_DISABLE_GC_DURING_MEASUREMENT", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+GIL_SWITCH_INTERVAL_RAW = os.environ.get(
+    "CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS", ""
+).strip()
+GIL_SWITCH_INTERVAL_SECONDS = (
+    float(GIL_SWITCH_INTERVAL_RAW) if GIL_SWITCH_INTERVAL_RAW else None
+)
+if GIL_SWITCH_INTERVAL_SECONDS is not None and (
+    not math.isfinite(GIL_SWITCH_INTERVAL_SECONDS) or GIL_SWITCH_INTERVAL_SECONDS <= 0.0
+):
+    msg = "CLOTH_REALTIME_GIL_SWITCH_INTERVAL_SECONDS must be positive and finite"
+    raise ValueError(msg)
 
 
 type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
@@ -56,31 +131,295 @@ type _StitchedPairsCallable = Callable[
 ]
 
 
-def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
-    """Build two authored, sewn tunic panels so preview timing covers garment-scale meshes."""
+def _make_pattern_piece_from_outline(
+    doc: SimulationDocument,
+    name: str,
+    outline: tuple[tuple[float, float], ...],
+    position: tuple[float, float, float],
+) -> _PatternPieceFeature:
+    """Create one authored FreeCAD PatternPiece from an ordered planar outline."""
     import Part
     import Sketcher
 
     from freecad_cloth.pattern.PatternCommands import create_pattern_piece_from_selected_sketch
-    from freecad_cloth.pattern.PatternModel import Seam
-    from freecad_cloth.pattern.PatternObjects import add_seam
 
+    sketch = cast(
+        "_SketcherFeatureProtocol",
+        doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch"),
+    )
+    sketch.addGeometry(
+        [
+            Part.LineSegment(
+                App.Vector(outline[index][0], outline[index][1], 0.0),
+                App.Vector(
+                    outline[(index + 1) % len(outline)][0],
+                    outline[(index + 1) % len(outline)][1],
+                    0.0,
+                ),
+            )
+            for index in range(len(outline))
+        ],
+        False,
+    )
+    sketch.addConstraint(
+        [
+            Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(outline), 1)
+            for index in range(len(outline))
+        ]
+    )
+    doc.recompute()
+    Gui.Selection.clearSelection()
+    Gui.Selection.addSelection(sketch)
+    piece = cast(
+        "_PatternPieceFeature",
+        create_pattern_piece_from_selected_sketch(
+            name=name,
+            allowance=10.0,
+            grainline=0.0,
+        ),
+    )
+    piece.Label = name
+    piece.Placement = App.Placement(
+        App.Vector(position[0], position[1], position[2]),
+        App.Rotation(App.Vector(1, 0, 0), 90.0),
+    )
+    sketch_feature = cast("_SketcherDocumentObjectProtocol | None", piece.Sketch)
+    if sketch_feature is not None:
+        sketch_feature.Placement = piece.Placement
+        sketch_feature.ViewObject.Visibility = False
+    return piece
+
+
+def _avatar_preview_dimensions(
+    scene: _RealtimeSimulationScene,
+) -> tuple[float, float, float, float, float, float]:
+    """Return avatar width, depth, height, center coordinates, and base height."""
     avatar = getattr(getattr(scene, "DrapeTarget", None), "SourceObject", None)
     if avatar is None or not hasattr(avatar, "Mesh"):
         msg = "Realtime preview fixture requires the production avatar mesh"
         raise RuntimeError(msg)
     bounds = avatar.Mesh.BoundBox
-    body_width = float(bounds.XMax - bounds.XMin)
-    body_depth = float(bounds.YMax - bounds.YMin)
-    body_height = float(bounds.ZMax - bounds.ZMin)
+    return (
+        float(bounds.XMax - bounds.XMin),
+        float(bounds.YMax - bounds.YMin),
+        float(bounds.ZMax - bounds.ZMin),
+        0.5 * (float(bounds.XMin) + float(bounds.XMax)),
+        0.5 * (float(bounds.YMin) + float(bounds.YMax)),
+        float(bounds.ZMin),
+    )
+
+
+def _add_outfit_preview_fixture(
+    doc: SimulationDocument, scene: _RealtimeSimulationScene
+) -> _OutfitFixtureMetrics:
+    """Build a three-garment, ten-panel outfit with garment-local sewn seams."""
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+
+    body_width, body_depth, body_height, center_x, center_y, z_min = _avatar_preview_dimensions(
+        scene
+    )
+    clearance = max(60.0, 0.75 * body_depth)
+
+    def make_piece(
+        name: str, outline: tuple[tuple[float, float], ...], x: float, y: float, z: float
+    ) -> _PatternPieceFeature:
+        return _make_pattern_piece_from_outline(doc, name, outline, (x, y, z))
+
+    seams: list[_SeamFeature] = []
+
+    def sew(
+        piece_a: _PatternPieceFeature,
+        edge_a: int,
+        piece_b: _PatternPieceFeature,
+        edge_b: int,
+        seam_id: str,
+        garment: str,
+    ) -> None:
+        seam = cast(
+            "_SeamFeature",
+            add_seam(
+                doc,
+                Seam(
+                    str(piece_a.PieceId),
+                    edge_a,
+                    str(piece_b.PieceId),
+                    edge_b,
+                    id=seam_id,
+                    alignment="uniform",
+                    stitch_group=f"Realtime{garment}",
+                ),
+            ),
+        )
+        seams.append(seam)
+
+    # T-shirt: front/back bodice plus two sleeves. The four body seams and four
+    # armhole seams stay within this garment's PatternPiece set.
+    tshirt_width = max(420.0, body_width + 100.0)
+    tshirt_hem_width = tshirt_width + 80.0
+    tshirt_height = max(600.0, body_height * 0.40)
+    tshirt_z = z_min + body_height * 0.28
+    neckline_z = 0.90 * tshirt_height
+    tshirt_outline = (
+        (0.0, 0.0),
+        (tshirt_hem_width, 0.0),
+        (tshirt_width, 0.82 * tshirt_height),
+        (0.86 * tshirt_width, 0.97 * tshirt_height),
+        (0.64 * tshirt_width, neckline_z),
+        (0.36 * tshirt_width, neckline_z),
+        (0.14 * tshirt_width, 0.97 * tshirt_height),
+        (0.0, 0.82 * tshirt_height),
+    )
+    tshirt_x = center_x - tshirt_hem_width / 2.0
+    tshirt_front = make_piece(
+        "RealtimeTShirtFront", tshirt_outline, tshirt_x, center_y - clearance, tshirt_z
+    )
+    tshirt_back = make_piece(
+        "RealtimeTShirtBack", tshirt_outline, tshirt_x, center_y + clearance, tshirt_z
+    )
+    armhole_length = math.hypot(0.14 * tshirt_width, 0.15 * tshirt_height)
+    sleeve_depth = max(220.0, body_depth * 1.5)
+    sleeve_outline = (
+        (0.0, 0.0),
+        (armhole_length, 0.0),
+        (armhole_length, sleeve_depth),
+        (0.0, sleeve_depth),
+    )
+    sleeve_z = tshirt_z + 0.72 * tshirt_height
+    sleeve_left = make_piece(
+        "RealtimeTShirtSleeveLeft",
+        sleeve_outline,
+        center_x - tshirt_width / 2.0 - armhole_length,
+        center_y,
+        sleeve_z,
+    )
+    sleeve_right = make_piece(
+        "RealtimeTShirtSleeveRight",
+        sleeve_outline,
+        center_x + tshirt_width / 2.0,
+        center_y,
+        sleeve_z,
+    )
+    for edge_a, edge_b, seam_name in (
+        (1, 1, "TShirtRightSide"),
+        (3, 3, "TShirtRightShoulder"),
+        (5, 5, "TShirtLeftShoulder"),
+        (7, 7, "TShirtLeftSide"),
+    ):
+        sew(tshirt_front, edge_a, tshirt_back, edge_b, seam_name, "TShirt")
+    sew(tshirt_front, 2, sleeve_right, 0, "TShirtRightFrontArmhole", "TShirt")
+    sew(tshirt_back, 6, sleeve_right, 2, "TShirtRightBackArmhole", "TShirt")
+    sew(tshirt_front, 6, sleeve_left, 0, "TShirtLeftFrontArmhole", "TShirt")
+    sew(tshirt_back, 2, sleeve_left, 2, "TShirtLeftBackArmhole", "TShirt")
+
+    # Trousers: front/back panels for both legs. Side/inseam seams close each
+    # leg tube; the matching front and back crotch edges join the two legs.
+    leg_width = max(180.0, body_width * 0.42)
+    leg_height = max(620.0, body_height * 0.45)
+    leg_outline = (
+        (0.0, 0.0),
+        (leg_width, 0.0),
+        (0.84 * leg_width, 0.54 * leg_height),
+        (0.72 * leg_width, leg_height),
+        (0.0, leg_height),
+    )
+    leg_z = z_min + body_height * 0.06
+    left_x = center_x - leg_width * 0.92
+    right_x = center_x + leg_width * 0.08
+    trousers_front_left = make_piece(
+        "RealtimeTrousersFrontLeft", leg_outline, left_x, center_y - clearance, leg_z
+    )
+    trousers_back_left = make_piece(
+        "RealtimeTrousersBackLeft", leg_outline, left_x, center_y + clearance, leg_z
+    )
+    trousers_front_right = make_piece(
+        "RealtimeTrousersFrontRight", leg_outline, right_x, center_y - clearance, leg_z
+    )
+    trousers_back_right = make_piece(
+        "RealtimeTrousersBackRight", leg_outline, right_x, center_y + clearance, leg_z
+    )
+    for front, back, leg in (
+        (trousers_front_left, trousers_back_left, "Left"),
+        (trousers_front_right, trousers_back_right, "Right"),
+    ):
+        sew(front, 1, back, 1, f"Trousers{leg}Inseam", "Trousers")
+        sew(front, 4, back, 4, f"Trousers{leg}Outseam", "Trousers")
+    sew(trousers_front_left, 3, trousers_front_right, 3, "TrousersFrontCrotch", "Trousers")
+    sew(trousers_back_left, 3, trousers_back_right, 3, "TrousersBackCrotch", "Trousers")
+
+    # Hat: two shaped crown halves joined along their four matching crown edges,
+    # leaving the lower opening free.
+    hat_width = max(220.0, body_width * 0.48)
+    hat_height = max(150.0, body_height * 0.13)
+    hat_outline = (
+        (0.0, 0.0),
+        (hat_width, 0.0),
+        (0.86 * hat_width, 0.52 * hat_height),
+        (0.50 * hat_width, hat_height),
+        (0.14 * hat_width, 0.52 * hat_height),
+    )
+    hat_x = center_x - hat_width / 2.0
+    hat_z = z_min + body_height * 0.82
+    hat_front = make_piece("RealtimeHatFront", hat_outline, hat_x, center_y - clearance, hat_z)
+    hat_back = make_piece("RealtimeHatBack", hat_outline, hat_x, center_y + clearance, hat_z)
+    for edge in (1, 2, 3, 4):
+        sew(hat_front, edge, hat_back, edge, f"HatCrownPanel{edge}", "Hat")
+
+    doc.recompute()
+    invalid_seams = [
+        str(getattr(seam, "SeamId", "unknown"))
+        for seam in seams
+        if str(getattr(seam, "Status", "")) != "Valid"
+    ]
+    if invalid_seams:
+        msg = f"Realtime outfit fixture has invalid authored seams: {invalid_seams!r}"
+        raise RuntimeError(msg)
+
+    pieces = [
+        tshirt_front,
+        tshirt_back,
+        sleeve_left,
+        sleeve_right,
+        trousers_front_left,
+        trousers_back_left,
+        trousers_front_right,
+        trousers_back_right,
+        hat_front,
+        hat_back,
+    ]
+    Gui.Selection.clearSelection()
+    scene.PinMode = "None"
+    scene.PinSelection = []
+    scene.ClothPieces = pieces
+    scene.StartHeight = 0.0
+    scene.TimeStep = 1.0 / 60.0
+    return {
+        "garment_count": 3,
+        "panel_count": len(pieces),
+        "seam_count": len(seams),
+        "garments": {
+            "tshirt": {"panel_count": 4, "seam_count": 8},
+            "trousers": {"panel_count": 4, "seam_count": 6},
+            "hat": {"panel_count": 2, "seam_count": 4},
+        },
+    }
+
+
+def _add_tunic_preview_fixture(
+    doc: SimulationDocument, scene: _RealtimeSimulationScene
+) -> _OutfitFixtureMetrics:
+    """Build the original two-panel sewn tunic control workload."""
+    from freecad_cloth.pattern.PatternModel import Seam
+    from freecad_cloth.pattern.PatternObjects import add_seam
+
+    body_width, body_depth, body_height, center_x, center_y, z_min = _avatar_preview_dimensions(
+        scene
+    )
     panel_width = max(420.0, body_width + 100.0)
     hem_width = panel_width + 80.0
     garment_height = max(600.0, body_height * 0.40)
-    hem_z = float(bounds.ZMin) + body_height * 0.28
-    center_x = 0.5 * (float(bounds.XMin) + float(bounds.XMax))
-    center_y = 0.5 * (float(bounds.YMin) + float(bounds.YMax))
+    hem_z = z_min + body_height * 0.28
     clearance = max(60.0, 0.75 * body_depth)
-    rotation = App.Rotation(App.Vector(1, 0, 0), 90.0)
     neckline_z = 0.90 * garment_height
     points = (
         (0.0, 0.0),
@@ -93,71 +432,63 @@ def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
         (0.0, 0.82 * garment_height),
     )
 
-    def make_piece(name: str, y: float) -> object:
-        sketch = doc.addObject("Sketcher::SketchObject", f"{name}SourceSketch")
-        sketch.addGeometry(
-            [
-                Part.LineSegment(
-                    App.Vector(points[index][0], points[index][1], 0.0),
-                    App.Vector(
-                        points[(index + 1) % len(points)][0],
-                        points[(index + 1) % len(points)][1],
-                        0.0,
-                    ),
-                )
-                for index in range(len(points))
-            ],
-            False,
-        )
-        sketch.addConstraint(
-            [
-                Sketcher.Constraint("Coincident", index, 2, (index + 1) % len(points), 1)
-                for index in range(len(points))
-            ]
-        )
-        doc.recompute()
-        Gui.Selection.clearSelection()
-        Gui.Selection.addSelection(sketch)
-        piece = create_pattern_piece_from_selected_sketch(
-            name=name,
-            allowance=10.0,
-            grainline=0.0,
-        )
-        piece.Label = name
-        piece.Placement = App.Placement(
-            App.Vector(center_x - hem_width / 2.0, y, hem_z),
-            rotation,
-        )
-        piece.Sketch.Placement = piece.Placement
-        piece.Sketch.ViewObject.Visibility = False
-        return piece
-
-    front = make_piece("RealtimeTunicFront", center_y - clearance)
-    back = make_piece("RealtimeTunicBack", center_y + clearance)
+    front = _make_pattern_piece_from_outline(
+        doc,
+        "RealtimeTunicFront",
+        points,
+        (center_x - hem_width / 2.0, center_y - clearance, hem_z),
+    )
+    back = _make_pattern_piece_from_outline(
+        doc,
+        "RealtimeTunicBack",
+        points,
+        (center_x - hem_width / 2.0, center_y + clearance, hem_z),
+    )
+    seams: list[_SeamFeature] = []
     for edge_a, edge_b, seam_id in (
         (1, 1, "RealtimeRightSide"),
         (3, 3, "RealtimeRightShoulder"),
         (5, 5, "RealtimeLeftShoulder"),
         (7, 7, "RealtimeLeftSide"),
     ):
-        add_seam(
-            doc,
-            Seam(
-                str(front.PieceId),
-                edge_a,
-                str(back.PieceId),
-                edge_b,
-                id=seam_id,
-                alignment="uniform",
-                stitch_group="RealtimePreviewBenchmark",
-            ),
+        seams.append(
+            cast(
+                "_SeamFeature",
+                add_seam(
+                    doc,
+                    Seam(
+                        str(front.PieceId),
+                        edge_a,
+                        str(back.PieceId),
+                        edge_b,
+                        id=seam_id,
+                        alignment="uniform",
+                        stitch_group="RealtimePreviewBenchmark",
+                    ),
+                ),
+            )
         )
+    doc.recompute()
+    invalid_seams = [
+        str(getattr(seam, "SeamId", "unknown"))
+        for seam in seams
+        if str(getattr(seam, "Status", "")) != "Valid"
+    ]
+    if invalid_seams:
+        msg = f"Realtime tunic control has invalid authored seams: {invalid_seams!r}"
+        raise RuntimeError(msg)
     Gui.Selection.clearSelection()
     scene.PinMode = "None"
     scene.PinSelection = []
     scene.ClothPieces = [front, back]
     scene.StartHeight = 0.0
     scene.TimeStep = 1.0 / 60.0
+    return {
+        "garment_count": 1,
+        "panel_count": 2,
+        "seam_count": len(seams),
+        "garments": {"tunic": {"panel_count": 2, "seam_count": len(seams)}},
+    }
 
 
 def _percentile(values: list[float], fraction: float) -> float | None:
@@ -216,6 +547,24 @@ class _TimedGuiDocument:
         return _TimedGuiView(view, self._record_stage)
 
 
+def _read_cgroup_cpu_stat() -> dict[str, int] | None:
+    """Read Linux cgroup CPU counters for a before/after benchmark comparison."""
+    try:
+        lines = Path("/sys/fs/cgroup/cpu.stat").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    counters: dict[str, int] = {}
+    for line in lines:
+        fields = line.split()
+        if len(fields) != 2:
+            continue
+        try:
+            counters[fields[0]] = int(fields[1])
+        except ValueError:
+            continue
+    return counters or None
+
+
 def _timing_summary(values: list[float]) -> dict[str, float | int | None]:
     """Summarize a timing stage without treating missing samples as zero cost."""
     return {
@@ -269,12 +618,28 @@ def main() -> None:
     preview = None
     deadline = None
     patches: list[tuple[object, str, object]] = []
+    gc_callback: Callable[[str, dict[str, int]], None] | None = None
+    gc_disabled_by_benchmark = False
+    gc_restore_needed = False
+    gc_enabled_during_measurement = gc.isenabled()
+    python_gil_switch_interval_before_seconds = sys.getswitchinterval()
+    python_gil_switch_interval_during_measurement_seconds = (
+        python_gil_switch_interval_before_seconds
+    )
+    python_gil_switch_interval_applied_by_benchmark = False
+    python_gil_switch_interval_restore_needed = False
     try:
         init_gui = ROOT / "InitGui.py"
         runpy.run_path(str(init_gui))
         Gui.updateGui()
         scene = create_quality_simulation_scene(doc)
-        _add_tunic_preview_fixture(doc, scene)
+        if FIXTURE_NAME == "two-panel-tunic-pattern":
+            fixture_metadata = _add_tunic_preview_fixture(doc, scene)
+        elif FIXTURE_NAME == "three-garment-outfit":
+            fixture_metadata = _add_outfit_preview_fixture(doc, scene)
+        else:
+            msg = f"Unsupported realtime fixture: {FIXTURE_NAME}"
+            raise ValueError(msg)
         _prepare(scene)
 
         proxy = scene.Proxy
@@ -286,6 +651,8 @@ def main() -> None:
         stage_names = (
             "advance_preview_frame",
             "solver_step",
+            "positions_snapshot",
+            "python_gc_collection",
             "collision_projection_total",
             "mesh_collision_projector",
             "stitched_pair_reconciliation",
@@ -296,12 +663,44 @@ def main() -> None:
             "viewport_redraw",
         )
         stage_timings: dict[str, list[float]] = {name: [] for name in stage_names}
+        frame_stage_timings_ms: dict[str, float] = {}
         tick_count = 0
         in_tick = False
+        gc_start: tuple[float, int] | None = None
+        gc_events: list[dict[str, int | float]] = []
 
         def record_stage(name: str, started_at: float) -> None:
             if in_tick and tick_count > WARMUP_FRAMES:
-                stage_timings[name].append(1000.0 * (time.perf_counter() - started_at))
+                elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
+                stage_timings[name].append(elapsed_ms)
+                frame_stage_timings_ms[name] = frame_stage_timings_ms.get(name, 0.0) + elapsed_ms
+
+        def capture_gc_timing(phase: str, info: dict[str, int]) -> None:
+            nonlocal gc_start
+            if phase == "start":
+                gc_start = (time.perf_counter(), int(info.get("generation", 0)))
+                return
+            if phase != "stop" or gc_start is None:
+                return
+            started_at, generation = gc_start
+            gc_start = None
+            elapsed_ms = 1000.0 * (time.perf_counter() - started_at)
+            gc_events.append(
+                {
+                    "generation": generation,
+                    "duration_ms": elapsed_ms,
+                    "tick_index": tick_count,
+                    "during_measured_frame": bool(in_tick and tick_count > WARMUP_FRAMES),
+                }
+            )
+            if in_tick and tick_count > WARMUP_FRAMES:
+                stage_timings["python_gc_collection"].append(elapsed_ms)
+                frame_stage_timings_ms["python_gc_collection"] = (
+                    frame_stage_timings_ms.get("python_gc_collection", 0.0) + elapsed_ms
+                )
+
+        gc_callback = capture_gc_timing
+        gc.callbacks.append(capture_gc_timing)
 
         from freecad_cloth.sewing import SeamOverlay as seam_overlay
         from freecad_cloth.simulation import MeshCollisionProjector as mesh_collision_projector
@@ -338,6 +737,7 @@ def main() -> None:
 
         original_advance = proxy.advance_preview_frame
         original_publish = proxy._publish_state
+        original_positions_snapshot = backend.positions_and_finite
         original_solver_step = backend.step
         original_collision_projection = backend._project_collision_positions
         original_mesh_project = projector_class.project
@@ -360,6 +760,13 @@ def main() -> None:
                 original_publish(obj, state)
             finally:
                 record_stage("state_publish", started_at)
+
+        def timed_positions_snapshot() -> tuple[tuple[tuple[float, float, float], ...], bool]:
+            started_at = time.perf_counter()
+            try:
+                return original_positions_snapshot()
+            finally:
+                record_stage("positions_snapshot", started_at)
 
         def timed_solver_step(
             dt: float,
@@ -449,6 +856,12 @@ def main() -> None:
         for owner, name, replacement, original in (
             (proxy, "advance_preview_frame", timed_advance, original_advance),
             (proxy, "_publish_state", timed_publish, original_publish),
+            (
+                backend,
+                "positions_and_finite",
+                timed_positions_snapshot,
+                original_positions_snapshot,
+            ),
             (backend, "step", timed_solver_step, original_solver_step),
             (
                 backend,
@@ -487,27 +900,85 @@ def main() -> None:
         last_tick_at: float | None = None
         frame_intervals_ms: list[float] = []
         callback_costs_ms: list[float] = []
+        frame_timing_samples: list[dict[str, int | float | dict[str, float]]] = []
         initial_steps = int(scene.Steps)
         timed_out = False
 
         def timed_tick(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
-            nonlocal in_tick, last_tick_at, native_timing_reset, tick_count
+            nonlocal frame_stage_timings_ms, in_tick, last_tick_at, native_timing_reset, tick_count
+            nonlocal gc_disabled_by_benchmark, gc_enabled_during_measurement, gc_restore_needed
+            nonlocal python_gil_switch_interval_applied_by_benchmark
+            nonlocal python_gil_switch_interval_during_measurement_seconds
+            nonlocal python_gil_switch_interval_restore_needed
             started_at = time.perf_counter()
+            previous_tick_at = last_tick_at
             tick_count += 1
-            if last_tick_at is not None and tick_count > WARMUP_FRAMES:
-                frame_intervals_ms.append(1000.0 * (started_at - last_tick_at))
+            if previous_tick_at is not None and tick_count > WARMUP_FRAMES:
+                frame_intervals_ms.append(1000.0 * (started_at - previous_tick_at))
             last_tick_at = started_at
             if tick_count == WARMUP_FRAMES + 1 and not native_timing_reset:
                 timing_reset()
                 native_timing_reset = True
+            frame_stage_timings_ms = {}
+            pending_pulse_metrics = active_preview.frame_pending_pulse_metrics()
             in_tick = True
             try:
                 active_preview.tick(scheduled_at, emitted_at, dispatched_at)
             finally:
                 in_tick = False
+            if tick_count == WARMUP_FRAMES:
+                if DISABLE_GC_DURING_MEASUREMENT and gc.isenabled():
+                    gc.disable()
+                    gc_disabled_by_benchmark = True
+                    gc_restore_needed = True
+                gc_enabled_during_measurement = gc.isenabled()
+                if GIL_SWITCH_INTERVAL_SECONDS is not None:
+                    sys.setswitchinterval(GIL_SWITCH_INTERVAL_SECONDS)
+                    python_gil_switch_interval_applied_by_benchmark = True
+                    python_gil_switch_interval_restore_needed = True
+                python_gil_switch_interval_during_measurement_seconds = (
+                    sys.getswitchinterval()
+                )
             callback_cost_ms = 1000.0 * (time.perf_counter() - started_at)
             if tick_count > WARMUP_FRAMES:
                 callback_costs_ms.append(callback_cost_ms)
+                if previous_tick_at is not None:
+                    frame_timing_samples.append(
+                        {
+                            "frame_index": len(frame_timing_samples) + 1,
+                            "tick_index": tick_count,
+                            "callback_start_offset_ms": 1000.0 * (started_at - started),
+                            "previous_callback_start_offset_ms": (
+                                1000.0 * (previous_tick_at - started)
+                            ),
+                            "scheduled_deadline_offset_ms": 1000.0 * (scheduled_at - started),
+                            "worker_emit_offset_ms": 1000.0 * (emitted_at - started),
+                            "gui_dispatch_offset_ms": 1000.0 * (dispatched_at - started),
+                            "interval_ms": 1000.0 * (started_at - previous_tick_at),
+                            "queue_delay_ms": 1000.0 * (started_at - emitted_at),
+                            "gui_event_dispatch_delay_ms": (1000.0 * (dispatched_at - emitted_at)),
+                            "gui_callback_after_dispatch_ms": (
+                                1000.0 * (started_at - dispatched_at)
+                            ),
+                            "deadline_lateness_ms": 1000.0 * (started_at - scheduled_at),
+                            "worker_wakeup_lateness_ms": float(
+                                pending_pulse_metrics["worker_wakeup_lateness_ms"]
+                            ),
+                            "worker_schedule_debt_ms": float(
+                                pending_pulse_metrics["worker_schedule_debt_ms"]
+                            ),
+                            "worker_missed_deadlines": int(
+                                pending_pulse_metrics["missed_deadlines"]
+                            ),
+                            "worker_coalesced_pulses": int(
+                                pending_pulse_metrics["coalesced_pulses"]
+                            ),
+                            "worker_signals_emitted": int(pending_pulse_metrics["signals_emitted"]),
+                            "worker_pulse_pending": int(pending_pulse_metrics["pulse_pending"]),
+                            "callback_duration_ms": callback_cost_ms,
+                            "stage_timings_ms": dict(frame_stage_timings_ms),
+                        }
+                    )
             if len(frame_intervals_ms) >= FRAMES:
                 active_preview.stop_frame_clock()
                 event_loop.quit()
@@ -523,6 +994,7 @@ def main() -> None:
         deadline.setSingleShot(True)
         deadline.timeout.connect(on_deadline)
 
+        cgroup_cpu_stat_before = _read_cgroup_cpu_stat()
         started = time.perf_counter()
         started_process = time.process_time()
         deadline.start(TIMEOUT_MS)
@@ -531,8 +1003,24 @@ def main() -> None:
         execute_loop()
         active_preview.stop_frame_clock()
         elapsed = time.perf_counter() - started
+        if python_gil_switch_interval_restore_needed:
+            sys.setswitchinterval(python_gil_switch_interval_before_seconds)
+            python_gil_switch_interval_restore_needed = False
+        if gc_restore_needed:
+            gc.enable()
+            gc_restore_needed = False
         process_cpu_elapsed = time.process_time() - started_process
         deadline.stop()
+        cgroup_cpu_stat_after = _read_cgroup_cpu_stat()
+        cgroup_cpu_stat_delta = (
+            {
+                key: value - cgroup_cpu_stat_before[key]
+                for key, value in cgroup_cpu_stat_after.items()
+                if key in cgroup_cpu_stat_before
+            }
+            if cgroup_cpu_stat_before is not None and cgroup_cpu_stat_after is not None
+            else None
+        )
 
         mean_interval_ms = (
             sum(frame_intervals_ms) / len(frame_intervals_ms) if frame_intervals_ms else None
@@ -559,7 +1047,12 @@ def main() -> None:
             "solver_substeps": int(scene.SolverSubsteps),
             "pbd_substeps": int(getattr(backend, "_substeps", 1)),
         }
-        fixture_pass = particle_count >= 100 and len(panels) == 2 and collision_triangles > 0
+        fixture_pass = (
+            particle_count >= 100
+            and len(panels) == int(fixture_metadata["panel_count"])
+            and int(fixture_metadata["seam_count"]) > 0
+            and collision_triangles > 0
+        )
         profile_pass = (
             profile["quality_preset"] == "Fast"
             and profile["particle_distance_mm"] >= 40.0
@@ -629,11 +1122,28 @@ def main() -> None:
             runtime_cgroup_cpu_stat = None
         result = {
             "schema_version": 1,
+            "python_gc_disable_requested": DISABLE_GC_DURING_MEASUREMENT,
+            "python_gc_disabled_by_benchmark": gc_disabled_by_benchmark,
+            "python_gc_enabled_during_measurement": gc_enabled_during_measurement,
+            "python_gil_switch_interval_requested_seconds": GIL_SWITCH_INTERVAL_SECONDS,
+            "python_gil_switch_interval_before_seconds": (
+                python_gil_switch_interval_before_seconds
+            ),
+            "python_gil_switch_interval_during_measurement_seconds": (
+                python_gil_switch_interval_during_measurement_seconds
+            ),
+            "python_gil_switch_interval_applied_by_benchmark": (
+                python_gil_switch_interval_applied_by_benchmark
+            ),
             "backend": getattr(backend, "name", "unknown"),
-            "fixture": "two-panel-tunic-pattern",
+            "fixture": FIXTURE_NAME,
+            "garment_count": fixture_metadata["garment_count"],
+            "garments": fixture_metadata["garments"],
+            "seam_count": fixture_metadata["seam_count"],
             "particles": particle_count,
             "panel_count": len(panels),
             "collision_triangles": collision_triangles,
+            "cloth_contact_model": "single-aggregated-cloth-model; garment-pair contact not independently validated",
             "publication_mode": "transient-coin3d",
             "target_fps": TARGET_FPS,
             "frame_budget_ms": FRAME_BUDGET_MS,
@@ -643,8 +1153,13 @@ def main() -> None:
             "observed_ticks": tick_count,
             "expected_ticks": expected_ticks,
             "frames_advanced": frames_advanced,
+            "frame_timing_samples": frame_timing_samples,
             "frame_scheduler": active_preview.frame_scheduler_metrics(),
             "worker_wakeup_lateness": active_preview.frame_worker_wakeup_metrics(),
+            "worker_schedule_debt": _timing_summary(
+                [float(sample["worker_schedule_debt_ms"]) for sample in frame_timing_samples]
+            ),
+            "python_gc_collections": gc_events,
             "frame_dispatch_lateness": _timing_summary(active_preview._frame_dispatch_lateness_ms),
             "gui_queue_dispatch_lateness": _timing_summary(
                 active_preview._gui_queue_dispatch_lateness_ms
@@ -678,6 +1193,9 @@ def main() -> None:
                 "cpu_affinity": runtime_cpu_affinity,
                 "cgroup_cpu_max": runtime_cgroup_cpu_max,
                 "cgroup_cpu_stat": runtime_cgroup_cpu_stat,
+                "cgroup_cpu_stat_before": cgroup_cpu_stat_before,
+                "cgroup_cpu_stat_after": cgroup_cpu_stat_after,
+                "cgroup_cpu_stat_delta": cgroup_cpu_stat_delta,
                 "thread_environment": {
                     key: os.environ.get(key, "unset") for key in runtime_thread_keys
                 },
@@ -713,6 +1231,13 @@ def main() -> None:
         if not passed:
             raise SystemExit(2)
     finally:
+        if python_gil_switch_interval_restore_needed:
+            sys.setswitchinterval(python_gil_switch_interval_before_seconds)
+        if gc_restore_needed:
+            gc.enable()
+        if gc_callback is not None:
+            with contextlib.suppress(ValueError):
+                gc.callbacks.remove(gc_callback)
         if deadline is not None:
             with contextlib.suppress(Exception):
                 deadline.stop()

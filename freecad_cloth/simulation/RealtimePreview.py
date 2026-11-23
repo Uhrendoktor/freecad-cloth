@@ -11,6 +11,8 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Protocol, cast
 
 if TYPE_CHECKING:
+    from PySide2.QtCore import QEvent, QObject
+
     from freecad_cloth.simulation.RealtimeMeshPreview import RealtimeMeshPreview, _PreviewPanel
     from freecad_cloth.simulation.SimulationQualityRuntime import QualitySimulationProxy
 
@@ -29,6 +31,27 @@ def _sample_p95_ms(samples: Sequence[float]) -> float:
     ordered = sorted(samples)
     percentile_index = min(len(ordered) - 1, max(0, ceil(len(ordered) * 0.95) - 1))
     return float(ordered[percentile_index])
+
+
+def _worker_wakeup_measurement(
+    wait_s: float,
+    emission_deadline: float,
+    woke_at: float,
+) -> tuple[float, float]:
+    """Separate actual timed-wait overshoot from an emission deadline already in the past.
+
+    Args:
+        wait_s: Positive timeout requested from the worker event, or zero when already overdue.
+        emission_deadline: Monotonic deadline at which the worker should emit the next pulse.
+        woke_at: Monotonic time immediately after the wait returns.
+
+    Returns:
+        Actual timed-wait overshoot and pre-existing schedule debt, both in milliseconds.
+    """
+    overdue_ms = max(0.0, 1000.0 * (woke_at - emission_deadline))
+    if wait_s > 0.0:
+        return overdue_ms, 0.0
+    return 0.0, overdue_ms
 
 
 class _PulseSignal(Protocol):
@@ -80,6 +103,7 @@ class _FrameClock:
         self._worker_wakeup_lateness_ms: list[float] = []
         self._last_queue_delay_ms = 0.0
         self._last_worker_wakeup_lateness_ms = 0.0
+        self._last_worker_schedule_debt_ms = 0.0
         self.target_fps = float(target_fps)
         self._thread: Thread | None = None
 
@@ -100,6 +124,7 @@ class _FrameClock:
             self._worker_wakeup_lateness_ms.clear()
             self._last_queue_delay_ms = 0.0
             self._last_worker_wakeup_lateness_ms = 0.0
+            self._last_worker_schedule_debt_ms = 0.0
         self._stop_event.clear()
         self._thread = Thread(
             target=self._run,
@@ -141,12 +166,22 @@ class _FrameClock:
             )
             self._condition.notify_all()
 
-    def request_frame(self, scheduled_at: float, emitted_at: float | None = None) -> bool:
+    def request_frame(
+        self,
+        scheduled_at: float,
+        emitted_at: float | None = None,
+        *,
+        worker_wakeup_lateness_ms: float | None = None,
+        worker_schedule_debt_ms: float = 0.0,
+    ) -> bool:
         """Emit one frame request, refusing a second outstanding GUI event.
 
         Args:
             scheduled_at: Predicted GUI callback deadline.
             emitted_at: Actual worker emission time, or the current time for direct tests.
+            worker_wakeup_lateness_ms: Actual positive timed-wait overshoot, when measured by
+                the worker loop. Direct callers omit this and use the calculated deadline gap.
+            worker_schedule_debt_ms: Gap to an already-expired emission deadline; diagnostic only.
 
         Returns:
             True when a signal was emitted, or False when a previous request is pending.
@@ -155,8 +190,14 @@ class _FrameClock:
         with self._condition:
             emission_lead_ms = self._queue_delay_estimate_ms + self._worker_wakeup_estimate_ms
             emission_deadline = scheduled_at - emission_lead_ms / 1000.0
-            worker_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
+            calculated_lateness_ms = max(0.0, 1000.0 * (actual_emission - emission_deadline))
+            worker_lateness_ms = (
+                calculated_lateness_ms
+                if worker_wakeup_lateness_ms is None
+                else max(0.0, float(worker_wakeup_lateness_ms))
+            )
             self._last_worker_wakeup_lateness_ms = worker_lateness_ms
+            self._last_worker_schedule_debt_ms = max(0.0, float(worker_schedule_debt_ms))
             self._worker_wakeup_lateness_ms.append(worker_lateness_ms)
             if len(self._worker_wakeup_lateness_ms) > _FRAME_DISPATCH_SAMPLE_LIMIT:
                 del self._worker_wakeup_lateness_ms[0]
@@ -208,6 +249,18 @@ class _FrameClock:
             "max_ms": ordered[-1],
         }
 
+    def pending_pulse_metrics(self) -> dict[str, int | float]:
+        """Snapshot worker timing and counters before the GUI acknowledges its pending pulse."""
+        with self._condition:
+            return {
+                "worker_wakeup_lateness_ms": self._last_worker_wakeup_lateness_ms,
+                "worker_schedule_debt_ms": self._last_worker_schedule_debt_ms,
+                "missed_deadlines": self._missed_deadlines,
+                "coalesced_pulses": self._coalesced_pulses,
+                "signals_emitted": self._signals_emitted,
+                "pulse_pending": int(self._pending),
+            }
+
     def _run(self) -> None:
         """Emit before each predicted start, then wait for its GUI acknowledgement."""
         period = self._period_s
@@ -224,11 +277,20 @@ class _FrameClock:
             if self._stop_event.wait(wait_s):
                 return
             now = time.perf_counter()
-            lateness = now - emission_deadline
-            if lateness >= period:
+            wakeup_lateness_ms, schedule_debt_ms = _worker_wakeup_measurement(
+                wait_s,
+                emission_deadline,
+                now,
+            )
+            if wakeup_lateness_ms >= period * 1000.0:
                 with self._condition:
-                    self._missed_deadlines += int(lateness // period)
-            if not self.request_frame(next_deadline, now):
+                    self._missed_deadlines += int(wakeup_lateness_ms // (period * 1000.0))
+            if not self.request_frame(
+                next_deadline,
+                now,
+                worker_wakeup_lateness_ms=wakeup_lateness_ms,
+                worker_schedule_debt_ms=schedule_debt_ms,
+            ):
                 with self._condition:
                     while not self._stop_event.is_set() and self._frame_ack_serial == ack_before:
                         self._condition.wait()
@@ -259,61 +321,85 @@ class _FrameClock:
 def _make_frame_dispatcher(
     callback: Callable[[float, float, float], None],
 ) -> _FrameDispatcher:
-    """Create a GUI-thread receiver for feedback-paced frame requests.
+    """Create a GUI-thread receiver for high-priority worker frame events.
 
     Args:
         callback: Preview callback receiving target, worker-emission, and GUI-dispatch times.
 
     Returns:
-        A Qt signal bridge retained by the preview controller.
+        A Qt event receiver retained by the preview controller.
 
     Raises:
-        RuntimeError: If the active PySide binding does not expose signal/slot factories.
+        RuntimeError: If the active Qt binding does not expose custom events and posting.
     """
     QtCore = _qt()
-    signal_factory = getattr(QtCore, "Signal", None) or getattr(QtCore, "pyqtSignal", None)
-    slot_factory = getattr(QtCore, "Slot", None) or getattr(QtCore, "pyqtSlot", None)
-    if not callable(signal_factory) or not callable(slot_factory):
-        msg = "Realtime preview requires Qt signal and slot factories"
-        raise RuntimeError(msg)
+    event_type = QtCore.QEvent.Type(QtCore.QEvent.registerEventType())
+    priority = QtCore.Qt.HighEventPriority
+    event_priority = int(getattr(priority, "value", priority))
+
+    class _FramePulseEvent(QtCore.QEvent):
+        """Carry the target and worker timestamps to the GUI thread."""
+
+        def __init__(self, scheduled_at: float, emitted_at: float) -> None:
+            super().__init__(event_type)
+            self.scheduled_at = float(scheduled_at)
+            self.emitted_at = float(emitted_at)
+
+    class _PulsePoster:
+        """Post a single custom event through Qt's thread-safe event queue."""
+
+        def __init__(self, receiver: QObject) -> None:
+            self._receiver = receiver
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            QtCore.QCoreApplication.postEvent(
+                self._receiver,
+                _FramePulseEvent(scheduled_at, emitted_at),
+                event_priority,
+            )
 
     class _Dispatcher(QtCore.QObject):
-        """Deliver one queued worker pulse directly to the GUI-thread callback."""
-
-        pulse = signal_factory(float, float)
+        """Deliver one high-priority custom event to the GUI-thread callback."""
 
         def __init__(self) -> None:
             super().__init__()
             self._callback = callback
             self._stopped = True
             self._dispatches = 0
-            self.pulse.connect(self.dispatch, QtCore.Qt.QueuedConnection)
+            self.pulse = _PulsePoster(cast("QObject", self))
 
         def start(self) -> None:
-            """Enable queued frame delivery for a new preview session."""
+            """Enable event delivery for a new preview session."""
             self._stopped = False
             self._dispatches = 0
 
         def stop(self) -> None:
-            """Ignore any queued signal that arrives after preview shutdown."""
+            """Ignore any already-posted pulse after preview shutdown."""
             self._stopped = True
 
         def set_callback(self, next_callback: Callable[[float, float, float], None]) -> None:
             self._callback = next_callback
 
-        @slot_factory(float, float)
-        def dispatch(self, scheduled_at: float, emitted_at: float) -> None:
-            """Run immediately when the GUI thread accepts the high-level queued signal."""
-            if self._stopped:
-                return
-            dispatched_at = time.perf_counter()
-            self._dispatches += 1
-            self._callback(float(scheduled_at), float(emitted_at), dispatched_at)
+        def event(self, event: QEvent) -> bool:
+            """Dispatch frame events before normal-priority posted GUI events."""
+            event_type_method = getattr(event, "type", None)
+            if not callable(event_type_method) or event_type_method() != event_type:
+                return super().event(event)
+            if not self._stopped:
+                frame_event = cast("_FramePulseEvent", event)
+                dispatched_at = time.perf_counter()
+                self._dispatches += 1
+                self._callback(
+                    frame_event.scheduled_at,
+                    frame_event.emitted_at,
+                    dispatched_at,
+                )
+            return True
 
         def snapshot(self) -> dict[str, int | float | str]:
-            """Return the number of worker pulses accepted by the GUI event loop."""
+            """Return the high-priority GUI event delivery mode and accepted pulse count."""
             return {
-                "dispatch_mode": "Qt.QueuedConnection",
+                "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
                 "queued_dispatches": self._dispatches,
             }
 
@@ -511,6 +597,10 @@ class _Preview:
     def frame_worker_wakeup_metrics(self) -> dict[str, int | float]:
         """Return worker timer wake timing separately from GUI queue delivery."""
         return self._frame_clock.worker_wakeup_metrics()
+
+    def frame_pending_pulse_metrics(self) -> dict[str, int | float]:
+        """Return the worker-side timing sample for the event currently being dispatched."""
+        return self._frame_clock.pending_pulse_metrics()
 
     def tick(
         self,

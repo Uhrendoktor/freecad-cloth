@@ -938,6 +938,44 @@ def test_workflow_run_cap_reserves_slot_for_current_cleanup_run() -> None:
     assert result["remaining_estimate"] == 9
 
 
+def test_workflow_run_cap_aggregates_github_api_delete_failures() -> None:
+    """Report typed GitHub API deletion failures while preserving successful deletions."""
+    runs = [
+        {"id": run_id, "created_at": f"2026-10-{run_id:02d}T00:00:00Z"} for run_id in range(1, 4)
+    ]
+    deleted_paths: list[str] = []
+
+    def delete_resource(*args: str) -> None:
+        """Fail one selected API deletion and record the successful one."""
+        path = args[-1]
+        if path.endswith("/1"):
+            raise maintenance_cleanup.GitHubApiError("simulated GitHub API request failure")
+        deleted_paths.append(path)
+
+    try:
+        maintenance_cleanup.cleanup_workflow_runs_to_cap(
+            "owner/repo",
+            keep=1,
+            now=maintenance_cleanup.datetime(2026, 11, 16, tzinfo=maintenance_cleanup.UTC),
+            total_count_loader=lambda *_args: {"total_count": 3},
+            completed_runs_loader=lambda _repo, _cutoff: runs,
+            delete_resource=delete_resource,
+        )
+    except RuntimeError as exc:
+        require(
+            condition="failed to delete 1 workflow runs" in str(exc),
+            message="The cleanup must report the failed run deletion.",
+        )
+        require(
+            condition="1: simulated GitHub API request failure" in str(exc),
+            message="The cleanup must retain the GitHub API error detail.",
+        )
+    else:
+        raise AssertionError("A failed GitHub API deletion was reported as successful.")
+
+    assert deleted_paths == ["repos/owner/repo/actions/runs/2"]
+
+
 def test_workflow_run_cap_does_not_delete_when_completed_inventory_is_within_ten() -> None:
     """A completed-run inventory already within the cap is left untouched."""
     deleted_paths: list[str] = []

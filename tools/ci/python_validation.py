@@ -107,6 +107,7 @@ GROUPS = {
         "tests/test_simulation_scene.py",
         "tests/test_realtime_mesh_preview.py",
         "tests/test_realtime_preview_timing.py",
+        "tests/test_realtime_benchmark_timing_contract.py",
         "tests/test_pbd_constraint_group_profile.py",
         "tests/test_pbd_openmp_team_reuse.py",
         "tests/test_simulation_quality_runtime.py",
