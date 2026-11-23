@@ -14,6 +14,10 @@ inputs:
     description: Preserve final render evidence and publish the observation bundle.
     required: false
     default: "false"
+  timeout-seconds:
+    description: Per-profile native audit timeout in seconds (maximum 600).
+    required: false
+    default: "600"
 runs:
   using: composite
   steps:
@@ -21,7 +25,7 @@ runs:
       with:
         image: ${{ inputs.image }}
         checkout: "false"
-        timeout-seconds: "360"
+        timeout-seconds: ${{ inputs.timeout-seconds }}
         test-script: tests/freecad_tunic_audit_production.py
         pre-command: rm -rf docs/images/generated artifacts/tunic-audit artifacts/garment-e2e.log && mkdir -p artifacts/pbd-openmp-team-reuse
         stage-workbench: "true"
