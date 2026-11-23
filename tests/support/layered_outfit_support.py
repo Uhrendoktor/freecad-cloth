@@ -96,3 +96,100 @@ def select_top_boundary_supports(
         selections[str(panel_name)] = selected
 
     return selections
+
+def select_landmark_supports(
+    candidate_chains: Mapping[str, Sequence[int]],
+    targets_by_chain: Mapping[str, Sequence[float]],
+    positions: Sequence[Sequence[float]],
+    exterior_by_particle: Mapping[int, bool],
+    clearance_by_particle: Mapping[int, float],
+    *,
+    minimum_clearance_mm: float,
+    maximum_clearance_mm: float,
+) -> dict[str, int]:
+    """Select one nearby exterior particle for each anatomical support target.
+
+    Unlike a distributed top-rim pin set, this selector keeps supports local to
+    named body landmarks and rejects particles that are too far from the target
+    surface to represent a credible garment support.
+
+    Args:
+        candidate_chains: Authored boundary particle indices, keyed by panel.
+        targets_by_chain: Desired world-space support position for each panel.
+        positions: Current world-space solver particle positions in millimetres.
+        exterior_by_particle: Closed-mesh classification for candidate particles.
+        clearance_by_particle: Nearest mannequin-surface distance per candidate.
+        minimum_clearance_mm: Minimum allowed separation from the mannequin.
+        maximum_clearance_mm: Maximum allowed separation from the mannequin.
+
+    Returns:
+        One unique solver particle index for each requested panel support.
+
+    Raises:
+        ValueError: If a target, candidate chain, or safe support particle is invalid.
+    """
+    minimum_clearance = float(minimum_clearance_mm)
+    maximum_clearance = float(maximum_clearance_mm)
+    if (
+        not isfinite(minimum_clearance)
+        or not isfinite(maximum_clearance)
+        or minimum_clearance < 0.0
+        or maximum_clearance < minimum_clearance
+    ):
+        raise ValueError("support clearance limits must be finite and ordered")
+
+    if set(candidate_chains) != set(targets_by_chain):
+        raise ValueError("each support boundary must have exactly one named target")
+
+    selections: dict[str, int] = {}
+    used_indices: set[int] = set()
+    for panel_name, authored_chain in candidate_chains.items():
+        chain = tuple(authored_chain)
+        if not chain or len(chain) != len(set(chain)):
+            raise ValueError("support boundary is empty or contains duplicate particles: " + panel_name)
+        if any(
+            isinstance(index, bool) or not isinstance(index, int) or index < 0 or index >= len(positions)
+            for index in chain
+        ):
+            raise ValueError("support boundary contains an invalid particle index: " + panel_name)
+
+        target = tuple(float(value) for value in targets_by_chain[panel_name])
+        if len(target) != 3 or not all(isfinite(value) for value in target):
+            raise ValueError("support target must contain three finite world coordinates: " + panel_name)
+
+        eligible: list[int] = []
+        for index in chain:
+            if exterior_by_particle.get(index) is not True:
+                continue
+            try:
+                clearance = float(clearance_by_particle[index])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if isfinite(clearance) and minimum_clearance <= clearance <= maximum_clearance:
+                eligible.append(index)
+
+        if not eligible:
+            raise ValueError(
+                "support boundary %s has no exterior particle within %.3f..%.3f mm clearance"
+                % (panel_name, minimum_clearance, maximum_clearance)
+            )
+
+        selected = min(
+            eligible,
+            key=lambda index: (
+                sum((float(positions[index][axis]) - target[axis]) ** 2 for axis in range(3)),
+                index,
+            ),
+        )
+        if selected in used_indices:
+            raise ValueError(
+                "support particle is reused by multiple anatomical targets: "
+                + panel_name
+                + " "
+                + str(selected)
+            )
+        used_indices.add(selected)
+        selections[str(panel_name)] = selected
+
+    return selections
+
