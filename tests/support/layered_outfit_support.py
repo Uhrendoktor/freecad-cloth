@@ -200,4 +200,3 @@ def select_landmark_supports(
         selections[str(panel_name)] = selected
 
     return selections
-
