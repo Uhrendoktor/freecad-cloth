@@ -30,6 +30,7 @@ def _valid_artifact(root: Path) -> Path:
     (root / "layered-outfit.FCStd").write_bytes(b"native-freecad-document-fixture")
     image_records = []
     image_inventory = (
+        ("step-000-axonometric.png", "initial shaped layered outfit"),
         ("step-001-axonometric.png", "layered outfit motion at step 1"),
         ("step-030-axonometric.png", "layered outfit motion at step 30"),
         *(
