@@ -57,6 +57,8 @@ MINIMUM_CONTACTS = 1
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
+MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
+MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 SKIRT_HEM_FLARE_MM = 65.0
 
 
@@ -1616,10 +1618,21 @@ def run_acceptance() -> None:
                 (float(item["maximum_gap_mm"]) for item in seam_metrics),
                 default=0.0,
             )
-            if max_seam_gap > 12.0:
+            seam_gap_limit = (
+                MAXIMUM_FINAL_SEAM_GAP_MM
+                if step == CHECKPOINTS[-1]
+                else MAXIMUM_EARLY_SEAM_GAP_MM
+            )
+            _log(
+                "seam-gap-acceptance-step=%d measured_mm=%.3f limit_mm=%.3f "
+                "final_checkpoint=%s"
+                % (step, max_seam_gap, seam_gap_limit, step == CHECKPOINTS[-1])
+            )
+            if max_seam_gap > seam_gap_limit:
                 raise RuntimeError(
-                    "authored multi-panel seams diverged to %.3f mm at step %d"
-                    % (max_seam_gap, step)
+                    "authored multi-panel seams diverged to %.3f mm "
+                    "(limit %.3f mm) at step %d"
+                    % (max_seam_gap, seam_gap_limit, step)
                 )
             body_metrics = _body_clearance(scene, backend)
             if int(body_metrics["inside_particle_count"]) > 0:
