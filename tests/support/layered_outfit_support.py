@@ -97,6 +97,7 @@ def select_top_boundary_supports(
 
     return selections
 
+
 def select_landmark_supports(
     candidate_chains: Mapping[str, Sequence[int]],
     targets_by_chain: Mapping[str, Sequence[float]],
