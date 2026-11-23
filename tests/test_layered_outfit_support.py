@@ -112,4 +112,3 @@ def test_landmark_supports_reject_particle_reused_by_two_targets() -> None:
             minimum_clearance_mm=5.0,
             maximum_clearance_mm=45.0,
         )
-
