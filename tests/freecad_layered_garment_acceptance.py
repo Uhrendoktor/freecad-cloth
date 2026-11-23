@@ -1619,9 +1619,7 @@ def run_acceptance() -> None:
                 default=0.0,
             )
             seam_gap_limit = (
-                MAXIMUM_FINAL_SEAM_GAP_MM
-                if step == CHECKPOINTS[-1]
-                else MAXIMUM_EARLY_SEAM_GAP_MM
+                MAXIMUM_FINAL_SEAM_GAP_MM if step == CHECKPOINTS[-1] else MAXIMUM_EARLY_SEAM_GAP_MM
             )
             _log(
                 "seam-gap-acceptance-step=%d measured_mm=%.3f limit_mm=%.3f "
@@ -1631,8 +1629,7 @@ def run_acceptance() -> None:
             if max_seam_gap > seam_gap_limit:
                 raise RuntimeError(
                     "authored multi-panel seams diverged to %.3f mm "
-                    "(limit %.3f mm) at step %d"
-                    % (max_seam_gap, seam_gap_limit, step)
+                    "(limit %.3f mm) at step %d" % (max_seam_gap, seam_gap_limit, step)
                 )
             body_metrics = _body_clearance(scene, backend)
             if int(body_metrics["inside_particle_count"]) > 0:

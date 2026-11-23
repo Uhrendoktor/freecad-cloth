@@ -572,14 +572,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             "residual cloth-to-cloth penetration exceeds tolerance at step %d" % step,
         )
         seam_gap_limit = (
-            MAXIMUM_SEAM_GAP_MM
-            if step == EXPECTED_CHECKPOINTS[-1]
-            else MAXIMUM_EARLY_SEAM_GAP_MM
+            MAXIMUM_SEAM_GAP_MM if step == EXPECTED_CHECKPOINTS[-1] else MAXIMUM_EARLY_SEAM_GAP_MM
         )
         _require(
             _number(checkpoint, "max_seam_gap_mm") <= seam_gap_limit,
-            "sewn panel gap exceeds %.3f mm settling limit at step %d"
-            % (seam_gap_limit, step),
+            "sewn panel gap exceeds %.3f mm settling limit at step %d" % (seam_gap_limit, step),
         )
         seams = checkpoint.get("seams")
         _require(
