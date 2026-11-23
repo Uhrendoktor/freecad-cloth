@@ -313,6 +313,17 @@ def test_validator_rejects_missing_waistband_support_pins(tmp_path: Path) -> Non
     with pytest.raises(ValueError, match="four unique particle indices"):
         validate_manifest(manifest_path)
 
+def test_validator_rejects_airborne_waistband_support(tmp_path: Path) -> None:
+    """A waistband pin far from its anatomical target must invalidate the artifact."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["waistband_supports"][0]["clearance_mm"] = 120.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="stand-off is outside the anatomical support range"):
+        validate_manifest(manifest_path)
+
+
 def test_validator_rejects_waistband_support_pin_drift(tmp_path: Path) -> None:
     """Waistband top anchors must remain fixed throughout all native checkpoints."""
     manifest_path = _valid_artifact(tmp_path)
