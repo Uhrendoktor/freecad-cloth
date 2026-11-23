@@ -470,8 +470,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             "waistband support panel identities must be four unique values",
         )
         _require(
-            isinstance(particle_index, int) and not isinstance(particle_index, bool)
-            and particle_index >= 0 and particle_index not in support_particles,
+            isinstance(particle_index, int)
+            and not isinstance(particle_index, bool)
+            and particle_index >= 0
+            and particle_index not in support_particles,
             "waistband support particle identities must be four unique indices",
         )
         support_panels.add(panel_id)
