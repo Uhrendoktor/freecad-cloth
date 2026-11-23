@@ -986,15 +986,16 @@ def run_acceptance() -> None:
         # cage and places its side supports far outside the actual waist.
         radius_x = max(
             150.0,
-            max(abs(float(vertex[0]) - center_x) for vertex in hip_slice) + 24.0,
+            max(abs(float(vertex[0]) - center_x) for vertex in hip_slice) + 12.0,
         )
-        radius_y = (
+        radius_y = max(
+            100.0,
             0.5
             * (
                 max(float(vertex[1]) for vertex in hip_slice)
                 - min(float(vertex[1]) for vertex in hip_slice)
             )
-            + 28.0
+            + 12.0,
         )
         radius_y = max(100.0, radius_y)
 
