@@ -1,9 +1,18 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contracts for the feedback-paced realtime preview frame clock."""
 
+from enum import IntEnum
 from math import inf, isclose, nan
+from typing import Protocol, cast
 
-from freecad_cloth.simulation.RealtimePreview import _FrameClock, _sample_p95_ms
+import pytest
+
+from freecad_cloth.simulation import RealtimePreview
+from freecad_cloth.simulation.RealtimePreview import (
+    _FrameClock,
+    _sample_p95_ms,
+    _worker_wakeup_measurement,
+)
 
 
 def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
@@ -33,6 +42,74 @@ def test_frame_clock_allows_only_one_outstanding_gui_pulse() -> None:
     assert isclose(snapshot["worker_wakeup_estimate_ms"], 0.25, abs_tol=1e-9)
     assert clock.request_frame(10.0 + 2.0 / 60.0, 10.0 + 2.0 / 60.0 - 0.00535) is True
     assert len(emitted) == 2
+    clock.stop()
+
+
+def test_frame_clock_preserves_worker_wakeup_for_the_pending_pulse() -> None:
+    """Expose the wake-up sample before acknowledgement releases the clock worker."""
+    emitted: list[tuple[float, float]] = []
+
+    class Pulse:
+        """Collect the requested frame so its wake-up timing can be inspected."""
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
+
+    clock = _FrameClock(Pulse(), 60.0)
+    assert clock.request_frame(10.0, 9.998) is True
+    pending = clock.pending_pulse_metrics()
+    assert pending["worker_wakeup_lateness_ms"] == pytest.approx(3.0)
+    assert pending["missed_deadlines"] == 0
+    assert pending["coalesced_pulses"] == 0
+    assert pending["signals_emitted"] == 1
+    assert pending["pulse_pending"] == 1
+    assert clock.pending_pulse_metrics() == pending
+    assert emitted == [(10.0, 9.998)]
+
+    clock.frame_started(10.004, 9.998)
+    assert clock.pending_pulse_metrics()["pulse_pending"] == 0
+    clock.stop()
+
+
+def test_worker_wakeup_measurement_separates_overdue_schedule_debt() -> None:
+    """Do not report an already-expired deadline as OS timed-wait overshoot."""
+    wakeup, debt = _worker_wakeup_measurement(0.0, 10.0, 10.4)
+    assert wakeup == pytest.approx(0.0)
+    assert debt == pytest.approx(400.0)
+
+    wakeup, debt = _worker_wakeup_measurement(0.01, 20.0, 20.004)
+    assert wakeup == pytest.approx(4.0)
+    assert debt == pytest.approx(0.0)
+
+
+def test_schedule_debt_does_not_inflate_worker_wakeup_estimate() -> None:
+    """Keep overdue emission debt diagnostic-only instead of feeding it back as wake delay."""
+    emitted: list[tuple[float, float]] = []
+
+    class Pulse:
+        """Capture emitted pulses while the scheduler receives explicit timing components."""
+
+        def emit(self, scheduled_at: float, emitted_at: float) -> None:
+            emitted.append((scheduled_at, emitted_at))
+
+    clock = _FrameClock(Pulse(), 60.0)
+    for index in range(120):
+        scheduled_at = 10.0 + index / 60.0
+        emitted_at = scheduled_at - 0.004
+        assert clock.request_frame(
+            scheduled_at,
+            emitted_at,
+            worker_wakeup_lateness_ms=0.0,
+            worker_schedule_debt_ms=400.0 + index,
+        )
+        pending = clock.pending_pulse_metrics()
+        assert pending["worker_wakeup_lateness_ms"] == pytest.approx(0.0)
+        assert pending["worker_schedule_debt_ms"] == pytest.approx(400.0 + index)
+        clock.frame_started(emitted_at + 0.002, emitted_at)
+
+    assert len(emitted) == 120
+    assert clock.snapshot()["worker_wakeup_estimate_ms"] == pytest.approx(0.25)
+    assert clock.worker_wakeup_metrics()["p95_ms"] == pytest.approx(0.0)
     clock.stop()
 
 
@@ -102,3 +179,106 @@ def test_queue_delay_percentile_is_bounded_for_small_sample_windows() -> None:
     assert _sample_p95_ms([]) == 0.0
     assert _sample_p95_ms([4.25]) == 4.25
     assert _sample_p95_ms([1.0, 3.0, 2.0, 4.0]) == 4.0
+
+
+def test_dispatcher_posts_a_high_priority_event_to_the_gui_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Post the frame pulse with high priority and dispatch it on the receiver thread."""
+    high_priority = 7
+
+    class FakeEventType(IntEnum):
+        """Model the scoped enum required by the PySide6 QEvent constructor."""
+
+        Custom = 1001
+
+    class FakeEvent:
+        """Require a registered custom event to be wrapped in QEvent.Type."""
+
+        Type = FakeEventType
+        _next_type = 1000
+
+        @classmethod
+        def registerEventType(cls) -> int:
+            cls._next_type += 1
+            return cls._next_type
+
+        def __init__(self, event_type: FakeEventType) -> None:
+            if not isinstance(event_type, FakeEventType):
+                raise TypeError("custom event type must be wrapped in QEvent.Type")
+            self._event_type = event_type
+
+        def type(self) -> FakeEventType:
+            return self._event_type
+
+    class EventReceiver(Protocol):
+        """Expose the custom-event entry point for the dispatcher regression."""
+
+        def event(self, event: FakeEvent) -> bool: ...
+
+    class FakeQObject:
+        """Minimal QObject base that accepts custom events."""
+
+        def __init__(self) -> None:
+            pass
+
+        def event(self, _event: FakeEvent) -> bool:
+            return False
+
+    class FakeApplication:
+        """Capture worker-thread postEvent calls for the regression assertion."""
+
+        @staticmethod
+        def postEvent(receiver: FakeQObject, event: FakeEvent, priority: int) -> None:
+            posted.append((receiver, event, priority))
+
+    class FakeEventPriority:
+        """Model the value-backed enum wrapper exposed by PySide6."""
+
+        value = high_priority
+
+    class FakeQt:
+        """Expose the Qt event priority used by the dispatcher."""
+
+        HighEventPriority = FakeEventPriority()
+
+    class FakeQtCore:
+        """Supply only the Qt API surface used to create and post frame events."""
+
+        QEvent = FakeEvent
+        QObject = FakeQObject
+        QCoreApplication = FakeApplication
+        Qt = FakeQt
+
+    posted: list[tuple[FakeQObject, FakeEvent, int]] = []
+    callbacks: list[tuple[float, float, float]] = []
+
+    def on_frame(scheduled_at: float, emitted_at: float, dispatched_at: float) -> None:
+        callbacks.append((scheduled_at, emitted_at, dispatched_at))
+
+    monkeypatch.setattr(RealtimePreview, "_qt", lambda: FakeQtCore)
+    dispatcher = RealtimePreview._make_frame_dispatcher(on_frame)
+    dispatcher.start()
+    dispatcher.pulse.emit(10.0, 9.5)
+
+    assert len(posted) == 1
+    receiver, event, priority = posted[0]
+    assert priority == high_priority
+    assert event.type() is FakeEventType.Custom
+    assert receiver is dispatcher
+    event_handler = cast("EventReceiver", dispatcher).event
+    assert event_handler(event) is True
+    assert len(callbacks) == 1
+    assert callbacks[0][0:2] == (10.0, 9.5)
+    assert callbacks[0][2] >= 0.0
+    assert dispatcher.snapshot() == {
+        "dispatch_mode": "QCoreApplication.postEvent(HighEventPriority)",
+        "queued_dispatches": 1,
+    }
+
+    dispatcher.stop()
+    dispatcher.pulse.emit(11.0, 10.5)
+    assert len(posted) == 2
+    receiver, event, _priority = posted[1]
+    assert receiver.event(event) is True
+    assert len(callbacks) == 1

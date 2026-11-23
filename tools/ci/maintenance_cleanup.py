@@ -3,9 +3,6 @@
 
 from __future__ import annotations
 
-type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
-type ApiJsonObject = dict[str, ApiJsonValue]
-
 import argparse
 import hashlib
 import http.client
@@ -18,6 +15,9 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import quote
+
+type ApiJsonValue = bool | int | float | str | list[ApiJsonValue] | dict[str, ApiJsonValue] | None
+type ApiJsonObject = dict[str, ApiJsonValue]
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterator
