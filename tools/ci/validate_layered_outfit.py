@@ -26,6 +26,7 @@ EXPECTED_IMAGE_COUNT = 9
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MAXIMUM_SEAM_GAP_MM = 12.0
 MINIMUM_BODY_CLEARANCE_MM = 5.0
+MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 
 
 def _require(condition: bool, message: str) -> None:
@@ -451,6 +452,39 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         set(support_pin_indices).isdisjoint(waistband_pin_indices),
         "shirt and waistband support-pin inventories must be disjoint",
+    )
+    waistband_supports = outfit.get("waistband_supports")
+    _require(
+        isinstance(waistband_supports, list) and len(waistband_supports) == 4,
+        "waistband must expose four anatomical support records",
+    )
+    support_panels: set[str] = set()
+    support_particles: set[int] = set()
+    for support in waistband_supports:
+        _require(isinstance(support, dict), "waistband support record must be an object")
+        panel_id = support.get("panel_id")
+        particle_index = support.get("particle_index")
+        _require(
+            isinstance(panel_id, str) and panel_id and panel_id not in support_panels,
+            "waistband support panel identities must be four unique values",
+        )
+        _require(
+            isinstance(particle_index, int) and not isinstance(particle_index, bool)
+            and particle_index >= 0 and particle_index not in support_particles,
+            "waistband support particle identities must be four unique indices",
+        )
+        support_panels.add(panel_id)
+        support_particles.add(particle_index)
+        _finite_vector(support.get("target_mm"), "waistband support target", 3)
+        _finite_vector(support.get("position_mm"), "waistband support position", 3)
+        stand_off = _number(support, "clearance_mm")
+        _require(
+            MINIMUM_BODY_CLEARANCE_MM <= stand_off <= MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM,
+            "waistband support stand-off is outside the anatomical support range",
+        )
+    _require(
+        support_particles == set(waistband_pin_indices),
+        "waistband support geometry does not match its pinned particle inventory",
     )
     total_support_pin_count = len(support_pin_indices) + len(waistband_pin_indices)
     scene_map_counts = _validate_scene_map(
