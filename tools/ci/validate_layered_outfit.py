@@ -305,7 +305,8 @@ def _validate_scene_map(
     _require(
         isinstance(metric_semantics, str)
         and "not signed volumetric intersection depth" in metric_semantics,
-        "scene map must define the residual value as a clearance deficit, not signed volume penetration",
+        "scene map must define the residual value as a clearance deficit, "
+        "not signed volume penetration",
     )
     return {
         "landmarks": len(landmarks),
