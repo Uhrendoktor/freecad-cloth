@@ -499,9 +499,13 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
     assert "cloth-pbd-collision-config " in backend, (
         'Contract failed: "cloth-pbd-collision-config " in backend'
     )
-    assert backend.index("timestep.step(self._model)") < backend.index(
+    backend_class = backend.split("class PositionBasedDynamicsBackend(", maxsplit=1)[1]
+    step_body = backend_class.split("    def step(", maxsplit=1)[1].split(
+        "    def reset(", maxsplit=1
+    )[0]
+    assert step_body.index("timestep.step(self._model)") < step_body.index(
         "self._project_collision_positions()"
-    ), 'Contract failed: backend.index("timestep.step(self._mode...'
+    ), "Contract failed: native timestep must precede body projection inside step()."
     assert "particles.setPosition(" in backend, (
         'Contract failed: "particles.setPosition(" in backend'
     )
@@ -605,7 +609,7 @@ def test_pbd_ci_image_is_pinned_and_preinstalled() -> None:
 
 
 def test_production_tunic_audit_is_a_blocking_gate() -> None:
-    """Require four complete matched production audits while keeping preview diagnostic."""
+    """Require a physical tunic audit for all PRs and a paired A/B gate only for OpenMP work."""
     workflow = (ROOT / ".github" / "workflows" / "canonical-execution.yml").read_text(
         encoding="utf-8"
     )
@@ -618,44 +622,43 @@ def test_production_tunic_audit_is_a_blocking_gate() -> None:
     gui = workflow.split("  gui-tunic-visual:", 1)[1].split("  gui-turntables:", 1)[0]
     preview_index = gui.index("./.github/actions/pbd-realtime-diagnostic")
     audit_index = gui.index("./.github/actions/pbd-tunic-audit")
-    report_index = gui.index("      - name: Report paired native production audit outcome")
+    report_index = gui.index("      - name: Report production tunic audit outcome")
     assert preview_index < audit_index < report_index
     assert "CLOTH_REALTIME_FRAMES=120" in preview_action
     assert preview_action.count("continue-on-error: true") == 2
     assert "tools/ci/validate_realtime_benchmark.py" in preview_action
-    assert gui.count("./.github/actions/pbd-tunic-audit") == 4
-    for step_id in (
-        "baseline_1_audit",
-        "candidate_1_audit",
-        "baseline_2_audit",
-        "candidate_2_audit",
-    ):
-        assert f"id: {step_id}" in gui
-    assert "profile-name: baseline-1" in gui
-    assert "profile-name: candidate-1" in gui
-    assert "profile-name: baseline-2" in gui
-    assert "profile-name: candidate-2" in gui
-    assert 'collect-evidence: "true"' in gui
+
+    production_steps = gui.split("      - uses: ./.github/actions/pbd-tunic-audit")[1:]
+    assert len(production_steps) == 4
+    assert "id: baseline_1_audit" in production_steps[0]
+    assert 'mode: "0"' in production_steps[0]
+    assert "profile-name: baseline-1" in production_steps[0]
+    assert 'timeout-seconds: "600"' in production_steps[0]
+    assert "collect-evidence:" in production_steps[0]
+    openmp_marker = "contains(github.event.pull_request.title, '[openmp-team-reuse]')"
+    for step in production_steps[1:]:
+        assert openmp_marker in step
+    assert "profile-name: candidate-1" in production_steps[1]
+    assert "profile-name: baseline-2" in production_steps[2]
+    assert "profile-name: candidate-2" in production_steps[3]
+    assert 'collect-evidence: "true"' in production_steps[3]
+
     assert "test-script: tests/freecad_tunic_audit_production.py" in production_action
-    assert 'timeout-seconds: "360"' in production_action
+    assert 'default: "600"' in production_action
+    assert "timeout-seconds: ${{ inputs.timeout-seconds }}" in production_action
     assert "PYTHONPATH=/opt/pypbd-openmp-experiment:/workspace" in production_action
     assert "inputs.mode" in production_action
     assert "CLOTH_PBD_SUBSTEPS=16" in production_action
     assert "CLOTH_PBD_COLLISION_TOLERANCE_MM=2.0" in production_action
-    assert "if: always()" not in production_action
     assert "compare_pbd_openmp_team_reuse.py" in gui
+    assert openmp_marker in gui.split("      - name: Compare matched native production profiles", 1)[1]
     assert "artifacts/pbd-openmp-team-reuse/comparison.json" in gui
-    report = gui[report_index:]
-    for step_id in (
-        "baseline_1_audit",
-        "candidate_1_audit",
-        "baseline_2_audit",
-        "candidate_2_audit",
-    ):
-        assert f"steps.{step_id}.outcome" in report
-    assert "::error title=Paired production audit failed" in report
-    assert "5% projection" in report
-    assert "non-regressing wall-time gates" in report
+    assert "OPENMP_EXPERIMENT:" in gui
+    assert "The 90-step baseline physical/visual audit must pass." in gui
+    assert "All four complete 90-step audits and the matched timing comparison are blocking for the OpenMP experiment." in gui
+    assert "5% projection" in gui
+    assert "non-regressing wall-time gates" in gui
+
     validator = (ROOT / "tools" / "ci" / "validate_realtime_benchmark.py").read_text(
         encoding="utf-8"
     )

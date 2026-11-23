@@ -8,7 +8,8 @@ from statistics import median
 from typing import TYPE_CHECKING, Protocol
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
+from pydantic import ConfigDict
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 from freecad_cloth.common.ValidationModels import MeshArrays, validate_points3d
@@ -33,6 +34,132 @@ class _ContainmentMesh(Protocol):
 
 
 type _MeshContains = Callable[[_ContainmentMesh, NDArray[np.float64]], NDArray[np.bool_]]
+
+
+@pydantic_dataclass(config=ConfigDict(arbitrary_types_allowed=True), frozen=True)
+class _RayParityMesh:
+    """Precomputed immutable arrays for exact odd/even closed-mesh queries."""
+
+    a: NDArray[np.float64]
+    edge_one: NDArray[np.float64]
+    edge_two: NDArray[np.float64]
+    pvec: NDArray[np.float64]
+    determinant: NDArray[np.float64]
+    bounds_min: NDArray[np.float64]
+    bounds_max: NDArray[np.float64]
+    ray: NDArray[np.float64]
+
+
+def _prepare_ray_parity_mesh(
+    vertex_data: NDArray[np.float64],
+    faces: NDArray[np.int64],
+) -> _RayParityMesh | None:
+    """Precompute triangle data shared by every query against one closed mesh."""
+    if faces.size == 0:
+        return None
+    a = vertex_data[faces[:, 0]]
+    b = vertex_data[faces[:, 1]]
+    c = vertex_data[faces[:, 2]]
+    edge_one = b - a
+    edge_two = c - a
+    ray = np.asarray((1.0, 0.3713906763541037, 0.1932424973120743), dtype=np.float64)
+    pvec = np.cross(ray, edge_two)
+    determinant = np.einsum("ij,ij->i", edge_one, pvec)
+    usable = np.abs(determinant) > 1e-9
+    if not bool(np.any(usable)):
+        return None
+    a = a[usable]
+    edge_one = edge_one[usable]
+    edge_two = edge_two[usable]
+    pvec = pvec[usable]
+    determinant = determinant[usable]
+    bounds_min = np.minimum(np.minimum(a, b[usable]), c[usable])
+    bounds_max = np.maximum(np.maximum(a, b[usable]), c[usable])
+    for array in (a, edge_one, edge_two, pvec, determinant, bounds_min, bounds_max, ray):
+        array.setflags(write=False)
+    return _RayParityMesh(
+        a,
+        edge_one,
+        edge_two,
+        pvec,
+        determinant,
+        bounds_min,
+        bounds_max,
+        ray,
+    )
+
+
+def _ray_parity_contains(
+    point_data: NDArray[np.float64],
+    mesh: _RayParityMesh | None,
+    chunk_size: int,
+) -> NDArray[np.bool_]:
+    """Classify finite points using cached triangle slabs and Moller-Trumbore hits."""
+    results = np.zeros(len(point_data), dtype=bool)
+    if mesh is None or len(point_data) == 0:
+        return results
+    step = max(1, int(chunk_size))
+    ray_x, ray_y, ray_z = (float(value) for value in mesh.ray)
+    for start in range(0, len(point_data), step):
+        chunk = point_data[start : start + step]
+        for offset, point in enumerate(chunk):
+            tx0 = (mesh.bounds_min[:, 0] - point[0]) / ray_x
+            tx1 = (mesh.bounds_max[:, 0] - point[0]) / ray_x
+            ty0 = (mesh.bounds_min[:, 1] - point[1]) / ray_y
+            ty1 = (mesh.bounds_max[:, 1] - point[1]) / ray_y
+            tz0 = (mesh.bounds_min[:, 2] - point[2]) / ray_z
+            tz1 = (mesh.bounds_max[:, 2] - point[2]) / ray_z
+            enter = np.maximum(np.maximum(tx0, ty0), tz0)
+            leave = np.minimum(np.minimum(tx1, ty1), tz1)
+            candidates = leave >= np.maximum(enter, 1e-9) - 1e-12
+            if not bool(np.any(candidates)):
+                continue
+
+            candidate_a = mesh.a[candidates]
+            candidate_edge_one = mesh.edge_one[candidates]
+            candidate_edge_two = mesh.edge_two[candidates]
+            candidate_pvec = mesh.pvec[candidates]
+            candidate_determinant = mesh.determinant[candidates]
+            tvec = point[None, :] - candidate_a
+            u = np.einsum("td,td->t", tvec, candidate_pvec) / candidate_determinant
+            qvec = np.cross(tvec, candidate_edge_one)
+            v = np.einsum("d,td->t", mesh.ray, qvec) / candidate_determinant
+            distance = np.einsum("td,td->t", candidate_edge_two, qvec) / candidate_determinant
+            hits = (
+                (u >= -1e-9)
+                & (u <= 1.0 + 1e-9)
+                & (v >= -1e-9)
+                & (u + v <= 1.0 + 1e-9)
+                & (distance > 1e-9)
+            )
+            results[start + offset] = np.count_nonzero(hits) % 2 == 1
+    return results
+
+
+class _ClosedMeshPointClassifier:
+    """Cache validated closed-mesh ray data for repeated internal solver queries."""
+
+    def __init__(
+        self,
+        vertices: Sequence[Point3],
+        triangles: Sequence[Triangle3],
+    ) -> None:
+        """Validate one immutable mesh and precompute its ray-parity acceleration data."""
+        validated_mesh = MeshArrays.model_validate({"vertices": vertices, "triangles": triangles})
+        vertex_data = np.asarray(validated_mesh.vertices, dtype=np.float64)
+        faces = np.asarray(validated_mesh.triangles, dtype=np.int64).reshape((-1, 3))
+        self._mesh = _prepare_ray_parity_mesh(vertex_data, faces)
+
+    def contains_array(self, points: ArrayLike, *, chunk_size: int = 32) -> NDArray[np.bool_]:
+        """Classify internal finite N-by-3 arrays without revalidating the cached mesh."""
+        point_data = np.asarray(points, dtype=np.float64)
+        if point_data.ndim != 2 or point_data.shape[1] != 3:
+            msg = "closed-mesh query points must have shape (N, 3)"
+            raise ValueError(msg)
+        if not bool(np.isfinite(point_data).all()):
+            msg = "closed-mesh query points must be finite"
+            raise ValueError(msg)
+        return _ray_parity_contains(point_data, self._mesh, chunk_size)
 
 
 def maximum_box_penetration(
@@ -207,68 +334,8 @@ def points_inside_closed_mesh(
             pass
 
     # Compatibility path for installations without trimesh/rtree or for open meshes.
-    a = vertex_data[faces[:, 0]]
-    b = vertex_data[faces[:, 1]]
-    c = vertex_data[faces[:, 2]]
-    edge_one = b - a
-    edge_two = c - a
-    ray = np.asarray((1.0, 0.3713906763541037, 0.1932424973120743), dtype=np.float64)
-    pvec = np.cross(ray, edge_two)
-    determinant = np.einsum("ij,ij->i", edge_one, pvec)
-    usable = np.abs(determinant) > 1e-9
-    if not bool(np.any(usable)):
-        return tuple(False for _ in validated_points)
-    a = a[usable]
-    b = b[usable]
-    c = c[usable]
-    edge_one = edge_one[usable]
-    edge_two = edge_two[usable]
-    pvec = pvec[usable]
-    determinant = determinant[usable]
-    # Precompute triangle AABBs once. A ray can only hit a triangle when it
-    # intersects that triangle's box; the slab test below rejects impossible
-    # candidates before constructing any point-by-triangle cross-product arrays.
-    bounds_min = np.minimum(np.minimum(a, b), c)
-    bounds_max = np.maximum(np.maximum(a, b), c)
-    results = np.zeros(len(point_data), dtype=bool)
-    step = max(1, int(chunk_size))
-    ray_x, ray_y, ray_z = (float(value) for value in ray)
-    for start in range(0, len(point_data), step):
-        chunk = point_data[start : start + step]
-        for offset, point in enumerate(chunk):
-            # Ray direction components are positive, so each axis interval is
-            # (bound - origin) / direction. Overlapping intervals are necessary
-            # for an intersection; keep the original strict positive-hit rule.
-            tx0 = (bounds_min[:, 0] - point[0]) / ray_x
-            tx1 = (bounds_max[:, 0] - point[0]) / ray_x
-            ty0 = (bounds_min[:, 1] - point[1]) / ray_y
-            ty1 = (bounds_max[:, 1] - point[1]) / ray_y
-            tz0 = (bounds_min[:, 2] - point[2]) / ray_z
-            tz1 = (bounds_max[:, 2] - point[2]) / ray_z
-            enter = np.maximum(np.maximum(tx0, ty0), tz0)
-            leave = np.minimum(np.minimum(tx1, ty1), tz1)
-            candidates = leave > np.maximum(enter, 1e-9)
-            if not bool(np.any(candidates)):
-                continue
-
-            candidate_a = a[candidates]
-            candidate_edge_one = edge_one[candidates]
-            candidate_edge_two = edge_two[candidates]
-            candidate_pvec = pvec[candidates]
-            candidate_determinant = determinant[candidates]
-            tvec = point[None, :] - candidate_a
-            u = np.einsum("td,td->t", tvec, candidate_pvec) / candidate_determinant
-            qvec = np.cross(tvec, candidate_edge_one)
-            v = np.einsum("d,td->t", ray, qvec) / candidate_determinant
-            distance = np.einsum("td,td->t", candidate_edge_two, qvec) / candidate_determinant
-            hits = (
-                (u >= -1e-9)
-                & (u <= 1.0 + 1e-9)
-                & (v >= -1e-9)
-                & (u + v <= 1.0 + 1e-9)
-                & (distance > 1e-9)
-            )
-            results[start + offset] = np.count_nonzero(hits) % 2 == 1
+    ray_mesh = _prepare_ray_parity_mesh(vertex_data, faces)
+    results = _ray_parity_contains(point_data, ray_mesh, chunk_size)
     return tuple(bool(value) for value in results)
 
 

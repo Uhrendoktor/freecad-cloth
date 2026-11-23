@@ -55,7 +55,7 @@ def main() -> int:
     # the temporary evidence worktree performs its raw git push.
     run("gh", "auth", "setup-git")
 
-    review_root = Path("tunic")
+    review_root = Path("layered-outfit")
     evidence_branch = f"simulation-evidence/pr-{args.pr_number}"
     temp_root = Path(os.environ.get("RUNNER_TEMP") or tempfile.gettempdir())
     worktree = temp_root / "simulation-evidence"
@@ -104,31 +104,12 @@ def main() -> int:
         run("git", "-C", str(worktree), "switch", "--orphan", evidence_branch)
         run("git", "-C", str(worktree), "rm", "-rf", ".", check=False)
 
-    images = sorted(
-        path
-        for path in review_root.rglob("*.png")
-        if any(
-            token in path.name.lower()
-            for token in (
-                "tunic",
-                "draped",
-                "step-015",
-                "step-045",
-                "step-090",
-                "front",
-                "rear",
-                "right",
-                "left",
-                "top",
-                "bottom",
-                "diagnostic",
-            )
-        )
-    )[:18]
+    # Layered-outfit acceptance emits axonometric checkpoints rather than
+    # the legacy tunic audit's front/rear/draped filenames. Publish its actual
+    # checkpoint sequence, including the final frame when the full run passes.
+    images = sorted(path for path in review_root.rglob("*.png") if path.is_file())[:18]
     if not images:
-        images = sorted(review_root.rglob("*.png"))[:18]
-    if not images:
-        msg = f"No PNG evidence was produced for PR #{args.pr_number}"
+        msg = f"No layered-outfit PNG evidence was produced for PR #{args.pr_number}"
         raise SystemExit(msg)
 
     dest = worktree / f"pr-{args.pr_number}" / f"run-{args.run_id}"
@@ -136,7 +117,7 @@ def main() -> int:
     for image in images:
         shutil.copy2(image, dest / image.name)
     (dest / "README.md").write_text(
-        "# Simulation visual evidence\n\n"
+        "# Layered-outfit simulation visual evidence\n\n"
         f"PR #{args.pr_number}, canonical workflow run {args.run_id}.\n"
         f"Source PR HEAD: {args.evidence_head}.\n",
         encoding="utf-8",

@@ -82,6 +82,13 @@ def test_canonical_python_job_executes_pytest_contract_modules() -> None:
     assert "test-args: gui" in block, "canonical CI contract"
 
 
+def test_layered_outfit_support_module_is_routed_to_pytest_group() -> None:
+    """Keep layered-outfit geometry support regressions in canonical pytest execution."""
+    runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
+
+    assert '"tests/test_layered_outfit_support.py"' in runner, "layered outfit test routing"
+
+
 def test_realtime_preview_contract_modules_are_routed_to_pytest_group() -> None:
     """Keep the isolated Coin3D preview tests in the canonical pytest job."""
     runner = (ROOT / "tools" / "ci" / "python_validation.py").read_text(encoding="utf-8")
@@ -130,7 +137,9 @@ def test_simulation_evidence_publisher_uses_authenticated_checked_out_head() -> 
     match = re.search(r"\n  [A-Za-z0-9_-]+:\n", workflow[start + 3 :])
     end = start + 3 + match.start() if match else len(workflow)
     publisher = workflow[start:end]
-    assert "publish-visual-evidence@" in publisher, "simulation evidence contract"
+    assert "uses: ./.github/actions/publish-visual-evidence" in publisher, (
+        "simulation evidence contract"
+    )
     assert "evidence-head:" in publisher, "simulation evidence contract"
     assert "source-sha:" in publisher, "simulation evidence contract"
     assert "mode: pr" in publisher, "simulation evidence contract"
