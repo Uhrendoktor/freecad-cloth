@@ -165,7 +165,7 @@ def _make_tunic_piece(
     eased side edges, curved armholes and a scooped neckline remain editable
     semantic boundaries rather than a rectangular ring approximation.
     """
-    from tests.support.freecad_arc_geometry import arc_through_midpoint
+    from support.freecad_arc_geometry import arc_through_midpoint
 
     panel_width = float(panel_width_mm)
     garment_height = float(garment_height_mm)
