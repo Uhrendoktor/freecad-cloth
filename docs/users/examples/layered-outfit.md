@@ -1,8 +1,24 @@
-# Layered multi-garment outfit
+# Layered multi-garment contact test — visual review failed
+
+> **Visual status: rejected.** The captures below are retained as diagnostic evidence from [run 45194827115](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/45194827115); they are **not** an approved garment or a successful drape example. The step-0 scene is a rectangular four-sided shell, steps 1 and 15 show severe panel collapse/folding, and the step-60 views still show a straight-sided tube. Do not use these images as the expected visual result.
+
 
 This example previews two garments simulated on one mannequin: a longline shirt shell and an A-line skirt with its own waistband. The important design point is that the shirt and skirt remain **independent garment groups**. They share a scene and exchange cloth-to-cloth contact, but they are not sewn to one another.
 
-The images on this page are genuine 960 × 720 FreeCAD viewport captures from the native layered-outfit acceptance fixture. They are not generated illustrations or polished product renders.
+The images on this page are genuine 960 × 720 FreeCAD viewport captures from the native acceptance fixture. They are included to make the failed visual result inspectable, not to showcase the current garment design.
+
+## Why the visual review failed
+
+The source fixture, not the camera, is the main problem:
+
+- `_make_ring` constructs each garment as four flat, straight-edged trapezoids arranged front/right/back/left. Their cross-section is a rectangle, so the initial scene is a box around the mannequin rather than a body-following shell.
+- The top support selection checks only that a point is outside the mannequin and at least 5 mm away. It does not cap the allowed stand-off. In the run's own support audit, selected shirt anchors were about **7.9–98.8 mm** from the body and selected waistband anchors about **23.4–119.6 mm** away.
+- The body-fit check records only the minimum mannequin clearance. That proves no cloth particle is inside the collision mesh; it does not prove the rest of the cloth follows the body.
+- The screenshot validator checks that a PNG is nonblank. It does not detect a box-shaped silhouette, panel collapse, or implausible fit.
+
+The native PBD solver is stepping and applying cloth-to-cloth/body constraints, but those numeric checks do not establish a good garment drape. The previous acceptance therefore passed a contact/persistence test while missing the obvious visual failure.
+
+The next geometry pass must replace the rectangular ring with a contour-following multi-panel shell, shape the shoulder/neck/armhole boundary instead of using one horizontal top rim, and reject support points whose stand-off is too large. The visual acceptance must also test silhouette and regional body-fit gaps, not only image dimensions and pixel counts.
 
 ## What is in the scene
 
@@ -16,15 +32,15 @@ Together, the example contains **12 Sketcher-backed PatternPieces and 16 semanti
 
 The shirt's upper boundary and the waistband's upper boundary are held by explicit support pins during the test. The contact test requests an 8 mm inter-garment clearance and checks the current particle/triangle geometry after projection.
 
-## Initial arrangement
+## Failed initial arrangement
 
-This is the actual arranged state before the simulation advances. The panels begin around the mannequin so the outfit contains a deliberate shirt/skirt overlap for the contact test.
+This is the actual step-0 source geometry. The four planar faces make the rectangular shell visible before the solver starts; this is the first sign that the authored garment envelope is not body-shaped.
 
 ![Layered shirt-and-skirt outfit at step 0, before simulation](images/layered-outfit/arranged-step-000.png)
 
-## Final six-view inspection
+## Rejected step-60 diagnostic views
 
-The following captures show the final step-60 state. The fixed orthographic views make front/back coverage and side/top/bottom relationships easier to inspect than a single perspective screenshot.
+The following captures show the final step-60 state. They remain here for regression diagnosis and must be replaced after the geometry and fit checks are corrected. The fixed orthographic views make front/back coverage and side/top/bottom relationships easier to inspect than a single perspective screenshot.
 
 <table>
   <tr>
@@ -53,7 +69,7 @@ The acceptance run measures the same scene at steps 1, 15 and 60. Contact counts
 | 15 | 636 | 340 | 0 | 5.87 mm | 5.245 mm | 0.000 mm |
 | 60 | 156 | 133 | 0 | 6.00 mm | 2.752 mm | 0.000 mm |
 
-Across the three checkpoints, the body-containment test found no particles inside the mannequin. The measured mannequin clearance stayed above the fixture's 5 mm minimum. All 24 explicit shirt/waistband support pins had zero drift. The largest measured semantic seam gap was 5.245 mm, below the fixture's 12 mm acceptance limit.
+Across the three checkpoints, the body-containment test found no particles inside the mannequin. The measured minimum mannequin clearance stayed above 5 mm, all 24 support pins had zero drift, and the largest semantic seam gap was 5.245 mm. These are useful solver/contact diagnostics, but they are not visual-fit criteria and do not override the failed visual review above.
 
 The contact report's residual value is a **requested-clearance deficit**, not a signed volumetric penetration depth. The acceptance checks it from current geometry after the final mannequin projection; it does not infer contact from overlapping pixels.
 
@@ -68,9 +84,9 @@ The native document is included in the **layered-outfit-acceptance** artifact fo
 
 The save/reload acceptance verifies that piece links, group assignments and support-pin selections survive document reopening. The PBD runtime itself is derived state and is rebuilt from the persisted garment data after reload.
 
-The focused layered-outfit GUI acceptance completed successfully in this run. The **overall full-validation run was not green**: separate repository checks failed in the production tunic audit and a stale timeout-count assertion. Do not treat this example artifact as a full-repository release pass.
+The focused layered-outfit GUI acceptance completed successfully in this run, but that pass is now considered a **false positive for visual quality**: the fixture never measured the maximum body stand-off or checked garment silhouette. The overall full-validation run was also not green. Do not treat this artifact as evidence of acceptable garment fit or as a full-repository release pass.
 
-## Current design boundary and next increment
+## Current design boundary and required redesign
 
 This is a construction/contact feasibility example, not a finished production shirt or a complete garment-creation wizard. The shirt is a simple four-panel torso shell. It does not yet include shaped armholes, sleeves, a neckline, collar, cuffs, button placket or size grading. The fabric remains the existing generic cloth approximation; this example does not claim calibrated woven/orthotropic material behavior.
 
