@@ -1360,6 +1360,16 @@ def run_acceptance() -> None:
                 % len(waistband_support_pin_indices)
             )
         support_pin_indices = waistband_support_pin_indices
+        waistband_support_records = [
+            {
+                "panel_id": panel_name,
+                "particle_index": int(index),
+                "target_mm": [float(value) for value in waistband_targets_by_chain[panel_name]],
+                "position_mm": [float(value) for value in initial_positions[index]],
+                "clearance_mm": float(clearance_by_particle[index]),
+            }
+            for panel_name, index in sorted(waistband_selected_by_panel.items())
+        ]
 
         _log(
             "waistband-support-selection="
@@ -1874,6 +1884,7 @@ def run_acceptance() -> None:
                     "particle_indices": sorted(waistband_support_pin_indices),
                     "count": len(waistband_support_pin_indices),
                 },
+                "waistband_supports": waistband_support_records,
             },
             "scene_map": {
                 "coordinate_system": {
