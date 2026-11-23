@@ -56,6 +56,7 @@ def test_support_selection_rejects_particles_shared_by_panel_boundaries() -> Non
             minimum_clearance_mm=5.0,
         )
 
+
 def test_landmark_supports_choose_nearest_bounded_exterior_particle() -> None:
     """Choose one support near each anatomical target and reject excessive stand-off."""
     chains = {"left_shoulder": (0, 1, 2), "right_shoulder": (3, 4, 5)}
