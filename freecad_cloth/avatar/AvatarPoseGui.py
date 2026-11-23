@@ -407,10 +407,16 @@ class SkeletonPoseController:
             )
             return
 
-        from freecad_cloth.shared.ViewportGizmoGeometry import create_foreground_layer
+        from freecad_cloth.shared.ViewportGizmoGeometry import (
+            create_foreground_content,
+            create_foreground_layer,
+        )
 
         self.overlay = create_foreground_layer(coin, "ClothAvatarPoseOverlay")
-        self.overlay_content = coin.SoSeparator()
+        self.overlay_content = create_foreground_content(
+            coin,
+            "ClothAvatarPoseOverlayContent",
+        )
         self.overlay.addChild(self.overlay_content)
         self.scene_graph.addChild(self.overlay)
 
@@ -668,8 +674,10 @@ class SkeletonPoseController:
         parent = self.overlay_content if self.overlay_content is not None else self.overlay
         if parent is None:
             return
-        while parent.getNumChildren():
-            parent.removeChild(0)
+        # Child zero is the depth override traversed with every foreground primitive.
+        # Preserve it while rebuilding the transient bone and joint geometry.
+        while parent.getNumChildren() > 1:
+            parent.removeChild(1)
 
     def refresh_overlay(self, keep_gizmo=False):
         """Refresh the skeleton overlay and optionally preserve the active gizmo.
