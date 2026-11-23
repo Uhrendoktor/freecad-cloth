@@ -173,9 +173,14 @@ def _make_tunic_piece(
     hem_width = float(hem_width_mm)
     neck_ratio = float(neckline_ratio)
     neck_drop = float(neckline_drop)
-    if not all(math.isfinite(value) and value > 0.0 for value in (panel_width, garment_height, hem_width)):
+    dimensions = (panel_width, garment_height, hem_width)
+    if not all(math.isfinite(value) and value > 0.0 for value in dimensions):
         raise ValueError("tunic panel dimensions must be finite and positive")
-    if hem_width < panel_width or not 0.5 < neck_ratio < 1.0 or not 0.0 < neck_drop < 0.2:
+    if (
+        hem_width < panel_width
+        or not 0.5 < neck_ratio < 1.0
+        or not 0.0 < neck_drop < 0.2
+    ):
         raise ValueError("tunic panel proportions are invalid")
 
     neck_z = (1.0 - neck_drop) * garment_height
@@ -1395,6 +1400,15 @@ def run_acceptance() -> None:
             raise RuntimeError("waistband support-pin rebuild did not initialize the solver backend")
         if set(backend._pin_indices) != support_pin_indices:
             raise RuntimeError("native PBD did not register the four waistband support pins")
+        shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
+        shirt_particle_indices = {
+            int(index)
+            for panel_name, piece_name in base.panel_piece_names.items()
+            if piece_name in shirt_piece_names
+            for index in base.panel_indices.get(panel_name, ())
+        }
+        if set(backend._pin_indices).intersection(shirt_particle_indices):
+            raise RuntimeError("the shaped shirt must remain entirely unpinned")
         initial_positions = backend.positions()
         support_pin_positions = {
             index: tuple(float(value) for value in initial_positions[index])
@@ -1801,9 +1815,17 @@ def run_acceptance() -> None:
         if str(scene.PinMode) != "Explicit":
             raise RuntimeError("explicit waistband support-pin mode did not survive save/reload")
         if reloaded_selection != tuple(sorted(support_pin_indices)):
-            raise RuntimeError("shirt support-pin selections changed after save/reload")
+            raise RuntimeError("waistband support-pin selections changed after save/reload")
         if reloaded_backend is None or set(reloaded_backend._pin_indices) != support_pin_indices:
             raise RuntimeError("native waistband support pins were not rebuilt after save/reload")
+        reloaded_shirt_particle_indices = {
+            int(index)
+            for panel_name, piece_name in reloaded_base.panel_piece_names.items()
+            if piece_name in shirt_piece_names
+            for index in reloaded_base.panel_indices.get(panel_name, ())
+        }
+        if set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices):
+            raise RuntimeError("shaped shirt particles became pinned after save/reload")
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
             (
