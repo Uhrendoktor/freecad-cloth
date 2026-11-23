@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 EXPECTED_PIECES = 10
 EXPECTED_SEAMS = 16
 EXPECTED_GROUPS = frozenset({"shirt", "skirt"})
-EXPECTED_CHECKPOINTS = (1, 30, 120)
+EXPECTED_CHECKPOINTS = (1, 15, 60)
 EXPECTED_VIEWS = frozenset({"front", "rear", "right", "left", "top", "bottom"})
 EXPECTED_IMAGE_WIDTH = 960
 EXPECTED_IMAGE_HEIGHT = 720
@@ -28,6 +28,7 @@ MAXIMUM_SEAM_GAP_MM = 12.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
+MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 
 
 def _require(condition: bool, message: str) -> None:
@@ -418,17 +419,58 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     support_pins = outfit.get("support_pins")
     _require(isinstance(support_pins, dict), "shirt support-pin record is missing")
     _require(
-        support_pins.get("mode") == "None",
-        "shaped shirt must remain unpinned so it can drape under gravity",
+        support_pins.get("mode") == "Explicit",
+        "shirt must retain explicit anatomical shoulder supports",
     )
     support_pin_indices = support_pins.get("particle_indices")
     _require(
-        isinstance(support_pin_indices, list) and len(support_pin_indices) == 0,
-        "shirt must not contain artificial support pins",
+        isinstance(support_pin_indices, list)
+        and len(support_pin_indices) == 2
+        and all(
+            isinstance(index, int) and not isinstance(index, bool) and index >= 0
+            for index in support_pin_indices
+        )
+        and len(set(support_pin_indices)) == 2,
+        "shirt support-pin inventory must contain two unique particle indices",
     )
     _require(
-        support_pins.get("count") == 0,
-        "shirt support-pin count must be zero",
+        support_pins.get("count") == len(support_pin_indices),
+        "shirt support-pin count disagrees with its index inventory",
+    )
+    shirt_supports = outfit.get("shirt_supports")
+    _require(
+        isinstance(shirt_supports, list) and len(shirt_supports) == 2,
+        "shirt must expose two anatomical shoulder support records",
+    )
+    shirt_support_panels: set[str] = set()
+    shirt_support_particles: set[int] = set()
+    for support in shirt_supports:
+        _require(isinstance(support, dict), "shirt support record must be an object")
+        panel_id = support.get("panel_id")
+        particle_index = support.get("particle_index")
+        _require(
+            isinstance(panel_id, str) and panel_id and panel_id not in shirt_support_panels,
+            "shirt support panel identities must be two unique values",
+        )
+        _require(
+            isinstance(particle_index, int)
+            and not isinstance(particle_index, bool)
+            and particle_index >= 0
+            and particle_index not in shirt_support_particles,
+            "shirt support particle identities must be two unique indices",
+        )
+        shirt_support_panels.add(panel_id)
+        shirt_support_particles.add(particle_index)
+        _finite_vector(support.get("target_mm"), "shirt support target", 3)
+        _finite_vector(support.get("position_mm"), "shirt support position", 3)
+        stand_off = _number(support, "clearance_mm")
+        _require(
+            MINIMUM_BODY_CLEARANCE_MM <= stand_off <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM,
+            "shirt support stand-off is outside the anatomical support range",
+        )
+    _require(
+        shirt_support_particles == set(support_pin_indices),
+        "shirt support geometry does not match its pinned particle inventory",
     )
     waistband_support_pins = outfit.get("waistband_support_pins")
     _require(
@@ -678,8 +720,8 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
 
     _require(
-        persistence.get("shirt_unpinned_after_reload") is True,
-        "shirt was not verified unpinned after save/reload",
+        persistence.get("shirt_supports_preserved_after_reload") is True,
+        "shirt shoulder supports were not preserved after save/reload",
     )
     _require(
         persistence.get("waistband_support_pins_preserved") is True,

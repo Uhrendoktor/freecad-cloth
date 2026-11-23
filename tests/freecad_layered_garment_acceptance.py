@@ -46,7 +46,7 @@ os.environ["CLOTH_INTER_CLOTH_DIAGNOSTICS"] = "1"
 LOG = OUTPUT / "layered-outfit-progress.log"
 IMAGE_WIDTH = 960
 IMAGE_HEIGHT = 720
-CHECKPOINTS = (0, 1, 30, 120)
+CHECKPOINTS = (0, 1, 15, 60)
 SEAM_EDGE_A = 1
 SEAM_EDGE_B = 3
 SEAM_BOTTOM_EDGE = 0
@@ -57,6 +57,7 @@ MINIMUM_CONTACTS = 1
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
+MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 SKIRT_HEM_FLARE_MM = 65.0
@@ -1126,7 +1127,7 @@ def run_acceptance() -> None:
         # audit instead of a four-sided rectangular tube. The open neckline and
         # armholes are retained as authored Sketcher arcs and semantic edges.
         shirt_bottom_z = hip_z - 85.0
-        shirt_panel_width = max(420.0, shoulder_width + 105.0) * 1.10
+        shirt_panel_width = max(420.0, shoulder_width + 105.0)
         shirt_hem_width = max(500.0, shirt_panel_width + 100.0)
         shirt_garment_height = max(
             560.0,
@@ -1311,11 +1312,41 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # The shaped shirt is deliberately unpinned, matching the canonical
-        # tunic drape audit. The skirt is supported by four local waistband
-        # points (one per panel), selected near the actual waist and bounded
-        # by a maximum mannequin stand-off. No complete rim is suspended.
+        # Two shoulder-tip supports keep the shirt seated on the mannequin.
+        # Its back shoulder edges follow the pinned front through the authored seams.
+        shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
+        panel_name_by_piece = {
+            str(piece_name): str(panel_name)
+            for panel_name, piece_name in base.panel_piece_names.items()
+        }
+        shirt_front_panel_name = panel_name_by_piece.get(str(shirt["front"].Name))
+        if shirt_front_panel_name is None:
+            raise RuntimeError("shirt front solver panel identity is missing")
+        shirt_front_boundaries = base.panel_boundary_edges.get(shirt_front_panel_name, ())
+        if len(shirt_front_boundaries) <= 5:
+            raise RuntimeError("shaped shirt front has no semantic shoulder boundaries")
+        shirt_support_chains = {
+            "shirt-right-shoulder": tuple(int(index) for index in shirt_front_boundaries[3]),
+            "shirt-left-shoulder": tuple(int(index) for index in shirt_front_boundaries[5]),
+        }
+        if any(not chain for chain in shirt_support_chains.values()):
+            raise RuntimeError("shirt shoulder boundary has no solver particles")
+        shirt_shoulder_target_y = torso_front_y - shirt_clearance
+        shirt_shoulder_target_z = shoulder_z + 20.0
+        shirt_support_targets_by_chain = {
+            "shirt-right-shoulder": (
+                float(shoulder_right.x),
+                float(shirt_shoulder_target_y),
+                float(shirt_shoulder_target_z),
+            ),
+            "shirt-left-shoulder": (
+                float(shoulder_left.x),
+                float(shirt_shoulder_target_y),
+                float(shirt_shoulder_target_z),
+            ),
+        }
+
         waistband_top_chains: dict[str, tuple[int, ...]] = {}
         waistband_targets_by_chain: dict[str, tuple[float, float, float]] = {}
         waistband_top_z = waistband_bottom_z + waistband_height
@@ -1325,10 +1356,6 @@ def run_acceptance() -> None:
             "back": (center_x, center_y + radius_y, waistband_top_z),
             "left": (center_x - radius_x, center_y, waistband_top_z),
         }
-        panel_name_by_piece = {
-            str(piece_name): str(panel_name)
-            for panel_name, piece_name in base.panel_piece_names.items()
-        }
         for piece_name, side in waistband_piece_names.items():
             panel_name = panel_name_by_piece.get(piece_name)
             if panel_name is None:
@@ -1337,7 +1364,7 @@ def run_acceptance() -> None:
             if len(boundary_chains) <= SEAM_TOP_EDGE:
                 raise RuntimeError("waistband panel has no semantic top boundary: " + panel_name)
             chain = tuple(int(index) for index in boundary_chains[SEAM_TOP_EDGE])
-            if len(chain) < 1:
+            if not chain:
                 raise RuntimeError("waistband top boundary has no solver particles: " + panel_name)
             waistband_top_chains[panel_name] = chain
             waistband_targets_by_chain[panel_name] = target_by_side[side]
@@ -1351,7 +1378,12 @@ def run_acceptance() -> None:
         collision_surface = base.collision_surface
         initial_positions = np.asarray(backend.positions(), dtype=np.float64)
         candidate_indices = tuple(
-            dict.fromkeys(index for chain in waistband_top_chains.values() for index in chain)
+            dict.fromkeys(
+                index
+                for chains in (shirt_support_chains, waistband_top_chains)
+                for chain in chains.values()
+                for index in chain
+            )
         )
         candidate_points = tuple(
             tuple(float(value) for value in initial_positions[index]) for index in candidate_indices
@@ -1369,7 +1401,7 @@ def run_acceptance() -> None:
         projector = getattr(backend, "_collision_projector", None)
         if projector is None:
             raise RuntimeError(
-                "waistband support selection requires the active body collision projector"
+                "garment support selection requires the active body collision projector"
             )
         clearance_by_particle: dict[int, float] = {}
         for index in candidate_indices:
@@ -1378,6 +1410,15 @@ def run_acceptance() -> None:
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
 
+        shirt_selected_by_panel = select_landmark_supports(
+            shirt_support_chains,
+            shirt_support_targets_by_chain,
+            initial_positions,
+            exterior_by_particle,
+            clearance_by_particle,
+            minimum_clearance_mm=MINIMUM_BODY_CLEARANCE_MM,
+            maximum_clearance_mm=MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM,
+        )
         waistband_selected_by_panel = select_landmark_supports(
             waistband_top_chains,
             waistband_targets_by_chain,
@@ -1387,14 +1428,31 @@ def run_acceptance() -> None:
             minimum_clearance_mm=MINIMUM_BODY_CLEARANCE_MM,
             maximum_clearance_mm=MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM,
         )
-        shirt_support_pin_indices: set[int] = set()
+        shirt_support_pin_indices = set(shirt_selected_by_panel.values())
         waistband_support_pin_indices = set(waistband_selected_by_panel.values())
+        if len(shirt_support_pin_indices) != 2:
+            raise RuntimeError(
+                "expected two unique anatomical shirt shoulder supports, got %d"
+                % len(shirt_support_pin_indices)
+            )
         if len(waistband_support_pin_indices) != 4:
             raise RuntimeError(
                 "expected four unique anatomical waistband support particles, got %d"
                 % len(waistband_support_pin_indices)
             )
-        support_pin_indices = waistband_support_pin_indices
+        if shirt_support_pin_indices.intersection(waistband_support_pin_indices):
+            raise RuntimeError("shirt and waistband support pins cannot reuse native particles")
+        support_pin_indices = shirt_support_pin_indices | waistband_support_pin_indices
+        shirt_support_records = [
+            {
+                "panel_id": panel_name,
+                "particle_index": int(index),
+                "target_mm": [float(value) for value in shirt_support_targets_by_chain[panel_name]],
+                "position_mm": [float(value) for value in initial_positions[index]],
+                "clearance_mm": float(clearance_by_particle[index]),
+            }
+            for panel_name, index in sorted(shirt_selected_by_panel.items())
+        ]
         waistband_support_records = [
             {
                 "panel_id": panel_name,
@@ -1406,6 +1464,21 @@ def run_acceptance() -> None:
             for panel_name, index in sorted(waistband_selected_by_panel.items())
         ]
 
+        _log(
+            "shirt-support-selection="
+            + json.dumps(
+                {
+                    panel_name: {
+                        "target_mm": list(shirt_support_targets_by_chain[panel_name]),
+                        "particle": int(index),
+                        "position_mm": [float(value) for value in initial_positions[index]],
+                        "nearest_surface_clearance_mm": clearance_by_particle[index],
+                    }
+                    for panel_name, index in sorted(shirt_selected_by_panel.items())
+                },
+                sort_keys=True,
+            )
+        )
         _log(
             "waistband-support-selection="
             + json.dumps(
@@ -1428,28 +1501,39 @@ def run_acceptance() -> None:
         backend = base.backend
         if backend is None:
             raise RuntimeError(
-                "waistband support-pin rebuild did not initialize the solver backend"
+                "anatomical garment support-pin rebuild did not initialize the backend"
             )
         if set(backend._pin_indices) != support_pin_indices:
-            raise RuntimeError("native PBD did not register the four waistband support pins")
-        shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
+            raise RuntimeError("native PBD did not register the six anatomical garment supports")
         shirt_particle_indices = {
             int(index)
             for panel_name, piece_name in base.panel_piece_names.items()
             if piece_name in shirt_piece_names
             for index in base.panel_indices.get(panel_name, ())
         }
-        if set(backend._pin_indices).intersection(shirt_particle_indices):
-            raise RuntimeError("the shaped shirt must remain entirely unpinned")
+        if (
+            set(backend._pin_indices).intersection(shirt_particle_indices)
+            != shirt_support_pin_indices
+        ):
+            raise RuntimeError("the shirt native pin set does not match its two shoulder supports")
         initial_positions = backend.positions()
         support_pin_positions = {
             index: tuple(float(value) for value in initial_positions[index])
             for index in support_pin_indices
         }
-        shirt_support_pin_positions: dict[int, tuple[float, float, float]] = {}
+        shirt_support_pin_positions = {
+            index: support_pin_positions[index] for index in shirt_support_pin_indices
+        }
         waistband_support_pin_positions = {
             index: support_pin_positions[index] for index in waistband_support_pin_indices
         }
+        shirt_shoulder_z_values = [
+            shirt_support_pin_positions[index][2] for index in shirt_support_pin_indices
+        ]
+        if max(shirt_shoulder_z_values) - min(shirt_shoulder_z_values) > 1e-5:
+            raise RuntimeError("shirt shoulder support pins do not share one authored height")
+        if max(abs(value - shirt_shoulder_target_z) for value in shirt_shoulder_z_values) > 1e-3:
+            raise RuntimeError("shirt shoulder support pins are not at the authored shoulder height")
         waistband_top_z_values = [
             waistband_support_pin_positions[index][2] for index in waistband_support_pin_indices
         ]
@@ -1461,10 +1545,13 @@ def run_acceptance() -> None:
             "shirt-support-pins="
             + json.dumps(
                 {
-                    "mode": "None",
-                    "count": 0,
-                    "particle_indices": [],
-                    "note": "the shaped shirt is unpinned and drapes under gravity",
+                    "mode": str(scene.PinMode),
+                    "count": len(shirt_support_pin_indices),
+                    "particle_indices": sorted(shirt_support_pin_indices),
+                    "positions_mm": {
+                        str(index): list(shirt_support_pin_positions[index])
+                        for index in sorted(shirt_support_pin_indices)
+                    },
                 },
                 sort_keys=True,
             )
@@ -1864,8 +1951,11 @@ def run_acceptance() -> None:
             if piece_name in shirt_piece_names
             for index in reloaded_base.panel_indices.get(panel_name, ())
         }
-        if set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices):
-            raise RuntimeError("shaped shirt particles became pinned after save/reload")
+        if (
+            set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices)
+            != shirt_support_pin_indices
+        ):
+            raise RuntimeError("shirt shoulder supports were not preserved after save/reload")
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
             (
@@ -1941,10 +2031,11 @@ def run_acceptance() -> None:
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
                 "particle_distance_mm": float(scene.ParticleDistance),
                 "support_pins": {
-                    "mode": "None",
-                    "particle_indices": [],
-                    "count": 0,
+                    "mode": str(scene.PinMode),
+                    "particle_indices": sorted(shirt_support_pin_indices),
+                    "count": len(shirt_support_pin_indices),
                 },
+                "shirt_supports": shirt_support_records,
                 "waistband_support_pins": {
                     "mode": str(scene.PinMode),
                     "particle_indices": sorted(waistband_support_pin_indices),
@@ -1990,7 +2081,7 @@ def run_acceptance() -> None:
                 "garment_groups_preserved": True,
                 "contact_rebuilt_after_reload": True,
                 "support_pins_preserved": True,
-                "shirt_unpinned_after_reload": True,
+                "shirt_supports_preserved_after_reload": True,
                 "waistband_support_pins_preserved": True,
                 "saved_step_count": saved_step_count,
                 "restored_step_count": restored_step_count,

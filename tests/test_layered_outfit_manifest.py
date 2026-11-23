@@ -32,9 +32,9 @@ def _valid_artifact(root: Path) -> Path:
     image_inventory = (
         ("step-000-axonometric.png", "initial shaped layered outfit"),
         ("step-001-axonometric.png", "layered outfit motion at step 1"),
-        ("step-030-axonometric.png", "layered outfit motion at step 30"),
+        ("step-015-axonometric.png", "layered outfit motion at step 30"),
         *(
-            ("final-six-view/step-120-%s.png" % side, side)
+            ("final-six-view/step-060-%s.png" % side, side)
             for side in ("front", "rear", "right", "left", "top", "bottom")
         ),
     )
@@ -96,11 +96,11 @@ def _valid_artifact(root: Path) -> Path:
             "step": step,
             "elapsed_ms": 100.0,
             "finite": True,
-            "contact_count": 0 if step == 120 else 24,
-            "corrected_particle_count": 0 if step == 120 else 32,
+            "contact_count": 0 if step == 60 else 24,
+            "corrected_particle_count": 0 if step == 60 else 32,
             "contact_observed_so_far": True,
-            "support_pin_count": 4,
-            "shirt_support_pin_count": 0,
+            "support_pin_count": 6,
+            "shirt_support_pin_count": 2,
             "waistband_support_pin_count": 4,
             "maximum_support_pin_drift_mm": 0.0,
             "maximum_shirt_support_pin_drift_mm": 0.0,
@@ -116,7 +116,7 @@ def _valid_artifact(root: Path) -> Path:
             "seams": seams,
             "images": [],
         }
-        for step in (1, 30, 120)
+        for step in (1, 15, 60)
     ]
     pieces_scene = []
     for index, piece_id in enumerate(piece_ids):
@@ -234,19 +234,29 @@ def _valid_artifact(root: Path) -> Path:
             "inter_cloth_clearance_mm": 8.0,
             "particle_distance_mm": 24.0,
             "support_pins": {
-                "mode": "None",
-                "particle_indices": [],
-                "count": 0,
+                "mode": "Explicit",
+                "particle_indices": [0, 1],
+                "count": 2,
             },
+            "shirt_supports": [
+                {
+                    "panel_id": "shirt-shoulder-" + side,
+                    "particle_index": index,
+                    "target_mm": [float(index), 0.0, 150.0],
+                    "position_mm": [float(index), -25.0, 170.0],
+                    "clearance_mm": 25.0,
+                }
+                for index, side in enumerate(("right", "left"))
+            ],
             "waistband_support_pins": {
                 "mode": "Explicit",
-                "particle_indices": list(range(4)),
+                "particle_indices": list(range(2, 6)),
                 "count": 4,
             },
             "waistband_supports": [
                 {
                     "panel_id": "waistband-" + side,
-                    "particle_index": index,
+                    "particle_index": index + 2,
                     "target_mm": [float(index), 0.0, 100.0],
                     "position_mm": [float(index), 25.0, 100.0],
                     "clearance_mm": 25.0,
@@ -263,10 +273,10 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups_preserved": True,
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
-            "shirt_unpinned_after_reload": True,
+            "shirt_supports_preserved_after_reload": True,
             "waistband_support_pins_preserved": True,
-            "saved_step_count": 120,
-            "restored_step_count": 120,
+            "saved_step_count": 60,
+            "restored_step_count": 60,
             "post_reload_step_count": 1,
             "native_backend_rebuilt": True,
             "transient_solver_state_reinitialized": True,
@@ -295,15 +305,27 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
     }
 
 
-def test_validator_rejects_artificial_shirt_support_pins(tmp_path: Path) -> None:
-    """The shaped shirt must remain unpinned and fall onto the mannequin under gravity."""
+def test_validator_rejects_missing_shirt_shoulder_supports(tmp_path: Path) -> None:
+    """The shaped shirt must retain two bounded shoulder supports."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["outfit"]["support_pins"]["particle_indices"] = [99]
-    manifest["outfit"]["support_pins"]["count"] = 1
+    manifest["outfit"]["support_pins"]["particle_indices"] = []
+    manifest["outfit"]["support_pins"]["count"] = 0
+    manifest["outfit"]["shirt_supports"] = []
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="shirt must not contain artificial support pins"):
+    with pytest.raises(ValueError, match="two unique particle indices"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_airborne_shirt_shoulder_support(tmp_path: Path) -> None:
+    """A shoulder pin far from the mannequin must invalidate the artifact."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["shirt_supports"][0]["clearance_mm"] = 90.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shirt support stand-off is outside"):
         validate_manifest(manifest_path)
 
 
@@ -474,7 +496,7 @@ def test_validator_rejects_blank_rendered_view(tmp_path: Path) -> None:
     """A present but visually blank PNG must not satisfy the six-view contract."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    blank_path = tmp_path / "final-six-view" / "step-120-left.png"
+    blank_path = tmp_path / "final-six-view" / "step-060-left.png"
     _write_png(blank_path, blank=True)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
