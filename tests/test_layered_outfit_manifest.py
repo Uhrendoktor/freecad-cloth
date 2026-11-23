@@ -204,7 +204,11 @@ def _valid_artifact(root: Path) -> Path:
             "garment_group_b": "skirt",
             "minimum_requested_clearance_mm": 8.0,
             "measurement_method": "two-sided edge-to-triangle position projection",
-            "metric_semantics": "positive residual value is the requested clearance deficit (requested gap minus closest sampled edge/triangle distance), not signed volumetric intersection depth",
+            "metric_semantics": (
+                "positive residual value is the requested clearance deficit "
+                "(requested gap minus closest sampled edge/triangle distance), "
+                "not signed volumetric intersection depth"
+            ),
         },
     }
     manifest = {
