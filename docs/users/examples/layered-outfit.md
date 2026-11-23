@@ -18,25 +18,33 @@ The source fixture, not the camera, is the main problem:
 
 The native PBD solver is stepping and applying cloth-to-cloth/body constraints, but those numeric checks do not establish a good garment drape. The previous acceptance therefore passed a contact/persistence test while missing the obvious visual failure.
 
-## Gravity, supports and the missing floor test
+## Gravity, supports and comparison with the working tunic
 
-The fixture does pass Earth gravity to the native solver: `GravityZ = -9810 mm/s²`, with a `1/120 s` timestep. The runtime forwards that vector on every native PBD step. Therefore, the source configuration does not show gravity being disabled.
+The fixture passes Earth gravity to the native solver: `GravityZ = -9810 mm/s²`. The backend is stepped, and the source configuration does not show gravity being disabled. The working canonical tunic audit is an important comparison: it uses the same PBD solver and gravity, sets `PinMode = "None"`, verifies that the native backend contains no pins, and drapes two shaped front/back tunic panels onto the mannequin.
 
-However, this is **not a free-fall test**:
+The layered fixture differs substantially:
 
-- Twelve shirt particles are explicitly pinned around the shoulder boundary.
-- Twelve waistband particles are explicitly pinned around the waistband's upper boundary.
-- The four side panels of each ring are sewn into a closed shell.
-- The only `DrapeTarget` is the mannequin. No floor plane or floor collision target is created.
+| Setting | Canonical tunic production audit | Layered outfit fixture |
+| --- | ---: | ---: |
+| Pattern panels | 2 | 12 |
+| Solver pins | 0 | 24 |
+| Solver steps | 90 | 60 |
+| Scene timestep | 1/240 s | 1/120 s |
+| Native PBD substeps | 4 | 1 |
+| Simulated time | 0.375 s | 0.5 s |
 
-The garments should therefore hang from their upper supports and drape against the mannequin; they are not expected to fall freely to the floor. Without a floor collider, unpinned cloth that falls below the mannequin would not be caught by a floor in this scene.
+The layered captures are therefore not simply earlier than the tunic captures in simulated time. The key differences are its authored geometry and artificial supports:
 
-There is a second, more serious diagnostic gap. The first screenshot after one simulation step looks dramatically different from the arranged state. One step is only 8.33 ms; gravity alone moves a particle starting from rest by about 0.34 mm during that interval. The acceptance log records contact corrections and seam gaps, but does not record per-particle displacement before/after the native step and each collision projection. We therefore cannot yet attribute the first-frame change to gravity, body projection, inter-cloth projection, or panel-mesh publication.
+- `_make_ring` builds each garment as four flat trapezoids already arranged around the mannequin. This is a straight-sided shell, not the shaped front/back tunic pattern that is allowed to fall onto the body.
+- The fixture selects 12 shirt top-boundary particles and 12 waistband top-boundary particles, then pins them explicitly. The selection rule only requires a particle to be outside the mannequin and at least 5 mm from its surface; it has no maximum stand-off and does not match anchors to anatomical shoulder or waist support landmarks.
+- In the run's own support audit, selected shirt anchors were about **7.9–98.8 mm** from the mannequin and selected waistband anchors about **23.4–119.6 mm** away. Some of the top-edge pins are therefore far out from the body and can hold the shells suspended in space rather than resting on the mannequin.
+- The only `DrapeTarget` is the mannequin. No floor plane or floor collision target is created, so free cloth cannot settle onto a floor in this fixture.
 
-The next physics diagnosis must add a controlled gravity-response test: run an unpinned representative panel from rest with gravity on and off, record its centre-of-mass and per-particle displacement after each native step, and verify that the gravity-on case moves downward at the expected scale. A separate floor-collision fixture must include an actual horizontal collision surface. Only after those controls pass should the supported mannequin drape be accepted. This distinguishes a broken gravity/integration path from the current fixture's support, collision and geometry constraints.
+The current evidence points first to the layered fixture's initial shell geometry and support-point selection, not to gravity being broken in the shared solver. The single-tunic result is good evidence that the solver can produce gravity-driven mannequin drape; it does not, by itself, validate this different twelve-panel, inter-garment-contact configuration.
 
+Step 60 is the last captured checkpoint, after 0.5 simulated seconds. It is not a demonstrated equilibrium state. The images should remain labelled as a failed fixture result, but the previous claim that the large step-1 visual change specifically implicates gravity was too strong: gravity-only free-fall displacement does not account for seam constraints, body projection, inter-cloth projection or the initial placement of these already assembled shells. The acceptance currently lacks stage-by-stage displacement measurements to separate those effects.
 
-The next geometry pass must replace the rectangular ring with a contour-following multi-panel shell, shape the shoulder/neck/armhole boundary instead of using one horizontal top rim, and reject support points whose stand-off is too large. The visual acceptance must also test silhouette and regional body-fit gaps, not only image dimensions and pixel counts.
+The next correction should be to author a body-contouring multi-panel pattern and select a small number of anatomically meaningful supports with both minimum and maximum stand-off limits. A floor-collision experiment can be added separately if floor settling is an intended acceptance requirement. The existing tunic audit should remain the reference for the unpinned gravity-driven drape path.
 
 ## What is in the scene
 
