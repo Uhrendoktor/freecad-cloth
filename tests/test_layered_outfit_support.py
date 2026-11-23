@@ -3,7 +3,10 @@
 
 import pytest
 
-from tests.support.layered_outfit_support import (\n    select_landmark_supports,\n    select_top_boundary_supports,\n)
+from tests.support.layered_outfit_support import (
+    select_landmark_supports,
+    select_top_boundary_supports,
+)
 
 
 def test_support_selection_skips_interior_and_too_close_particles() -> None:
