@@ -370,9 +370,10 @@ def test_validator_rejects_shirt_hem_in_the_flared_skirt_body(tmp_path: Path) ->
 
 def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile() -> None:
     """Keep shallow sides linear and the shortened shirt's armscyes outside its contour."""
-    source = (ROOT / "tests" / "freecad_layered_garment_acceptance.py").read_text(
-        encoding="utf-8"
+    source_path = (
+        Path(__file__).resolve().parents[1] / "tests" / "freecad_layered_garment_acceptance.py"
     )
+    source = source_path.read_text(encoding="utf-8")
     panel = source.split("def _make_tunic_piece(", 1)[1].split("\ndef _make_ring(", 1)[0]
     assert "if index == 2:" in panel
     assert "if index == 4:" in panel
