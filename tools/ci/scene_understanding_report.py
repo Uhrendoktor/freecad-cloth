@@ -101,6 +101,7 @@ class ProgressEvidence:
         failure_lines: Explicit failure markers captured from the progress log.
         has_scenario_pass: Whether a successful terminal marker was observed.
         has_simulation_start: Whether simulation startup was observed.
+        has_layered_outfit_checkpoint: Whether a layered-outfit simulation checkpoint was recorded.
     """
 
     topology_by_piece: dict[str, JsonObject] = field(default_factory=dict)
@@ -112,6 +113,7 @@ class ProgressEvidence:
     failure_lines: list[str] = field(default_factory=list)
     has_scenario_pass: bool = False
     has_simulation_start: bool = False
+    has_layered_outfit_checkpoint: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -585,7 +587,12 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
     Returns:
         Parsed topology, placement, pose, screenshot, and simulation observations.
     """
-    parsed = ProgressEvidence(has_simulation_start="tunic-simulation-start" in progress_text)
+    parsed = ProgressEvidence(
+        has_simulation_start=(
+            "tunic-simulation-start" in progress_text
+            or "layered-outfit-step-start=" in progress_text
+        )
+    )
     for line in progress_text.splitlines():
         topology = _parse_topology(line)
         if topology is not None:
@@ -595,6 +602,8 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             parsed.armholes_by_index[_int_value(armhole["edge_index"])] = armhole
         _record_pose(line, parsed)
         _record_placement(line, parsed)
+        if line.startswith("checkpoint="):
+            parsed.has_layered_outfit_checkpoint = True
         screenshot = _SCREENSHOT_RE.search(line)
         if screenshot:
             raw_path = screenshot.group(1).strip()
@@ -611,9 +620,17 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
                 parsed.drape_records.append(cast("JsonObject", parsed_metrics))
-        if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
+        if (
+            "scenario-pass" in line
+            or "tunic-audit-process-exit=success" in line
+            or line.strip() == "layered-outfit-acceptance=passed"
+        ):
             parsed.has_scenario_pass = True
-        if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
+        if (
+            "scenario-fail" in line
+            or line.startswith("SCENARIO FAILURE:")
+            or line.startswith("layered-outfit-acceptance=failed")
+        ):
             parsed.failure_lines.append(line.strip())
 
     return parsed
@@ -658,7 +675,11 @@ def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
     elif parsed.has_scenario_pass and not parsed.failure_lines:
         result = "passed"
         failed_stage = None
-        last_completed_stage = "drape" if parsed.drape_records else "simulation"
+        last_completed_stage = (
+            "drape"
+            if parsed.drape_records or parsed.has_layered_outfit_checkpoint
+            else "simulation"
+        )
         next_action = (
             "Review final multi-view fit and keep the same strict geometry and collision gates."
         )
@@ -907,6 +928,42 @@ def _layered_garment_scene(output_root: Path) -> JsonObject | None:
     }
 
 
+def _layered_outfit_final_views_present(
+    output_root: Path,
+    layered_scene: JsonObject | None,
+) -> bool:
+    """Require all six manifest-backed final views before reporting drape images.
+
+    Args:
+        output_root: Directory containing the layered-outfit evidence files.
+        layered_scene: Parsed layered garment scene section, or None if unavailable.
+
+    Returns:
+        Whether all six declared step-60 orthographic images exist on disk.
+    """
+    if layered_scene is None or layered_scene.get("state") != "available":
+        return False
+    raw_images = layered_scene.get("images")
+    if not isinstance(raw_images, list):
+        return False
+    expected_paths = {
+        f"final-six-view/step-060-{side}.png"
+        for side in ("front", "rear", "left", "right", "top", "bottom")
+    }
+    existing_paths: set[str] = set()
+    for record in raw_images:
+        if not isinstance(record, dict):
+            continue
+        raw_path = record.get("file")
+        if (
+            isinstance(raw_path, str)
+            and raw_path in expected_paths
+            and (output_root / raw_path).is_file()
+        ):
+            existing_paths.add(raw_path)
+    return existing_paths == expected_paths
+
+
 def build_report(progress_path: Path, output_root: Path, workspace: Path) -> JsonObject:
     """Build a machine-readable diagnosis using only the completed workflow files.
 
@@ -925,6 +982,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
     )
     parsed = _parse_progress_text(progress_text)
     assessment = _classify_workflow_progress(parsed)
+    layered_scene = _layered_garment_scene(output_root)
     screenshots = _ScreenshotPresence(
         avatar=(
             "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
@@ -938,7 +996,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "cloth-sewing.png" in parsed.screenshot_states
             and (output_root / "cloth-sewing.png").is_file()
         ),
-        drape=any(name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states),
+        drape=(
+            any(name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states)
+            or _layered_outfit_final_views_present(output_root, layered_scene)
+        ),
     )
     stage_states = _derive_stage_states(parsed, assessment, screenshots)
     issues = _build_issues(assessment.invalid_geometry)
@@ -960,7 +1021,6 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
         next_action = str(fit_assessment.get("next_action", next_action))
 
     crossings = _crossing_summary(assessment.invalid_geometry)
-    layered_scene = _layered_garment_scene(output_root)
 
     return {
         "schema": SCHEMA,

@@ -601,6 +601,82 @@ def test_layered_outfit_manifest_is_embedded_as_an_exact_spatial_map(tmp_path: P
     assert "shirt" in markdown and "skirt" in markdown
 
 
+def test_layered_outfit_progress_reports_completed_drape_and_final_views(
+    tmp_path: Path,
+) -> None:
+    """Use layered-outfit markers and all six final manifest-backed views."""
+    output = tmp_path / "layered-outfit"
+    output.mkdir()
+    sides = ("front", "rear", "left", "right", "top", "bottom")
+    image_records = []
+    for side in sides:
+        relative_path = f"final-six-view/step-060-{side}.png"
+        image_path = output / relative_path
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        image_path.write_bytes(b"validated-view-fixture")
+        image_records.append({"file": relative_path, "label": side})
+    manifest = {
+        "outfit": {
+            "garment_groups": ["shirt|shirt-front", "skirt|skirt-front"],
+            "inter_cloth_clearance_mm": 8.0,
+        },
+        "scene_map": {
+            "coordinate_system": {"units": "mm"},
+            "garment_groups": [],
+            "pieces": [],
+            "seams": [],
+        },
+        "checkpoints": [
+            {"step": step, "contact_count": 4, "remaining_contact_count": 0}
+            for step in (1, 15, 60)
+        ],
+        "images": image_records,
+    }
+    (output / "layered-outfit-manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    progress = output / "layered-outfit-progress.log"
+    progress.write_text(
+        "layered-outfit-step-start=1\n"
+        "checkpoint=1 particles=10 contacts=4 residual_mm=0\n"
+        "layered-outfit-step-start=15\n"
+        "checkpoint=15 particles=10 contacts=4 residual_mm=0\n"
+        "layered-outfit-step-start=60\n"
+        "checkpoint=60 particles=10 contacts=4 residual_mm=0\n"
+        "save-reload=passed\n"
+        "layered-outfit-acceptance=passed\n",
+        encoding="utf-8",
+    )
+
+    report = write_report(progress, output, tmp_path)
+
+    status = _expect_dict(report["status"], message="Report status must be a dictionary.")
+    stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
+    simulation = _expect_dict(
+        report["simulation"], message="Simulation section must be a dictionary."
+    )
+    fit_assessment = _expect_dict(
+        report["fit_assessment"],
+        message="Fit assessment must be a dictionary.",
+    )
+    evidence = _expect_dict(report["evidence"], message="Evidence must be a dictionary.")
+    expected_outputs = _expect_dict(
+        evidence["expected_or_known_outputs"],
+        message="Expected outputs must be a dictionary.",
+    )
+    assert status["result"] == "passed", (
+        "A complete layered-outfit marker must pass workflow execution."
+    )
+    assert status["failed_stage"] is None
+    assert status["last_completed_stage"] == "drape"
+    assert simulation["started"] is True
+    assert stages["simulation"] == "started"
+    assert stages["drape"] == "evidence_present"
+    assert expected_outputs["post_drape_views"] == "present"
+    assert expected_outputs["drape_metrics"] == "missing"
+    assert fit_assessment["state"] == "not_assessed"
+
+
 def test_scene_report_marks_malformed_layered_manifest_unavailable(tmp_path: Path) -> None:
     """An unreadable outfit map must be reported as unavailable, not silently omitted."""
     output = tmp_path / "layered-outfit"
