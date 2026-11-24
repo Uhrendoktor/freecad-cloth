@@ -1000,12 +1000,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
             group_by_particle: dict[int, str] = {}
             for group_id, group_triangles in self._inter_cloth_groups.items():
-                group_indices = np.unique(
-                    np.asarray(group_triangles, dtype=np.int64).reshape(-1)
-                )
-                group_by_particle.update(
-                    (int(index), str(group_id)) for index in group_indices
-                )
+                group_indices = np.unique(np.asarray(group_triangles, dtype=np.int64).reshape(-1))
+                group_by_particle.update((int(index), str(group_id)) for index in group_indices)
 
             def emit_movers(
                 phase: str,
@@ -1025,15 +1021,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                         "particle": index,
                         "garment": group_by_particle.get(index, "unassigned"),
                         "delta_mm": round(float(movement[index]), 4),
-                        "from_mm": [
-                            round(float(value), 4) for value in before_mm[index]
-                        ],
-                        "to_mm": [
-                            round(float(value), 4) for value in after_mm[index]
-                        ],
-                        "direction": [
-                            round(float(value), 4) for value in directions[index]
-                        ],
+                        "from_mm": [round(float(value), 4) for value in before_mm[index]],
+                        "to_mm": [round(float(value), 4) for value in after_mm[index]],
+                        "direction": [round(float(value), 4) for value in directions[index]],
                     }
                     for index in selected
                 ]
@@ -1267,12 +1257,8 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                                 float(self._inter_cloth_clearance_mm - item.distance_mm),
                                 4,
                             ),
-                            "edge_point_mm": [
-                                round(float(value), 4) for value in edge_point
-                            ],
-                            "face_point_mm": [
-                                round(float(value), 4) for value in face_point
-                            ],
+                            "edge_point_mm": [round(float(value), 4) for value in edge_point],
+                            "face_point_mm": [round(float(value), 4) for value in face_point],
                         }
                     )
                 _emit_diagnostic(
