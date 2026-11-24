@@ -29,6 +29,8 @@ MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
+MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
+SHIRT_SUPPORT_ANCHOR_ROLE = "inner-shoulder-neckline-junction"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -420,7 +422,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(isinstance(support_pins, dict), "shirt support-pin record is missing")
     _require(
         support_pins.get("mode") == "Explicit",
-        "shirt must retain explicit anatomical shoulder supports",
+        "shirt must retain explicit inner shoulder/neckline anchors",
     )
     support_pin_indices = support_pins.get("particle_indices")
     _require(
@@ -440,7 +442,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     shirt_supports = outfit.get("shirt_supports")
     _require(
         isinstance(shirt_supports, list) and len(shirt_supports) == 2,
-        "shirt must expose two anatomical shoulder support records",
+        "shirt must expose two inner shoulder/neckline support records",
     )
     shirt_support_panels: set[str] = set()
     shirt_support_particles: set[int] = set()
@@ -461,8 +463,22 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         )
         shirt_support_panels.add(panel_id)
         shirt_support_particles.add(particle_index)
-        _finite_vector(support.get("target_mm"), "shirt support target", 3)
-        _finite_vector(support.get("position_mm"), "shirt support position", 3)
+        _require(
+            support.get("anchor_role") == SHIRT_SUPPORT_ANCHOR_ROLE,
+            "shirt support anchor role must identify the inner shoulder/neckline junction",
+        )
+        target = _finite_vector(support.get("target_mm"), "shirt support target", 3)
+        position = _finite_vector(support.get("position_mm"), "shirt support position", 3)
+        target_deviation = math.dist(target, position)
+        recorded_target_deviation = _number(support, "target_deviation_mm")
+        _require(
+            abs(recorded_target_deviation - target_deviation) <= 1e-3,
+            "shirt support target deviation disagrees with its persisted coordinates",
+        )
+        _require(
+            target_deviation <= MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
+            "shirt support is detached from its authored neckline/shoulder target",
+        )
         stand_off = _number(support, "clearance_mm")
         _require(
             MINIMUM_BODY_CLEARANCE_MM <= stand_off <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM,

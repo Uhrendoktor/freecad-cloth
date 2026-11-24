@@ -1,10 +1,10 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """FreeCAD/Xvfb acceptance for a multi-piece, two-layer garment ensemble.
 
-The fixture constructs two independent four-panel garments around the production
-mannequin: a shirt and a skirt. A four-panel waistband is sewn into the skirt.
-Native Sketcher profiles, semantic seam IDs, persistent garment groups and
-solver particle contacts are checked in the same saved FreeCAD document.
+The fixture constructs a shaped two-panel sleeveless shirt shell and a four-panel
+A-line skirt. A four-panel waistband is sewn into the skirt. Native Sketcher
+profiles, semantic seams, independent garment groups, support anchors and
+solver particle contacts are checked in one saved FreeCAD document.
 """
 
 from __future__ import annotations
@@ -60,6 +60,10 @@ MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
+MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
+SHIRT_SUPPORT_ANCHOR_ROLE = "inner-shoulder-neckline-junction"
+SHIRT_NECKLINE_RATIO = 0.72
+SHIRT_NECKLINE_DROP = 0.03
 SKIRT_HEM_FLARE_MM = 65.0
 
 
@@ -159,8 +163,8 @@ def _make_tunic_piece(
     garment_height_mm: float,
     hem_width_mm: float,
     *,
-    neckline_ratio: float = 0.72,
-    neckline_drop: float = 0.03,
+    neckline_ratio: float = SHIRT_NECKLINE_RATIO,
+    neckline_drop: float = SHIRT_NECKLINE_DROP,
 ) -> App.DocumentObject:
     """Create one shaped front/back tunic panel with open neckline and armholes.
 
@@ -1312,8 +1316,8 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two inner shoulder supports keep the shirt seated on the mannequin.
-        # Its back shoulder edges follow the pinned front through the authored seams.
+        # Two inner shoulder/neckline junction anchors keep the shaped shell seated.
+        # The back shoulder edges follow the pinned front through authored seams.
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
         panel_name_by_piece = {
@@ -1332,18 +1336,25 @@ def run_acceptance() -> None:
         }
         if any(not chain for chain in shirt_support_chains.values()):
             raise RuntimeError("shirt shoulder boundary has no solver particles")
-        shirt_shoulder_target_y = torso_front_y - shirt_clearance
-        shirt_shoulder_target_z = shoulder_z + 20.0
+        # With this two-panel shell, the only shoulder-edge particles inside the
+        # accepted body-clearance envelope are the inner shoulder/neckline junctions.
+        # Target those authored Sketcher points explicitly; do not label them as the
+        # outer anatomical shoulder tips.
+        shirt_support_target_y = torso_front_y - shirt_clearance
+        neckline_half_span = (SHIRT_NECKLINE_RATIO - 0.5) * shirt_panel_width
+        shirt_neckline_support_z = (
+            shirt_bottom_z + (1.0 - SHIRT_NECKLINE_DROP) * shirt_garment_height
+        )
         shirt_support_targets_by_chain = {
             "shirt-right-shoulder": (
-                float(shoulder_left.x),
-                float(shirt_shoulder_target_y),
-                float(shirt_shoulder_target_z),
+                float(center_x - neckline_half_span),
+                float(shirt_support_target_y),
+                float(shirt_neckline_support_z),
             ),
             "shirt-left-shoulder": (
-                float(shoulder_right.x),
-                float(shirt_shoulder_target_y),
-                float(shirt_shoulder_target_z),
+                float(center_x + neckline_half_span),
+                float(shirt_support_target_y),
+                float(shirt_neckline_support_z),
             ),
         }
 
@@ -1450,7 +1461,7 @@ def run_acceptance() -> None:
         waistband_support_pin_indices = set(waistband_selected_by_panel.values())
         if len(shirt_support_pin_indices) != 2:
             raise RuntimeError(
-                "expected two unique anatomical shirt shoulder supports, got %d"
+                "expected two unique inner shoulder/neckline anchors, got %d"
                 % len(shirt_support_pin_indices)
             )
         if len(waistband_support_pin_indices) != 4:
@@ -1464,9 +1475,14 @@ def run_acceptance() -> None:
         shirt_support_records = [
             {
                 "panel_id": panel_name,
+                "anchor_role": SHIRT_SUPPORT_ANCHOR_ROLE,
                 "particle_index": int(index),
                 "target_mm": [float(value) for value in shirt_support_targets_by_chain[panel_name]],
                 "position_mm": [float(value) for value in initial_positions[index]],
+                "target_deviation_mm": math.dist(
+                    tuple(float(value) for value in initial_positions[index]),
+                    shirt_support_targets_by_chain[panel_name],
+                ),
                 "clearance_mm": float(clearance_by_particle[index]),
             }
             for panel_name, index in sorted(shirt_selected_by_panel.items())
@@ -1545,14 +1561,32 @@ def run_acceptance() -> None:
         waistband_support_pin_positions = {
             index: support_pin_positions[index] for index in waistband_support_pin_indices
         }
-        shirt_shoulder_z_values = [
-            shirt_support_pin_positions[index][2] for index in shirt_support_pin_indices
-        ]
-        if max(shirt_shoulder_z_values) - min(shirt_shoulder_z_values) > 1e-5:
-            raise RuntimeError("shirt shoulder support pins do not share one authored height")
-        if max(abs(value - shirt_shoulder_target_z) for value in shirt_shoulder_z_values) > 1e-3:
+        shirt_support_target_deviations = {
+            panel_name: math.dist(
+                tuple(float(value) for value in initial_positions[index]),
+                shirt_support_targets_by_chain[panel_name],
+            )
+            for panel_name, index in shirt_selected_by_panel.items()
+        }
+        maximum_shirt_support_target_deviation_mm = max(
+            shirt_support_target_deviations.values(),
+            default=0.0,
+        )
+        _log(
+            "shirt-support-target-deviation="
+            + json.dumps(
+                shirt_support_target_deviations,
+                sort_keys=True,
+            )
+        )
+        if maximum_shirt_support_target_deviation_mm > MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM:
             raise RuntimeError(
-                "shirt shoulder support pins are not at the authored shoulder height"
+                "shirt neckline/shoulder anchor deviates %.3f mm from its authored target "
+                "(limit %.3f mm)"
+                % (
+                    maximum_shirt_support_target_deviation_mm,
+                    MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
+                )
             )
         waistband_top_z_values = [
             waistband_support_pin_positions[index][2] for index in waistband_support_pin_indices

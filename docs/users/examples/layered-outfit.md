@@ -13,7 +13,7 @@ The revised fixture now follows the working two-panel tunic construction more cl
 - **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. The shirt has no solver pins, matching the canonical tunic audit's free-drape configuration.
 - **Skirt:** four flared panels, joined by four semantic side seams.
 - **Waistband:** four panels, joined to each other and sewn to the skirt at the waist.
-- **Supports:** only four waistband particles are pinned, one near each named front/right/back/left waist target. Each must be exterior to the mannequin and between **5 mm and 45 mm** from its surface. The validator checks that the four persisted support records match the four native pin indices. The shaped shirt must remain unpinned before and after save/reload.
+- **Supports:** two shirt particles are pinned at the authored inner shoulder/neckline junctions (the inner ends of the curved shoulder edges, not the outer anatomical shoulder tips). Each must be within **5 mm** of its authored CAD target and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
 
 The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam relationships** across two independent garment groups. The requested inter-garment clearance remains 8 mm.
 
@@ -21,7 +21,7 @@ The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam
 
 The canonical single-tunic audit uses the same PBD gravity path, sets `PinMode="None"`, and verifies that the native solver has no pins. It uses two shaped front/back panels and simulates 90 steps at 1/240 s with four native PBD substeps.
 
-The revised layered fixture retains the same unpinned shirt approach, but adds a four-panel skirt and waistband, with four bounded waistband supports. It runs 120 steps at 1/120 s (1.0 simulated second) with one native PBD substep. This is longer in simulated time than the former 60-step (0.5 s) layered test. It is still a finite-time diagnostic, not proof that the cloth has reached static equilibrium.
+The layered fixture uses two explicit inner shoulder/neckline anchors on the shirt and four bounded waistband supports. It runs 60 steps at 1/120 s (0.5 simulated seconds) with one native PBD substep. This remains a finite-time diagnostic, not proof that the cloth has reached static equilibrium.
 
 The only collision target in this fixture is the mannequin. There is **no floor collider**. The test is intended to validate a worn garment settling against the mannequin, not a loose piece of cloth falling onto a room floor.
 
@@ -31,12 +31,12 @@ The native fixture checks all of the following:
 
 - Ten source pattern pieces retain their Sketcher links, semantic boundaries and solver-panel mappings.
 - All 16 sewing relationships produce native stitch provenance.
-- The shirt's solver particle set has no intersection with the native pin set.
-- The waistband has exactly four unique supports, each selected within the configured 5–45 mm stand-off range.
+- The shirt has exactly two unique inner shoulder/neckline anchors, each within 5 mm of its authored CAD target and within the configured 5–45 mm mannequin stand-off range.
+- The waistband has exactly four unique supports, each selected within the configured 5–45 mm stand-off range; shirt and waistband pin inventories are disjoint.
 - Shirt and skirt remain independent garment groups.
 - Contact projection leaves no measured inter-garment residual pairs at the saved checkpoints.
 - Semantic seams stay within the configured gap threshold, no cloth particles are inside the mannequin, and the document rebuilds the solver correctly after save/reload.
-- Nine viewport captures are produced: the initial scene, two intermediate axonometric checkpoints and six orthographic views at step 120.
+- Nine viewport captures are produced: the initial scene, two intermediate axonometric checkpoints and six orthographic views at step 60.
 
 These checks are necessary but not sufficient for a finished garment. In particular, the numeric minimum-clearance metric alone cannot establish close fit over the entire body. The revised screenshots still need visual inspection for body-following silhouette, natural folds and plausible skirt hang. The fixture remains a construction/contact example, not a complete production garment; sleeves, collar, cuffs, placket, size grading and calibrated woven-fabric behavior are outside its current scope.
 
@@ -69,7 +69,7 @@ The historical run did pass its focused native contact/persistence assertions, b
 
 ## Open the native validation artifact
 
-The revised FreeCAD document and screenshots will be available in the **layered-outfit-acceptance** artifact attached to the current [PR #2847 validation run](https://github.com/Uhrendoktor/freecad-cloth/actions/runs/45276195963), if the native acceptance and artifact-validation jobs complete successfully.
+The revised FreeCAD document and screenshots will be available in the **layered-outfit-acceptance** artifact attached to the latest [PR #2847 branch validation run](https://github.com/Uhrendoktor/freecad-cloth/actions?query=branch%3Afeat%2Flayered-outfit-contact-validation), if the native acceptance and artifact-validation jobs complete successfully.
 
 To inspect a successful artifact, download it from the run, extract `layered-outfit/layered-outfit.FCStd`, and open it in FreeCAD. The document stores the two garment groups, Sketcher-backed pieces, semantic seams, mannequin target and support configuration; the transient native PBD state is rebuilt from those persisted properties after reopening.
 

@@ -241,9 +241,11 @@ def _valid_artifact(root: Path) -> Path:
             "shirt_supports": [
                 {
                     "panel_id": "shirt-shoulder-" + side,
+                    "anchor_role": "inner-shoulder-neckline-junction",
                     "particle_index": index,
                     "target_mm": [float(index), 0.0, 150.0],
-                    "position_mm": [float(index), -25.0, 170.0],
+                    "position_mm": [float(index), 0.0, 150.0],
+                    "target_deviation_mm": 0.0,
                     "clearance_mm": 25.0,
                 }
                 for index, side in enumerate(("right", "left"))
@@ -319,13 +321,25 @@ def test_validator_rejects_missing_shirt_shoulder_supports(tmp_path: Path) -> No
 
 
 def test_validator_rejects_airborne_shirt_shoulder_support(tmp_path: Path) -> None:
-    """A shoulder pin far from the mannequin must invalidate the artifact."""
+    """A neckline/shoulder anchor far from the mannequin must invalidate the artifact."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_supports"][0]["clearance_mm"] = 90.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="shirt support stand-off is outside"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path: Path) -> None:
+    """The chosen support particle must remain at its authored neckline junction."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["shirt_supports"][0]["position_mm"][0] += 20.0
+    manifest["outfit"]["shirt_supports"][0]["target_deviation_mm"] = 20.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shirt support is detached from its authored"):
         validate_manifest(manifest_path)
 
 
