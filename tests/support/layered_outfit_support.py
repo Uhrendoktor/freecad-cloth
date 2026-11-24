@@ -51,10 +51,7 @@ def sample_local_torso_depth(
         x, y, z = (float(value) for value in vertex)
         if not all(isfinite(value) for value in (x, y, z)):
             raise ValueError("mannequin surface vertices must be finite")
-        if (
-            abs(x - center_x_mm) <= half_width_mm
-            and abs(z - center_z_mm) <= half_height_mm
-        ):
+        if abs(x - center_x_mm) <= half_width_mm and abs(z - center_z_mm) <= half_height_mm:
             depths.append(y)
     if len(depths) < minimum_samples:
         raise ValueError(
@@ -103,9 +100,7 @@ def panel_depth_profile_placement_y(
     if abs(delta_z) <= 1e-9:
         raise ValueError("panel depth profile reference and support heights must differ")
     slope = (float(support_y_mm) - float(reference_y_mm)) / delta_z
-    origin_y = float(reference_y_mm) + slope * (
-        float(panel_origin_z_mm) - float(reference_z_mm)
-    )
+    origin_y = float(reference_y_mm) + slope * (float(panel_origin_z_mm) - float(reference_z_mm))
     return origin_y, slope
 
 
