@@ -484,7 +484,7 @@ class MeshCollisionProjector:
             nearest_face_slots = active_candidate_ids[row_indices, nearest_candidate]
             outward = self._normals[nearest_face_slots]
             signed_distance = np.einsum("nd,nd->n", active_points - nearest_points, outward)
-            needs_projection = signed_distance < self.clearance_mm - 1e-8
+            needs_projection = signed_distance < active_clearances - 1e-8
             active_corrected = active_points.copy()
             active_normals = np.zeros_like(active_points)
             if bool(np.any(needs_projection)):
