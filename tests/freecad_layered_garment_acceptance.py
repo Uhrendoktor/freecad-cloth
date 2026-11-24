@@ -3,7 +3,7 @@
 
 The fixture constructs a shaped two-panel sleeveless shirt shell and a four-panel
 A-line skirt. A four-panel waistband is sewn into the skirt. Native Sketcher
-profiles, semantic seams, independent garment groups, support anchors and
+profiles, semantic seams, independent garment groups, hem/waist supports and
 solver particle contacts are checked in one saved FreeCAD document.
 """
 
@@ -61,7 +61,7 @@ MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
-SHIRT_SUPPORT_ANCHOR_ROLE = "inner-shoulder-neckline-junction"
+SHIRT_SUPPORT_ANCHOR_ROLE = "hem-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
 INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
 MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
@@ -1370,47 +1370,36 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two inner shoulder/neckline junction anchors keep the shaped shell seated.
-        # The back shoulder edges follow the pinned front through authored seams.
+        # Keep two lower-hem stabilizers on the shirt, away from its shoulder
+        # stitch constraints. The production tunic fixture deliberately leaves
+        # neckline/shoulder points free because pinning those points can prevent
+        # the front/back shoulder seams from converging during drape.
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
         panel_name_by_piece = {
             str(piece_name): str(panel_name)
             for panel_name, piece_name in base.panel_piece_names.items()
         }
-        shirt_front_panel_name = panel_name_by_piece.get(str(shirt["front"].Name))
-        if shirt_front_panel_name is None:
-            raise RuntimeError("shirt front solver panel identity is missing")
-        shirt_front_boundaries = base.panel_boundary_edges.get(shirt_front_panel_name, ())
-        if len(shirt_front_boundaries) <= 5:
-            raise RuntimeError("shaped shirt front has no semantic shoulder boundaries")
-        shirt_support_chains = {
-            "shirt-right-shoulder": tuple(int(index) for index in shirt_front_boundaries[3]),
-            "shirt-left-shoulder": tuple(int(index) for index in shirt_front_boundaries[5]),
-        }
-        if any(not chain for chain in shirt_support_chains.values()):
-            raise RuntimeError("shirt shoulder boundary has no solver particles")
-        # With this two-panel shell, the only shoulder-edge particles inside the
-        # accepted body-clearance envelope are the inner shoulder/neckline junctions.
-        # Target those authored Sketcher points explicitly; do not label them as the
-        # outer anatomical shoulder tips.
-        shirt_support_target_y = torso_front_y - shirt_clearance
-        neckline_half_span = (SHIRT_NECKLINE_RATIO - 0.5) * shirt_panel_width
-        shirt_neckline_support_z = (
-            shirt_bottom_z + (1.0 - SHIRT_NECKLINE_DROP) * shirt_garment_height
-        )
-        shirt_support_targets_by_chain = {
-            "shirt-right-shoulder": (
-                float(center_x - neckline_half_span),
-                float(shirt_support_target_y),
-                float(shirt_neckline_support_z),
-            ),
-            "shirt-left-shoulder": (
-                float(center_x + neckline_half_span),
-                float(shirt_support_target_y),
-                float(shirt_neckline_support_z),
-            ),
-        }
+        shirt_support_chains: dict[str, tuple[int, ...]] = {}
+        shirt_support_targets_by_chain: dict[str, tuple[float, float, float]] = {}
+        for side in ("front", "back"):
+            panel_name = panel_name_by_piece.get(str(shirt[side].Name))
+            if panel_name is None:
+                raise RuntimeError("shirt %s solver panel identity is missing" % side)
+            boundaries = base.panel_boundary_edges.get(panel_name, ())
+            if len(boundaries) <= SEAM_BOTTOM_EDGE:
+                raise RuntimeError("shaped shirt %s has no semantic hem boundary" % side)
+            support_name = "shirt-%s-hem-center" % side
+            chain = tuple(int(index) for index in boundaries[SEAM_BOTTOM_EDGE])
+            if not chain:
+                raise RuntimeError("shirt %s hem boundary has no solver particles" % side)
+            shirt_support_chains[support_name] = chain
+            target_y = shirt_front_y if side == "front" else shirt_back_y
+            shirt_support_targets_by_chain[support_name] = (
+                float(center_x),
+                float(target_y),
+                float(shirt_bottom_z),
+            )
 
         waistband_top_chains: dict[str, tuple[int, ...]] = {}
         waistband_targets_by_chain: dict[str, tuple[float, float, float]] = {}
@@ -1475,7 +1464,7 @@ def run_acceptance() -> None:
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
         _log(
-            "shoulder-support-candidate-diagnostics="
+            "shirt-hem-support-candidate-diagnostics="
             + json.dumps(
                 {
                     panel_name: [
@@ -1553,7 +1542,7 @@ def run_acceptance() -> None:
         ]
 
         _log(
-            "shirt-support-selection="
+            "shirt-hem-support-selection="
             + json.dumps(
                 {
                     panel_name: {
@@ -1627,7 +1616,7 @@ def run_acceptance() -> None:
             default=0.0,
         )
         _log(
-            "shirt-support-target-deviation="
+            "shirt-hem-support-target-deviation="
             + json.dumps(
                 shirt_support_target_deviations,
                 sort_keys=True,
@@ -1650,7 +1639,7 @@ def run_acceptance() -> None:
         if max(abs(value - waistband_top_z) for value in waistband_top_z_values) > 1e-3:
             raise RuntimeError("waistband support pins are not at the authored waist height")
         _log(
-            "shirt-support-pins="
+            "shirt-hem-support-pins="
             + json.dumps(
                 {
                     "mode": str(scene.PinMode),

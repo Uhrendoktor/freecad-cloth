@@ -240,8 +240,8 @@ def _valid_artifact(root: Path) -> Path:
             },
             "shirt_supports": [
                 {
-                    "panel_id": "shirt-shoulder-" + side,
-                    "anchor_role": "inner-shoulder-neckline-junction",
+                    "panel_id": "shirt-hem-" + side,
+                    "anchor_role": "hem-centerline-stabilizer",
                     "particle_index": index,
                     "target_mm": [float(index), 0.0, 150.0],
                     "position_mm": [float(index), 0.0, 150.0],
@@ -307,8 +307,8 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
     }
 
 
-def test_validator_rejects_missing_shirt_shoulder_supports(tmp_path: Path) -> None:
-    """The shaped shirt must retain two bounded shoulder supports."""
+def test_validator_rejects_missing_shirt_hem_supports(tmp_path: Path) -> None:
+    """The shaped shirt must retain two bounded front/back hem stabilizers."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["support_pins"]["particle_indices"] = []
@@ -320,8 +320,8 @@ def test_validator_rejects_missing_shirt_shoulder_supports(tmp_path: Path) -> No
         validate_manifest(manifest_path)
 
 
-def test_validator_rejects_airborne_shirt_shoulder_support(tmp_path: Path) -> None:
-    """A neckline/shoulder anchor far from the mannequin must invalidate the artifact."""
+def test_validator_rejects_airborne_shirt_hem_support(tmp_path: Path) -> None:
+    """A hem stabilizer far from the mannequin must invalidate the artifact."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_supports"][0]["clearance_mm"] = 90.0
@@ -332,7 +332,7 @@ def test_validator_rejects_airborne_shirt_shoulder_support(tmp_path: Path) -> No
 
 
 def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path: Path) -> None:
-    """The chosen support particle must remain at its authored neckline junction."""
+    """The chosen support particle must remain at its authored hem centerline."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_supports"][0]["position_mm"][0] += 20.0
