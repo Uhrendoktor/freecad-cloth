@@ -1373,9 +1373,8 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two torso-centerline stabilizers keep the front and back shirt panels seated while
-        # leaving both shoulder seams and the open neckline free to converge.
-        # Use opposite authored side edges on the front and back panels.
+        # Two torso-centerline stabilizers seat the front and back panels near the hip.
+        # Keep them away from shoulder and hem seams so those boundaries can converge.
         import numpy as np
 
         initial_positions = np.asarray(backend.positions(), dtype=np.float64)
@@ -1420,7 +1419,6 @@ def run_acceptance() -> None:
             )
             shirt_support_ideal_targets_by_chain[support_name] = ideal_target
             shirt_support_targets_by_chain[support_name] = ideal_target
-
 
         waistband_top_chains: dict[str, tuple[int, ...]] = {}
         waistband_targets_by_chain: dict[str, tuple[float, float, float]] = {}
@@ -1498,7 +1496,9 @@ def run_acceptance() -> None:
                 is_exterior = exterior_by_particle.get(index) is True
                 clearance_ok = (
                     is_exterior
-                    and MINIMUM_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
+                    and MINIMUM_BODY_CLEARANCE_MM
+                    <= clearance
+                    <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
                 )
                 if clearance_ok:
                     eligible.append(index)
@@ -1562,7 +1562,10 @@ def run_acceptance() -> None:
             shirt_support_targets_by_chain[support_name] = position
             shirt_support_centerline_offsets[support_name] = abs(position[0] - float(center_x))
             shirt_support_height_offsets[support_name] = abs(position[2] - shirt_support_target_z)
-            shirt_support_design_target_deviations[support_name] = math.dist(position, ideal_target)
+            shirt_support_design_target_deviations[support_name] = math.dist(
+                position,
+                ideal_target,
+            )
 
         waistband_selected_by_panel = select_landmark_supports(
             waistband_top_chains,
