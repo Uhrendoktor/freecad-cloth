@@ -149,11 +149,11 @@ def test_garment_body_clearance_is_part_of_simulation_rebuild_signature() -> Non
     }
     inner_outer = SimpleNamespace(
         **base,
-        GarmentBodyClearanceByGroup=["shirt|6.0", "skirt|14.0"],
+        GarmentBodyClearanceByGroup=["shirt|14.0", "skirt|6.0"],
     )
     changed_outer = SimpleNamespace(
         **base,
-        GarmentBodyClearanceByGroup=["shirt|6.0", "skirt|16.0"],
+        GarmentBodyClearanceByGroup=["shirt|16.0", "skirt|6.0"],
     )
 
     assert _simulation_signature()(inner_outer, []) != _simulation_signature()(changed_outer, [])

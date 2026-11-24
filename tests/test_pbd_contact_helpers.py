@@ -247,7 +247,7 @@ def test_vectorized_inter_cloth_narrow_phase_matches_scalar_reference() -> None:
 
 def test_garment_body_clearances_resolve_to_the_exact_particle_order() -> None:
     """Per-garment standoffs must cover every particle exactly once."""
-    scene = SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|6.0", "skirt|14.0"))
+    scene = SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|14.0", "skirt|6.0"))
     groups = {
         "shirt": ((0, 1, 2), (2, 3, 0)),
         "skirt": ((4, 5, 6), (6, 7, 4)),
@@ -255,7 +255,7 @@ def test_garment_body_clearances_resolve_to_the_exact_particle_order() -> None:
 
     actual = _resolve_garment_body_clearance_by_particle(scene, groups, 8)
 
-    assert actual == (6.0, 6.0, 6.0, 6.0, 14.0, 14.0, 14.0, 14.0)
+    assert actual == (14.0, 14.0, 14.0, 14.0, 6.0, 6.0, 6.0, 6.0)
 
 
 def test_garment_body_clearances_require_exact_group_coverage() -> None:

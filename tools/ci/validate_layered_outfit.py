@@ -79,11 +79,42 @@ def _finite_vector(value: JsonValue, name: str, size: int) -> list[float]:
     return values
 
 
+def _validated_body_clearance_by_group(
+    value: JsonValue,
+    clearance_mm: float,
+    source: str,
+) -> dict[str, float]:
+    """Validate nested inner/outer mannequin standoffs for the layered outfit."""
+    _require(isinstance(value, dict), "%s body-clearance map is missing" % source)
+    _require(
+        set(value) == set(EXPECTED_GROUPS),
+        "%s body-clearance map must classify shirt and skirt" % source,
+    )
+    result: dict[str, float] = {}
+    for group_id in sorted(EXPECTED_GROUPS):
+        raw_value = value.get(group_id)
+        _require(
+            isinstance(raw_value, (int, float))
+            and not isinstance(raw_value, bool)
+            and math.isfinite(raw_value)
+            and raw_value > 0.0,
+            "%s %s body clearance must be finite and positive" % (source, group_id),
+        )
+        result[group_id] = float(raw_value)
+    _require(
+        result["shirt"] - result["skirt"] >= clearance_mm - 1e-9,
+        "%s outer shirt body clearance must exceed the inner skirt clearance "
+        "by at least the inter-garment gap" % source,
+    )
+    return result
+
+
 def _validate_scene_map(
     scene_map: JsonValue,
     piece_ids: list[JsonValue],
     group_assignments: list[JsonValue],
     clearance_mm: float,
+    body_clearance_by_group: dict[str, float],
 ) -> dict[str, int]:
     """Validate exact CAD geometry, world transforms, landmarks and semantic seam links."""
     _require(isinstance(scene_map, dict), "CAD scene map is missing")
@@ -94,6 +125,15 @@ def _validate_scene_map(
     seam_records = scene_map.get("seams")
     camera_records = scene_map.get("camera_views")
     relation = scene_map.get("inter_garment_relation")
+    scene_body_clearances = _validated_body_clearance_by_group(
+        scene_map.get("body_clearance_by_group_mm"),
+        clearance_mm,
+        "scene map",
+    )
+    _require(
+        scene_body_clearances == body_clearance_by_group,
+        "scene map body clearances disagree with the persisted outfit configuration",
+    )
     _require(isinstance(coordinate_system, dict), "scene map coordinate system is missing")
     _require(coordinate_system.get("units") == "mm", "scene map must use millimetre coordinates")
     _require(
@@ -322,6 +362,7 @@ def _validate_scene_map(
         "pieces": len(piece_records),
         "seams": len(seam_records),
         "camera_views": len(camera_ids),
+        "body_clearance_groups": len(scene_body_clearances),
     }
 
 
@@ -420,6 +461,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
     clearance = _number(outfit, "inter_cloth_clearance_mm")
     _require(clearance > 0.0, "inter-cloth clearance must be positive")
+    body_clearance_by_group = _validated_body_clearance_by_group(
+        outfit.get("body_clearance_by_group_mm"),
+        clearance,
+        "manifest outfit",
+    )
     support_pins = outfit.get("support_pins")
     _require(isinstance(support_pins, dict), "shirt torso support-pin record is missing")
     _require(
@@ -585,7 +631,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
     total_support_pin_count = len(support_pin_indices) + len(waistband_pin_indices)
     scene_map_counts = _validate_scene_map(
-        manifest.get("scene_map"), piece_ids, group_assignments, clearance
+        manifest.get("scene_map"),
+        piece_ids,
+        group_assignments,
+        clearance,
+        body_clearance_by_group,
     )
 
     checkpoint_map: dict[int, Mapping[str, JsonValue]] = {}
@@ -757,6 +807,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         persistence.get("garment_groups_preserved") is True,
         "garment groups were not verified after reload",
+    )
+    _require(
+        persistence.get("body_clearance_by_group_preserved") is True,
+        "per-garment mannequin body standoffs were not verified after reload",
     )
     _require(
         persistence.get("contact_rebuilt_after_reload") is True,

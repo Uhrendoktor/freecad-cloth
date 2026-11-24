@@ -66,6 +66,8 @@ MAXIMUM_SHIRT_SUPPORT_HEIGHT_OFFSET_MM = 35.0
 SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM = 25.0
 SHIRT_SUPPORT_ANCHOR_ROLE = "torso-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
+SHIRT_BODY_CLEARANCE_MM = 14.0
+SKIRT_BODY_CLEARANCE_MM = 6.0
 INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
 MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
 SHIRT_NECKLINE_RATIO = 0.72
@@ -1326,7 +1328,10 @@ def run_acceptance() -> None:
             entry.split("|", 1)[1]: entry.split("|", 1)[0] for entry in scene.GarmentGroups
         }
         scene.InterClothClearance = INTER_GARMENT_CLEARANCE_MM
-        scene.GarmentBodyClearanceByGroup = ["shirt|6.0", "skirt|14.0"]
+        scene.GarmentBodyClearanceByGroup = [
+            "shirt|%.1f" % SHIRT_BODY_CLEARANCE_MM,
+            "skirt|%.1f" % SKIRT_BODY_CLEARANCE_MM,
+        ]
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
         # Ten interlocked pattern panels need more than the six-iteration
@@ -1350,6 +1355,17 @@ def run_acceptance() -> None:
                 obj.Sketch.ViewObject.Visibility = False
         doc.recompute()
         _events()
+        _log(
+            "garment-body-clearance-by-group="
+            + json.dumps(
+                {
+                    "shirt": SHIRT_BODY_CLEARANCE_MM,
+                    "skirt": SKIRT_BODY_CLEARANCE_MM,
+                    "requested_layer_gap_mm": INTER_GARMENT_CLEARANCE_MM,
+                },
+                sort_keys=True,
+            )
+        )
         _log(
             "pattern-pieces=%d seams=%d"
             % (len(pieces), len(shirt_seams + skirt_seams + waistband_seams + waistband_join_seams))
@@ -1998,6 +2014,16 @@ def run_acceptance() -> None:
 
         saved_piece_ids = tuple(str(piece.PieceId) for piece in scene.ClothPieces)
         saved_groups = tuple(str(value) for value in scene.GarmentGroups)
+        saved_body_clearances = tuple(
+            str(value) for value in scene.GarmentBodyClearanceByGroup
+        )
+        saved_body_clearance_by_group = {
+            group_id.strip(): float(clearance_text.strip())
+            for group_id, separator, clearance_text in (
+                entry.partition("|") for entry in saved_body_clearances
+            )
+            if separator
+        }
         # The original document is closed below. Snapshot every identity used by
         # the final manifest as plain Python data before its FreeCAD links die.
         saved_avatar_record = {
@@ -2065,6 +2091,8 @@ def run_acceptance() -> None:
             raise RuntimeError("PatternPiece links or identities changed after save/reload")
         if tuple(str(value) for value in scene.GarmentGroups) != saved_groups:
             raise RuntimeError("independent garment-group assignments did not survive save/reload")
+        if tuple(str(value) for value in scene.GarmentBodyClearanceByGroup) != saved_body_clearances:
+            raise RuntimeError("per-garment mannequin standoffs did not survive save/reload")
         if abs(float(scene.InterClothClearance) - INTER_GARMENT_CLEARANCE_MM) > 1e-9:
             raise RuntimeError("inter-cloth clearance did not survive save/reload")
 
@@ -2213,6 +2241,7 @@ def run_acceptance() -> None:
                 "piece_ids": list(saved_piece_ids),
                 "garment_groups": list(saved_groups),
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
+                "body_clearance_by_group_mm": saved_body_clearance_by_group,
                 "particle_distance_mm": float(scene.ParticleDistance),
                 "support_pins": {
                     "mode": str(scene.PinMode),
@@ -2239,6 +2268,7 @@ def run_acceptance() -> None:
                 },
                 "avatar": saved_avatar_record,
                 "garment_groups": saved_garment_group_records,
+                "body_clearance_by_group_mm": saved_body_clearance_by_group,
                 "pieces": piece_scene_map,
                 "seams": checkpoints[-1]["seams"],
                 "camera_views": [
@@ -2263,6 +2293,7 @@ def run_acceptance() -> None:
                 "fcstd": save_path.name,
                 "piece_links_preserved": True,
                 "garment_groups_preserved": True,
+                "body_clearance_by_group_preserved": True,
                 "contact_rebuilt_after_reload": True,
                 "support_pins_preserved": True,
                 "shirt_supports_preserved_after_reload": True,

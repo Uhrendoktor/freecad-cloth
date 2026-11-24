@@ -193,6 +193,7 @@ def _valid_artifact(root: Path) -> Path:
             {"id": "shirt", "piece_ids": piece_ids[:2], "independent_of": ["skirt"]},
             {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
+        "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
         "pieces": pieces_scene,
         "seams": seams,
         "camera_views": [
@@ -232,6 +233,7 @@ def _valid_artifact(root: Path) -> Path:
             "piece_ids": piece_ids,
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
+            "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
             "particle_distance_mm": 24.0,
             "support_pins": {
                 "mode": "Explicit",
@@ -279,6 +281,7 @@ def _valid_artifact(root: Path) -> Path:
             "fcstd": "layered-outfit.FCStd",
             "piece_links_preserved": True,
             "garment_groups_preserved": True,
+            "body_clearance_by_group_preserved": True,
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
             "shirt_supports_preserved_after_reload": True,
@@ -306,11 +309,53 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
         "pieces": 10,
         "seams": 16,
         "garment_groups": 2,
-        "scene_map": {"landmarks": 3, "pieces": 10, "seams": 16, "camera_views": 6},
+        "scene_map": {
+            "landmarks": 3,
+            "pieces": 10,
+            "seams": 16,
+            "camera_views": 6,
+            "body_clearance_groups": 2,
+        },
         "checkpoints": 3,
         "images": 9,
         "document": "layered-outfit.FCStd",
     }
+
+
+def test_validator_rejects_inner_skirt_standoff_too_close_to_outer_shirt(
+    tmp_path: Path,
+) -> None:
+    """Body-shell layers must remain separated by at least the requested 8 mm."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["body_clearance_by_group_mm"]["shirt"] = 13.0
+    manifest["scene_map"]["body_clearance_by_group_mm"]["shirt"] = 13.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="outer shirt body clearance"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_scene_map_body_standoff_mismatch(tmp_path: Path) -> None:
+    """Scene geometry provenance must match the saved outfit standoff configuration."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scene_map"]["body_clearance_by_group_mm"]["skirt"] = 7.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="scene map body clearances disagree"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_missing_body_standoff_persistence(tmp_path: Path) -> None:
+    """The per-garment shell settings must survive a native FCStd save/reload."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["persistence"]["body_clearance_by_group_preserved"] = False
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="body standoffs were not verified after reload"):
+        validate_manifest(manifest_path)
 
 
 def test_validator_rejects_missing_shirt_torso_supports(tmp_path: Path) -> None:
