@@ -30,6 +30,7 @@ MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
+MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM = 12.5
 SHIRT_SUPPORT_ANCHOR_ROLE = "hem-centerline-stabilizer"
 
 
@@ -478,6 +479,17 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         _require(
             target_deviation <= MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
             "shirt support is detached from its authored hem target",
+        )
+        centerline_x = _number(support, "centerline_x_mm")
+        centerline_offset = _number(support, "centerline_offset_mm")
+        measured_centerline_offset = abs(position[0] - centerline_x)
+        _require(
+            abs(centerline_offset - measured_centerline_offset) <= 1e-3,
+            "shirt support centerline offset disagrees with its persisted coordinates",
+        )
+        _require(
+            measured_centerline_offset <= MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM,
+            "shirt hem support is too far from the panel centerline",
         )
         stand_off = _number(support, "clearance_mm")
         _require(

@@ -13,7 +13,7 @@ The revised fixture now follows the working two-panel tunic construction more cl
 - **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. Two hem-centerline stabilizers (one on each panel) keep the lower edge positioned while leaving the shoulder seams free to converge; the canonical single-tunic audit remains the unpinned reference.
 - **Skirt:** four flared panels, joined by four semantic side seams.
 - **Waistband:** four panels, joined to each other and sewn to the skirt at the waist. Its centerline follows the shirt's front/back envelope, with a 7 mm initial gap and at least 6 mm mannequin standoff; the existing 8 mm inter-garment projector resolves the small initial deficit.
-- **Supports:** two shirt particles are pinned near the authored front/back hem centerlines, away from shoulder stitch constraints. Each must be within **5 mm** of its hem target and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
+- **Supports:** two shirt particles are pinned near the authored front/back hem centerlines, away from shoulder stitch constraints. Each must be within **5 mm** of its sampled CAD target, within **12.5 mm** of the hem centerline, and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
 
 The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam relationships** across two independent garment groups. The requested inter-garment clearance remains 8 mm.
 
@@ -31,7 +31,7 @@ The native fixture checks all of the following:
 
 - Ten source pattern pieces retain their Sketcher links, semantic boundaries and solver-panel mappings.
 - All 16 sewing relationships produce native stitch provenance.
-- The shirt has exactly two unique front/back hem-centerline stabilizers, each within 5 mm of its authored hem target and within the configured 5–45 mm mannequin stand-off range.
+- The shirt has exactly two unique front/back hem-centerline stabilizers, each within 5 mm of its sampled CAD target, within 12.5 mm of the hem centerline and within the configured 5–45 mm mannequin stand-off range.
 - The waistband has exactly four unique supports, each selected within the configured 5–45 mm stand-off range; shirt and waistband pin inventories are disjoint.
 - Shirt and skirt remain independent garment groups.
 - Contact projection leaves no measured inter-garment residual pairs at the saved checkpoints.

@@ -61,6 +61,7 @@ MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
+MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM = 12.5
 SHIRT_SUPPORT_ANCHOR_ROLE = "hem-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
 INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
@@ -1382,6 +1383,8 @@ def run_acceptance() -> None:
         }
         shirt_support_chains: dict[str, tuple[int, ...]] = {}
         shirt_support_targets_by_chain: dict[str, tuple[float, float, float]] = {}
+        shirt_support_ideal_targets_by_chain: dict[str, tuple[float, float, float]] = {}
+        shirt_support_centerline_offsets: dict[str, float] = {}
         for side in ("front", "back"):
             panel_name = panel_name_by_piece.get(str(shirt[side].Name))
             if panel_name is None:
@@ -1395,7 +1398,7 @@ def run_acceptance() -> None:
                 raise RuntimeError("shirt %s hem boundary has no solver particles" % side)
             shirt_support_chains[support_name] = chain
             target_y = shirt_front_y if side == "front" else shirt_back_y
-            shirt_support_targets_by_chain[support_name] = (
+            shirt_support_ideal_targets_by_chain[support_name] = (
                 float(center_x),
                 float(target_y),
                 float(shirt_bottom_z),
@@ -1463,6 +1466,47 @@ def run_acceptance() -> None:
             clearance_by_particle[index] = float(
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
+        # Snap each ideal hem-centerline target to the nearest eligible authored
+        # boundary sample. The persisted target then lies exactly on a solver
+        # particle, while the lateral offset remains bounded by half a mesh cell.
+        for support_name, chain in shirt_support_chains.items():
+            ideal_target = shirt_support_ideal_targets_by_chain[support_name]
+            eligible = [
+                index
+                for index in chain
+                if exterior_by_particle.get(index) is True
+                and MINIMUM_BODY_CLEARANCE_MM
+                <= clearance_by_particle[index]
+                <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
+            ]
+            if not eligible:
+                raise RuntimeError(
+                    "shirt hem %s has no exterior centerline candidate within the support range"
+                    % support_name
+                )
+            target_index = min(
+                eligible,
+                key=lambda index: (
+                    sum(
+                        (float(initial_positions[index][axis]) - ideal_target[axis]) ** 2
+                        for axis in range(3)
+                    ),
+                    index,
+                ),
+            )
+            target_position = tuple(float(value) for value in initial_positions[target_index])
+            centerline_offset = abs(target_position[0] - float(center_x))
+            if centerline_offset > MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM:
+                raise RuntimeError(
+                    "shirt hem %s nearest safe particle is %.3f mm off centerline (limit %.3f mm)"
+                    % (
+                        support_name,
+                        centerline_offset,
+                        MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM,
+                    )
+                )
+            shirt_support_targets_by_chain[support_name] = target_position
+            shirt_support_centerline_offsets[support_name] = centerline_offset
         _log(
             "shirt-hem-support-candidate-diagnostics="
             + json.dumps(
@@ -1504,7 +1548,7 @@ def run_acceptance() -> None:
         waistband_support_pin_indices = set(waistband_selected_by_panel.values())
         if len(shirt_support_pin_indices) != 2:
             raise RuntimeError(
-                "expected two unique inner shoulder/neckline anchors, got %d"
+                "expected two unique shirt hem-centerline stabilizers, got %d"
                 % len(shirt_support_pin_indices)
             )
         if len(waistband_support_pin_indices) != 4:
@@ -1522,6 +1566,8 @@ def run_acceptance() -> None:
                 "particle_index": int(index),
                 "target_mm": [float(value) for value in shirt_support_targets_by_chain[panel_name]],
                 "position_mm": [float(value) for value in initial_positions[index]],
+                "centerline_x_mm": float(center_x),
+                "centerline_offset_mm": shirt_support_centerline_offsets[panel_name],
                 "target_deviation_mm": math.dist(
                     tuple(float(value) for value in initial_positions[index]),
                     shirt_support_targets_by_chain[panel_name],
