@@ -601,15 +601,19 @@ def test_layered_outfit_manifest_is_embedded_as_an_exact_spatial_map(tmp_path: P
     assert "shirt" in markdown and "skirt" in markdown
 
 
+@pytest.mark.parametrize("missing_side", [None, "bottom"])
 def test_layered_outfit_progress_reports_completed_drape_and_final_views(
     tmp_path: Path,
+    missing_side: str | None,
 ) -> None:
-    """Use layered-outfit markers and all six final manifest-backed views."""
+    """Require all six final views to report drape evidence without assessing fit."""
     output = tmp_path / "layered-outfit"
     output.mkdir()
     sides = ("front", "rear", "left", "right", "top", "bottom")
     image_records = []
     for side in sides:
+        if side == missing_side:
+            continue
         relative_path = f"final-six-view/step-060-{side}.png"
         image_path = output / relative_path
         image_path.parent.mkdir(parents=True, exist_ok=True)
@@ -671,8 +675,12 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
     assert status["last_completed_stage"] == "drape"
     assert simulation["started"] is True
     assert stages["simulation"] == "started"
-    assert stages["drape"] == "evidence_present"
-    assert expected_outputs["post_drape_views"] == "present"
+    assert stages["drape"] == (
+        "evidence_present" if missing_side is None else "started_but_final_evidence_missing"
+    )
+    assert expected_outputs["post_drape_views"] == (
+        "present" if missing_side is None else "missing"
+    )
     assert expected_outputs["drape_metrics"] == "missing"
     assert fit_assessment["state"] == "not_assessed"
 

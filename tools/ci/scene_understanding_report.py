@@ -689,7 +689,11 @@ def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
             "unknown_from_available_markers" if failure_unknown else "simulation_or_later"
         )
         last_completed_stage = (
-            "simulation_started" if parsed.has_simulation_start else "last_observed_stage"
+            "drape"
+            if parsed.drape_records or parsed.has_layered_outfit_checkpoint
+            else "simulation_started"
+            if parsed.has_simulation_start
+            else "last_observed_stage"
         )
         next_action = (
             "Use the failure log and the last completed stage to localize the first failing "
