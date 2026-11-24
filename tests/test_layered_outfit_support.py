@@ -4,9 +4,73 @@
 import pytest
 
 from tests.support.layered_outfit_support import (
+    panel_depth_profile_placement_y,
+    sample_local_torso_depth,
     select_landmark_supports,
     select_top_boundary_supports,
 )
+
+
+def test_local_torso_depth_uses_only_the_requested_height_band() -> None:
+    """Do not let a lower-body maximum define the upper-back shirt plane."""
+    vertices = [
+        (x, y, z)
+        for z, front_y, back_y in (
+            (900.0, -150.0, 180.0),
+            (1277.5, -92.0, 128.0),
+        )
+        for x in (-40.0, -20.0, 0.0, 20.0, 40.0)
+        for y in (front_y, back_y)
+    ]
+
+    front_y, back_y, count = sample_local_torso_depth(
+        vertices,
+        center_x_mm=0.0,
+        center_z_mm=1277.5,
+        half_width_mm=60.0,
+        half_height_mm=35.0,
+        minimum_samples=10,
+    )
+
+    assert (front_y, back_y, count) == (-92.0, 128.0, 10)
+
+
+def test_local_torso_depth_rejects_insufficient_and_degenerate_bands() -> None:
+    """A local section must be measured, not silently replaced by a global bound."""
+    with pytest.raises(ValueError, match="has 2 samples"):
+        sample_local_torso_depth(
+            ((0.0, -10.0, 100.0), (0.0, 10.0, 100.0)),
+            center_x_mm=0.0,
+            center_z_mm=100.0,
+            half_width_mm=20.0,
+            half_height_mm=10.0,
+            minimum_samples=3,
+        )
+    with pytest.raises(ValueError, match="positive front/back extent"):
+        sample_local_torso_depth(
+            ((0.0, 4.0, 100.0), (1.0, 4.0, 101.0)),
+            center_x_mm=0.5,
+            center_z_mm=100.5,
+            half_width_mm=20.0,
+            half_height_mm=10.0,
+            minimum_samples=2,
+        )
+
+
+def test_panel_depth_profile_interpolates_hip_and_upper_torso_sections() -> None:
+    """The tilted panel origin must interpolate the two measured body sections."""
+    origin_y, slope = panel_depth_profile_placement_y(
+        reference_y_mm=-90.0,
+        reference_z_mm=920.0,
+        support_y_mm=-113.0,
+        support_z_mm=1277.5,
+        panel_origin_z_mm=835.0,
+    )
+
+    assert slope == pytest.approx(-23.0 / 357.5)
+    assert origin_y == pytest.approx(-90.0 + slope * (835.0 - 920.0))
+    assert origin_y + slope * (920.0 - 835.0) == pytest.approx(-90.0)
+    assert origin_y + slope * (1277.5 - 835.0) == pytest.approx(-113.0)
 
 
 def test_support_selection_skips_interior_and_too_close_particles() -> None:

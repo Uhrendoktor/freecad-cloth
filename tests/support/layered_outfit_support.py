@@ -7,6 +7,108 @@ from collections.abc import Mapping, Sequence
 from math import isfinite
 
 
+def sample_local_torso_depth(
+    vertices: Sequence[Sequence[float]],
+    *,
+    center_x_mm: float,
+    center_z_mm: float,
+    half_width_mm: float,
+    half_height_mm: float,
+    minimum_samples: int = 50,
+) -> tuple[float, float, int]:
+    """Measure front/back torso depth within one local anatomical band.
+
+    Args:
+        vertices: Closed mannequin surface vertices in world millimetres.
+        center_x_mm: Left/right centre of the mannequin cross-section.
+        center_z_mm: Height of the requested anatomical band.
+        half_width_mm: Maximum lateral distance from the centreline.
+        half_height_mm: Half-height of the local sampling band.
+        minimum_samples: Minimum number of surface vertices required.
+
+    Returns:
+        Minimum front Y, maximum back Y, and the number of sampled vertices.
+
+    Raises:
+        ValueError: If inputs are invalid or the local band has too few samples.
+    """
+    numeric = (center_x_mm, center_z_mm, half_width_mm, half_height_mm)
+    if not all(isfinite(float(value)) for value in numeric):
+        raise ValueError("torso depth sample coordinates and extents must be finite")
+    if half_width_mm <= 0.0 or half_height_mm <= 0.0:
+        raise ValueError("torso depth sample extents must be positive")
+    if (
+        isinstance(minimum_samples, bool)
+        or not isinstance(minimum_samples, int)
+        or minimum_samples < 1
+    ):
+        raise ValueError("minimum torso sample count must be a positive integer")
+
+    depths = []
+    for vertex in vertices:
+        if len(vertex) != 3:
+            raise ValueError("mannequin surface vertices must contain XYZ coordinates")
+        x, y, z = (float(value) for value in vertex)
+        if not all(isfinite(value) for value in (x, y, z)):
+            raise ValueError("mannequin surface vertices must be finite")
+        if (
+            abs(x - center_x_mm) <= half_width_mm
+            and abs(z - center_z_mm) <= half_height_mm
+        ):
+            depths.append(y)
+    if len(depths) < minimum_samples:
+        raise ValueError(
+            "local torso depth band has %d samples; requires at least %d"
+            % (len(depths), minimum_samples)
+        )
+    front_y = min(depths)
+    back_y = max(depths)
+    if not back_y > front_y:
+        raise ValueError("local torso depth band must have positive front/back extent")
+    return front_y, back_y, len(depths)
+
+
+def panel_depth_profile_placement_y(
+    reference_y_mm: float,
+    reference_z_mm: float,
+    support_y_mm: float,
+    support_z_mm: float,
+    panel_origin_z_mm: float,
+) -> tuple[float, float]:
+    """Fit a linear Y-versus-height profile for a planar Sketcher panel.
+
+    Args:
+        reference_y_mm: Target panel depth at the hip reference height.
+        reference_z_mm: Hip reference height in world millimetres.
+        support_y_mm: Target panel depth at the upper-torso support height.
+        support_z_mm: Upper-torso support height in world millimetres.
+        panel_origin_z_mm: World Z coordinate of the panel's local origin.
+
+    Returns:
+        Panel-origin Y coordinate and world-depth slope in mm/mm.
+
+    Raises:
+        ValueError: If any coordinate is non-finite or the two heights coincide.
+    """
+    values = (
+        reference_y_mm,
+        reference_z_mm,
+        support_y_mm,
+        support_z_mm,
+        panel_origin_z_mm,
+    )
+    if not all(isfinite(float(value)) for value in values):
+        raise ValueError("panel depth profile coordinates must be finite")
+    delta_z = float(support_z_mm) - float(reference_z_mm)
+    if abs(delta_z) <= 1e-9:
+        raise ValueError("panel depth profile reference and support heights must differ")
+    slope = (float(support_y_mm) - float(reference_y_mm)) / delta_z
+    origin_y = float(reference_y_mm) + slope * (
+        float(panel_origin_z_mm) - float(reference_z_mm)
+    )
+    return origin_y, slope
+
+
 def select_top_boundary_supports(
     top_chains: Mapping[str, Sequence[int]],
     exterior_by_particle: Mapping[int, bool],

@@ -30,7 +30,11 @@ if str(TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(TESTS_DIR))
 
 from support.freecad_bootstrap import prepare_repository_root
-from support.layered_outfit_support import select_landmark_supports
+from support.layered_outfit_support import (
+    panel_depth_profile_placement_y,
+    sample_local_torso_depth,
+    select_landmark_supports,
+)
 
 ROOT = prepare_repository_root(__file__)
 
@@ -68,7 +72,6 @@ SHIRT_SUPPORT_ANCHOR_ROLE = "torso-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
 SHIRT_BODY_CLEARANCE_MM = 14.0
 SKIRT_BODY_CLEARANCE_MM = 6.0
-INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
 MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
 SHIRT_NECKLINE_RATIO = 0.72
 SHIRT_NECKLINE_DROP = 0.03
@@ -1022,62 +1025,106 @@ def run_acceptance() -> None:
             150.0,
             max(abs(float(vertex[0]) - center_x) for vertex in hip_slice) + 16.0,
         )
-        radius_y = max(
-            100.0,
-            0.5
-            * (
-                max(float(vertex[1]) for vertex in hip_slice)
-                - min(float(vertex[1]) for vertex in hip_slice)
-            )
-            + 16.0,
-        )
-        radius_y = max(100.0, radius_y)
-
-        # Derive the two-panel shirt's front/back placement before authoring
-        # the skirt ring. Centering the waistband only on the hip-slice midpoint
-        # leaves its rear plane inside the shirt's back panel on this mannequin.
-        # Align the ring to the shirt envelope, keep at least the 6 mm mannequin
-        # collision standoff, and leave a controlled 7 mm starting garment gap
-        # for the existing 8 mm inter-cloth projection to resolve.
-        shirt_bottom_z = hip_z - 85.0
-        shirt_torso_depth_samples = [
-            vertex
-            for vertex in body_surface.vertices
-            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
-            and abs(float(vertex[0]) - center_x) <= max(80.0, 0.30 * shoulder_width)
-        ]
-        if len(shirt_torso_depth_samples) < 50:
-            raise RuntimeError("mannequin has insufficient central torso depth samples")
-        torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
-        torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
-        shirt_clearance = SHIRT_BODY_CLEARANCE_MM
-        shirt_front_y = torso_front_y - shirt_clearance
-        shirt_back_y = torso_back_y + shirt_clearance
-        shirt_midplane_y = 0.5 * (shirt_front_y + shirt_back_y)
-        shirt_half_depth = 0.5 * (shirt_back_y - shirt_front_y)
         hip_min_y = min(float(vertex[1]) for vertex in hip_slice)
         hip_max_y = max(float(vertex[1]) for vertex in hip_slice)
-        minimum_body_radius_y = (
-            max(
-                abs(hip_min_y - shirt_midplane_y),
-                abs(hip_max_y - shirt_midplane_y),
-            )
-            + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        waist_half_depth = 0.5 * (hip_max_y - hip_min_y)
+        radius_y = max(
+            100.0,
+            waist_half_depth + MINIMUM_WAISTBAND_BODY_STANDOFF_MM,
         )
-        shirt_aligned_radius_y = shirt_half_depth - INITIAL_SHIRT_WAISTBAND_GAP_MM
-        radius_y = max(radius_y, minimum_body_radius_y, shirt_aligned_radius_y)
-        center_y = shirt_midplane_y
-        shirt_waistband_front_gap_mm = center_y - radius_y - shirt_front_y
-        shirt_waistband_back_gap_mm = shirt_back_y - (center_y + radius_y)
+        center_y = hip_center_y
+
+        # Sample the upper torso and hip independently. A full-height Y extreme
+        # creates a constant-depth back plane that can sit tens of millimetres
+        # off the upper back, so each panel is tilted to follow both sections.
+        shirt_bottom_z = hip_z - 85.0
+        shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM
+        shirt_support_torso_front_y, shirt_support_torso_back_y, shirt_support_sample_count = (
+            sample_local_torso_depth(
+                body_surface.vertices,
+                center_x_mm=center_x,
+                center_z_mm=shirt_support_target_z,
+                half_width_mm=max(80.0, 0.30 * shoulder_width),
+                half_height_mm=MAXIMUM_SHIRT_SUPPORT_HEIGHT_OFFSET_MM,
+                minimum_samples=50,
+            )
+        )
+        shirt_clearance = SHIRT_BODY_CLEARANCE_MM
+        shirt_front_y = shirt_support_torso_front_y - shirt_clearance
+        shirt_back_y = shirt_support_torso_back_y + shirt_clearance
+        shirt_midplane_y = 0.5 * (shirt_front_y + shirt_back_y)
+
+        shirt_hip_front_y = hip_min_y - shirt_clearance
+        shirt_hip_back_y = hip_max_y + shirt_clearance
+        waistband_inner_front_y = hip_min_y - MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        waistband_inner_back_y = hip_max_y + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        shirt_waistband_front_gap_mm = waistband_inner_front_y - shirt_hip_front_y
+        shirt_waistband_back_gap_mm = shirt_hip_back_y - waistband_inner_back_y
         if not (
-            0.0 < shirt_waistband_front_gap_mm <= INTER_GARMENT_CLEARANCE_MM
-            and 0.0 < shirt_waistband_back_gap_mm <= INTER_GARMENT_CLEARANCE_MM
+            math.isclose(
+                shirt_waistband_front_gap_mm,
+                INTER_GARMENT_CLEARANCE_MM,
+                abs_tol=1e-6,
+            )
+            and math.isclose(
+                shirt_waistband_back_gap_mm,
+                INTER_GARMENT_CLEARANCE_MM,
+                abs_tol=1e-6,
+            )
         ):
             raise RuntimeError(
-                "shirt/waistband initial gaps are outside the contact envelope: "
-                "front=%.3f mm back=%.3f mm"
+                "nested mannequin shells do not provide the requested inter-garment "
+                "clearance: front=%.3f mm back=%.3f mm"
                 % (shirt_waistband_front_gap_mm, shirt_waistband_back_gap_mm)
             )
+
+        shirt_front_panel_base_y, shirt_front_depth_slope = panel_depth_profile_placement_y(
+            shirt_hip_front_y,
+            hip_z,
+            shirt_front_y,
+            shirt_support_target_z,
+            shirt_bottom_z,
+        )
+        shirt_back_panel_base_y, shirt_back_depth_slope = panel_depth_profile_placement_y(
+            shirt_hip_back_y,
+            hip_z,
+            shirt_back_y,
+            shirt_support_target_z,
+            shirt_bottom_z,
+        )
+        shirt_front_rotation = App.Rotation(
+            App.Vector(1.0, 0.0, 0.0),
+            math.degrees(math.atan2(1.0, shirt_front_depth_slope)),
+        )
+        shirt_back_rotation = App.Rotation(
+            App.Vector(1.0, 0.0, 0.0),
+            math.degrees(math.atan2(1.0, shirt_back_depth_slope)),
+        )
+        _log(
+            "shirt-depth-profile "
+            + json.dumps(
+                {
+                    "hip_z_mm": hip_z,
+                    "support_z_mm": shirt_support_target_z,
+                    "hip_slice_front_y_mm": hip_min_y,
+                    "hip_slice_back_y_mm": hip_max_y,
+                    "support_slice_front_y_mm": shirt_support_torso_front_y,
+                    "support_slice_back_y_mm": shirt_support_torso_back_y,
+                    "support_slice_sample_count": shirt_support_sample_count,
+                    "front_panel_base_y_mm": shirt_front_panel_base_y,
+                    "back_panel_base_y_mm": shirt_back_panel_base_y,
+                    "front_depth_slope_mm_per_mm": shirt_front_depth_slope,
+                    "back_depth_slope_mm_per_mm": shirt_back_depth_slope,
+                    "front_support_target_y_mm": shirt_front_y,
+                    "back_support_target_y_mm": shirt_back_y,
+                    "waistband_center_y_mm": center_y,
+                    "waistband_radius_y_mm": radius_y,
+                    "front_layer_gap_mm": shirt_waistband_front_gap_mm,
+                    "back_layer_gap_mm": shirt_waistband_back_gap_mm,
+                },
+                sort_keys=True,
+            )
+        )
         _log(
             "shirt-waistband-layer-alignment "
             + json.dumps(
@@ -1154,6 +1201,12 @@ def run_acceptance() -> None:
                     "hip_slice_max_abs_x_point_mm": [float(value) for value in hip_x_extreme],
                     "hip_slice_y_min_point_mm": [float(value) for value in hip_y_minimum],
                     "hip_slice_y_max_point_mm": [float(value) for value in hip_y_maximum],
+                    "shirt_support_z_mm": shirt_support_target_z,
+                    "shirt_support_depth_y_mm": [
+                        shirt_support_torso_front_y,
+                        shirt_support_torso_back_y,
+                    ],
+                    "shirt_support_depth_sample_count": shirt_support_sample_count,
                     "skirt_radii_mm": [radius_x, radius_y],
                     "hip_slice_center_y_mm": hip_center_y,
                     "skirt_center_y_mm": center_y,
@@ -1233,17 +1286,16 @@ def run_acceptance() -> None:
             560.0,
             (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
         )
-        shirt_rotation = rotation_front
         shirt_front = _make_tunic_piece(
             doc,
             "Shirt-Front",
             App.Placement(
                 App.Vector(
                     center_x - shirt_hem_width / 2.0,
-                    shirt_front_y,
+                    shirt_front_panel_base_y,
                     shirt_bottom_z,
                 ),
-                shirt_rotation,
+                shirt_front_rotation,
             ),
             shirt_panel_width,
             shirt_garment_height,
@@ -1255,10 +1307,10 @@ def run_acceptance() -> None:
             App.Placement(
                 App.Vector(
                     center_x - shirt_hem_width / 2.0,
-                    shirt_back_y,
+                    shirt_back_panel_base_y,
                     shirt_bottom_z,
                 ),
-                shirt_rotation,
+                shirt_back_rotation,
             ),
             shirt_panel_width,
             shirt_garment_height,
@@ -1318,7 +1370,7 @@ def run_acceptance() -> None:
                 shirt_front_y,
                 shirt_back_y,
                 shirt_clearance,
-                len(shirt_torso_depth_samples),
+                shirt_support_sample_count,
             )
         )
         doc.recompute()
@@ -1445,7 +1497,6 @@ def run_acceptance() -> None:
         shirt_support_centerline_offsets: dict[str, float] = {}
         shirt_support_height_offsets: dict[str, float] = {}
         shirt_support_design_target_deviations: dict[str, float] = {}
-        shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM
         for side in ("front", "back"):
             panel_name = panel_name_by_piece.get(str(shirt[side].Name))
             if panel_name is None:
