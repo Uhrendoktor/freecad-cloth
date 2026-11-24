@@ -1409,6 +1409,24 @@ def run_acceptance() -> None:
             clearance_by_particle[index] = float(
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
+        _log(
+            "shoulder-support-candidate-diagnostics="
+            + json.dumps(
+                {
+                    panel_name: [
+                        {
+                            "particle": int(index),
+                            "position_mm": [float(value) for value in initial_positions[index]],
+                            "exterior": bool(exterior_by_particle[index]),
+                            "clearance_mm": float(clearance_by_particle[index]),
+                        }
+                        for index in chain
+                    ]
+                    for panel_name, chain in shirt_support_chains.items()
+                },
+                sort_keys=True,
+            )
+        )
 
         shirt_selected_by_panel = select_landmark_supports(
             shirt_support_chains,
