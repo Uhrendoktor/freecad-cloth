@@ -2515,10 +2515,12 @@ def _run_production_tunic_drape(
     def timed_mesh_projector(
         projector: "MeshCollisionProjector",
         points_mm: Sequence[Sequence[float]],
+        *,
+        clearance_mm: object | None = None,
     ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
         stage_started = perf_counter()
         try:
-            return original_project(projector, points_mm)
+            return original_project(projector, points_mm, clearance_mm=clearance_mm)
         finally:
             if not inside_stitched_reconciliation[0]:
                 record_profile_sample("mesh_collision_projector", stage_started)
@@ -2529,12 +2531,19 @@ def _run_production_tunic_drape(
         contact_normals: Sequence[Sequence[float]],
         stitches: Sequence[tuple[int, int]],
         pinned_indices: Sequence[int] = (),
+        *,
+        clearance_mm: object | None = None,
     ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
         stage_started = perf_counter()
         inside_stitched_reconciliation[0] = True
         try:
             return original_stitched_pairs(
-                projector, positions_mm, contact_normals, stitches, pinned_indices
+                projector,
+                positions_mm,
+                contact_normals,
+                stitches,
+                pinned_indices,
+                clearance_mm=clearance_mm,
             )
         finally:
             inside_stitched_reconciliation[0] = False

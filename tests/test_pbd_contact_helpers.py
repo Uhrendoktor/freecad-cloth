@@ -24,7 +24,10 @@ from freecad_cloth.simulation.PositionBasedDynamicsBackend import (
     _pbd_stitch_stiffness,
     pbd_collision_resolution,
 )
-from freecad_cloth.simulation.SimulationObjects import _resolve_inter_cloth_groups
+from freecad_cloth.simulation.SimulationObjects import (
+    _resolve_garment_body_clearance_by_particle,
+    _resolve_inter_cloth_groups,
+)
 from tests.support.pbd_contact_helpers import (
     LADDER_STITCH_SAMPLES,
     append_optional_ladder_piece,
@@ -240,6 +243,50 @@ def test_vectorized_inter_cloth_narrow_phase_matches_scalar_reference() -> None:
         rtol=1e-10,
         atol=1e-10,
     )
+
+
+def test_garment_body_clearances_resolve_to_the_exact_particle_order() -> None:
+    """Per-garment standoffs must cover every particle exactly once."""
+    scene = SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|6.0", "skirt|14.0"))
+    groups = {
+        "shirt": ((0, 1, 2), (2, 3, 0)),
+        "skirt": ((4, 5, 6), (6, 7, 4)),
+    }
+
+    actual = _resolve_garment_body_clearance_by_particle(scene, groups, 8)
+
+    assert actual == (6.0, 6.0, 6.0, 6.0, 14.0, 14.0, 14.0, 14.0)
+
+
+def test_garment_body_clearances_require_exact_group_coverage() -> None:
+    """Reject missing or extra garment standoffs instead of silently using defaults."""
+    groups = {"shirt": ((0, 1, 2),), "skirt": ((3, 4, 5),)}
+
+    with pytest.raises(ValueError, match="classify every garment group"):
+        _resolve_garment_body_clearance_by_particle(
+            SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|6.0",)),
+            groups,
+            6,
+        )
+
+
+def test_garment_body_clearances_reject_duplicate_and_invalid_values() -> None:
+    """Garment standoff values must be unique, finite positive millimetres."""
+    groups = {"shirt": ((0, 1, 2),), "skirt": ((3, 4, 5),)}
+    with pytest.raises(ValueError, match="duplicate mannequin body clearance"):
+        _resolve_garment_body_clearance_by_particle(
+            SimpleNamespace(
+                GarmentBodyClearanceByGroup=("shirt|6.0", "shirt|7.0", "skirt|14.0")
+            ),
+            groups,
+            6,
+        )
+    with pytest.raises(ValueError, match="positive and finite"):
+        _resolve_garment_body_clearance_by_particle(
+            SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|6.0", "skirt|nan")),
+            groups,
+            6,
+        )
 
 
 def test_inter_cloth_aabb_broad_phase_keeps_every_exact_near_contact() -> None:

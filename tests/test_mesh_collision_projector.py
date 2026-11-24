@@ -243,6 +243,41 @@ def test_projector_enforces_clearance_and_leaves_distant_points_unchanged() -> N
     assert np.array_equal(normals[1], np.zeros(3))
 
 
+def test_projector_applies_independent_clearances_to_inside_and_outside_particles() -> None:
+    """A particle-specific body shell must work for both exterior and interior points."""
+    surface = _cube_surface()
+    projector = MeshCollisionProjector(surface, clearance_mm=2.0)
+    points = np.asarray(((-0.5, 50.0, 50.0), (10.0, 50.0, 50.0)), dtype=np.float64)
+
+    projected, normals = projector.project(points, clearance_mm=(6.0, 14.0))
+
+    np.testing.assert_allclose(projected, ((-6.0, 50.0, 50.0), (-14.0, 50.0, 50.0)))
+    assert np.allclose(np.linalg.norm(normals, axis=1), 1.0)
+    assert not any(
+        points_inside_closed_mesh(
+            (tuple(float(value) for value in point),),
+            surface.vertices,
+            surface.triangles,
+            prefer_trimesh=False,
+            chunk_size=1,
+        )[0]
+        for point in projected
+    )
+
+
+def test_projector_rejects_invalid_per_particle_clearance_arrays() -> None:
+    """Per-particle clearance arrays must be positive, finite and match the points."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    points = np.asarray(((-0.5, 50.0, 50.0), (100.5, 50.0, 50.0)), dtype=np.float64)
+
+    with pytest.raises(ValueError, match="shape"):
+        projector.project(points, clearance_mm=(6.0,))
+    with pytest.raises(ValueError, match="positive and finite"):
+        projector.project(points, clearance_mm=(6.0, 0.0))
+    with pytest.raises(ValueError, match="positive and finite"):
+        projector.project(points, clearance_mm=(6.0, float("nan")))
+
+
 def test_projector_skips_triangle_queries_for_points_outside_expanded_bounds() -> None:
     projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
     # If the broad phase is skipped, this fails instead of issuing any KD-tree query.
@@ -308,6 +343,40 @@ def test_stitched_pair_reconciliation_closes_pair_outside_target() -> None:
         )[0]
         for point in stitched_positions
     )
+
+
+def test_stitched_pair_reconciliation_uses_the_garment_body_clearance() -> None:
+    """The shared stitch point must be projected to its owning garment shell."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    points = np.asarray(((-0.5, 50.0, 50.0), (-0.5, 50.0, 60.0)), dtype=np.float64)
+    contact_positions, contact_normals = projector.project(points, clearance_mm=(6.0, 6.0))
+
+    stitched_positions, stitched_normals = project_stitched_pairs(
+        projector,
+        contact_positions,
+        contact_normals,
+        ((0, 1),),
+        clearance_mm=(14.0, 14.0),
+    )
+
+    np.testing.assert_allclose(stitched_positions, ((-14.0, 50.0, 55.0),) * 2)
+    assert np.allclose(np.linalg.norm(stitched_normals, axis=1), 1.0)
+
+
+def test_stitched_pair_reconciliation_rejects_mixed_body_clearances() -> None:
+    """A sewn component cannot straddle two distinct mannequin clearance shells."""
+    projector = MeshCollisionProjector(_cube_surface(), clearance_mm=2.0)
+    points = np.asarray(((-0.5, 50.0, 50.0), (-0.5, 50.0, 60.0)), dtype=np.float64)
+    normals = np.zeros_like(points)
+
+    with pytest.raises(ValueError, match="share one mannequin body clearance"):
+        project_stitched_pairs(
+            projector,
+            points,
+            normals,
+            ((0, 1),),
+            clearance_mm=(6.0, 14.0),
+        )
 
 
 def test_stitched_pair_reconciliation_does_not_move_a_pinned_group() -> None:

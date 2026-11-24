@@ -131,6 +131,7 @@ def test_signature_changes_for_every_derived_simulation_control(
         ("SolverIterations", 16),
         ("SolverSubsteps", 2),
         ("GarmentGroups", ["shirt|front", "skirt|front"]),
+        ("GarmentBodyClearanceByGroup", ["shirt|6.0", "skirt|14.0"]),
         ("InterClothClearance", 2.0),
         ("FabricDensity", 300.0),
         ("FabricThickness", 0.8),

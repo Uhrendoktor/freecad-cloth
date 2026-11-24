@@ -139,6 +139,26 @@ def test_pin_selection_is_part_of_rebuild_signature() -> None:
     )
 
 
+def test_garment_body_clearance_is_part_of_simulation_rebuild_signature() -> None:
+    """Changing a garment layer's mannequin standoff must rebuild the derived scene."""
+    target = _signature_target()
+    base = {
+        "DrapeTarget": target,
+        "StitchSamples": 8,
+        "Document": SimpleNamespace(Objects=[]),
+    }
+    inner_outer = SimpleNamespace(
+        **base,
+        GarmentBodyClearanceByGroup=["shirt|6.0", "skirt|14.0"],
+    )
+    changed_outer = SimpleNamespace(
+        **base,
+        GarmentBodyClearanceByGroup=["shirt|6.0", "skirt|16.0"],
+    )
+
+    assert _simulation_signature()(inner_outer, []) != _simulation_signature()(changed_outer, [])
+
+
 def test_seam_pair_records_preserve_exact_solver_stitch_provenance() -> None:
     """Verify solver stitch pairs preserve authored seam direction and identity."""
     pattern = PatternIR(
