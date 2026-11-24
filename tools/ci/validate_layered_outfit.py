@@ -30,8 +30,9 @@ MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
-MAXIMUM_SHIRT_HEM_INNER_OFFSET_MM = 100.0
-SHIRT_SUPPORT_ANCHOR_ROLE = "inner-hem-stabilizer"
+MINIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM = 100.0
+MAXIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM = 260.0
+SHIRT_SUPPORT_ANCHOR_ROLE = "side-seam-stabilizer"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -423,7 +424,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(isinstance(support_pins, dict), "shirt hem support-pin record is missing")
     _require(
         support_pins.get("mode") == "Explicit",
-        "shirt must retain explicit front/back inner-hem stabilizers",
+        "shirt must retain explicit front/back side-seam stabilizers",
     )
     support_pin_indices = support_pins.get("particle_indices")
     _require(
@@ -443,7 +444,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     shirt_supports = outfit.get("shirt_supports")
     _require(
         isinstance(shirt_supports, list) and len(shirt_supports) == 2,
-        "shirt must expose two front/back inner-hem support records",
+        "shirt must expose two front/back side-seam support records",
     )
     shirt_support_panels: set[str] = set()
     shirt_support_particles: set[int] = set()
@@ -466,7 +467,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         shirt_support_particles.add(particle_index)
         _require(
             support.get("anchor_role") == SHIRT_SUPPORT_ANCHOR_ROLE,
-            "shirt support anchor role must identify an inner-hem stabilizer",
+            "shirt support anchor role must identify a side-seam stabilizer",
         )
         target = _finite_vector(support.get("target_mm"), "shirt support target", 3)
         position = _finite_vector(support.get("position_mm"), "shirt support position", 3)
@@ -478,18 +479,20 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         )
         _require(
             target_deviation <= MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
-            "shirt support is detached from its authored hem target",
+            "shirt support is detached from its authored side-seam target",
         )
         centerline_x = _number(support, "centerline_x_mm")
-        centerline_offset = _number(support, "centerline_offset_mm")
-        measured_centerline_offset = abs(position[0] - centerline_x)
+        lateral_offset = _number(support, "lateral_offset_mm")
+        measured_lateral_offset = abs(position[0] - centerline_x)
         _require(
-            abs(centerline_offset - measured_centerline_offset) <= 1e-3,
-            "shirt support centerline offset disagrees with its persisted coordinates",
+            abs(lateral_offset - measured_lateral_offset) <= 1e-3,
+            "shirt support lateral offset disagrees with its persisted coordinates",
         )
         _require(
-            measured_centerline_offset <= MAXIMUM_SHIRT_HEM_INNER_OFFSET_MM,
-            "shirt inner-hem support is outside the allowed lateral region",
+            MINIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM
+            <= measured_lateral_offset
+            <= MAXIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM,
+            "shirt side-seam support is outside the authored lateral support band",
         )
         stand_off = _number(support, "clearance_mm")
         _require(
