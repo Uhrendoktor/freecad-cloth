@@ -63,7 +63,7 @@ MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
 MAXIMUM_SHIRT_SUPPORT_CENTERLINE_OFFSET_MM = 80.0
 MAXIMUM_SHIRT_SUPPORT_HEIGHT_OFFSET_MM = 35.0
-SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM = 25.0
+SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 70.0
 SHIRT_SUPPORT_ANCHOR_ROLE = "torso-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
 SHIRT_BODY_CLEARANCE_MM = 14.0
@@ -935,7 +935,13 @@ def _capture_six_views(
 
 def run_acceptance() -> None:
     """Build, sew, simulate, save/reload and capture a ten-piece layered outfit."""
-    from freecad_cloth.avatar.AvatarCommands import create_avatar
+    from dataclasses import replace as replace_dataclass
+
+    from freecad_cloth.avatar.AvatarCommands import (
+        _parameters,
+        apply_avatar_parameters,
+        create_avatar,
+    )
     from freecad_cloth.simulation.SimulationQualityRuntime import (
         QualitySimulationProxy,
         ensure_quality_properties,
@@ -948,6 +954,24 @@ def run_acceptance() -> None:
         _log("before-avatar-create")
         avatar = create_avatar(attach_collision=False, doc=doc)
         _log("avatar-created")
+        initial_avatar_parameters = _parameters(avatar)
+        near_t_pose = replace_dataclass(
+            initial_avatar_parameters.pose,
+            left_arm_angle=12.0,
+            right_arm_angle=12.0,
+            left_elbow_angle=0.0,
+            right_elbow_angle=0.0,
+            joint_rotations=(),
+        )
+        apply_avatar_parameters(
+            avatar,
+            replace_dataclass(initial_avatar_parameters, pose=near_t_pose),
+        )
+        doc.recompute()
+        _log(
+            "layered-outfit-avatar-pose=near-horizontal left_arm_angle=12 "
+            "right_arm_angle=12 joint_overrides=cleared"
+        )
         avatar.Label = "Layered Outfit Mannequin"
         avatar.ViewObject.Visibility = True
 
@@ -1027,7 +1051,7 @@ def run_acceptance() -> None:
         torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
-        shirt_clearance = max(12.0, 0.05 * torso_depth)
+        shirt_clearance = SHIRT_BODY_CLEARANCE_MM
         shirt_front_y = torso_front_y - shirt_clearance
         shirt_back_y = torso_back_y + shirt_clearance
         shirt_midplane_y = 0.5 * (shirt_front_y + shirt_back_y)
@@ -1202,8 +1226,10 @@ def run_acceptance() -> None:
         # Use the same shaped front/back torso patterns as the canonical tunic
         # audit instead of a four-sided rectangular tube. The open neckline and
         # armholes are retained as authored Sketcher arcs and semantic edges.
-        shirt_panel_width = max(420.0, shoulder_width + 105.0)
-        shirt_hem_width = max(500.0, shirt_panel_width + 100.0)
+        shirt_panel_width_base = max(420.0, shoulder_width + 105.0)
+        shirt_hem_width_base = max(500.0, shirt_panel_width_base + 100.0)
+        shirt_panel_width = 1.10 * shirt_panel_width_base
+        shirt_hem_width = 1.10 * shirt_hem_width_base
         shirt_garment_height = max(
             560.0,
             (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
@@ -1390,13 +1416,26 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two torso-centerline stabilizers seat the front and back panels near the hip.
-        # Keep them away from shoulder and hem seams so those boundaries can converge.
+        # Two upper-torso centerline stabilizers suspend the front and back panels
+        # above the waist. Keeping the anchors on actual PatternIR particles lets
+        # the shoulder/side seams settle without allowing the shirt to slide down.
         import numpy as np
 
         initial_positions = np.asarray(backend.positions(), dtype=np.float64)
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
+        shirt_particle_indices = tuple(
+            sorted(
+                {
+                    int(index)
+                    for panel_name, piece_name in base.panel_piece_names.items()
+                    if piece_name in shirt_piece_names
+                    for index in base.panel_indices.get(panel_name, ())
+                }
+            )
+        )
+        if not shirt_particle_indices:
+            raise RuntimeError("shirt panels have no solver particles for drape-fit diagnostics")
         panel_name_by_piece = {
             str(piece_name): str(panel_name)
             for panel_name, piece_name in base.panel_piece_names.items()
@@ -1407,7 +1446,7 @@ def run_acceptance() -> None:
         shirt_support_centerline_offsets: dict[str, float] = {}
         shirt_support_height_offsets: dict[str, float] = {}
         shirt_support_design_target_deviations: dict[str, float] = {}
-        shirt_support_target_z = hip_z + SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM
+        shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM
         for side in ("front", "back"):
             panel_name = panel_name_by_piece.get(str(shirt[side].Name))
             if panel_name is None:
@@ -1838,6 +1877,31 @@ def run_acceptance() -> None:
             if not bool(scene.FiniteState):
                 raise RuntimeError("solver state became non-finite at step %d" % step)
             current_positions = backend.positions()
+            shirt_current_positions = tuple(
+                current_positions[index] for index in shirt_particle_indices
+            )
+            shirt_bounds_min = tuple(
+                min(float(position[axis]) for position in shirt_current_positions)
+                for axis in range(3)
+            )
+            shirt_bounds_max = tuple(
+                max(float(position[axis]) for position in shirt_current_positions)
+                for axis in range(3)
+            )
+            shirt_vertical_span_mm = shirt_bounds_max[2] - shirt_bounds_min[2]
+            shirt_fit_metrics = {
+                "bounds_min_mm": list(shirt_bounds_min),
+                "bounds_max_mm": list(shirt_bounds_max),
+                "vertical_span_mm": shirt_vertical_span_mm,
+                "vertical_span_ratio": shirt_vertical_span_mm / shirt_garment_height,
+                "top_above_shoulder_mm": shirt_bounds_max[2] - shoulder_z,
+                "bottom_above_hip_mm": shirt_bounds_min[2] - hip_z,
+                "particle_count": len(shirt_current_positions),
+            }
+            _log(
+                "shirt-fit-checkpoint=%d %s"
+                % (step, json.dumps(shirt_fit_metrics, sort_keys=True))
+            )
             maximum_support_pin_drift_mm = max(
                 (
                     math.dist(support_pin_positions[index], current_positions[index])
@@ -1977,6 +2041,7 @@ def run_acceptance() -> None:
                 "residual_penetration_mm": float(scene.InterClothResidualPenetration),
                 "max_seam_gap_mm": max_seam_gap,
                 "body": body_metrics,
+                "shirt_fit": shirt_fit_metrics,
                 "seams": seam_metrics,
                 "images": checkpoint_images,
             }
