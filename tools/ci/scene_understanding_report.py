@@ -629,9 +629,7 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             parsed.has_layered_outfit_landmarks = True
         if line.startswith("layered-outfit-source-geometry "):
             try:
-                source_geometry = json.loads(
-                    line.removeprefix("layered-outfit-source-geometry ")
-                )
+                source_geometry = json.loads(line.removeprefix("layered-outfit-source-geometry "))
             except json.JSONDecodeError:
                 source_geometry = None
             if isinstance(source_geometry, dict):
@@ -835,9 +833,7 @@ def _derive_stage_states(
         pose_state = "measured"
     pattern_construction = (
         "captured"
-        if assessment.topology_records
-        or screenshots.pattern
-        or parsed.has_layered_outfit_pattern
+        if assessment.topology_records or screenshots.pattern or parsed.has_layered_outfit_pattern
         else "not_observed"
     )
     if parsed.has_layered_outfit_pattern and not assessment.topology_records:
@@ -861,9 +857,7 @@ def _derive_stage_states(
         "initial_placement": initial_placement_state,
         "simulation": simulation_state,
         "drape": drape_state,
-        "save_reload": (
-            "passed" if parsed.has_layered_outfit_save_reload else "not_observed"
-        ),
+        "save_reload": ("passed" if parsed.has_layered_outfit_save_reload else "not_observed"),
         "layered_outfit_acceptance": (
             "passed" if parsed.has_layered_outfit_acceptance else "not_observed"
         ),
@@ -1090,9 +1084,7 @@ def _layered_outfit_fit_metrics(
 
     collision_bounds = None
     if parsed.layered_outfit_source_geometry is not None:
-        collision_bounds = parsed.layered_outfit_source_geometry.get(
-            "collision_surface_bounds_mm"
-        )
+        collision_bounds = parsed.layered_outfit_source_geometry.get("collision_surface_bounds_mm")
     target_height = None
     if isinstance(collision_bounds, list) and len(collision_bounds) == 3:
         z_bounds = collision_bounds[2]
@@ -1338,9 +1330,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
                     if metrics_payload is not None and layered_scene is not None
                     else "missing"
                 ),
-                "layered_outfit_manifest": (
-                    "present" if layered_scene is not None else "missing"
-                ),
+                "layered_outfit_manifest": ("present" if layered_scene is not None else "missing"),
                 "final_orthographic_views": (
                     "present"
                     if _layered_outfit_final_views_present(output_root, layered_scene)
@@ -1358,9 +1348,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
                     if layered_scene is not None
                     else "not_applicable"
                 ),
-                "save_reload": (
-                    "passed" if save_reload_validated else "not_fully_validated"
-                ),
+                "save_reload": ("passed" if save_reload_validated else "not_fully_validated"),
             },
         },
         "report_files": {

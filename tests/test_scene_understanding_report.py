@@ -631,14 +631,11 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
             "seams": [],
         },
         "checkpoints": [
-            {"step": step, "contact_count": 4, "remaining_contact_count": 0}
-            for step in (1, 15, 60)
+            {"step": step, "contact_count": 4, "remaining_contact_count": 0} for step in (1, 15, 60)
         ],
         "images": image_records,
     }
-    (output / "layered-outfit-manifest.json").write_text(
-        json.dumps(manifest), encoding="utf-8"
-    )
+    (output / "layered-outfit-manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     progress = output / "layered-outfit-progress.log"
     progress.write_text(
         "layered-outfit-step-start=1\n"
@@ -654,12 +651,8 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
 
     report = write_report(progress, output, tmp_path)
 
-    status = _expect_dict(
-        report["status"], message="Report status must be a dictionary."
-    )
-    stages = _expect_dict(
-        report["stages"], message="Report stages must be a dictionary."
-    )
+    status = _expect_dict(report["status"], message="Report status must be a dictionary.")
+    stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
     simulation = _expect_dict(
         report["simulation"], message="Simulation section must be a dictionary."
     )
@@ -667,9 +660,7 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
         report["fit_assessment"],
         message="Fit assessment must be a dictionary.",
     )
-    evidence = _expect_dict(
-        report["evidence"], message="Evidence must be a dictionary."
-    )
+    evidence = _expect_dict(report["evidence"], message="Evidence must be a dictionary.")
     expected_outputs = _expect_dict(
         evidence["expected_or_known_outputs"],
         message="Expected outputs must be a dictionary.",
@@ -684,9 +675,7 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
     assert stages["save_reload"] == "passed"
     assert stages["layered_outfit_acceptance"] == "passed"
     assert stages["drape"] == (
-        "evidence_present"
-        if missing_side is None
-        else "started_but_final_evidence_missing"
+        "evidence_present" if missing_side is None else "started_but_final_evidence_missing"
     )
     assert expected_outputs["post_drape_views"] == (
         "present" if missing_side is None else "missing"
@@ -834,7 +823,9 @@ def test_layered_outfit_acceptance_reports_manifest_fit_review_and_persistence(
     assert fit["reference_levels_mm"]["shoulder_reference_source"] == (
         "named shoulder_left/shoulder_right CAD landmarks"
     )
-    observed = _expect_dict(fit["observed_final_panel_z_mm"], message="Final shirt bounds required.")
+    observed = _expect_dict(
+        fit["observed_final_panel_z_mm"], message="Final shirt bounds required."
+    )
     assert observed["minimum"] == 881.903
     assert observed["maximum"] == 1308.404
     findings = _expect_list(fit["findings"], message="Fit findings must be a list.")
