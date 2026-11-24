@@ -134,11 +134,7 @@ def _valid_artifact(root: Path) -> Path:
     for index, piece_id in enumerate(piece_ids):
         group_id = "shirt" if index < 2 else "skirt"
         world_min_z, world_max_z = (
-            (110.0, 250.0)
-            if index < 2
-            else (0.0, 10.0)
-            if index < 6
-            else (10.0, 110.0)
+            (110.0, 250.0) if index < 2 else (0.0, 10.0) if index < 6 else (10.0, 110.0)
         )
         edge_count = 8 if group_id == "shirt" else 4
         semantic_ids = [piece_id + ":e%d" % edge for edge in range(edge_count)]
@@ -265,13 +261,13 @@ def _valid_artifact(root: Path) -> Path:
             "inter_cloth_clearance_mm": 8.0,
             "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
             "vertical_layer_interfaces": {
-            "skirt_top_z_mm": 10.0,
-            "waistband_bottom_z_mm": 10.0,
-            "waistband_top_z_mm": 110.0,
-            "shirt_hem_z_mm": 110.0,
-            "shirt_hem_front_gap_mm": 8.0,
-            "shirt_hem_back_gap_mm": 8.0,
-        },
+                "skirt_top_z_mm": 10.0,
+                "waistband_bottom_z_mm": 10.0,
+                "waistband_top_z_mm": 110.0,
+                "shirt_hem_z_mm": 110.0,
+                "shirt_hem_front_gap_mm": 8.0,
+                "shirt_hem_back_gap_mm": 8.0,
+            },
             "particle_distance_mm": 24.0,
             "support_pins": {
                 "mode": "Explicit",

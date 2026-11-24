@@ -114,7 +114,7 @@ def _validated_vertical_layer_interfaces(
     clearance_mm: float,
     source: str,
 ) -> dict[str, float]:
-    """Validate the skirt–waistband–shirt vertical interface and hem clearance."""
+    """Validate the skirt-waistband-shirt vertical interface and hem clearance."""
     _require(isinstance(value, dict), "%s vertical layer interface is missing" % source)
     keys = (
         "skirt_top_z_mm",
@@ -150,8 +150,7 @@ def _validated_vertical_layer_interfaces(
     for side in ("front", "back"):
         _require(
             values["shirt_hem_%s_gap_mm" % side] >= clearance_mm - 1e-6,
-            "%s shirt hem %s gap is below the requested inter-garment clearance"
-            % (source, side),
+            "%s shirt hem %s gap is below the requested inter-garment clearance" % (source, side),
         )
     return values
 
