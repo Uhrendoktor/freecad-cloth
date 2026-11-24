@@ -678,9 +678,11 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
         "A complete layered-outfit marker must pass workflow execution."
     )
     assert status["failed_stage"] is None
-    assert status["last_completed_stage"] == "drape"
+    assert status["last_completed_stage"] == "save_reload"
     assert simulation["started"] is True
     assert stages["simulation"] == "started"
+    assert stages["save_reload"] == "passed"
+    assert stages["layered_outfit_acceptance"] == "passed"
     assert stages["drape"] == (
         "evidence_present"
         if missing_side is None
@@ -691,6 +693,173 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
     )
     assert expected_outputs["drape_metrics"] == "missing"
     assert fit_assessment["state"] == "not_assessed"
+
+
+def test_layered_outfit_acceptance_reports_manifest_fit_review_and_persistence(
+    tmp_path: Path,
+) -> None:
+    """Separate native simulation acceptance from the loose shirt's measured vertical fit."""
+    output = tmp_path / "layered-outfit"
+    output.mkdir()
+    for side in ("front", "rear", "left", "right", "top", "bottom"):
+        image_path = output / "final-six-view" / ("step-060-%s.png" % side)
+        image_path.parent.mkdir(parents=True, exist_ok=True)
+        image_path.write_bytes(b"validated-final-view")
+    (output / "layered-outfit.FCStd").write_bytes(b"saved-freecad-document")
+    manifest = {
+        "schema": "freecad-cloth.layered-outfit",
+        "schema_version": 2,
+        "provenance": {"commit_sha": "c" * 40},
+        "outfit": {
+            "piece_count": 10,
+            "seam_count": 16,
+            "garment_group_count": 2,
+            "inter_cloth_clearance_mm": 8.0,
+            "vertical_layer_interfaces": {"shirt_hem_z_mm": 980.0},
+        },
+        "scene_map": {
+            "coordinate_system": {"units": "mm", "front_direction": "negative Y"},
+            "avatar": {
+                "landmarks": [
+                    {"id": "hip", "world_mm": [0.0, 0.0, 920.0]},
+                    {"id": "shoulder_left", "world_mm": [-220.0, 0.0, 1347.5]},
+                    {"id": "shoulder_right", "world_mm": [220.0, 0.0, 1347.5]},
+                    {"id": "knee_left", "world_mm": [-68.0, 0.0, 531.0]},
+                    {"id": "neck", "world_mm": [0.0, 0.0, 1447.5]},
+                ],
+            },
+            "garment_groups": [
+                {"id": "shirt", "piece_ids": ["shirt-front", "shirt-back"]},
+                {"id": "skirt", "piece_ids": ["skirt-front", "skirt-back"]},
+            ],
+            "pieces": [],
+            "seams": [],
+        },
+        "persistence": {
+            "fcstd": "layered-outfit.FCStd",
+            "piece_links_preserved": True,
+            "garment_groups_preserved": True,
+            "body_clearance_by_group_preserved": True,
+            "support_pins_preserved": True,
+            "shirt_supports_preserved_after_reload": True,
+            "waistband_support_pins_preserved": True,
+            "native_backend_rebuilt": True,
+            "contact_rebuilt_after_reload": True,
+        },
+        "checkpoints": [
+            {
+                "step": 1,
+                "contact_count": 109,
+                "remaining_contact_count": 0,
+                "residual_penetration_mm": 0.0,
+            },
+            {
+                "step": 15,
+                "contact_count": 122,
+                "remaining_contact_count": 0,
+                "residual_penetration_mm": 0.0,
+            },
+            {
+                "step": 60,
+                "contact_count": 49,
+                "remaining_contact_count": 0,
+                "residual_penetration_mm": 0.0,
+                "max_seam_gap_mm": 6.403,
+                "shirt_fit": {
+                    "bounds_min_mm": [-286.64, -126.72, 881.903],
+                    "bounds_max_mm": [283.99, 188.67, 1308.404],
+                },
+            },
+        ],
+        "images": [
+            {
+                "file": "final-six-view/step-060-%s.png" % side,
+                "label": side,
+            }
+            for side in ("front", "rear", "left", "right", "top", "bottom")
+        ],
+    }
+    (output / "layered-outfit-manifest.json").write_text(
+        json.dumps(manifest),
+        encoding="utf-8",
+    )
+    progress = output / "layered-outfit-progress.log"
+    progress.write_text(
+        "\n".join(
+            (
+                "layered-outfit-avatar-pose=near-horizontal left_arm_angle=12 right_arm_angle=12",
+                "mannequin-landmarks-resolved",
+                "layered-outfit-source-geometry "
+                + json.dumps(
+                    {
+                        "collision_surface_bounds_mm": [
+                            [-828.89, 828.89],
+                            [-160.03, 171.33],
+                            [23.704, 1804.262],
+                        ]
+                    }
+                ),
+                "shirt-waistband-layer-alignment "
+                + json.dumps({"front_gap_mm": 8.0, "back_gap_mm": 8.0}),
+                "pattern-pieces=10 seams=16",
+                "seam-metrics-step=60 []",
+                "layered-outfit-step-start=1",
+                "checkpoint=1 particles=4466 contacts=109 residual_mm=0.0000",
+                "layered-outfit-step-start=15",
+                "checkpoint=15 particles=4466 contacts=122 residual_mm=0.0000",
+                "layered-outfit-step-start=60",
+                "checkpoint=60 particles=4466 contacts=49 residual_mm=0.0000",
+                "save-reload=passed pieces=10 groups=2 contacts=109",
+                "layered-outfit-acceptance=passed",
+            )
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    report = write_report(progress, output, tmp_path)
+
+    status = _expect_dict(report["status"], message="Report status must be a dictionary.")
+    stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
+    fit = _expect_dict(report["fit_assessment"], message="Fit assessment must be present.")
+    evidence = _expect_dict(report["evidence"], message="Evidence section must be present.")
+    outputs = _expect_dict(
+        evidence["expected_or_known_outputs"],
+        message="Expected output states must be present.",
+    )
+    assert status["result"] == "review_required"
+    assert status["failed_stage"] is None
+    assert status["last_completed_stage"] == "save_reload"
+    assert fit["state"] == "review_required"
+    assert fit["reference_levels_mm"]["shoulder_reference_source"] == (
+        "named shoulder_left/shoulder_right CAD landmarks"
+    )
+    observed = _expect_dict(fit["observed_final_panel_z_mm"], message="Final shirt bounds required.")
+    assert observed["minimum"] == 881.903
+    assert observed["maximum"] == 1308.404
+    findings = _expect_list(fit["findings"], message="Fit findings must be a list.")
+    assert any(
+        _expect_dict(item, message="Fit finding must be a record.").get("kind")
+        == "cloth_extends_below_expected_hem"
+        for item in findings
+    )
+    assert stages["mannequin_pose"] == "measured"
+    assert stages["pattern_construction"] == "captured"
+    assert stages["pattern_topology"] == "not_separately_audited"
+    assert stages["sewing_preview"] == "measured"
+    assert stages["initial_placement"] == "measured"
+    assert stages["simulation"] == "started"
+    assert stages["drape"] == "evidence_present"
+    assert stages["save_reload"] == "passed"
+    assert stages["layered_outfit_acceptance"] == "passed"
+    assert outputs["layered_outfit_manifest"] == "present"
+    assert outputs["final_orthographic_views"] == "present"
+    assert outputs["saved_fcstd"] == "present"
+    assert outputs["save_reload"] == "passed"
+    markdown = (output / "scene-understanding.md").read_text(encoding="utf-8")
+    assert "REVIEW REQUIRED" in markdown
+    assert "Layered garment spatial map" in markdown
+    assert "named shoulder_left/shoulder_right CAD landmarks" in markdown
 
 
 def test_scene_report_marks_malformed_layered_manifest_unavailable(tmp_path: Path) -> None:
