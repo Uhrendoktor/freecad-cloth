@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for provenance-backed semantic seam-edge references."""
 
+import math
 from typing import TypedDict, cast
 
 import pytest

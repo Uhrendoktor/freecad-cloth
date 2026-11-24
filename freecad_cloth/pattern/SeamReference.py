@@ -233,9 +233,10 @@ def _resample_edge_points(
         length = segment_lengths[segment_index]
         fraction = (target - cumulative[segment_index]) / length if length > 1e-12 else 0.0
         result.append(
-            tuple(
-                start[axis] + (end[axis] - start[axis]) * fraction
-                for axis in range(3)
+            (
+                start[0] + (end[0] - start[0]) * fraction,
+                start[1] + (end[1] - start[1]) * fraction,
+                start[2] + (end[2] - start[2]) * fraction,
             )
         )
     return tuple(result)

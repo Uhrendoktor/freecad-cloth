@@ -11,7 +11,6 @@ from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     EdgeReference,
     MissingEdgeReference,
-    capture_edge_reference,
     capture_edge_reference_v2,
     resolve_edge_reference,
 )
