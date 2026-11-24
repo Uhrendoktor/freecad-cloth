@@ -449,15 +449,20 @@ def _fit_findings(deviations: dict[str, float], review_threshold_mm: float) -> l
     return findings
 
 
-def _fit_assessment(metrics_payload: JsonValue) -> JsonObject:
+def _fit_assessment(
+    metrics_payload: JsonValue,
+    *,
+    shoulder_reference_source: str | None = None,
+) -> JsonObject:
     """Screen garment vertical coverage separately from execution/contact success.
 
-    The shoulder reference currently comes from the audit's avatar-bounds heuristic,
-    not an authoritative anatomical landmark. Findings are therefore warnings for
-    review, never a proof of fit failure or a reason to tune the solver.
+    By default, the shoulder reference comes from the avatar-bounds heuristic. A
+    layered-outfit caller may supply the provenance of named CAD shoulder landmarks.
+    Findings are warnings for review, not proof of fit failure or a reason to tune the solver.
 
     Args:
         metrics_payload: Decoded visual metrics emitted by the drape audit.
+        shoulder_reference_source: Optional provenance for a supplied shoulder level.
 
     Returns:
         Assessment state, measurement summary, and any garment-coverage findings.
@@ -525,14 +530,13 @@ def _fit_assessment(metrics_payload: JsonValue) -> JsonObject:
         "state": state,
         "method": (
             "final panel world-space Z bounds compared with declared hem and "
-            "bounding-box-derived shoulder reference"
+            + (shoulder_reference_source or "bounding-box-derived shoulder reference")
         ),
         "reference_levels_mm": {
             "hem_z": hem_z,
             "shoulder_z": shoulder_z,
-            "shoulder_reference_source": (
-                "avatar bounding-box heuristic, not an anatomical landmark"
-            ),
+            "shoulder_reference_source": shoulder_reference_source
+            or "avatar bounding-box heuristic, not an anatomical landmark",
         },
         "observed_final_panel_z_mm": {
             "minimum": round(observed_min_z, 3),
