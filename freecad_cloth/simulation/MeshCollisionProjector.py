@@ -55,8 +55,10 @@ class MeshCollisionProjector:
         )
         # Points beyond the mesh AABB expanded by clearance cannot be inside or
         # touching its clearance shell, so they need no nearest-triangle query.
-        self._bounds_min = self._vertices.min(axis=0) - self.clearance_mm
-        self._bounds_max = self._vertices.max(axis=0) + self.clearance_mm
+        self._mesh_bounds_min = self._vertices.min(axis=0)
+        self._mesh_bounds_max = self._vertices.max(axis=0)
+        self._bounds_min = self._mesh_bounds_min - self.clearance_mm
+        self._bounds_max = self._mesh_bounds_max + self.clearance_mm
 
         # A closed two-manifold needs each undirected edge exactly twice, with
         # opposite directed orientation. Fail open for unsupported target meshes:
@@ -116,6 +118,39 @@ class MeshCollisionProjector:
             np.linalg.norm(triangles - self._centroids[:, None, :], axis=2).max()
         )
         self._search_radius_mm = self.clearance_mm + triangle_radius_mm + 1e-6
+
+    def _clearance_values(
+        self,
+        clearance_mm: float | npt.ArrayLike | None,
+        point_count: int,
+    ) -> npt.NDArray[np.float64]:
+        """Normalize a scalar or per-particle positive body clearance.
+
+        Args:
+            clearance_mm: One clearance shared by all points, one clearance per point,
+                or None to use this projector's configured default.
+            point_count: Number of particle positions receiving projection.
+
+        Returns:
+            A finite positive clearance value for each particle.
+
+        Raises:
+            ValueError: If the clearance is non-positive, non-finite, or has the wrong shape.
+        """
+        if clearance_mm is None:
+            return np.full(point_count, self.clearance_mm, dtype=np.float64)
+        requested = np.asarray(clearance_mm, dtype=np.float64)
+        if requested.ndim == 0:
+            values = np.full(point_count, float(requested), dtype=np.float64)
+        elif requested.shape == (point_count,):
+            values = requested.copy()
+        else:
+            msg = "collision projection clearance must be scalar or have shape (N,)"
+            raise ValueError(msg)
+        if not bool(np.isfinite(values).all()) or bool(np.any(values <= 0.0)):
+            msg = "collision projection clearances must be positive and finite"
+            raise ValueError(msg)
+        return values
 
     def _closest_points_on_triangles(
         self,
@@ -264,6 +299,7 @@ class MeshCollisionProjector:
     def _project_inside_points(
         self,
         points: npt.NDArray[np.float64],
+        clearance_mm: npt.ArrayLike | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Correct only particles confirmed inside the closed collision surface.
 
@@ -276,6 +312,7 @@ class MeshCollisionProjector:
         """
         corrected = points.copy()
         directions = np.zeros_like(points)
+        clearances = self._clearance_values(clearance_mm, len(points))
         inside = self._inside_mask(points)
         nearest_candidate_total = 0
         nearest_started = perf_counter()
@@ -291,7 +328,7 @@ class MeshCollisionProjector:
                 direction = face_normal
             else:
                 direction /= direction_length
-            corrected[index] = nearest_point + self.clearance_mm * direction
+            corrected[index] = nearest_point + clearances[index] * direction
             directions[index] = direction
         if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1" and bool(np.any(inside)):
             from freecad_cloth.common.Diagnostics import emit_diagnostic
@@ -306,7 +343,9 @@ class MeshCollisionProjector:
         return corrected, directions
 
     def project(
-        self, points_mm: npt.ArrayLike
+        self,
+        points_mm: npt.ArrayLike,
+        clearance_mm: float | npt.ArrayLike | None = None,
     ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
         """Return corrected world-mm positions and outward normals for moved points.
 
@@ -333,9 +372,13 @@ class MeshCollisionProjector:
         contact_normals = np.zeros_like(points)
         if points.shape[0] == 0:
             return corrected, contact_normals
+        clearances = self._clearance_values(clearance_mm, len(points))
+        maximum_clearance = float(np.max(clearances))
+        bounds_min = self._mesh_bounds_min - maximum_clearance
+        bounds_max = self._mesh_bounds_max + maximum_clearance
 
         within_bounds = np.all(
-            (points >= self._bounds_min) & (points <= self._bounds_max),
+            (points >= bounds_min) & (points <= bounds_max),
             axis=1,
         )
         if not bool(np.any(within_bounds)):
@@ -358,9 +401,11 @@ class MeshCollisionProjector:
         )
         # Keep points whose closest-centroid plane says "inside" active even
         # when penetration is deep, but skip points safely outside the mesh AABB.
-        active = (centroid_distances[:, 0] <= self._search_radius_mm) | (
-            closest_plane_signed_distance < 0.0
-        )
+        active = (
+            centroid_distances[:, 0]
+            <= clearances[candidate_point_indices] + self._maximum_triangle_radius_mm + 1e-6
+        ) | (closest_plane_signed_distance < 0.0)
+        active_clearances = clearances[candidate_point_indices[active]]
         unresolved_point_indices = candidate_point_indices[~active]
         if bool(np.any(active)):
             active_point_indices = candidate_point_indices[active]
@@ -437,7 +482,9 @@ class MeshCollisionProjector:
             active_normals = np.zeros_like(active_points)
             if bool(np.any(needs_projection)):
                 # Preserve tangential offsets for ordinary exterior shell contacts.
-                correction_mm = self.clearance_mm - signed_distance[needs_projection]
+                correction_mm = (
+                    active_clearances[needs_projection] - signed_distance[needs_projection]
+                )
                 correction = correction_mm[:, None] * outward[needs_projection]
                 active_corrected[needs_projection] = active_points[needs_projection] + correction
                 active_normals[needs_projection] = outward[needs_projection]
@@ -452,7 +499,8 @@ class MeshCollisionProjector:
             ambiguous_indices = np.flatnonzero(ambiguous)
             if ambiguous_indices.size:
                 inside_corrected, inside_normals = self._project_inside_points(
-                    active_points[ambiguous_indices]
+                    active_points[ambiguous_indices],
+                    active_clearances[ambiguous_indices],
                 )
                 confirmed_inside = np.linalg.norm(inside_normals, axis=1) > 1e-10
                 if bool(np.any(confirmed_inside)):
@@ -465,7 +513,8 @@ class MeshCollisionProjector:
 
         if unresolved_point_indices.size:
             unresolved_corrected, unresolved_normals = self._project_inside_points(
-                points[unresolved_point_indices]
+                points[unresolved_point_indices],
+                clearances[unresolved_point_indices],
             )
             corrected[unresolved_point_indices] = unresolved_corrected
             contact_normals[unresolved_point_indices] = unresolved_normals
@@ -478,6 +527,8 @@ def project_stitched_pairs(
     contact_normals: npt.ArrayLike,
     stitches: Sequence[tuple[int, int]],
     pinned_indices: Sequence[int] = (),
+    *,
+    clearance_mm: float | npt.ArrayLike | None = None,
 ) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
     """Close stitch groups after contact projection, including near-shell residuals.
 
@@ -518,6 +569,7 @@ def project_stitched_pairs(
         raise ValueError(msg)
 
     particle_count = len(corrected)
+    clearances = projector._clearance_values(clearance_mm, particle_count)
     pinned = {int(index) for index in pinned_indices}
     if any(index < 0 or index >= particle_count for index in pinned):
         msg = "pinned index is outside the collision position array"
@@ -559,17 +611,27 @@ def project_stitched_pairs(
         groups.setdefault(find(index), []).append(index)
 
     eligible_groups: list[list[int]] = []
+    eligible_clearances: list[float] = []
     shared_points: list[npt.NDArray[np.float64]] = []
     near_shell_groups: list[list[int]] = []
     near_shell_midpoints: list[npt.NDArray[np.float64]] = []
+    near_shell_clearances: list[float] = []
     for group in groups.values():
-        if len(group) < 2 or pinned.intersection(group):
+        if len(group) < 2:
+            continue
+        group_clearances = clearances[group]
+        if float(np.ptp(group_clearances)) > 1e-8:
+            msg = "stitched particles must share one mannequin body clearance"
+            raise ValueError(msg)
+        group_clearance = float(group_clearances[0])
+        if pinned.intersection(group):
             continue
         points = corrected[group]
         if float(np.linalg.norm(points - points[0], axis=1).max()) <= 1e-7:
             continue
         if bool(np.any(np.linalg.norm(normals[group], axis=1) > 1e-7)):
             eligible_groups.append(group)
+            eligible_clearances.append(group_clearance)
             shared_points.append(points.mean(axis=0))
             continue
         # Prefer target-surface evidence over endpoint distance. A sewn pair may span
@@ -578,9 +640,9 @@ def project_stitched_pairs(
         # target. The AABB and signed local-plane checks below reject remote unrelated
         # stitches without discarding those through-surface residuals.
         midpoint = points.mean(axis=0)
-        if not bool(
-            np.all((midpoint >= projector._bounds_min) & (midpoint <= projector._bounds_max))
-        ):
+        bounds_min = projector._mesh_bounds_min - group_clearance
+        bounds_max = projector._mesh_bounds_max + group_clearance
+        if not bool(np.all((midpoint >= bounds_min) & (midpoint <= bounds_max))):
             continue
         centroid_distance, closest_face_id = projector._tree.query(
             midpoint,
@@ -598,10 +660,12 @@ def project_stitched_pairs(
         # Mirror the projector's broad phase: a zero normal means "safe" both
         # near the clearance shell and far away. Only reconcile midpoints that
         # are plausible surface candidates; remote stitches remain untouched.
-        if float(centroid_distance) > projector._search_radius_mm and closest_plane_distance >= 0.0:
+        search_radius = group_clearance + projector._maximum_triangle_radius_mm + 1e-6
+        if float(centroid_distance) > search_radius and closest_plane_distance >= 0.0:
             continue
         near_shell_groups.append(group)
         near_shell_midpoints.append(midpoint)
+        near_shell_clearances.append(group_clearance)
 
     # Reconcile close residual stitches at their shared midpoint. If collision
     # correction is needed, the shared point is projected to the exterior shell;
@@ -610,7 +674,8 @@ def project_stitched_pairs(
     # under the native solver.
     if near_shell_midpoints:
         midpoint_points, midpoint_normals = projector.project(
-            np.asarray(near_shell_midpoints, dtype=np.float64)
+            np.asarray(near_shell_midpoints, dtype=np.float64),
+            clearance_mm=np.asarray(near_shell_clearances, dtype=np.float64),
         )
         for index, group in enumerate(near_shell_groups):
             corrected[group] = midpoint_points[index]
@@ -618,7 +683,8 @@ def project_stitched_pairs(
 
     if shared_points:
         projected_points, projected_normals = projector.project(
-            np.asarray(shared_points, dtype=np.float64)
+            np.asarray(shared_points, dtype=np.float64),
+            clearance_mm=np.asarray(eligible_clearances, dtype=np.float64),
         )
         for index, group in enumerate(eligible_groups):
             corrected[group] = projected_points[index]

@@ -613,6 +613,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         collision_mode: str = "mesh",
         inter_cloth_groups: Mapping[str, Sequence[tuple[int, int, int]]] | None = None,
         inter_cloth_clearance_mm: float = 1.0,
+        body_clearance_by_particle_mm: Sequence[float] | None = None,
     ) -> None:
         """Initialize the native PBD model, constraints, and optional collision surface.
 
@@ -625,6 +626,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             collision_mode: The collision representation, currently required to be mesh.
             inter_cloth_groups: Independent garment group IDs mapped to global triangle indices.
             inter_cloth_clearance_mm: Minimum requested separation between garment groups.
+            body_clearance_by_particle_mm: Optional mannequin standoff for each cloth particle.
 
         Raises:
             RuntimeError: Raised when the native pyPBD binding is unavailable.
@@ -709,6 +711,19 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             msg = "inter-cloth clearance must be positive and finite"
             raise ValueError(msg)
         self._particle_count = len(self._initial.particles)
+        self._body_clearance_by_particle_mm: FloatArray | None = None
+        if body_clearance_by_particle_mm is not None:
+            body_clearance = np.asarray(body_clearance_by_particle_mm, dtype=np.float64)
+            if body_clearance.shape != (self._particle_count,):
+                msg = "per-particle mannequin clearances must match the cloth particle count"
+                raise ValueError(msg)
+            if not bool(np.isfinite(body_clearance).all()) or bool(np.any(body_clearance <= 0.0)):
+                msg = "per-particle mannequin clearances must be positive and finite"
+                raise ValueError(msg)
+            if collision_surface is None:
+                msg = "per-garment mannequin clearances require a collision target"
+                raise ValueError(msg)
+            self._body_clearance_by_particle_mm = body_clearance.copy()
         self._inter_cloth_metrics: InterClothContactMetrics | None = None
         self._inter_cloth_metrics_before_body_projection: InterClothContactMetrics | None = None
         self._inter_cloth_residual_constraints = ()
@@ -782,6 +797,14 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         self._collision_voxel_mm = collision_voxel_mm
         self._collision_configured_tolerance_mm = configured_tolerance_mm
         self._collision_effective_tolerance_mm = effective_tolerance_mm
+        if self._body_clearance_by_particle_mm is not None and bool(
+            np.any(self._body_clearance_by_particle_mm < effective_tolerance_mm - 1e-8)
+        ):
+            msg = (
+                "per-particle mannequin clearances cannot be smaller than the "
+                "effective collision clearance"
+            )
+            raise ValueError(msg)
         _emit_diagnostic(
             "cloth-pbd-collision-config "
             f"target_thickness_mm={float(collision_surface.thickness):.2f} "
@@ -815,6 +838,9 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                 # An open or inconsistently oriented target still uses the native
                 # collision path; signed position projection requires a closed mesh.
                 _emit_diagnostic(f"cloth-pbd-position-projection disabled reason={exc}")
+        if self._body_clearance_by_particle_mm is not None and self._collision_projector is None:
+            msg = "per-garment mannequin clearances require a closed position-projection mesh"
+            raise ValueError(msg)
 
         cache_key = _pbd_collision_sdf_cache_key(collision_surface, resolution)
         global _PBD_COLLISION_SDF_CACHE_KEY, _PBD_COLLISION_SDF_CACHE
@@ -982,7 +1008,10 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if native_vertices.size == 0:
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-        body_corrected_mm, body_normals = projector.project(positions_mm)
+        body_corrected_mm, body_normals = projector.project(
+            positions_mm,
+            clearance_mm=self._body_clearance_by_particle_mm,
+        )
         # Stitch reconciliation also handles close pairs whose endpoints already
         # sit safely outside the shell. Do not return just because no single point
         # needed contact correction; distant stitch groups are filtered below.
@@ -994,6 +1023,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             body_normals,
             self._stitches,
             self._pin_indices,
+            clearance_mm=self._body_clearance_by_particle_mm,
         )
         if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
             import json
