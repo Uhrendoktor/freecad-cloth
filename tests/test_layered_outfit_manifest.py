@@ -340,7 +340,7 @@ def test_validator_rejects_scene_map_body_standoff_mismatch(tmp_path: Path) -> N
     """Scene geometry provenance must match the saved outfit standoff configuration."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["scene_map"]["body_clearance_by_group_mm"]["skirt"] = 7.0
+    manifest["scene_map"]["body_clearance_by_group_mm"]["skirt"] = 5.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="scene map body clearances disagree"):
