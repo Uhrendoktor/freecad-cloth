@@ -1050,7 +1050,6 @@ def run_acceptance() -> None:
             raise RuntimeError("mannequin has insufficient central torso depth samples")
         torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
-        torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
         shirt_clearance = SHIRT_BODY_CLEARANCE_MM
         shirt_front_y = torso_front_y - shirt_clearance
         shirt_back_y = torso_back_y + shirt_clearance
@@ -1898,10 +1897,7 @@ def run_acceptance() -> None:
                 "bottom_above_hip_mm": shirt_bounds_min[2] - hip_z,
                 "particle_count": len(shirt_current_positions),
             }
-            _log(
-                "shirt-fit-checkpoint=%d %s"
-                % (step, json.dumps(shirt_fit_metrics, sort_keys=True))
-            )
+            _log("shirt-fit-checkpoint=%d %s" % (step, json.dumps(shirt_fit_metrics, sort_keys=True)))
             maximum_support_pin_drift_mm = max(
                 (
                     math.dist(support_pin_positions[index], current_positions[index])
