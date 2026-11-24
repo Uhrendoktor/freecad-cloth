@@ -1510,7 +1510,7 @@ def run_acceptance() -> None:
             "shirt-hem-support-candidate-diagnostics="
             + json.dumps(candidate_diagnostics, sort_keys=True)
         )
-        for support_name, _chain in shirt_support_chains.items():
+        for support_name in shirt_support_chains.keys():
             ideal_target = shirt_support_ideal_targets_by_chain[support_name]
             eligible = eligible_by_support[support_name]
             if not eligible:
