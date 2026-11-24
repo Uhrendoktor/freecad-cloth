@@ -654,8 +654,12 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
 
     report = write_report(progress, output, tmp_path)
 
-    status = _expect_dict(report["status"], message="Report status must be a dictionary.")
-    stages = _expect_dict(report["stages"], message="Report stages must be a dictionary.")
+    status = _expect_dict(
+        report["status"], message="Report status must be a dictionary."
+    )
+    stages = _expect_dict(
+        report["stages"], message="Report stages must be a dictionary."
+    )
     simulation = _expect_dict(
         report["simulation"], message="Simulation section must be a dictionary."
     )
@@ -663,7 +667,9 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
         report["fit_assessment"],
         message="Fit assessment must be a dictionary.",
     )
-    evidence = _expect_dict(report["evidence"], message="Evidence must be a dictionary.")
+    evidence = _expect_dict(
+        report["evidence"], message="Evidence must be a dictionary."
+    )
     expected_outputs = _expect_dict(
         evidence["expected_or_known_outputs"],
         message="Expected outputs must be a dictionary.",
@@ -676,7 +682,9 @@ def test_layered_outfit_progress_reports_completed_drape_and_final_views(
     assert simulation["started"] is True
     assert stages["simulation"] == "started"
     assert stages["drape"] == (
-        "evidence_present" if missing_side is None else "started_but_final_evidence_missing"
+        "evidence_present"
+        if missing_side is None
+        else "started_but_final_evidence_missing"
     )
     assert expected_outputs["post_drape_views"] == (
         "present" if missing_side is None else "missing"
