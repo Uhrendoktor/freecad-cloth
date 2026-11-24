@@ -62,6 +62,9 @@ MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
 SHIRT_SUPPORT_ANCHOR_ROLE = "inner-shoulder-neckline-junction"
+INTER_GARMENT_CLEARANCE_MM = 8.0
+INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
+MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
 SHIRT_NECKLINE_RATIO = 0.72
 SHIRT_NECKLINE_DROP = 0.03
 SKIRT_HEM_FLARE_MM = 65.0
@@ -979,7 +982,7 @@ def run_acceptance() -> None:
             raise RuntimeError(
                 "authoritative mannequin surface has insufficient garment-height or hip samples"
             )
-        center_y = 0.5 * (
+        hip_center_y = 0.5 * (
             min(float(vertex[1]) for vertex in hip_slice)
             + max(float(vertex[1]) for vertex in hip_slice)
         )
@@ -1000,6 +1003,66 @@ def run_acceptance() -> None:
             + 16.0,
         )
         radius_y = max(100.0, radius_y)
+
+        # Derive the two-panel shirt's front/back placement before authoring
+        # the skirt ring. Centering the waistband only on the hip-slice midpoint
+        # leaves its rear plane inside the shirt's back panel on this mannequin.
+        # Align the ring to the shirt envelope, keep at least the 6 mm mannequin
+        # collision standoff, and leave a controlled 7 mm starting garment gap
+        # for the existing 8 mm inter-cloth projection to resolve.
+        shirt_bottom_z = hip_z - 85.0
+        shirt_torso_depth_samples = [
+            vertex
+            for vertex in body_surface.vertices
+            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
+            and abs(float(vertex[0]) - center_x) <= max(80.0, 0.30 * shoulder_width)
+        ]
+        if len(shirt_torso_depth_samples) < 50:
+            raise RuntimeError("mannequin has insufficient central torso depth samples")
+        torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
+        torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
+        torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
+        shirt_clearance = max(12.0, 0.05 * torso_depth)
+        shirt_front_y = torso_front_y - shirt_clearance
+        shirt_back_y = torso_back_y + shirt_clearance
+        shirt_midplane_y = 0.5 * (shirt_front_y + shirt_back_y)
+        shirt_half_depth = 0.5 * (shirt_back_y - shirt_front_y)
+        hip_min_y = min(float(vertex[1]) for vertex in hip_slice)
+        hip_max_y = max(float(vertex[1]) for vertex in hip_slice)
+        minimum_body_radius_y = max(
+            abs(hip_min_y - shirt_midplane_y),
+            abs(hip_max_y - shirt_midplane_y),
+        ) + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        shirt_aligned_radius_y = shirt_half_depth - INITIAL_SHIRT_WAISTBAND_GAP_MM
+        radius_y = max(radius_y, minimum_body_radius_y, shirt_aligned_radius_y)
+        center_y = shirt_midplane_y
+        shirt_waistband_front_gap_mm = center_y - radius_y - shirt_front_y
+        shirt_waistband_back_gap_mm = shirt_back_y - (center_y + radius_y)
+        if not (
+            0.0 < shirt_waistband_front_gap_mm <= INTER_GARMENT_CLEARANCE_MM
+            and 0.0 < shirt_waistband_back_gap_mm <= INTER_GARMENT_CLEARANCE_MM
+        ):
+            raise RuntimeError(
+                "shirt/waistband initial gaps are outside the contact envelope: "
+                "front=%.3f mm back=%.3f mm"
+                % (shirt_waistband_front_gap_mm, shirt_waistband_back_gap_mm)
+            )
+        _log(
+            "shirt-waistband-layer-alignment "
+            + json.dumps(
+                {
+                    "hip_slice_center_y_mm": hip_center_y,
+                    "shirt_midplane_y_mm": shirt_midplane_y,
+                    "waistband_center_y_mm": center_y,
+                    "waistband_radius_y_mm": radius_y,
+                    "front_gap_mm": shirt_waistband_front_gap_mm,
+                    "back_gap_mm": shirt_waistband_back_gap_mm,
+                    "minimum_body_standoff_mm": MINIMUM_WAISTBAND_BODY_STANDOFF_MM,
+                    "requested_inter_garment_clearance_mm": INTER_GARMENT_CLEARANCE_MM,
+                },
+                sort_keys=True,
+            )
+        )
 
         hip_x_extreme = max(
             hip_slice,
@@ -1061,6 +1124,7 @@ def run_acceptance() -> None:
                     "hip_slice_y_min_point_mm": [float(value) for value in hip_y_minimum],
                     "hip_slice_y_max_point_mm": [float(value) for value in hip_y_maximum],
                     "skirt_radii_mm": [radius_x, radius_y],
+                    "hip_slice_center_y_mm": hip_center_y,
                     "skirt_center_y_mm": center_y,
                     "shoulder_width_mm": shoulder_width,
                     "hip_z_mm": hip_z,
@@ -1130,25 +1194,12 @@ def run_acceptance() -> None:
         # Use the same shaped front/back torso patterns as the canonical tunic
         # audit instead of a four-sided rectangular tube. The open neckline and
         # armholes are retained as authored Sketcher arcs and semantic edges.
-        shirt_bottom_z = hip_z - 85.0
         shirt_panel_width = max(420.0, shoulder_width + 105.0)
         shirt_hem_width = max(500.0, shirt_panel_width + 100.0)
         shirt_garment_height = max(
             560.0,
             (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
         )
-        shirt_torso_depth_samples = [
-            vertex
-            for vertex in body_surface.vertices
-            if shirt_bottom_z - 30.0 <= float(vertex[2]) <= shoulder_z + 30.0
-            and abs(float(vertex[0]) - center_x) <= max(80.0, 0.30 * shoulder_width)
-        ]
-        if len(shirt_torso_depth_samples) < 50:
-            raise RuntimeError("mannequin has insufficient central torso depth samples")
-        torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
-        torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
-        torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
-        shirt_clearance = max(12.0, 0.05 * torso_depth)
         shirt_rotation = rotation_front
         shirt_front = _make_tunic_piece(
             doc,
@@ -1156,7 +1207,7 @@ def run_acceptance() -> None:
             App.Placement(
                 App.Vector(
                     center_x - shirt_hem_width / 2.0,
-                    torso_front_y - shirt_clearance,
+                    shirt_front_y,
                     shirt_bottom_z,
                 ),
                 shirt_rotation,
@@ -1171,7 +1222,7 @@ def run_acceptance() -> None:
             App.Placement(
                 App.Vector(
                     center_x - shirt_hem_width / 2.0,
-                    torso_back_y + shirt_clearance,
+                    shirt_back_y,
                     shirt_bottom_z,
                 ),
                 shirt_rotation,
@@ -1231,8 +1282,8 @@ def run_acceptance() -> None:
                 shirt_panel_width,
                 shirt_hem_width,
                 shirt_garment_height,
-                torso_front_y - shirt_clearance,
-                torso_back_y + shirt_clearance,
+                shirt_front_y,
+                shirt_back_y,
                 shirt_clearance,
                 len(shirt_torso_depth_samples),
             )
@@ -1268,7 +1319,7 @@ def run_acceptance() -> None:
         garment_group_by_piece = {
             entry.split("|", 1)[1]: entry.split("|", 1)[0] for entry in scene.GarmentGroups
         }
-        scene.InterClothClearance = 8.0
+        scene.InterClothClearance = INTER_GARMENT_CLEARANCE_MM
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
         # Ten interlocked pattern panels need more than the six-iteration
@@ -1937,7 +1988,7 @@ def run_acceptance() -> None:
             raise RuntimeError("PatternPiece links or identities changed after save/reload")
         if tuple(str(value) for value in scene.GarmentGroups) != saved_groups:
             raise RuntimeError("independent garment-group assignments did not survive save/reload")
-        if abs(float(scene.InterClothClearance) - 8.0) > 1e-9:
+        if abs(float(scene.InterClothClearance) - INTER_GARMENT_CLEARANCE_MM) > 1e-9:
             raise RuntimeError("inter-cloth clearance did not survive save/reload")
 
         restored_step_count = int(scene.Steps)

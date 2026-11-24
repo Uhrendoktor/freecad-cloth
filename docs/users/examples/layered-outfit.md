@@ -10,9 +10,9 @@ The previous version made the shirt as four flat trapezoids around the mannequin
 
 The revised fixture now follows the working two-panel tunic construction more closely:
 
-- **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. The shirt has no solver pins, matching the canonical tunic audit's free-drape configuration.
+- **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. The shirt uses two explicit inner shoulder/neckline junction anchors; the canonical single-tunic audit remains the unpinned reference.
 - **Skirt:** four flared panels, joined by four semantic side seams.
-- **Waistband:** four panels, joined to each other and sewn to the skirt at the waist.
+- **Waistband:** four panels, joined to each other and sewn to the skirt at the waist. Its centerline follows the shirt's front/back envelope, with a 7 mm initial gap and at least 6 mm mannequin standoff; the existing 8 mm inter-garment projector resolves the small initial deficit.
 - **Supports:** two shirt particles are pinned at the authored inner shoulder/neckline junctions (the inner ends of the curved shoulder edges, not the outer anatomical shoulder tips). Each must be within **5 mm** of its authored CAD target and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
 
 The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam relationships** across two independent garment groups. The requested inter-garment clearance remains 8 mm.
