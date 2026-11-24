@@ -211,7 +211,7 @@ def _resample_edge_points(
             raise ValueError(msg)
         points.append((x, y, z))
     segment_lengths = tuple(
-        math.dist(start, end) for start, end in zip(points, points[1:], strict=True)
+        math.dist(start, end) for start, end in zip(points, points[1:], strict=False)
     )
     total_length = sum(segment_lengths)
     if total_length <= 1e-12:
