@@ -389,7 +389,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(isinstance(manifest, dict), "layered outfit manifest root must be an object")
     _require(
         manifest.get("schema") == "freecad-cloth.layered-outfit"
-        and manifest.get("schema_version") == 1,
+        and manifest.get("schema_version") == 2,
         "unsupported layered outfit manifest schema",
     )
 

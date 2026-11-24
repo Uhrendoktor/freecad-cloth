@@ -275,9 +275,7 @@ def test_garment_body_clearances_reject_duplicate_and_invalid_values() -> None:
     groups = {"shirt": ((0, 1, 2),), "skirt": ((3, 4, 5),)}
     with pytest.raises(ValueError, match="duplicate mannequin body clearance"):
         _resolve_garment_body_clearance_by_particle(
-            SimpleNamespace(
-                GarmentBodyClearanceByGroup=("shirt|6.0", "shirt|7.0", "skirt|14.0")
-            ),
+            SimpleNamespace(GarmentBodyClearanceByGroup=("shirt|6.0", "shirt|7.0", "skirt|14.0")),
             groups,
             6,
         )

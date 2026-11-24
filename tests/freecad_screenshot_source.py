@@ -17,7 +17,6 @@ import FreeCADGui as Gui
 
 if TYPE_CHECKING:
     import numpy.typing as npt
-
     from PySide2 import QtWidgets
 
     from freecad_cloth.shared.Collision import CollisionSurface

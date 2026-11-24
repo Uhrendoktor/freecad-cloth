@@ -2014,9 +2014,7 @@ def run_acceptance() -> None:
 
         saved_piece_ids = tuple(str(piece.PieceId) for piece in scene.ClothPieces)
         saved_groups = tuple(str(value) for value in scene.GarmentGroups)
-        saved_body_clearances = tuple(
-            str(value) for value in scene.GarmentBodyClearanceByGroup
-        )
+        saved_body_clearances = tuple(str(value) for value in scene.GarmentBodyClearanceByGroup)
         saved_body_clearance_by_group = {
             group_id.strip(): float(clearance_text.strip())
             for group_id, separator, clearance_text in (
@@ -2091,7 +2089,10 @@ def run_acceptance() -> None:
             raise RuntimeError("PatternPiece links or identities changed after save/reload")
         if tuple(str(value) for value in scene.GarmentGroups) != saved_groups:
             raise RuntimeError("independent garment-group assignments did not survive save/reload")
-        if tuple(str(value) for value in scene.GarmentBodyClearanceByGroup) != saved_body_clearances:
+        if (
+            tuple(str(value) for value in scene.GarmentBodyClearanceByGroup)
+            != saved_body_clearances
+        ):
             raise RuntimeError("per-garment mannequin standoffs did not survive save/reload")
         if abs(float(scene.InterClothClearance) - INTER_GARMENT_CLEARANCE_MM) > 1e-9:
             raise RuntimeError("inter-cloth clearance did not survive save/reload")
@@ -2217,7 +2218,7 @@ def run_acceptance() -> None:
         _log("manifest-build-start")
         manifest = {
             "schema": "freecad-cloth.layered-outfit",
-            "schema_version": 1,
+            "schema_version": 2,
             "provenance": {
                 "commit_sha": os.environ.get("CLOTH_HEAD_SHA", ""),
                 "document": save_path.name,

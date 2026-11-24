@@ -457,10 +457,7 @@ def _simulation_source_signature(obj, pieces):
         tuple(sorted(str(value) for value in getattr(obj, "GarmentGroups", ()) or ())),
         float(getattr(obj, "InterClothClearance", 1.0)),
         tuple(
-            sorted(
-                str(value)
-                for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ()
-            )
+            sorted(str(value) for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ())
         ),
     )
     return (
@@ -547,9 +544,7 @@ def _resolve_garment_body_clearance_by_particle(
     Raises:
         ValueError: If group entries are malformed, incomplete, non-finite, or invalid.
     """
-    entries = tuple(
-        str(value) for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ()
-    )
+    entries = tuple(str(value) for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ())
     if not entries:
         return None
     if not inter_cloth_groups:
@@ -608,7 +603,7 @@ def _resolve_garment_body_clearance_by_particle(
         ]
         msg = f"GarmentBodyClearanceByGroup leaves particles unassigned: {missing_indices[:8]!r}"
         raise ValueError(msg)
-    return tuple(float(value) for value in particle_clearances)
+    return tuple(float(value) for value in particle_clearances if value is not None)
 
 
 def _piece_mesh(piece, start_height, piece_ir=None):

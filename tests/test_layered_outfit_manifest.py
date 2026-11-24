@@ -214,7 +214,7 @@ def _valid_artifact(root: Path) -> Path:
     }
     manifest = {
         "schema": "freecad-cloth.layered-outfit",
-        "schema_version": 1,
+        "schema_version": 2,
         "provenance": {
             "commit_sha": "a" * 40,
             "document": "layered-outfit.FCStd",

@@ -130,9 +130,7 @@ def _validate_properties(scene: _QualityScene) -> None:
     clearance = float(scene.InterClothClearance)
     scene.InterClothClearance = max(0.01, clearance) if isfinite(clearance) else 1.0
     scene.GarmentGroups = [str(value) for value in scene.GarmentGroups]
-    scene.GarmentBodyClearanceByGroup = [
-        str(value) for value in scene.GarmentBodyClearanceByGroup
-    ]
+    scene.GarmentBodyClearanceByGroup = [str(value) for value in scene.GarmentBodyClearanceByGroup]
     scene.InterClothContactCount = max(0, int(scene.InterClothContactCount))
     scene.InterClothRemainingContactCount = max(0, int(scene.InterClothRemainingContactCount))
     scene.InterClothCorrectedParticleCount = max(0, int(scene.InterClothCorrectedParticleCount))
