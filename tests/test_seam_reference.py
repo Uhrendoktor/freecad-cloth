@@ -147,6 +147,21 @@ def test_native_v2_fingerprint_rejects_real_geometry_edits() -> None:
         resolve_edge_reference(reference, (changed_edge,))
 
 
+def test_native_v2_reference_resolves_and_reports_valid_status() -> None:
+    """The generic edge resolver must recognize newly persisted native-v2 signatures."""
+    points = ((0.0, 0.0), (5.0, 2.0), (10.0, 0.0))
+    provenance = _provenance(points)
+    reference = EdgeReference(
+        "front",
+        "front:edge:2",
+        edge_signature_v2(points, provenance),
+    )
+    current = _edge(points=points)
+
+    assert resolve_edge_reference(reference, (current,)) is current
+    assert resolve_edge_reference_status(reference, (current,)) == (True, "valid")
+
+
 def test_reference_round_trips_as_document_data() -> None:
     """Serialize and restore the complete immutable semantic edge reference."""
     reference = _reference()
