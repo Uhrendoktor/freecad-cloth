@@ -287,18 +287,16 @@ def edge_signature_v2(
         if not isinstance(point, list) or len(point) < 2:
             msg = "native-v2 PatternIR samples must contain XYZ coordinates"
             raise ValueError(msg)
-        raw_coordinates = (point[0], point[1], point[2] if len(point) > 2 else 0.0)
+        raw_x = point[0]
+        raw_y = point[1]
+        raw_z = point[2] if len(point) > 2 else 0.0
         if any(
             not isinstance(value, (int, float)) or isinstance(value, bool)
-            for value in raw_coordinates
+            for value in (raw_x, raw_y, raw_z)
         ):
             msg = "native-v2 PatternIR samples must contain numeric XYZ coordinates"
             raise ValueError(msg)
-        coordinates = (
-            float(raw_coordinates[0]),
-            float(raw_coordinates[1]),
-            float(raw_coordinates[2]),
-        )
+        coordinates = (float(raw_x), float(raw_y), float(raw_z))
         if not all(math.isfinite(value) for value in coordinates):
             msg = "native-v2 PatternIR samples must be finite"
             raise ValueError(msg)
