@@ -16,6 +16,8 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 if TYPE_CHECKING:
+    import numpy.typing as npt
+
     from PySide2 import QtWidgets
 
     from freecad_cloth.shared.Collision import CollisionSurface
@@ -2516,7 +2518,7 @@ def _run_production_tunic_drape(
         projector: "MeshCollisionProjector",
         points_mm: Sequence[Sequence[float]],
         *,
-        clearance_mm: object | None = None,
+        clearance_mm: "float | npt.ArrayLike | None" = None,
     ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
         stage_started = perf_counter()
         try:
@@ -2532,7 +2534,7 @@ def _run_production_tunic_drape(
         stitches: Sequence[tuple[int, int]],
         pinned_indices: Sequence[int] = (),
         *,
-        clearance_mm: object | None = None,
+        clearance_mm: "float | npt.ArrayLike | None" = None,
     ) -> tuple[Sequence[Sequence[float]], Sequence[Sequence[float]]]:
         stage_started = perf_counter()
         inside_stitched_reconciliation[0] = True

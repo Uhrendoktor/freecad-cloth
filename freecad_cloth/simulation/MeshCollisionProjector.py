@@ -355,12 +355,14 @@ class MeshCollisionProjector:
 
         Args:
             points_mm: Finite N-by-3 cloth particle positions in world millimetres.
+            clearance_mm: Optional scalar or N-vector of positive target standoffs in mm.
+                None preserves the projector's configured uniform clearance.
 
         Returns:
             Corrected N-by-3 positions and N-by-3 outward contact normals.
 
         Raises:
-            ValueError: If the input is not a finite array with shape (N, 3)."""
+            ValueError: If positions or supplied per-particle clearances are malformed."""
         points = np.asarray(points_mm, dtype=np.float64)
         if points.ndim != 2 or points.shape[1] != 3:
             msg = "collision projection points must have shape (N, 3)"
@@ -401,10 +403,15 @@ class MeshCollisionProjector:
         )
         # Keep points whose closest-centroid plane says "inside" active even
         # when penetration is deep, but skip points safely outside the mesh AABB.
-        active = (
-            centroid_distances[:, 0]
-            <= clearances[candidate_point_indices] + self._maximum_triangle_radius_mm + 1e-6
-        ) | (closest_plane_signed_distance < 0.0)
+        if clearance_mm is None:
+            active = (centroid_distances[:, 0] <= self._search_radius_mm) | (
+                closest_plane_signed_distance < 0.0
+            )
+        else:
+            active = (
+                centroid_distances[:, 0]
+                <= clearances[candidate_point_indices] + self._maximum_triangle_radius_mm + 1e-6
+            ) | (closest_plane_signed_distance < 0.0)
         active_clearances = clearances[candidate_point_indices[active]]
         unresolved_point_indices = candidate_point_indices[~active]
         if bool(np.any(active)):
@@ -550,12 +557,15 @@ def project_stitched_pairs(
         contact_normals: Per-particle contact normals from the preceding projection.
         stitches: Particle-index pairs that must remain coincident after contact response.
         pinned_indices: Particle indices whose positions must not be reconciled.
+        clearance_mm: Optional scalar or N-vector of mannequin standoffs; particles in
+            each connected stitch group must share one value.
 
     Returns:
         Corrected positions and contact normals with eligible stitch groups reconciled.
 
     Raises:
-        ValueError: If arrays have incompatible shapes, non-finite values, or invalid pinned indices."""
+        ValueError: If arrays are invalid, pinned indices are out of range, or one stitch
+            group contains particles assigned to different mannequin standoffs."""
     corrected = np.asarray(positions_mm, dtype=np.float64).copy()
     normals = np.asarray(contact_normals, dtype=np.float64).copy()
     if corrected.ndim != 2 or corrected.shape[1] != 3:
