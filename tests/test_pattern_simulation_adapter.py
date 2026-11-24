@@ -215,8 +215,12 @@ def test_pattern_parameters_without_sketch_fail_closed():
     raise AssertionError(msg)
 
 
-def test_native_v2_signature_survives_parameter_origin_change_in_simulation_adapter():
-    """An equivalent Sketcher arc with shifted native parameters retains its seam."""
+def _curved_front_back_seam() -> tuple[_Piece, _Piece, _Seam]:
+    """Build two curved native Sketcher panels with one persisted semantic seam.
+
+    Returns:
+        Front and back pieces plus a seam that captures both current curve references.
+    """
     front = _Piece("front", _square_sketch("front", curved=True, bend=1.0))
     back = _Piece("back", _square_sketch("back"))
     base = resolve_simulation_pattern(_Doc([front, back]), [front, back])
@@ -231,6 +235,12 @@ def test_native_v2_signature_survives_parameter_origin_change_in_simulation_adap
         _edge_reference("front", front_edge),
         _edge_reference("back", back_edge),
     )
+    return front, back, seam
+
+
+def test_native_v2_signature_survives_parameter_origin_change_in_simulation_adapter() -> None:
+    """An equivalent Sketcher arc with shifted native parameters retains its seam."""
+    front, back, seam = _curved_front_back_seam()
 
     arc = front.Sketch.Geometry[1]
     original_value_at = arc.valueAt
@@ -243,21 +253,8 @@ def test_native_v2_signature_survives_parameter_origin_change_in_simulation_adap
     assert resolved.pattern.seams[0].edge_a == "front:side"
 
 
-def test_native_sketch_edit_with_same_semantic_id_fails_closed():
-    front = _Piece("front", _square_sketch("front", curved=True, bend=1.0))
-    back = _Piece("back", _square_sketch("back"))
-    base = resolve_simulation_pattern(_Doc([front, back]), [front, back])
-    front_edge = base.pattern.boundary("front", "front:side")
-    back_edge = base.pattern.boundary("back", "back:top")
-    seam = _Seam(
-        "front-back",
-        "front",
-        "back",
-        "front:side",
-        "back:top",
-        _edge_reference("front", front_edge),
-        _edge_reference("back", back_edge),
-    )
+def test_native_sketch_edit_with_same_semantic_id_fails_closed() -> None:
+    front, back, seam = _curved_front_back_seam()
 
     front.Sketch.Geometry[1] = ArcOfCircle(2.0)
     try:

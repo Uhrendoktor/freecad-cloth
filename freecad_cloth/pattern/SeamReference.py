@@ -224,10 +224,7 @@ def _resample_edge_points(
     segment_index = 0
     for sample_index in range(sample_count):
         target = total_length * sample_index / (sample_count - 1)
-        while (
-            segment_index < len(segment_lengths) - 1
-            and cumulative[segment_index + 1] < target
-        ):
+        while segment_index < len(segment_lengths) - 1 and cumulative[segment_index + 1] < target:
             segment_index += 1
         start, end = points[segment_index], points[segment_index + 1]
         length = segment_lengths[segment_index]
@@ -306,9 +303,7 @@ def edge_signature_v2(
             raise ValueError(msg)
         samples.append((coordinates[0], coordinates[1], coordinates[2]))
     sampled = _resample_edge_points(samples)
-    forward = tuple(
-        tuple(round(value, precision) for value in point) for point in sampled
-    )
+    forward = tuple(tuple(round(value, precision) for value in point) for point in sampled)
     canonical_samples = min(forward, tuple(reversed(forward)))
     canonical_endpoints = (
         (canonical_samples[0][0], canonical_samples[0][1]),
@@ -320,7 +315,7 @@ def edge_signature_v2(
         "curve_kind": normalized[2],
         "points": canonical_endpoints,
         "samples_xyz_mm": canonical_samples,
-        "coordinate_precision_mm": 10.0 ** -precision,
+        "coordinate_precision_mm": 10.0**-precision,
     }
     encoded = json.dumps(
         payload,
@@ -337,7 +332,17 @@ def capture_edge_reference_v2(
     points: Sequence[Point],
     provenance: _ProvenanceValue,
 ) -> EdgeReference:
-    """Capture a serialization-stable native-v2 semantic edge reference."""
+    """Capture a serialization-stable native-v2 semantic edge reference.
+
+    Args:
+        piece_id: Persistent identity of the PatternPiece that owns this edge.
+        edge_id: Persistent semantic ID assigned to the original Sketcher geometry.
+        points: Ordered 2D endpoints of the current native edge record.
+        provenance: PatternIR source, curve kind, parameter interval and XYZ samples.
+
+    Returns:
+        Immutable semantic edge reference containing a native-v2 geometric fingerprint.
+    """
     return EdgeReference(
         str(piece_id),
         str(edge_id),
