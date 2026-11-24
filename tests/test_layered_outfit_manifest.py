@@ -240,14 +240,18 @@ def _valid_artifact(root: Path) -> Path:
             },
             "shirt_supports": [
                 {
-                    "panel_id": "shirt-side-" + side,
-                    "anchor_role": "side-seam-stabilizer",
+                    "panel_id": "shirt-torso-" + side,
+                    "anchor_role": "torso-centerline-stabilizer",
                     "particle_index": index,
                     "target_mm": [float(index), 0.0, 150.0],
                     "position_mm": [float(index), 0.0, 150.0],
                     "target_deviation_mm": 0.0,
-                    "centerline_x_mm": float(index) - 120.0,
-                    "lateral_offset_mm": 120.0,
+                    "centerline_x_mm": 0.0,
+                    "centerline_offset_mm": float(index),
+                    "target_height_z_mm": 150.0,
+                    "height_offset_mm": 0.0,
+                    "design_target_mm": [0.0, 0.0, 150.0],
+                    "design_target_deviation_mm": float(index),
                     "clearance_mm": 25.0,
                 }
                 for index, side in enumerate(("right", "left"))
@@ -345,17 +349,33 @@ def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path:
         validate_manifest(manifest_path)
 
 
-def test_validator_rejects_shirt_side_support_outside_lateral_band(tmp_path: Path) -> None:
-    """A shirt side-seam stabilizer must stay within its authored lateral support band."""
+def test_validator_rejects_shirt_torso_support_outside_centerline_band(tmp_path: Path) -> None:
+    """A torso-centerline stabilizer must stay inside its authored panel support band."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     support = manifest["outfit"]["shirt_supports"][0]
-    support["position_mm"][0] += 200.0
-    support["lateral_offset_mm"] = 320.0
-    support["target_mm"][0] += 200.0
+    support["position_mm"][0] += 100.0
+    support["target_mm"][0] += 100.0
+    support["centerline_offset_mm"] = 100.0
+    support["design_target_deviation_mm"] = 100.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="outside the authored lateral support band"):
+    with pytest.raises(ValueError, match="outside the allowed centerline band"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_shirt_torso_support_outside_height_band(tmp_path: Path) -> None:
+    """A torso-centerline stabilizer must stay within its authored hip-relative height band."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    support = manifest["outfit"]["shirt_supports"][0]
+    support["position_mm"][2] += 50.0
+    support["target_mm"][2] += 50.0
+    support["height_offset_mm"] = 50.0
+    support["design_target_deviation_mm"] = 50.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="outside the allowed height band"):
         validate_manifest(manifest_path)
 
 

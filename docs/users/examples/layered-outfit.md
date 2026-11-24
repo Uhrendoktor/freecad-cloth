@@ -10,10 +10,10 @@ The previous version made the shirt as four flat trapezoids around the mannequin
 
 The revised fixture now follows the working two-panel tunic construction more closely:
 
-- **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. Two side-seam stabilizers (one on the front panel's right side and one on the back panel's left side) seat the shell near the upper waist while leaving the shoulder seams free to converge; the canonical single-tunic audit remains the unpinned reference.
+- **Shirt:** two native Sketcher panels, front and back, with a shaped neckline, two open curved armholes, curved side ease, and semantic edge identities. Four authored seams connect the two panels. Two torso-centerline stabilizers (one on each panel near the hip plane) seat the front and back shell surfaces while leaving the shoulder seams free to converge; the canonical single-tunic audit remains the unpinned reference.
 - **Skirt:** four flared panels, joined by four semantic side seams.
 - **Waistband:** four panels, joined to each other and sewn to the skirt at the waist. Its centerline follows the shirt's front/back envelope, with a 7 mm initial gap and at least 6 mm mannequin standoff; the existing 8 mm inter-garment projector resolves the small initial deficit.
-- **Supports:** two shirt particles are pinned on opposite authored side-seam boundaries near the hip-to-shoulder transition. Each must be within **5 mm** of its sampled CAD target, between **100 mm and 260 mm** laterally from the panel centerline, and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
+- **Supports:** two shirt particles are pinned to CAD-derived mesh vertices near the front and back torso centerlines around hip height. Each must be within **5 mm** of its persisted panel-mesh target, within **80 mm** of the panel centerline, within **35 mm** of the authored hip-relative support height, and between **5 mm and 45 mm** from the mannequin surface. Four additional waistband particles are pinned near the named front/right/back/left waist targets under the same body-clearance range. All six persisted support records must match their native pin indices and survive save/reload.
 
 The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam relationships** across two independent garment groups. The requested inter-garment clearance remains 8 mm.
 
@@ -21,7 +21,7 @@ The new fixture contains **10 Sketcher-backed PatternPieces and 16 semantic seam
 
 The canonical single-tunic audit uses the same PBD gravity path, sets `PinMode="None"`, and verifies that the native solver has no pins. It uses two shaped front/back panels and simulates 90 steps at 1/240 s with four native PBD substeps.
 
-The layered fixture uses two opposite front/back side-seam stabilizers on the shirt and four bounded waistband supports. It runs 60 steps at 1/120 s (0.5 simulated seconds) with one native PBD substep. This remains a finite-time diagnostic, not proof that the cloth has reached static equilibrium.
+The layered fixture uses two front/back torso-centerline stabilizers on the shirt and four bounded waistband supports. It runs 60 steps at 1/120 s (0.5 simulated seconds) with one native PBD substep. This remains a finite-time diagnostic, not proof that the cloth has reached static equilibrium.
 
 The only collision target in this fixture is the mannequin. There is **no floor collider**. The test is intended to validate a worn garment settling against the mannequin, not a loose piece of cloth falling onto a room floor.
 
@@ -31,7 +31,7 @@ The native fixture checks all of the following:
 
 - Ten source pattern pieces retain their Sketcher links, semantic boundaries and solver-panel mappings.
 - All 16 sewing relationships produce native stitch provenance.
-- The shirt has exactly two unique opposite front/back side-seam stabilizers, each within 5 mm of its sampled CAD target and 100–260 mm laterally from the panel centerline and within the configured 5–45 mm mannequin stand-off range.
+- The shirt has exactly two unique front/back torso-centerline stabilizers, each within 5 mm of its persisted PatternIR mesh vertex, within 80 mm laterally and 35 mm vertically of its authored support zone, and within the configured 5–45 mm mannequin stand-off range.
 - The waistband has exactly four unique supports, each selected within the configured 5–45 mm stand-off range; shirt and waistband pin inventories are disjoint.
 - Shirt and skirt remain independent garment groups.
 - Contact projection leaves no measured inter-garment residual pairs at the saved checkpoints.

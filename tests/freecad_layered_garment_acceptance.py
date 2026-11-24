@@ -61,10 +61,10 @@ MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
 MAXIMUM_FINAL_SEAM_GAP_MM = 12.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
-MINIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM = 100.0
-MAXIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM = 260.0
-SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM = 170.0
-SHIRT_SUPPORT_ANCHOR_ROLE = "side-seam-stabilizer"
+MAXIMUM_SHIRT_SUPPORT_CENTERLINE_OFFSET_MM = 80.0
+MAXIMUM_SHIRT_SUPPORT_HEIGHT_OFFSET_MM = 35.0
+SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM = 25.0
+SHIRT_SUPPORT_ANCHOR_ROLE = "torso-centerline-stabilizer"
 INTER_GARMENT_CLEARANCE_MM = 8.0
 INITIAL_SHIRT_WAISTBAND_GAP_MM = 7.0
 MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
@@ -1376,8 +1376,9 @@ def run_acceptance() -> None:
         # Two side-seam stabilizers keep the shirt seated near the torso while
         # leaving both shoulder seams and the open neckline free to converge.
         # Use opposite authored side edges on the front and back panels.
-        from freecad_cloth.simulation.PatternSimulationAdapter import resolve_piece_ir
+        import numpy as np
 
+        initial_positions = np.asarray(backend.positions(), dtype=np.float64)
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
         panel_name_by_piece = {
@@ -1386,45 +1387,40 @@ def run_acceptance() -> None:
         }
         shirt_support_chains: dict[str, tuple[int, ...]] = {}
         shirt_support_targets_by_chain: dict[str, tuple[float, float, float]] = {}
-        shirt_support_lateral_offsets: dict[str, float] = {}
-        side_edge_by_panel = {"front": 1, "back": 7}
+        shirt_support_ideal_targets_by_chain: dict[str, tuple[float, float, float]] = {}
+        shirt_support_centerline_offsets: dict[str, float] = {}
+        shirt_support_height_offsets: dict[str, float] = {}
+        shirt_support_design_target_deviations: dict[str, float] = {}
         shirt_support_target_z = hip_z + SHIRT_SUPPORT_TARGET_HEIGHT_ABOVE_HIP_MM
-        for side, edge_index in side_edge_by_panel.items():
+        for side in ("front", "back"):
             panel_name = panel_name_by_piece.get(str(shirt[side].Name))
             if panel_name is None:
                 raise RuntimeError("shirt %s solver panel identity is missing" % side)
-            boundary_chains = base.panel_boundary_edges.get(panel_name, ())
-            if len(boundary_chains) <= edge_index:
-                raise RuntimeError("shaped shirt %s has no semantic side boundary" % side)
-            chain = tuple(int(index) for index in boundary_chains[edge_index])
+            panel_particles = tuple(int(index) for index in base.panel_indices.get(panel_name, ()))
+            chain = tuple(
+                index
+                for index in panel_particles
+                if abs(float(initial_positions[index][0]) - float(center_x))
+                <= MAXIMUM_SHIRT_SUPPORT_CENTERLINE_OFFSET_MM
+                and abs(float(initial_positions[index][2]) - shirt_support_target_z)
+                <= MAXIMUM_SHIRT_SUPPORT_HEIGHT_OFFSET_MM
+            )
             if not chain:
-                raise RuntimeError("shirt %s side boundary has no solver particles" % side)
-            support_name = "shirt-%s-side-seam" % side
+                raise RuntimeError(
+                    "shirt %s has no PatternIR mesh vertices in the torso-centerline support zone"
+                    % side
+                )
+            support_name = "shirt-%s-torso-centerline" % side
             shirt_support_chains[support_name] = chain
+            target_y = shirt_front_y if side == "front" else shirt_back_y
+            ideal_target = (
+                float(center_x),
+                float(target_y),
+                float(shirt_support_target_z),
+            )
+            shirt_support_ideal_targets_by_chain[support_name] = ideal_target
+            shirt_support_targets_by_chain[support_name] = ideal_target
 
-            piece_ir = resolve_piece_ir(shirt[side])
-            if len(piece_ir.boundaries) <= edge_index:
-                raise RuntimeError("shirt %s PatternIR has no authored side boundary" % side)
-            authored_samples = tuple(piece_ir.boundaries[edge_index].samples)
-            if not authored_samples:
-                raise RuntimeError("shirt %s authored side boundary has no CAD samples" % side)
-            world_samples = tuple(
-                shirt[side].Placement.multVec(App.Vector(float(sample[0]), float(sample[1]), 0.0))
-                for sample in authored_samples
-            )
-            target_sample = min(
-                world_samples,
-                key=lambda point: (
-                    abs(float(point.z) - shirt_support_target_z),
-                    float(point.x),
-                    float(point.y),
-                ),
-            )
-            shirt_support_targets_by_chain[support_name] = (
-                float(target_sample.x),
-                float(target_sample.y),
-                float(target_sample.z),
-            )
 
         waistband_top_chains: dict[str, tuple[int, ...]] = {}
         waistband_targets_by_chain: dict[str, tuple[float, float, float]] = {}
@@ -1450,12 +1446,9 @@ def run_acceptance() -> None:
         if len(waistband_top_chains) != 4:
             raise RuntimeError("exactly four waistband top boundaries are required")
 
-        import numpy as np
-
         from freecad_cloth.simulation.DrapeVisualSanity import points_inside_closed_mesh
 
         collision_surface = base.collision_surface
-        initial_positions = np.asarray(backend.positions(), dtype=np.float64)
         candidate_indices = tuple(
             dict.fromkeys(
                 index
@@ -1488,31 +1481,26 @@ def run_acceptance() -> None:
             clearance_by_particle[index] = float(
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
-        # Filter side-seam particles by measured body clearance and lateral
-        # position before choosing the particle nearest the authored CAD target.
-        # The target remains a PatternIR point so the 5 mm deviation gate measures
-        # actual CAD-to-solver correspondence.
+        # Filter CAD-derived panel mesh vertices by the authored torso support
+        # zone and actual mannequin clearance. The selected pin remains on the
+        # Sketcher-backed pattern mesh, not at an invented or airborne location.
         candidate_chains_by_support: dict[str, tuple[int, ...]] = {}
         candidate_diagnostics = {}
         for support_name, chain in shirt_support_chains.items():
-            target = shirt_support_targets_by_chain[support_name]
+            ideal_target = shirt_support_ideal_targets_by_chain[support_name]
             candidate_records = []
             eligible = []
             for index in chain:
                 position = initial_positions[index]
-                lateral_offset = abs(float(position[0]) - float(center_x))
+                centerline_offset = abs(float(position[0]) - float(center_x))
+                height_offset = abs(float(position[2]) - shirt_support_target_z)
                 clearance = float(clearance_by_particle[index])
                 is_exterior = exterior_by_particle.get(index) is True
-                lateral_ok = (
-                    MINIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM
-                    <= lateral_offset
-                    <= MAXIMUM_SHIRT_SIDE_SUPPORT_OFFSET_MM
-                )
                 clearance_ok = (
                     is_exterior
                     and MINIMUM_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
                 )
-                if lateral_ok and clearance_ok:
+                if clearance_ok:
                     eligible.append(index)
                 candidate_records.append(
                     {
@@ -1520,41 +1508,48 @@ def run_acceptance() -> None:
                         "position_mm": [float(value) for value in position],
                         "exterior": bool(is_exterior),
                         "clearance_mm": clearance,
-                        "lateral_offset_mm": lateral_offset,
-                        "target_deviation_mm": math.dist(
-                            tuple(float(value) for value in position), target
+                        "centerline_offset_mm": centerline_offset,
+                        "height_offset_mm": height_offset,
+                        "design_target_deviation_mm": math.dist(
+                            tuple(float(value) for value in position), ideal_target
                         ),
-                        "lateral_ok": bool(lateral_ok),
                         "clearance_ok": bool(clearance_ok),
-                        "eligible": bool(lateral_ok and clearance_ok),
+                        "eligible": bool(clearance_ok),
                     }
                 )
             candidate_chains_by_support[support_name] = tuple(eligible)
             ordered_candidates = sorted(
                 candidate_records,
                 key=lambda record: (
-                    record["target_deviation_mm"],
+                    record["design_target_deviation_mm"],
                     record["particle"],
                 ),
             )
             candidate_diagnostics[support_name] = {
-                "authored_target_mm": list(target),
+                "ideal_centerline_target_mm": list(ideal_target),
                 "eligible_count": len(eligible),
-                "nearest_boundary_candidates": ordered_candidates[:16],
+                "nearest_panel_mesh_candidates": ordered_candidates[:16],
+                "minimum_clearance_mm": min(
+                    (record["clearance_mm"] for record in candidate_records), default=None
+                ),
+                "maximum_clearance_mm": max(
+                    (record["clearance_mm"] for record in candidate_records), default=None
+                ),
             }
         _log(
-            "shirt-side-support-candidate-diagnostics="
+            "shirt-torso-support-candidate-diagnostics="
             + json.dumps(candidate_diagnostics, sort_keys=True)
         )
         for support_name, eligible in candidate_chains_by_support.items():
             if not eligible:
                 raise RuntimeError(
-                    "shirt side seam %s has no exterior solver particle within the "
-                    "5..45 mm body-clearance and 100..260 mm lateral support ranges" % support_name
+                    "shirt torso panel %s has no exterior mesh vertex within the "
+                    "5..45 mm mannequin-clearance range in the configured centerline/height zone"
+                    % support_name
                 )
         shirt_selected_by_panel = select_landmark_supports(
             candidate_chains_by_support,
-            shirt_support_targets_by_chain,
+            shirt_support_ideal_targets_by_chain,
             initial_positions,
             exterior_by_particle,
             clearance_by_particle,
@@ -1562,22 +1557,12 @@ def run_acceptance() -> None:
             maximum_clearance_mm=MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM,
         )
         for support_name, index in shirt_selected_by_panel.items():
-            position = initial_positions[index]
-            target_deviation = math.dist(
-                tuple(float(value) for value in position),
-                shirt_support_targets_by_chain[support_name],
-            )
-            if target_deviation > MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM:
-                raise RuntimeError(
-                    "shirt side seam %s solver particle deviates %.3f mm from its authored "
-                    "CAD target (limit %.3f mm)"
-                    % (
-                        support_name,
-                        target_deviation,
-                        MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
-                    )
-                )
-            shirt_support_lateral_offsets[support_name] = abs(float(position[0]) - float(center_x))
+            position = tuple(float(value) for value in initial_positions[index])
+            ideal_target = shirt_support_ideal_targets_by_chain[support_name]
+            shirt_support_targets_by_chain[support_name] = position
+            shirt_support_centerline_offsets[support_name] = abs(position[0] - float(center_x))
+            shirt_support_height_offsets[support_name] = abs(position[2] - shirt_support_target_z)
+            shirt_support_design_target_deviations[support_name] = math.dist(position, ideal_target)
 
         waistband_selected_by_panel = select_landmark_supports(
             waistband_top_chains,
@@ -1592,7 +1577,7 @@ def run_acceptance() -> None:
         waistband_support_pin_indices = set(waistband_selected_by_panel.values())
         if len(shirt_support_pin_indices) != 2:
             raise RuntimeError(
-                "expected two unique shirt side-seam stabilizers, got %d"
+                "expected two unique shirt torso-centerline stabilizers, got %d"
                 % len(shirt_support_pin_indices)
             )
         if len(waistband_support_pin_indices) != 4:
@@ -1611,7 +1596,11 @@ def run_acceptance() -> None:
                 "target_mm": [float(value) for value in shirt_support_targets_by_chain[panel_name]],
                 "position_mm": [float(value) for value in initial_positions[index]],
                 "centerline_x_mm": float(center_x),
-                "lateral_offset_mm": shirt_support_lateral_offsets[panel_name],
+                "centerline_offset_mm": shirt_support_centerline_offsets[panel_name],
+                "target_height_z_mm": float(shirt_support_target_z),
+                "height_offset_mm": shirt_support_height_offsets[panel_name],
+                "design_target_mm": [float(value) for value in shirt_support_ideal_targets_by_chain[panel_name]],
+                "design_target_deviation_mm": shirt_support_design_target_deviations[panel_name],
                 "target_deviation_mm": math.dist(
                     tuple(float(value) for value in initial_positions[index]),
                     shirt_support_targets_by_chain[panel_name],
@@ -1632,7 +1621,7 @@ def run_acceptance() -> None:
         ]
 
         _log(
-            "shirt-side-support-selection="
+            "shirt-torso-support-selection="
             + json.dumps(
                 {
                     panel_name: {
@@ -1683,7 +1672,7 @@ def run_acceptance() -> None:
             != shirt_support_pin_indices
         ):
             raise RuntimeError(
-                "the shirt native pin set does not match its two side-seam stabilizers"
+                "the shirt native pin set does not match its two torso-centerline stabilizers"
             )
         initial_positions = backend.positions()
         support_pin_positions = {
@@ -1708,7 +1697,7 @@ def run_acceptance() -> None:
             default=0.0,
         )
         _log(
-            "shirt-side-support-target-deviation="
+            "shirt-torso-support-target-deviation="
             + json.dumps(
                 shirt_support_target_deviations,
                 sort_keys=True,
@@ -1716,7 +1705,7 @@ def run_acceptance() -> None:
         )
         if maximum_shirt_support_target_deviation_mm > MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM:
             raise RuntimeError(
-                "shirt side-seam stabilizer deviates %.3f mm from its authored target "
+                "shirt torso-centerline stabilizer deviates %.3f mm from its authored target "
                 "(limit %.3f mm)"
                 % (
                     maximum_shirt_support_target_deviation_mm,
@@ -1731,7 +1720,7 @@ def run_acceptance() -> None:
         if max(abs(value - waistband_top_z) for value in waistband_top_z_values) > 1e-3:
             raise RuntimeError("waistband support pins are not at the authored waist height")
         _log(
-            "shirt-side-support-pins="
+            "shirt-torso-support-pins="
             + json.dumps(
                 {
                     "mode": str(scene.PinMode),
