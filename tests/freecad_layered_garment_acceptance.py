@@ -1144,7 +1144,7 @@ def run_acceptance() -> None:
         torso_front_y = min(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_back_y = max(float(vertex[1]) for vertex in shirt_torso_depth_samples)
         torso_depth = max(120.0, min(260.0, torso_back_y - torso_front_y))
-        shirt_clearance = max(20.0, 0.08 * torso_depth)
+        shirt_clearance = max(12.0, 0.05 * torso_depth)
         shirt_rotation = rotation_front
         shirt_front = _make_tunic_piece(
             doc,
@@ -1312,7 +1312,7 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two shoulder-tip supports keep the shirt seated on the mannequin.
+        # Two inner shoulder supports keep the shirt seated on the mannequin.
         # Its back shoulder edges follow the pinned front through the authored seams.
         shirt_piece_names = {str(piece.Name) for piece in shirt.values()}
         waistband_piece_names = {str(piece.Name): side for side, piece in waistband.items()}
@@ -1336,12 +1336,12 @@ def run_acceptance() -> None:
         shirt_shoulder_target_z = shoulder_z + 20.0
         shirt_support_targets_by_chain = {
             "shirt-right-shoulder": (
-                float(shoulder_right.x),
+                float(shoulder_left.x),
                 float(shirt_shoulder_target_y),
                 float(shirt_shoulder_target_z),
             ),
             "shirt-left-shoulder": (
-                float(shoulder_left.x),
+                float(shoulder_right.x),
                 float(shirt_shoulder_target_y),
                 float(shirt_shoulder_target_z),
             ),
