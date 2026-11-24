@@ -1496,9 +1496,7 @@ def run_acceptance() -> None:
                 is_exterior = exterior_by_particle.get(index) is True
                 clearance_ok = (
                     is_exterior
-                    and MINIMUM_BODY_CLEARANCE_MM
-                    <= clearance
-                    <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
+                    and MINIMUM_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
                 )
                 if clearance_ok:
                     eligible.append(index)
@@ -2138,7 +2136,9 @@ def run_acceptance() -> None:
             set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices)
             != shirt_support_pin_indices
         ):
-            raise RuntimeError("shirt torso-centerline supports were not preserved after save/reload")
+            raise RuntimeError(
+                "shirt torso-centerline supports were not preserved after save/reload"
+            )
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
             (
