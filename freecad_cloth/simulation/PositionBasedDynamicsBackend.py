@@ -961,8 +961,14 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
             _PBD_ITERATIONS_DEFAULT,
         )
 
-    def _project_collision_positions(self) -> None:
-        """Resolve residual position-level mesh contacts after the native PBD pass."""
+    def _project_collision_positions(self, *, stage: str = "unspecified") -> None:
+        """Resolve residual position-level mesh contacts after the native PBD pass.
+
+        When layered-outfit diagnostics are enabled, record the largest body and
+        stitch-reconciliation moves with their global particle IDs and garment
+        ownership. This makes coupled body/cloth regressions traceable to exact
+        mesh vertices without changing the projection itself.
+        """
         projector = self._collision_projector
         if projector is None:
             return
@@ -976,7 +982,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         if native_vertices.size == 0:
             return
         positions_mm = native_vertices[:, (0, 2, 1)] * _MM
-        corrected_mm, outward_normals = projector.project(positions_mm)
+        body_corrected_mm, body_normals = projector.project(positions_mm)
         # Stitch reconciliation also handles close pairs whose endpoints already
         # sit safely outside the shell. Do not return just because no single point
         # needed contact correction; distant stitch groups are filtered below.
@@ -984,12 +990,71 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
 
         corrected_mm, outward_normals = project_stitched_pairs(
             projector,
-            corrected_mm,
-            outward_normals,
+            body_corrected_mm,
+            body_normals,
             self._stitches,
             self._pin_indices,
         )
-        self._apply_position_corrections(particles, positions_mm, corrected_mm, outward_normals)
+        if os.environ.get("CLOTH_INTER_CLOTH_DIAGNOSTICS") == "1":
+            import json
+
+            group_by_particle: dict[int, str] = {}
+            for group_id, group_triangles in self._inter_cloth_groups.items():
+                group_indices = np.unique(
+                    np.asarray(group_triangles, dtype=np.int64).reshape(-1)
+                )
+                group_by_particle.update(
+                    (int(index), str(group_id)) for index in group_indices
+                )
+
+            def emit_movers(
+                phase: str,
+                before_mm: FloatArray,
+                after_mm: FloatArray,
+                directions: FloatArray,
+            ) -> None:
+                """Log the eight largest position changes for one projection phase."""
+                movement = np.linalg.norm(after_mm - before_mm, axis=1)
+                moved_indices = np.flatnonzero(movement > 1e-7)
+                selected = sorted(
+                    (int(index) for index in moved_indices),
+                    key=lambda index: (-float(movement[index]), index),
+                )[:8]
+                records = [
+                    {
+                        "particle": index,
+                        "garment": group_by_particle.get(index, "unassigned"),
+                        "delta_mm": round(float(movement[index]), 4),
+                        "from_mm": [
+                            round(float(value), 4) for value in before_mm[index]
+                        ],
+                        "to_mm": [
+                            round(float(value), 4) for value in after_mm[index]
+                        ],
+                        "direction": [
+                            round(float(value), 4) for value in directions[index]
+                        ],
+                    }
+                    for index in selected
+                ]
+                _emit_diagnostic(
+                    f"cloth-pbd-body-projection-movers stage={stage} phase={phase} "
+                    + json.dumps(records, sort_keys=True, separators=(",", ":"))
+                )
+
+            emit_movers("mesh", positions_mm, body_corrected_mm, body_normals)
+            emit_movers(
+                "stitch-reconciliation",
+                body_corrected_mm,
+                corrected_mm,
+                outward_normals,
+            )
+        self._apply_position_corrections(
+            particles,
+            positions_mm,
+            corrected_mm,
+            outward_normals,
+        )
 
     def _apply_position_corrections(
         self,
@@ -1181,8 +1246,42 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                                 round(float(distances[selected].max()), 4),
                             ],
                         }
+                worst_pairs = []
+                for item in sorted(
+                    constraints,
+                    key=lambda candidate: (
+                        candidate.distance_mm,
+                        candidate.source_edge,
+                        candidate.target_triangle,
+                    ),
+                )[:12]:
+                    edge_point, face_point = item.closest_geometry[:2]
+                    worst_pairs.append(
+                        {
+                            "source_group": particle_groups[item.source_edge[0]],
+                            "target_group": particle_groups[item.target_triangle[0]],
+                            "source_edge": list(item.source_edge),
+                            "target_triangle": list(item.target_triangle),
+                            "distance_mm": round(float(item.distance_mm), 4),
+                            "deficit_mm": round(
+                                float(self._inter_cloth_clearance_mm - item.distance_mm),
+                                4,
+                            ),
+                            "edge_point_mm": [
+                                round(float(value), 4) for value in edge_point
+                            ],
+                            "face_point_mm": [
+                                round(float(value), 4) for value in face_point
+                            ],
+                        }
+                    )
                 _emit_diagnostic(
-                    "cloth-pbd-residual-contact-geometry " + json.dumps(summaries, sort_keys=True)
+                    "cloth-pbd-residual-contact-geometry "
+                    + json.dumps(
+                        {"groups": summaries, "worst_pairs": worst_pairs},
+                        sort_keys=True,
+                        separators=(",", ":"),
+                    )
                 )
         if self._inter_cloth_metrics is None:
             from freecad_cloth.simulation.InterClothContact import InterClothContactMetrics
@@ -1280,7 +1379,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
                     )[:, (0, 2, 1)]
                     * _MM
                 )
-            self._project_collision_positions()
+            self._project_collision_positions(stage=f"reconcile-{pass_index + 1}")
             self._emit_stitch_gap_diagnostic(f"reconcile-{pass_index + 1}-after-body")
             if before_body_positions is not None and particles is not None:
                 after_body_positions = (
@@ -1411,7 +1510,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         stage_started = time.perf_counter()
         if diagnostics:
             _emit_diagnostic("cloth-pbd-first-body-projection-start")
-        self._project_collision_positions()
+        self._project_collision_positions(stage="pre-inter-cloth")
         if diagnostics:
             _emit_diagnostic(
                 f"cloth-pbd-first-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"
@@ -1430,7 +1529,7 @@ class PositionBasedDynamicsBackend(ClothSimulationBackend):
         stage_started = time.perf_counter()
         if diagnostics:
             _emit_diagnostic("cloth-pbd-final-body-projection-start")
-        self._project_collision_positions()
+        self._project_collision_positions(stage="post-inter-cloth")
         if diagnostics:
             _emit_diagnostic(
                 f"cloth-pbd-final-body-projection-finish elapsed_s={time.perf_counter() - stage_started:.2f}"

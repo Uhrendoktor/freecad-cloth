@@ -590,7 +590,8 @@ def _install_inter_cloth_body_reconciliation_mocks(
         backend._inter_cloth_metrics = projected_metrics
         return backend._inter_cloth_metrics
 
-    def project_body() -> None:
+    def project_body(*, stage: str = "unspecified") -> None:
+        _ = stage
         calls["body"] += 1
 
     monkeypatch.setattr(backend, "_measure_inter_cloth_residual", measure_residual)
