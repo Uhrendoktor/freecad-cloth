@@ -12,6 +12,7 @@ from freecad_cloth.pattern.SeamReference import (
     EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
+    capture_edge_reference_v2,
     resolve_edge_reference,
 )
 from freecad_cloth.shared.SeamColors import apply_seam_colors
@@ -199,14 +200,14 @@ def _seam_edge_id(
         if record is None:
             msg = f"native Sketcher seam edge {edge} has no semantic record"
             raise MissingEdgeReference(msg)
-        return record["id"], capture_edge_reference(
+        return record["id"], capture_edge_reference_v2(
             piece.PieceId, record["id"], record["points"], record.get("provenance")
         ).signature
     reference_id = str(edge)
     records = _edge_records(piece, native_edge_records_fn=native_edge_records_fn)
     for record in records:
         if record["id"] == reference_id:
-            return reference_id, capture_edge_reference(
+            return reference_id, capture_edge_reference_v2(
                 piece.PieceId,
                 reference_id,
                 record["points"],
@@ -238,7 +239,7 @@ def refresh_edge_reference_signature(piece, edge_id):
         raise MissingEdgeReference(msg)
     for record in _edge_records(piece):
         if str(record["id"]) == reference_id:
-            reference = capture_edge_reference(
+            reference = capture_edge_reference_v2(
                 str(getattr(piece, "PieceId", "")),
                 reference_id,
                 record["points"],

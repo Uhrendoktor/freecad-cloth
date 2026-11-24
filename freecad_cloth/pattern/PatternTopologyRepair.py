@@ -9,6 +9,7 @@ from freecad_cloth.pattern.SeamReference import (
     EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
+    capture_edge_reference_v2,
     resolve_edge_reference,
 )
 
@@ -221,13 +222,13 @@ def apply_repair_plan(doc, repairs):
         for seam, side, record in plan:
             if side == "A":
                 seam.EdgeAId = str(record["id"])
-                seam.EdgeASignature = capture_edge_reference(
+                seam.EdgeASignature = capture_edge_reference_v2(
                     seam.PatternA.PieceId, record["id"], record["points"], record.get("provenance")
                 ).signature
                 seam.EdgeA = int(record["ordinal"])
             else:
                 seam.EdgeBId = str(record["id"])
-                seam.EdgeBSignature = capture_edge_reference(
+                seam.EdgeBSignature = capture_edge_reference_v2(
                     seam.PatternB.PieceId, record["id"], record["points"], record.get("provenance")
                 ).signature
                 seam.EdgeB = int(record["ordinal"])

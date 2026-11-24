@@ -6,7 +6,7 @@ from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR
 from freecad_cloth.pattern.SeamReference import (
     ChangedEdgeReference,
     MissingEdgeReference,
-    capture_edge_reference,
+    capture_edge_reference_v2,
 )
 from freecad_cloth.simulation.PatternSimulationAdapter import (
     ResolvedSimulationPattern,
@@ -284,7 +284,7 @@ def test_native_integer_seam_edge_uses_original_sketch_geometry_index():
     assert edge_id == "piece:edge:5"
     assert (
         signature
-        == capture_edge_reference(
+        == capture_edge_reference_v2(
             "piece", "piece:edge:5", ((5.0, 0.0), (6.0, 0.0)), reordered[3]["provenance"]
         ).signature
     )
@@ -312,7 +312,7 @@ def test_native_semantic_seam_edge_keeps_sketch_provenance_signature():
     assert edge_id == "piece:edge:2"
     assert (
         signature
-        == capture_edge_reference(
+        == capture_edge_reference_v2(
             "piece", "piece:edge:2", records[0]["points"], provenance
         ).signature
     )
