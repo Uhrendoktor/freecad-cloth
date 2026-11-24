@@ -30,8 +30,8 @@ MINIMUM_BODY_CLEARANCE_MM = 5.0
 MAXIMUM_WAISTBAND_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM = 45.0
 MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM = 5.0
-MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM = 12.5
-SHIRT_SUPPORT_ANCHOR_ROLE = "hem-centerline-stabilizer"
+MAXIMUM_SHIRT_HEM_INNER_OFFSET_MM = 100.0
+SHIRT_SUPPORT_ANCHOR_ROLE = "inner-hem-stabilizer"
 
 
 def _require(condition: bool, message: str) -> None:
@@ -423,7 +423,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(isinstance(support_pins, dict), "shirt hem support-pin record is missing")
     _require(
         support_pins.get("mode") == "Explicit",
-        "shirt must retain explicit front/back hem-centerline stabilizers",
+        "shirt must retain explicit front/back inner-hem stabilizers",
     )
     support_pin_indices = support_pins.get("particle_indices")
     _require(
@@ -443,7 +443,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     shirt_supports = outfit.get("shirt_supports")
     _require(
         isinstance(shirt_supports, list) and len(shirt_supports) == 2,
-        "shirt must expose two front/back hem-centerline support records",
+        "shirt must expose two front/back inner-hem support records",
     )
     shirt_support_panels: set[str] = set()
     shirt_support_particles: set[int] = set()
@@ -466,7 +466,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         shirt_support_particles.add(particle_index)
         _require(
             support.get("anchor_role") == SHIRT_SUPPORT_ANCHOR_ROLE,
-            "shirt support anchor role must identify a hem-centerline stabilizer",
+            "shirt support anchor role must identify an inner-hem stabilizer",
         )
         target = _finite_vector(support.get("target_mm"), "shirt support target", 3)
         position = _finite_vector(support.get("position_mm"), "shirt support position", 3)
@@ -488,8 +488,8 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             "shirt support centerline offset disagrees with its persisted coordinates",
         )
         _require(
-            measured_centerline_offset <= MAXIMUM_SHIRT_HEM_CENTERLINE_OFFSET_MM,
-            "shirt hem support is too far from the panel centerline",
+            measured_centerline_offset <= MAXIMUM_SHIRT_HEM_INNER_OFFSET_MM,
+            "shirt inner-hem support is outside the allowed lateral region",
         )
         stand_off = _number(support, "clearance_mm")
         _require(

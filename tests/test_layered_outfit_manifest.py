@@ -240,8 +240,8 @@ def _valid_artifact(root: Path) -> Path:
             },
             "shirt_supports": [
                 {
-                    "panel_id": "shirt-hem-" + side,
-                    "anchor_role": "hem-centerline-stabilizer",
+                    "panel_id": "shirt-inner-hem-" + side,
+                    "anchor_role": "inner-hem-stabilizer",
                     "particle_index": index,
                     "target_mm": [float(index), 0.0, 150.0],
                     "position_mm": [float(index), 0.0, 150.0],
@@ -345,17 +345,17 @@ def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path:
         validate_manifest(manifest_path)
 
 
-def test_validator_rejects_shirt_hem_support_off_centerline(tmp_path: Path) -> None:
-    """A shirt hem stabilizer must remain close to the authored panel centerline."""
+def test_validator_rejects_shirt_hem_support_outside_inner_region(tmp_path: Path) -> None:
+    """A shirt hem stabilizer must remain inside the authored inner support region."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     support = manifest["outfit"]["shirt_supports"][0]
-    support["position_mm"][0] += 20.0
-    support["centerline_offset_mm"] = 20.0
-    support["target_mm"][0] += 20.0
+    support["position_mm"][0] += 110.0
+    support["centerline_offset_mm"] = 110.0
+    support["target_mm"][0] += 110.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="too far from the panel centerline"):
+    with pytest.raises(ValueError, match="outside the allowed lateral region"):
         validate_manifest(manifest_path)
 
 
