@@ -181,9 +181,9 @@ def _make_tunic_piece(
 ) -> App.DocumentObject:
     """Create one shaped front/back tunic panel with open neckline and armholes.
 
-    The eight-edge native Sketcher outline mirrors the canonical tunic fixture:
-    eased side edges, curved armholes and a scooped neckline remain editable
-    semantic boundaries rather than a rectangular ring approximation.
+    The eight-edge native Sketcher outline uses stable straight side seams,
+    curved armholes and a scooped neckline as editable semantic boundaries
+    rather than a rectangular ring approximation.
     """
     from support.freecad_arc_geometry import arc_through_midpoint
 
@@ -221,28 +221,19 @@ def _make_tunic_piece(
         start_vector = App.Vector(start[0], start[1], 0.0)
         end_vector = App.Vector(end[0], end[1], 0.0)
         midpoint = None
-        if index == 1:
-            midpoint = App.Vector(
-                0.5 * (start[0] + end[0]) + 4.0,
-                0.5 * (start[1] + end[1]),
-                0.0,
-            )
-        elif index == 2:
-            midpoint = App.Vector(x_offset + 0.741 * panel_width, armhole_mid_z, 0.0)
+        if index == 2:
+            midpoint = App.Vector(x_offset + 0.76 * panel_width, armhole_mid_z, 0.0)
         elif index == 4:
             midpoint = App.Vector(0.5 * (start[0] + end[0]), scoop_z, 0.0)
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.259 * panel_width, armhole_mid_z, 0.0)
-        elif index == 7:
-            midpoint = App.Vector(
-                0.5 * (start[0] + end[0]) - 4.0,
-                0.5 * (start[1] + end[1]),
-                0.0,
-            )
+            midpoint = App.Vector(x_offset + 0.24 * panel_width, armhole_mid_z, 0.0)
         if midpoint is None:
             geometry.append(Part.LineSegment(start_vector, end_vector))
         else:
             geometry.append(arc_through_midpoint(Part, App, start_vector, end_vector, midpoint))
+
+    if any(type(geometry[index]).__name__.lower() != "linesegment" for index in (1, 7)):
+        raise RuntimeError("shirt side seams must remain stable native Sketcher lines")
     sketch.addGeometry(geometry, False)
     sketch.addConstraint([Sketcher.Constraint("Block", index) for index in range(8)])
     doc.recompute()

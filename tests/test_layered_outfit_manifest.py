@@ -141,7 +141,7 @@ def _valid_artifact(root: Path) -> Path:
         boundaries = [
             {
                 "id": semantic_ids[edge],
-                "kind": "arc" if group_id == "shirt" and edge in (1, 2, 4, 6, 7) else "line",
+                "kind": "arc" if group_id == "shirt" and edge in (2, 4, 6) else "line",
                 "length_mm": 100.0,
                 "samples_local_mm": [[0.0, 0.0, 0.0], [100.0, 0.0, 0.0]],
             }
@@ -368,11 +368,29 @@ def test_validator_rejects_shirt_hem_in_the_flared_skirt_body(tmp_path: Path) ->
         validate_manifest(manifest_path)
 
 
+def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile() -> None:
+    """Keep shallow sides linear and the shortened shirt's armscyes outside its contour."""
+    source = (ROOT / "tests" / "freecad_layered_garment_acceptance.py").read_text(
+        encoding="utf-8"
+    )
+    panel = source.split("def _make_tunic_piece(", 1)[1].split("\ndef _make_ring(", 1)[0]
+    assert "if index == 2:" in panel
+    assert "if index == 4:" in panel
+    assert "if index == 6:" in panel
+    assert "0.76 * panel_width, armhole_mid_z" in panel
+    assert "0.24 * panel_width, armhole_mid_z" in panel
+    assert "for index in (1, 7)" in panel
+    assert 'type(geometry[index]).__name__.lower() != "linesegment"' in panel
+    assert "shirt side seams must remain stable native Sketcher lines" in panel
+    assert "0.741 * panel_width" not in panel
+    assert "0.259 * panel_width" not in panel
+
+
 def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:
     """Persisted outfit profile and the independent scene map must agree."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["scene_map"]["vertical_layer_interfaces"]["shirt_hem_front_gap_mm"] = 7.0
+    manifest["scene_map"]["vertical_layer_interfaces"]["shirt_hem_front_gap_mm"] = 9.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="vertical layer interfaces disagree"):
