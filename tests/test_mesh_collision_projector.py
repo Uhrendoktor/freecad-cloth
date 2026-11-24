@@ -247,12 +247,18 @@ def test_projector_applies_independent_clearances_to_inside_and_outside_particle
     """A particle-specific body shell must work for both exterior and interior points."""
     surface = _cube_surface()
     projector = MeshCollisionProjector(surface, clearance_mm=2.0)
-    points = np.asarray(((-10.0, 50.0, 50.0), (10.0, 50.0, 50.0)), dtype=np.float64)
+    points = np.asarray(
+        ((-10.0, 50.0, 50.0), (-10.0, 60.0, 50.0), (10.0, 50.0, 50.0)),
+        dtype=np.float64,
+    )
 
-    projected, normals = projector.project(points, clearance_mm=(6.0, 14.0))
+    projected, normals = projector.project(points, clearance_mm=(14.0, 6.0, 14.0))
 
-    np.testing.assert_allclose(projected, ((-6.0, 50.0, 50.0), (-14.0, 50.0, 50.0)))
-    assert np.allclose(np.linalg.norm(normals, axis=1), 1.0)
+    np.testing.assert_allclose(
+        projected,
+        ((-14.0, 50.0, 50.0), (-10.0, 60.0, 50.0), (-14.0, 50.0, 50.0)),
+    )
+    np.testing.assert_allclose(np.linalg.norm(normals, axis=1), (1.0, 0.0, 1.0))
     assert not any(
         points_inside_closed_mesh(
             (tuple(float(value) for value in point),),

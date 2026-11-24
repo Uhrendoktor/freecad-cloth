@@ -372,9 +372,9 @@ class MeshCollisionProjector:
             raise ValueError(msg)
         corrected = points.copy()
         contact_normals = np.zeros_like(points)
+        clearances = self._clearance_values(clearance_mm, len(points))
         if points.shape[0] == 0:
             return corrected, contact_normals
-        clearances = self._clearance_values(clearance_mm, len(points))
         maximum_clearance = float(np.max(clearances))
         bounds_min = self._mesh_bounds_min - maximum_clearance
         bounds_max = self._mesh_bounds_max + maximum_clearance
