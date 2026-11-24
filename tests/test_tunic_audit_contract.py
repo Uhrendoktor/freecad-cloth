@@ -504,7 +504,7 @@ def test_pbd_collision_sdf_resolution_and_tolerance_are_explicit() -> None:
         "    def reset(", maxsplit=1
     )[0]
     assert step_body.index("timestep.step(self._model)") < step_body.index(
-        "self._project_collision_positions()"
+        'self._project_collision_positions(stage="pre-inter-cloth")'
     ), "Contract failed: native timestep must precede body projection inside step()."
     assert "particles.setPosition(" in backend, (
         'Contract failed: "particles.setPosition(" in backend'

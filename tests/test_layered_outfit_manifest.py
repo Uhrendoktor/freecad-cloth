@@ -345,7 +345,7 @@ def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path:
     manifest["outfit"]["shirt_supports"][0]["target_deviation_mm"] = 20.0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="persisted PatternIR mesh target"):
+    with pytest.raises(ValueError, match="shirt support is detached from its persisted PatternIR mesh target"):
         validate_manifest(manifest_path)
 
 

@@ -2501,10 +2501,14 @@ def _run_production_tunic_drape(
                     scene_steps_completed=int(scene.Steps),
                 )
 
-    def timed_collision_projection(backend: "PositionBasedDynamicsBackend") -> None:
+    def timed_collision_projection(
+        backend: "PositionBasedDynamicsBackend",
+        *,
+        stage: str = "unspecified",
+    ) -> None:
         stage_started = perf_counter()
         try:
-            original_collision_projection(backend)
+            original_collision_projection(backend, stage=stage)
         finally:
             record_profile_sample("collision_projection_total", stage_started)
 

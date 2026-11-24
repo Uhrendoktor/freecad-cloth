@@ -373,10 +373,10 @@ def main() -> None:
             finally:
                 record_stage("solver_step", started_at)
 
-        def timed_collision_projection() -> None:
+        def timed_collision_projection(*, stage: str = "unspecified") -> None:
             started_at = time.perf_counter()
             try:
-                original_collision_projection()
+                original_collision_projection(stage=stage)
             finally:
                 record_stage("collision_projection_total", started_at)
 
