@@ -1897,7 +1897,9 @@ def run_acceptance() -> None:
                 "bottom_above_hip_mm": shirt_bounds_min[2] - hip_z,
                 "particle_count": len(shirt_current_positions),
             }
-            _log("shirt-fit-checkpoint=%d %s" % (step, json.dumps(shirt_fit_metrics, sort_keys=True)))
+            _log(
+                "shirt-fit-checkpoint=%d %s" % (step, json.dumps(shirt_fit_metrics, sort_keys=True))
+            )
             maximum_support_pin_drift_mm = max(
                 (
                     math.dist(support_pin_positions[index], current_positions[index])
