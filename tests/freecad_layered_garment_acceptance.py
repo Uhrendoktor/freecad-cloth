@@ -1029,10 +1029,13 @@ def run_acceptance() -> None:
         shirt_half_depth = 0.5 * (shirt_back_y - shirt_front_y)
         hip_min_y = min(float(vertex[1]) for vertex in hip_slice)
         hip_max_y = max(float(vertex[1]) for vertex in hip_slice)
-        minimum_body_radius_y = max(
-            abs(hip_min_y - shirt_midplane_y),
-            abs(hip_max_y - shirt_midplane_y),
-        ) + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        minimum_body_radius_y = (
+            max(
+                abs(hip_min_y - shirt_midplane_y),
+                abs(hip_max_y - shirt_midplane_y),
+            )
+            + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
+        )
         shirt_aligned_radius_y = shirt_half_depth - INITIAL_SHIRT_WAISTBAND_GAP_MM
         radius_y = max(radius_y, minimum_body_radius_y, shirt_aligned_radius_y)
         center_y = shirt_midplane_y
