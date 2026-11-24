@@ -1373,7 +1373,7 @@ def run_acceptance() -> None:
             for seam in (shirt_seams + skirt_seams + waistband_seams + waistband_join_seams)
         }:
             raise RuntimeError("solver stitch provenance does not match the authored sixteen seams")
-        # Two side-seam stabilizers keep the shirt seated near the torso while
+        # Two torso-centerline stabilizers keep the front and back shirt panels seated while
         # leaving both shoulder seams and the open neckline free to converge.
         # Use opposite authored side edges on the front and back panels.
         import numpy as np
@@ -1599,7 +1599,9 @@ def run_acceptance() -> None:
                 "centerline_offset_mm": shirt_support_centerline_offsets[panel_name],
                 "target_height_z_mm": float(shirt_support_target_z),
                 "height_offset_mm": shirt_support_height_offsets[panel_name],
-                "design_target_mm": [float(value) for value in shirt_support_ideal_targets_by_chain[panel_name]],
+                "design_target_mm": [
+                    float(value) for value in shirt_support_ideal_targets_by_chain[panel_name]
+                ],
                 "design_target_deviation_mm": shirt_support_design_target_deviations[panel_name],
                 "target_deviation_mm": math.dist(
                     tuple(float(value) for value in initial_positions[index]),
@@ -2133,7 +2135,7 @@ def run_acceptance() -> None:
             set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices)
             != shirt_support_pin_indices
         ):
-            raise RuntimeError("shirt hem supports were not preserved after save/reload")
+            raise RuntimeError("shirt torso-centerline supports were not preserved after save/reload")
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
             (

@@ -421,7 +421,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     clearance = _number(outfit, "inter_cloth_clearance_mm")
     _require(clearance > 0.0, "inter-cloth clearance must be positive")
     support_pins = outfit.get("support_pins")
-    _require(isinstance(support_pins, dict), "shirt hem support-pin record is missing")
+    _require(isinstance(support_pins, dict), "shirt torso support-pin record is missing")
     _require(
         support_pins.get("mode") == "Explicit",
         "shirt must retain explicit front/back torso-centerline stabilizers",
@@ -634,7 +634,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         )
         _require(
             checkpoint.get("shirt_support_pin_count") == len(support_pin_indices),
-            "checkpoint must retain both shirt hem stabilizers at step %d" % step,
+            "checkpoint must retain both shirt torso-centerline stabilizers at step %d" % step,
         )
         _require(
             checkpoint.get("waistband_support_pin_count") == len(waistband_pin_indices),
@@ -769,7 +769,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
 
     _require(
         persistence.get("shirt_supports_preserved_after_reload") is True,
-        "shirt hem supports were not preserved after save/reload",
+        "shirt torso-centerline supports were not preserved after save/reload",
     )
     _require(
         persistence.get("waistband_support_pins_preserved") is True,

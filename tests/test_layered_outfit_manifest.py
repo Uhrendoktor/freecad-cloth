@@ -313,8 +313,8 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
     }
 
 
-def test_validator_rejects_missing_shirt_hem_supports(tmp_path: Path) -> None:
-    """The shaped shirt must retain two bounded front/back hem stabilizers."""
+def test_validator_rejects_missing_shirt_torso_supports(tmp_path: Path) -> None:
+    """The shaped shirt must retain two bounded front/back torso-centerline stabilizers."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["support_pins"]["particle_indices"] = []
@@ -326,8 +326,8 @@ def test_validator_rejects_missing_shirt_hem_supports(tmp_path: Path) -> None:
         validate_manifest(manifest_path)
 
 
-def test_validator_rejects_airborne_shirt_hem_support(tmp_path: Path) -> None:
-    """A hem stabilizer far from the mannequin must invalidate the artifact."""
+def test_validator_rejects_airborne_shirt_torso_support(tmp_path: Path) -> None:
+    """A torso-centerline stabilizer far from the mannequin must invalidate the artifact."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_supports"][0]["clearance_mm"] = 90.0
@@ -338,7 +338,7 @@ def test_validator_rejects_airborne_shirt_hem_support(tmp_path: Path) -> None:
 
 
 def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path: Path) -> None:
-    """The chosen support particle must remain at its authored hem centerline."""
+    """The chosen support particle must remain at its persisted PatternIR mesh target."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_supports"][0]["position_mm"][0] += 20.0
