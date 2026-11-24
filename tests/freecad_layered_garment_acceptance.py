@@ -1326,6 +1326,7 @@ def run_acceptance() -> None:
             entry.split("|", 1)[1]: entry.split("|", 1)[0] for entry in scene.GarmentGroups
         }
         scene.InterClothClearance = INTER_GARMENT_CLEARANCE_MM
+        scene.GarmentBodyClearanceByGroup = ["shirt|6.0", "skirt|14.0"]
         scene.QualityPreset = "Fast"
         scene.ParticleDistance = 24.0
         # Ten interlocked pattern panels need more than the six-iteration

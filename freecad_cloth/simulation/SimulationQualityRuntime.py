@@ -35,6 +35,7 @@ class _QualityScene(Protocol):
     SolverSubsteps: int
     PinMode: str
     GarmentGroups: Sequence[str]
+    GarmentBodyClearanceByGroup: Sequence[str]
     InterClothClearance: float
     InterClothContactCount: int
     InterClothRemainingContactCount: int
@@ -86,6 +87,7 @@ def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
         ("SolverSubsteps", "App::PropertyInteger", "Quality", None, 1),
         ("PinMode", "App::PropertyEnumeration", "Quality", list(PIN_MODE_NAMES), "Automatic"),
         ("GarmentGroups", "App::PropertyStringList", "Simulation", None, []),
+        ("GarmentBodyClearanceByGroup", "App::PropertyStringList", "Simulation", None, []),
         ("InterClothClearance", "App::PropertyFloat", "Simulation", None, 1.0),
         ("InterClothContactCount", "App::PropertyInteger", "Simulation", None, 0),
         ("InterClothRemainingContactCount", "App::PropertyInteger", "Simulation", None, 0),
@@ -128,6 +130,9 @@ def _validate_properties(scene: _QualityScene) -> None:
     clearance = float(scene.InterClothClearance)
     scene.InterClothClearance = max(0.01, clearance) if isfinite(clearance) else 1.0
     scene.GarmentGroups = [str(value) for value in scene.GarmentGroups]
+    scene.GarmentBodyClearanceByGroup = [
+        str(value) for value in scene.GarmentBodyClearanceByGroup
+    ]
     scene.InterClothContactCount = max(0, int(scene.InterClothContactCount))
     scene.InterClothRemainingContactCount = max(0, int(scene.InterClothRemainingContactCount))
     scene.InterClothCorrectedParticleCount = max(0, int(scene.InterClothCorrectedParticleCount))

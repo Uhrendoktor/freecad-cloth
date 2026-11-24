@@ -8,6 +8,7 @@ class InterClothQualityDefaults(TypedDict):
     """Persistent inter-cloth properties required by simulation-quality test scenes."""
 
     GarmentGroups: list[str]
+    GarmentBodyClearanceByGroup: list[str]
     InterClothClearance: float
     InterClothContactCount: int
     InterClothRemainingContactCount: int
@@ -24,6 +25,7 @@ def inter_cloth_quality_defaults() -> InterClothQualityDefaults:
     """
     return {
         "GarmentGroups": [],
+        "GarmentBodyClearanceByGroup": [],
         "InterClothClearance": 1.0,
         "InterClothContactCount": 0,
         "InterClothRemainingContactCount": 0,
