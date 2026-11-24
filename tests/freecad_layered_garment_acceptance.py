@@ -1638,7 +1638,7 @@ def run_acceptance() -> None:
             set(backend._pin_indices).intersection(shirt_particle_indices)
             != shirt_support_pin_indices
         ):
-            raise RuntimeError("the shirt native pin set does not match its two shoulder supports")
+            raise RuntimeError("the shirt native pin set does not match its two hem stabilizers")
         initial_positions = backend.positions()
         support_pin_positions = {
             index: tuple(float(value) for value in initial_positions[index])
@@ -2098,7 +2098,7 @@ def run_acceptance() -> None:
             set(reloaded_backend._pin_indices).intersection(reloaded_shirt_particle_indices)
             != shirt_support_pin_indices
         ):
-            raise RuntimeError("shirt shoulder supports were not preserved after save/reload")
+            raise RuntimeError("shirt hem supports were not preserved after save/reload")
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
             (

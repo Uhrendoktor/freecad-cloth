@@ -345,7 +345,6 @@ def test_validator_rejects_shirt_support_detached_from_authored_target(tmp_path:
         validate_manifest(manifest_path)
 
 
-
 def test_validator_rejects_shirt_hem_support_off_centerline(tmp_path: Path) -> None:
     """A shirt hem stabilizer must remain close to the authored panel centerline."""
     manifest_path = _valid_artifact(tmp_path)
