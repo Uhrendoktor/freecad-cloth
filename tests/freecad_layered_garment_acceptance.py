@@ -1409,9 +1409,7 @@ def run_acceptance() -> None:
             if not authored_samples:
                 raise RuntimeError("shirt %s authored side boundary has no CAD samples" % side)
             world_samples = tuple(
-                shirt[side].Placement.multVec(
-                    App.Vector(float(sample[0]), float(sample[1]), 0.0)
-                )
+                shirt[side].Placement.multVec(App.Vector(float(sample[0]), float(sample[1]), 0.0))
                 for sample in authored_samples
             )
             target_sample = min(
@@ -1512,9 +1510,7 @@ def run_acceptance() -> None:
                 )
                 clearance_ok = (
                     is_exterior
-                    and MINIMUM_BODY_CLEARANCE_MM
-                    <= clearance
-                    <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
+                    and MINIMUM_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
                 )
                 if lateral_ok and clearance_ok:
                     eligible.append(index)
@@ -1554,8 +1550,7 @@ def run_acceptance() -> None:
             if not eligible:
                 raise RuntimeError(
                     "shirt side seam %s has no exterior solver particle within the "
-                    "5..45 mm body-clearance and 100..260 mm lateral support ranges"
-                    % support_name
+                    "5..45 mm body-clearance and 100..260 mm lateral support ranges" % support_name
                 )
         shirt_selected_by_panel = select_landmark_supports(
             candidate_chains_by_support,
@@ -1582,9 +1577,7 @@ def run_acceptance() -> None:
                         MAXIMUM_SHIRT_SUPPORT_TARGET_DEVIATION_MM,
                     )
                 )
-            shirt_support_lateral_offsets[support_name] = abs(
-                float(position[0]) - float(center_x)
-            )
+            shirt_support_lateral_offsets[support_name] = abs(float(position[0]) - float(center_x))
 
         waistband_selected_by_panel = select_landmark_supports(
             waistband_top_chains,
@@ -1689,7 +1682,9 @@ def run_acceptance() -> None:
             set(backend._pin_indices).intersection(shirt_particle_indices)
             != shirt_support_pin_indices
         ):
-            raise RuntimeError("the shirt native pin set does not match its two side-seam stabilizers")
+            raise RuntimeError(
+                "the shirt native pin set does not match its two side-seam stabilizers"
+            )
         initial_positions = backend.positions()
         support_pin_positions = {
             index: tuple(float(value) for value in initial_positions[index])
