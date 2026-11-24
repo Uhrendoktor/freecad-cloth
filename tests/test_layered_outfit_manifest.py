@@ -119,8 +119,27 @@ def _valid_artifact(root: Path) -> Path:
         for step in (1, 15, 60)
     ]
     pieces_scene = []
+    panel_names = (
+        "Shirt Front",
+        "Shirt Back",
+        "Skirt Front",
+        "Skirt Right",
+        "Skirt Back",
+        "Skirt Left",
+        "Waistband Front",
+        "Waistband Right",
+        "Waistband Back",
+        "Waistband Left",
+    )
     for index, piece_id in enumerate(piece_ids):
         group_id = "shirt" if index < 2 else "skirt"
+        world_min_z, world_max_z = (
+            (110.0, 250.0)
+            if index < 2
+            else (0.0, 10.0)
+            if index < 6
+            else (10.0, 110.0)
+        )
         edge_count = 8 if group_id == "shirt" else 4
         semantic_ids = [piece_id + ":e%d" % edge for edge in range(edge_count)]
         boundaries = [
@@ -135,21 +154,24 @@ def _valid_artifact(root: Path) -> Path:
         pieces_scene.append(
             {
                 "piece_id": piece_id,
-                "name": "Panel " + piece_id,
+                "name": panel_names[index],
                 "garment_group": group_id,
                 "solver_panel_id": "DrapePanel%d" % index,
                 "local_to_world": {
-                    "translation_mm": [float(index), 0.0, 0.0],
+                    "translation_mm": [float(index), 0.0, world_min_z],
                     "rotation_quaternion_xyzw": [0.0, 0.0, 0.0, 1.0],
                 },
                 "grainline_angle_deg": 0.0,
                 "seam_allowance_mm": 10.0,
                 "semantic_edge_ids": semantic_ids,
                 "boundaries": boundaries,
-                "local_bounds_mm": {"min": [0.0, 0.0, 0.0], "max": [100.0, 100.0, 0.0]},
+                "local_bounds_mm": {
+                    "min": [0.0, 0.0, 0.0],
+                    "max": [100.0, 100.0, world_max_z - world_min_z],
+                },
                 "world_bounds_mm": {
-                    "min": [float(index), 0.0, 0.0],
-                    "max": [float(index) + 100.0, 100.0, 0.0],
+                    "min": [float(index), 0.0, world_min_z],
+                    "max": [float(index) + 100.0, 100.0, world_max_z],
                 },
                 "solver_mesh": {"particle_count": 50, "triangle_count": 80},
             }
@@ -194,6 +216,14 @@ def _valid_artifact(root: Path) -> Path:
             {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
         "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+        "vertical_layer_interfaces": {
+            "skirt_top_z_mm": 10.0,
+            "waistband_bottom_z_mm": 10.0,
+            "waistband_top_z_mm": 110.0,
+            "shirt_hem_z_mm": 110.0,
+            "shirt_hem_front_gap_mm": 8.0,
+            "shirt_hem_back_gap_mm": 8.0,
+        },
         "pieces": pieces_scene,
         "seams": seams,
         "camera_views": [
@@ -234,6 +264,14 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
             "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+            "vertical_layer_interfaces": {
+            "skirt_top_z_mm": 10.0,
+            "waistband_bottom_z_mm": 10.0,
+            "waistband_top_z_mm": 110.0,
+            "shirt_hem_z_mm": 110.0,
+            "shirt_hem_front_gap_mm": 8.0,
+            "shirt_hem_back_gap_mm": 8.0,
+        },
             "particle_distance_mm": 24.0,
             "support_pins": {
                 "mode": "Explicit",
@@ -320,6 +358,29 @@ def test_validator_accepts_complete_layered_outfit_artifacts(tmp_path: Path) -> 
         "images": 9,
         "document": "layered-outfit.FCStd",
     }
+
+
+def test_validator_rejects_shirt_hem_in_the_flared_skirt_body(tmp_path: Path) -> None:
+    """The shirt hem must terminate at the waistband top, above the skirt panels."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for record in (manifest["outfit"], manifest["scene_map"]):
+        record["vertical_layer_interfaces"]["shirt_hem_z_mm"] = 109.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shirt hem must meet the waistband top"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:
+    """Persisted outfit profile and the independent scene map must agree."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["scene_map"]["vertical_layer_interfaces"]["shirt_hem_front_gap_mm"] = 7.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="vertical layer interfaces disagree"):
+        validate_manifest(manifest_path)
 
 
 def test_validator_rejects_inner_skirt_standoff_too_close_to_outer_shirt(

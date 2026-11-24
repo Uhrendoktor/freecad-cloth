@@ -31,6 +31,7 @@ if str(TESTS_DIR) not in sys.path:
 
 from support.freecad_bootstrap import prepare_repository_root
 from support.layered_outfit_support import (
+    outer_shell_front_back_targets,
     panel_depth_profile_placement_y,
     sample_local_torso_depth,
     select_landmark_supports,
@@ -73,6 +74,7 @@ INTER_GARMENT_CLEARANCE_MM = 8.0
 SHIRT_BODY_CLEARANCE_MM = 14.0
 SKIRT_BODY_CLEARANCE_MM = 6.0
 MINIMUM_WAISTBAND_BODY_STANDOFF_MM = 6.0
+WAISTBAND_HEIGHT_MM = 100.0
 SHIRT_NECKLINE_RATIO = 0.72
 SHIRT_NECKLINE_DROP = 0.03
 SKIRT_HEM_FLARE_MM = 65.0
@@ -1033,11 +1035,16 @@ def run_acceptance() -> None:
             waist_half_depth + MINIMUM_WAISTBAND_BODY_STANDOFF_MM,
         )
         center_y = hip_center_y
+        skirt_top_z = hip_z - 40.0
+        waistband_bottom_z = skirt_top_z
+        waistband_top_z = waistband_bottom_z + WAISTBAND_HEIGHT_MM
 
-        # Sample the upper torso and hip independently. A full-height Y extreme
-        # creates a constant-depth back plane that can sit tens of millimetres
-        # off the upper back, so each panel is tilted to follow both sections.
-        shirt_bottom_z = hip_z - 85.0
+        # The shirt is a tucked outer layer: its hem terminates at the top of
+        # the waistband, above the A-line skirt body. This prevents the lower
+        # shirt panel from crossing the skirt as it flares toward its hem.
+        # Its lower front/back planes are derived from the waistband envelope,
+        # while the upper planes still follow measured torso depth.
+        shirt_bottom_z = waistband_top_z
         shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM
         shirt_support_torso_front_y, shirt_support_torso_back_y, shirt_support_sample_count = (
             sample_local_torso_depth(
@@ -1054,12 +1061,15 @@ def run_acceptance() -> None:
         shirt_back_y = shirt_support_torso_back_y + shirt_clearance
         shirt_midplane_y = 0.5 * (shirt_front_y + shirt_back_y)
 
-        shirt_hip_front_y = hip_min_y - shirt_clearance
-        shirt_hip_back_y = hip_max_y + shirt_clearance
-        waistband_inner_front_y = hip_min_y - MINIMUM_WAISTBAND_BODY_STANDOFF_MM
-        waistband_inner_back_y = hip_max_y + MINIMUM_WAISTBAND_BODY_STANDOFF_MM
-        shirt_waistband_front_gap_mm = waistband_inner_front_y - shirt_hip_front_y
-        shirt_waistband_back_gap_mm = shirt_hip_back_y - waistband_inner_back_y
+        waistband_surface_front_y = center_y - radius_y
+        waistband_surface_back_y = center_y + radius_y
+        shirt_hem_front_y, shirt_hem_back_y = outer_shell_front_back_targets(
+            waistband_surface_front_y,
+            waistband_surface_back_y,
+            INTER_GARMENT_CLEARANCE_MM,
+        )
+        shirt_waistband_front_gap_mm = waistband_surface_front_y - shirt_hem_front_y
+        shirt_waistband_back_gap_mm = shirt_hem_back_y - waistband_surface_back_y
         if not (
             math.isclose(
                 shirt_waistband_front_gap_mm,
@@ -1079,15 +1089,15 @@ def run_acceptance() -> None:
             )
 
         shirt_front_panel_base_y, shirt_front_depth_slope = panel_depth_profile_placement_y(
-            shirt_hip_front_y,
-            hip_z,
+            shirt_hem_front_y,
+            shirt_bottom_z,
             shirt_front_y,
             shirt_support_target_z,
             shirt_bottom_z,
         )
         shirt_back_panel_base_y, shirt_back_depth_slope = panel_depth_profile_placement_y(
-            shirt_hip_back_y,
-            hip_z,
+            shirt_hem_back_y,
+            shirt_bottom_z,
             shirt_back_y,
             shirt_support_target_z,
             shirt_bottom_z,
@@ -1105,12 +1115,20 @@ def run_acceptance() -> None:
             + json.dumps(
                 {
                     "hip_z_mm": hip_z,
+                    "skirt_top_z_mm": skirt_top_z,
+                    "waistband_bottom_z_mm": waistband_bottom_z,
+                    "waistband_top_z_mm": waistband_top_z,
+                    "shirt_hem_z_mm": shirt_bottom_z,
                     "support_z_mm": shirt_support_target_z,
                     "hip_slice_front_y_mm": hip_min_y,
                     "hip_slice_back_y_mm": hip_max_y,
                     "support_slice_front_y_mm": shirt_support_torso_front_y,
                     "support_slice_back_y_mm": shirt_support_torso_back_y,
                     "support_slice_sample_count": shirt_support_sample_count,
+                    "waistband_surface_front_y_mm": waistband_surface_front_y,
+                    "waistband_surface_back_y_mm": waistband_surface_back_y,
+                    "shirt_hem_front_y_mm": shirt_hem_front_y,
+                    "shirt_hem_back_y_mm": shirt_hem_back_y,
                     "front_panel_base_y_mm": shirt_front_panel_base_y,
                     "back_panel_base_y_mm": shirt_back_panel_base_y,
                     "front_depth_slope_mm_per_mm": shirt_front_depth_slope,
@@ -1130,8 +1148,11 @@ def run_acceptance() -> None:
             + json.dumps(
                 {
                     "hip_slice_center_y_mm": hip_center_y,
-                    "shirt_midplane_y_mm": shirt_midplane_y,
+                    "shirt_support_midplane_y_mm": shirt_midplane_y,
+                    "shirt_hem_midplane_y_mm": 0.5 * (shirt_hem_front_y + shirt_hem_back_y),
                     "waistband_center_y_mm": center_y,
+                    "shirt_hem_z_mm": shirt_bottom_z,
+                    "waistband_top_z_mm": waistband_top_z,
                     "waistband_radius_y_mm": radius_y,
                     "front_gap_mm": shirt_waistband_front_gap_mm,
                     "back_gap_mm": shirt_waistband_back_gap_mm,
@@ -1230,7 +1251,6 @@ def run_acceptance() -> None:
         )
 
         skirt_bottom_z = hip_z - 520.0
-        skirt_top_z = hip_z - 40.0
         skirt_height = skirt_top_z - skirt_bottom_z
         skirt = _make_ring(
             doc,
@@ -1247,7 +1267,7 @@ def run_acceptance() -> None:
         skirt_seams = _sew_ring(doc, "Skirt", skirt)
 
         waistband_bottom_z = skirt_top_z
-        waistband_height = 100.0
+        waistband_height = WAISTBAND_HEIGHT_MM
         waistband = _make_ring(
             doc,
             "Waistband",
@@ -1282,10 +1302,9 @@ def run_acceptance() -> None:
         shirt_hem_width_base = max(500.0, shirt_panel_width_base + 100.0)
         shirt_panel_width = 1.10 * shirt_panel_width_base
         shirt_hem_width = 1.10 * shirt_hem_width_base
-        shirt_garment_height = max(
-            560.0,
-            (shoulder_z - shirt_bottom_z + 20.0) / 0.94,
-        )
+        shirt_garment_height = (shoulder_z - shirt_bottom_z + 20.0) / 0.94
+        if not math.isfinite(shirt_garment_height) or shirt_garment_height <= 0.0:
+            raise RuntimeError("shirt hem leaves no positive height for the upper-torso pattern")
         shirt_front = _make_tunic_piece(
             doc,
             "Shirt-Front",
@@ -2357,6 +2376,14 @@ def run_acceptance() -> None:
                 "garment_groups": list(saved_groups),
                 "inter_cloth_clearance_mm": float(scene.InterClothClearance),
                 "body_clearance_by_group_mm": saved_body_clearance_by_group,
+                "vertical_layer_interfaces": {
+                    "skirt_top_z_mm": float(skirt_top_z),
+                    "waistband_bottom_z_mm": float(waistband_bottom_z),
+                    "waistband_top_z_mm": float(waistband_top_z),
+                    "shirt_hem_z_mm": float(shirt_bottom_z),
+                    "shirt_hem_front_gap_mm": float(shirt_waistband_front_gap_mm),
+                    "shirt_hem_back_gap_mm": float(shirt_waistband_back_gap_mm),
+                },
                 "particle_distance_mm": float(scene.ParticleDistance),
                 "support_pins": {
                     "mode": str(scene.PinMode),
@@ -2384,6 +2411,14 @@ def run_acceptance() -> None:
                 "avatar": saved_avatar_record,
                 "garment_groups": saved_garment_group_records,
                 "body_clearance_by_group_mm": saved_body_clearance_by_group,
+                "vertical_layer_interfaces": {
+                    "skirt_top_z_mm": float(skirt_top_z),
+                    "waistband_bottom_z_mm": float(waistband_bottom_z),
+                    "waistband_top_z_mm": float(waistband_top_z),
+                    "shirt_hem_z_mm": float(shirt_bottom_z),
+                    "shirt_hem_front_gap_mm": float(shirt_waistband_front_gap_mm),
+                    "shirt_hem_back_gap_mm": float(shirt_waistband_back_gap_mm),
+                },
                 "pieces": piece_scene_map,
                 "seams": checkpoints[-1]["seams"],
                 "camera_views": [

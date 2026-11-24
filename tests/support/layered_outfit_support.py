@@ -65,6 +65,35 @@ def sample_local_torso_depth(
     return front_y, back_y, len(depths)
 
 
+def outer_shell_front_back_targets(
+    inner_front_y_mm: float,
+    inner_back_y_mm: float,
+    clearance_mm: float,
+) -> tuple[float, float]:
+    """Place an outer garment hem beyond an inner shell's front/back envelope.
+
+    Args:
+        inner_front_y_mm: Front-most Y coordinate of the inner garment shell.
+        inner_back_y_mm: Back-most Y coordinate of the inner garment shell.
+        clearance_mm: Required positive separation in millimetres.
+
+    Returns:
+        Front and back Y coordinates for the outside of the outer garment.
+
+    Raises:
+        ValueError: If the inner envelope is degenerate or the clearance is invalid.
+    """
+    values = (float(inner_front_y_mm), float(inner_back_y_mm), float(clearance_mm))
+    if not all(isfinite(value) for value in values):
+        raise ValueError("nested garment shell coordinates must be finite")
+    front_y, back_y, clearance = values
+    if back_y <= front_y:
+        raise ValueError("inner garment front/back envelope must have positive depth")
+    if clearance <= 0.0:
+        raise ValueError("outer garment clearance must be positive")
+    return front_y - clearance, back_y + clearance
+
+
 def panel_depth_profile_placement_y(
     reference_y_mm: float,
     reference_z_mm: float,

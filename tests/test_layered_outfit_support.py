@@ -4,6 +4,7 @@
 import pytest
 
 from tests.support.layered_outfit_support import (
+    outer_shell_front_back_targets,
     panel_depth_profile_placement_y,
     sample_local_torso_depth,
     select_landmark_supports,
@@ -55,6 +56,28 @@ def test_local_torso_depth_rejects_insufficient_and_degenerate_bands() -> None:
             half_height_mm=10.0,
             minimum_samples=2,
         )
+
+
+def test_outer_shirt_hem_stays_outside_the_waistband_envelope() -> None:
+    """The outer shirt hem must preserve the requested front/back shell gap."""
+    front_y, back_y = outer_shell_front_back_targets(
+        inner_front_y_mm=-82.9,
+        inner_back_y_mm=177.3,
+        clearance_mm=8.0,
+    )
+
+    assert front_y == pytest.approx(-90.9)
+    assert back_y == pytest.approx(185.3)
+    assert -82.9 - front_y == pytest.approx(8.0)
+    assert back_y - 177.3 == pytest.approx(8.0)
+
+
+def test_outer_shell_front_back_targets_reject_invalid_envelopes() -> None:
+    """Do not build a nested garment shell from malformed or negative dimensions."""
+    with pytest.raises(ValueError, match="positive depth"):
+        outer_shell_front_back_targets(10.0, 10.0, 8.0)
+    with pytest.raises(ValueError, match="clearance must be positive"):
+        outer_shell_front_back_targets(-10.0, 10.0, 0.0)
 
 
 def test_panel_depth_profile_interpolates_hip_and_upper_torso_sections() -> None:

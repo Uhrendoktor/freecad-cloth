@@ -109,12 +109,60 @@ def _validated_body_clearance_by_group(
     return result
 
 
+def _validated_vertical_layer_interfaces(
+    value: JsonValue,
+    clearance_mm: float,
+    source: str,
+) -> dict[str, float]:
+    """Validate the skirt–waistband–shirt vertical interface and hem clearance."""
+    _require(isinstance(value, dict), "%s vertical layer interface is missing" % source)
+    keys = (
+        "skirt_top_z_mm",
+        "waistband_bottom_z_mm",
+        "waistband_top_z_mm",
+        "shirt_hem_z_mm",
+        "shirt_hem_front_gap_mm",
+        "shirt_hem_back_gap_mm",
+    )
+    values = {key: _number(value, key) for key in keys}
+    _require(
+        math.isclose(
+            values["waistband_bottom_z_mm"],
+            values["skirt_top_z_mm"],
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        ),
+        "%s waistband bottom must meet the skirt top" % source,
+    )
+    _require(
+        values["waistband_top_z_mm"] > values["waistband_bottom_z_mm"],
+        "%s waistband must have positive vertical height" % source,
+    )
+    _require(
+        math.isclose(
+            values["shirt_hem_z_mm"],
+            values["waistband_top_z_mm"],
+            rel_tol=0.0,
+            abs_tol=1e-6,
+        ),
+        "%s shirt hem must meet the waistband top, not overlap the flared skirt body" % source,
+    )
+    for side in ("front", "back"):
+        _require(
+            values["shirt_hem_%s_gap_mm" % side] >= clearance_mm - 1e-6,
+            "%s shirt hem %s gap is below the requested inter-garment clearance"
+            % (source, side),
+        )
+    return values
+
+
 def _validate_scene_map(
     scene_map: JsonValue,
     piece_ids: list[JsonValue],
     group_assignments: list[JsonValue],
     clearance_mm: float,
     body_clearance_by_group: dict[str, float],
+    vertical_layer_interfaces: dict[str, float],
 ) -> dict[str, int]:
     """Validate exact CAD geometry, world transforms, landmarks and semantic seam links."""
     _require(isinstance(scene_map, dict), "CAD scene map is missing")
@@ -133,6 +181,15 @@ def _validate_scene_map(
     _require(
         scene_body_clearances == body_clearance_by_group,
         "scene map body clearances disagree with the persisted outfit configuration",
+    )
+    scene_vertical_interfaces = _validated_vertical_layer_interfaces(
+        scene_map.get("vertical_layer_interfaces"),
+        clearance_mm,
+        "scene map",
+    )
+    _require(
+        scene_vertical_interfaces == vertical_layer_interfaces,
+        "scene map vertical layer interfaces disagree with the persisted outfit configuration",
     )
     _require(isinstance(coordinate_system, dict), "scene map coordinate system is missing")
     _require(coordinate_system.get("units") == "mm", "scene map must use millimetre coordinates")
@@ -290,6 +347,71 @@ def _validate_scene_map(
         set(pieces_by_id) == {str(value) for value in piece_ids},
         "scene map piece identities do not match outfit inventory",
     )
+    shirt_panels = [
+        piece for piece in pieces_by_id.values() if piece.get("garment_group") == "shirt"
+    ]
+    skirt_panels = [
+        piece
+        for piece in pieces_by_id.values()
+        if piece.get("garment_group") == "skirt"
+        and str(piece.get("name", "")).lower().startswith("skirt ")
+    ]
+    waistband_panels = [
+        piece
+        for piece in pieces_by_id.values()
+        if piece.get("garment_group") == "skirt"
+        and str(piece.get("name", "")).lower().startswith("waistband ")
+    ]
+    _require(
+        len(shirt_panels) == 2 and len(skirt_panels) == 4 and len(waistband_panels) == 4,
+        "scene map must distinguish two shirt, four skirt and four waistband panels",
+    )
+    for panel in shirt_panels:
+        bounds = panel.get("world_bounds_mm")
+        _require(isinstance(bounds, dict), "shirt world bounds are missing")
+        minimum = _finite_vector(bounds.get("min"), "shirt world minimum", 3)
+        _require(
+            math.isclose(
+                minimum[2],
+                vertical_layer_interfaces["shirt_hem_z_mm"],
+                rel_tol=0.0,
+                abs_tol=1e-5,
+            ),
+            "shirt panel world geometry does not terminate at the declared waistband top",
+        )
+    for panel in waistband_panels:
+        bounds = panel.get("world_bounds_mm")
+        _require(isinstance(bounds, dict), "waistband world bounds are missing")
+        minimum = _finite_vector(bounds.get("min"), "waistband world minimum", 3)
+        maximum = _finite_vector(bounds.get("max"), "waistband world maximum", 3)
+        _require(
+            math.isclose(
+                minimum[2],
+                vertical_layer_interfaces["waistband_bottom_z_mm"],
+                rel_tol=0.0,
+                abs_tol=1e-5,
+            )
+            and math.isclose(
+                maximum[2],
+                vertical_layer_interfaces["waistband_top_z_mm"],
+                rel_tol=0.0,
+                abs_tol=1e-5,
+            ),
+            "waistband panel world geometry disagrees with its declared vertical interface",
+        )
+    for panel in skirt_panels:
+        bounds = panel.get("world_bounds_mm")
+        _require(isinstance(bounds, dict), "skirt world bounds are missing")
+        maximum = _finite_vector(bounds.get("max"), "skirt world maximum", 3)
+        _require(
+            math.isclose(
+                maximum[2],
+                vertical_layer_interfaces["skirt_top_z_mm"],
+                rel_tol=0.0,
+                abs_tol=1e-5,
+            ),
+            "skirt panel world geometry disagrees with its declared top edge",
+        )
 
     _require(
         isinstance(seam_records, list) and len(seam_records) == EXPECTED_SEAMS,
@@ -466,6 +588,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         clearance,
         "manifest outfit",
     )
+    vertical_layer_interfaces = _validated_vertical_layer_interfaces(
+        outfit.get("vertical_layer_interfaces"),
+        clearance,
+        "manifest outfit",
+    )
     support_pins = outfit.get("support_pins")
     _require(isinstance(support_pins, dict), "shirt torso support-pin record is missing")
     _require(
@@ -636,6 +763,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         group_assignments,
         clearance,
         body_clearance_by_group,
+        vertical_layer_interfaces,
     )
 
     checkpoint_map: dict[int, Mapping[str, JsonValue]] = {}
