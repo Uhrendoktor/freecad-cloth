@@ -4,6 +4,7 @@
 import pytest
 
 from tests.support.layered_outfit_support import (
+    boundary_bounds_mm,
     outer_shell_front_back_targets,
     panel_depth_profile_placement_y,
     sample_local_torso_depth,
@@ -56,6 +57,33 @@ def test_local_torso_depth_rejects_insufficient_and_degenerate_bands() -> None:
             half_height_mm=10.0,
             minimum_samples=2,
         )
+
+
+def test_semantic_hem_bounds_ignore_lower_non_hem_panel_vertices() -> None:
+    """A side/seam vertex must not be misreported as the authored hem's drift."""
+    positions = (
+        (-100.0, -90.0, 980.0),
+        (0.0, -90.0, 982.0),
+        (100.0, -90.0, 980.0),
+        (150.0, -85.0, 869.0),
+    )
+
+    minimum, maximum = boundary_bounds_mm(positions, (0, 1, 2))
+
+    assert minimum == (-100.0, -90.0, 980.0)
+    assert maximum == (100.0, -90.0, 982.0)
+    assert min(point[2] for point in positions) == 869.0
+
+
+def test_boundary_bounds_reject_invalid_indices_and_duplicate_samples() -> None:
+    """Semantic boundary telemetry requires an exact, non-empty particle chain."""
+    positions = ((0.0, 0.0, 980.0), (1.0, 0.0, 980.0))
+    with pytest.raises(ValueError, match="must not be empty"):
+        boundary_bounds_mm(positions, ())
+    with pytest.raises(ValueError, match="duplicate indices"):
+        boundary_bounds_mm(positions, (0, 0))
+    with pytest.raises(ValueError, match="invalid particle index"):
+        boundary_bounds_mm(positions, (2,))
 
 
 def test_outer_shirt_hem_stays_outside_the_waistband_envelope() -> None:

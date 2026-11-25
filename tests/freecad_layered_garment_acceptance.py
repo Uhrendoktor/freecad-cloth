@@ -33,6 +33,7 @@ from support.freecad_bootstrap import prepare_repository_root
 from support.layered_outfit_support import (
     outer_shell_front_back_targets,
     panel_depth_profile_placement_y,
+    boundary_bounds_mm,
     sample_local_torso_depth,
     select_landmark_supports,
     select_top_boundary_supports,
@@ -1386,6 +1387,49 @@ def run_acceptance() -> None:
             shirt_hem_width,
         )
         shirt = {"front": shirt_front, "back": shirt_back}
+        underarm_records = []
+        for panel_side, piece in sorted(shirt.items()):
+            for arm_side, geometry_index, endpoint in (
+                ("right", 2, "FirstParameter"),
+                ("left", 6, "LastParameter"),
+            ):
+                try:
+                    curve = piece.Sketch.Geometry[geometry_index]
+                    parameter = float(getattr(curve, endpoint))
+                    local_point = curve.valueAt(parameter)
+                    world_point = piece.Placement.multVec(local_point)
+                    world = (
+                        float(world_point.x),
+                        float(world_point.y),
+                        float(world_point.z),
+                    )
+                    nearest = min(
+                        body_surface.vertices,
+                        key=lambda vertex: math.dist(
+                            world,
+                            tuple(float(value) for value in vertex),
+                        ),
+                    )
+                    nearest_point = tuple(float(value) for value in nearest)
+                    underarm_records.append(
+                        {
+                            "panel": panel_side,
+                            "arm_side": arm_side,
+                            "world_mm": world,
+                            "nearest_mannequin_point_mm": nearest_point,
+                            "nearest_surface_distance_mm": math.dist(world, nearest_point),
+                            "drop_below_shoulder_mm": shoulder_z - world[2],
+                        }
+                    )
+                except (AttributeError, IndexError, TypeError, ValueError, RuntimeError) as exc:
+                    underarm_records.append(
+                        {
+                            "panel": panel_side,
+                            "arm_side": arm_side,
+                            "diagnostic_error": str(exc),
+                        }
+                    )
+        _log("shirt-armhole-world-diagnostics=" + json.dumps(underarm_records, sort_keys=True))
         shirt_seams = [
             _add_seam(
                 doc,
@@ -1608,6 +1652,11 @@ def run_acceptance() -> None:
             if len(chain) < 3:
                 raise RuntimeError("shirt hem boundary has too few solver particles: " + panel_name)
             shirt_hem_support_chains["shirt-%s-hem" % side] = chain
+        shirt_hem_boundary_indices = tuple(
+            sorted({index for chain in shirt_hem_support_chains.values() for index in chain})
+        )
+        if len(shirt_hem_boundary_indices) < 6:
+            raise RuntimeError("authored shirt hem boundaries have too few unique particles")
 
         waistband_top_chains: dict[str, tuple[int, ...]] = {}
         waistband_targets_by_chain: dict[str, tuple[float, float, float]] = {}
@@ -2123,6 +2172,12 @@ def run_acceptance() -> None:
                 for axis in range(3)
             )
             shirt_vertical_span_mm = shirt_bounds_max[2] - shirt_bounds_min[2]
+            hem_bounds_min, hem_bounds_max = boundary_bounds_mm(
+                current_positions,
+                shirt_hem_boundary_indices,
+            )
+            hem_boundary_drift_mm = max(0.0, shirt_bottom_z - hem_bounds_min[2])
+            global_bounds_hem_drop_mm = max(0.0, shirt_bottom_z - shirt_bounds_min[2])
             shirt_fit_metrics = {
                 "bounds_min_mm": list(shirt_bounds_min),
                 "bounds_max_mm": list(shirt_bounds_max),
@@ -2130,10 +2185,26 @@ def run_acceptance() -> None:
                 "vertical_span_ratio": shirt_vertical_span_mm / shirt_garment_height,
                 "top_above_shoulder_mm": shirt_bounds_max[2] - shoulder_z,
                 "top_drop_mm": max(0.0, shoulder_z - shirt_bounds_max[2]),
-                "bottom_above_hip_mm": shirt_bounds_min[2] - hip_z,
-                "hem_drift_mm": max(0.0, shirt_bottom_z - shirt_bounds_min[2]),
+                "bottom_above_hip_mm": hem_bounds_min[2] - hip_z,
+                "hem_drift_mm": hem_boundary_drift_mm,
+                "hem_boundary_bounds_min_mm": list(hem_bounds_min),
+                "hem_boundary_bounds_max_mm": list(hem_bounds_max),
+                "hem_boundary_particle_count": len(shirt_hem_boundary_indices),
+                "global_bounds_hem_drop_mm": global_bounds_hem_drop_mm,
+                "global_bounds_min_z_mm": shirt_bounds_min[2],
                 "particle_count": len(shirt_current_positions),
             }
+            _log(
+                "shirt-hem-boundary-checkpoint=%d min_mm=%s max_mm=%s drift_mm=%.4f "
+                "global_bounds_drop_mm=%.4f"
+                % (
+                    step,
+                    list(hem_bounds_min),
+                    list(hem_bounds_max),
+                    hem_boundary_drift_mm,
+                    global_bounds_hem_drop_mm,
+                )
+            )
             _log(
                 "shirt-fit-checkpoint=%d %s" % (step, json.dumps(shirt_fit_metrics, sort_keys=True))
             )
@@ -2306,38 +2377,38 @@ def run_acceptance() -> None:
                         step,
                     )
                 )
+            panel_objects, panel_group_by_name = _apply_garment_group_colors(
+                scene,
+                base,
+                garment_group_by_piece,
+            )
             checkpoint_images = []
             if step == CHECKPOINTS[-1]:
-                panel_objects, panel_group_by_name = _apply_garment_group_colors(
-                    scene,
-                    base,
-                    garment_group_by_piece,
-                )
                 checkpoint_images = _capture_six_views(
                     view,
                     OUTPUT / "final-six-view",
                     int(step),
                 )
-                checkpoint_images.extend(
-                    _capture_garment_group_views(
-                        view,
-                        panel_objects,
-                        panel_group_by_name,
-                        OUTPUT / "final-group-view",
-                        int(step),
-                    )
-                )
-                images.extend(checkpoint_images)
             else:
-                checkpoint_images = [
+                if step == 15:
+                    checkpoint_images.extend(
+                        _capture_garment_group_views(
+                            view,
+                            panel_objects,
+                            panel_group_by_name,
+                            OUTPUT / "final-group-view",
+                            int(step),
+                        )
+                    )
+                checkpoint_images.append(
                     _save_png(
                         view,
                         OUTPUT / ("step-%03d-axonometric.png" % step),
                         view.viewAxonometric,
                         "layered outfit motion at step %d" % step,
                     )
-                ]
-                images.extend(checkpoint_images)
+                )
+            images.extend(checkpoint_images)
             checkpoint = {
                 "step": int(step),
                 "elapsed_ms": round(elapsed_ms, 3),

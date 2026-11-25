@@ -38,11 +38,11 @@ def _valid_artifact(root: Path) -> Path:
             for side in ("front", "rear", "right", "left", "top", "bottom")
         ),
         *(
-            ("final-group-view/step-060-shirt-only-%s.png" % side, "shirt-only-" + side)
+            ("final-group-view/step-015-shirt-only-%s.png" % side, "shirt-only-" + side)
             for side in ("front", "rear", "right")
         ),
         *(
-            ("final-group-view/step-060-skirt-only-%s.png" % side, "skirt-only-" + side)
+            ("final-group-view/step-015-skirt-only-%s.png" % side, "skirt-only-" + side)
             for side in ("front", "rear", "right")
         ),
     )

@@ -218,6 +218,7 @@ def main() -> int:
         "-p",
         "tools.ci.pytest_collection_contract",
         "-q",
+        "-x",
         *tests,
     ]
     sys.stdout.write(f"running-pytest-group={args.group} tests={len(tests)}\n")

@@ -65,6 +65,40 @@ def sample_local_torso_depth(
     return front_y, back_y, len(depths)
 
 
+def boundary_bounds_mm(
+    positions: Sequence[Sequence[float]],
+    particle_indices: Sequence[int],
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    """Measure the XYZ bounds of an authored boundary particle chain only.
+
+    Args:
+        positions: Current global solver-particle coordinates in millimetres.
+        particle_indices: Unique global particle indices belonging to one semantic edge.
+
+    Returns:
+        Minimum and maximum XYZ coordinates for the selected boundary chain.
+
+    Raises:
+        ValueError: If the chain is empty, indices are invalid, or points are non-finite.
+    """
+    indices = tuple(particle_indices)
+    if not indices:
+        raise ValueError("semantic boundary particle chain must not be empty")
+    if len(indices) != len(set(indices)):
+        raise ValueError("semantic boundary particle chain contains duplicate indices")
+    selected_points = []
+    for index in indices:
+        if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(positions):
+            raise ValueError("semantic boundary contains an invalid particle index")
+        point = tuple(float(value) for value in positions[index])
+        if len(point) != 3 or not all(isfinite(value) for value in point):
+            raise ValueError("semantic boundary particle coordinates must be finite XYZ")
+        selected_points.append(point)
+    minimum = tuple(min(point[axis] for point in selected_points) for axis in range(3))
+    maximum = tuple(max(point[axis] for point in selected_points) for axis in range(3))
+    return minimum, maximum
+
+
 def outer_shell_front_back_targets(
     inner_front_y_mm: float,
     inner_back_y_mm: float,
