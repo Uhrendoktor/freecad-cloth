@@ -448,9 +448,6 @@ def test_validator_rejects_missing_shirt_hem_anchors(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="ten distributed native hem support records"):
         validate_manifest(manifest_path)
 
-
-
-
 def test_validator_rejects_missing_shirt_shoulder_anchors(tmp_path: Path) -> None:
     """All four shoulder-side panel anchors must be explicitly persisted."""
     manifest_path = _valid_artifact(tmp_path)
@@ -477,10 +474,6 @@ def test_validator_rejects_invalid_armhole_world_geometry(tmp_path: Path) -> Non
     with pytest.raises(ValueError, match="shirt armhole endpoint world position"):
         validate_manifest(manifest_path)
 
-
-
-
-
 def test_validator_rejects_underarm_surface_distance_mismatch(tmp_path: Path) -> None:
     """The reported nearest-body distance must match the saved world-space points."""
     manifest_path = _valid_artifact(tmp_path)
@@ -492,7 +485,6 @@ def test_validator_rejects_underarm_surface_distance_mismatch(tmp_path: Path) ->
     with pytest.raises(ValueError, match="nearest-surface distance disagrees"):
         validate_manifest(manifest_path)
 
-
 def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> None:
     """The reported underarm drop must be derived from saved shoulder and edge positions."""
     manifest_path = _valid_artifact(tmp_path)
@@ -503,7 +495,6 @@ def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="shoulder-relative drop disagrees"):
         validate_manifest(manifest_path)
-
 
 def test_validator_rejects_armhole_below_the_underarm_height_band(tmp_path: Path) -> None:
     """An armhole opening must not sit excessively below the mannequin shoulder line."""
@@ -518,7 +509,6 @@ def test_validator_rejects_armhole_below_the_underarm_height_band(tmp_path: Path
 
     with pytest.raises(ValueError, match="expected shoulder/underarm height band"):
         validate_manifest(manifest_path)
-
 
 def test_validator_rejects_stationary_skirt_panel(tmp_path: Path) -> None:
     """Every skirt body panel must have measurable particle motion at the final checkpoint."""
@@ -624,7 +614,12 @@ def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile
     assert "shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM" in source
     assert "shirt_panel_width = max(420.0, shoulder_width + 40.0)" in source
     assert "shirt_hem_width = max(480.0, shirt_panel_width + 10.0)" in source
+    assert "CHECKPOINTS = (0, 5, 15, 60)" in source
+    assert "SHIRT_HEM_SUPPORTS_PER_PANEL = 5" in source
+    assert "samples_per_chain=SHIRT_HEM_SUPPORTS_PER_PANEL" in source
+    assert "SHIRT_SHOULDER_SUPPORT_ANCHOR_ROLE" in source
     assert 'evaluator = getattr(curve, "valueAt", None)' in source
+    assert 'evaluator = getattr(curve, "value", None)' in source
 
 
 def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:
