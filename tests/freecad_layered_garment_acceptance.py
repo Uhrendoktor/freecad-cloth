@@ -31,9 +31,9 @@ if str(TESTS_DIR) not in sys.path:
 
 from support.freecad_bootstrap import prepare_repository_root
 from support.layered_outfit_support import (
+    boundary_bounds_mm,
     outer_shell_front_back_targets,
     panel_depth_profile_placement_y,
-    boundary_bounds_mm,
     sample_local_torso_depth,
     select_landmark_supports,
     select_top_boundary_supports,
@@ -987,6 +987,25 @@ def _capture_six_views(
         path = directory / ("step-%03d-%s.png" % (checkpoint, name))
         records.append(_save_png(view, path, action, name))
     return records
+
+
+def _vertical_layer_interface_record(
+    skirt_top_z: float,
+    waistband_bottom_z: float,
+    waistband_top_z: float,
+    shirt_hem_z: float,
+    shirt_hem_front_gap: float,
+    shirt_hem_back_gap: float,
+) -> JsonObject:
+    """Build the shared persisted vertical interface record for both manifest views."""
+    return {
+        "skirt_top_z_mm": float(skirt_top_z),
+        "waistband_bottom_z_mm": float(waistband_bottom_z),
+        "waistband_top_z_mm": float(waistband_top_z),
+        "shirt_hem_z_mm": float(shirt_hem_z),
+        "shirt_hem_front_gap_mm": float(shirt_hem_front_gap),
+        "shirt_hem_back_gap_mm": float(shirt_hem_back_gap),
+    }
 
 
 def run_acceptance() -> None:
@@ -2715,14 +2734,14 @@ def run_acceptance() -> None:
                     "shirt": [0.10, 0.34, 0.78],
                     "skirt": [0.88, 0.34, 0.08],
                 },
-                "vertical_layer_interfaces": {
-                    "skirt_top_z_mm": float(skirt_top_z),
-                    "waistband_bottom_z_mm": float(waistband_bottom_z),
-                    "waistband_top_z_mm": float(waistband_top_z),
-                    "shirt_hem_z_mm": float(shirt_bottom_z),
-                    "shirt_hem_front_gap_mm": float(shirt_waistband_front_gap_mm),
-                    "shirt_hem_back_gap_mm": float(shirt_waistband_back_gap_mm),
-                },
+                "vertical_layer_interfaces": _vertical_layer_interface_record(
+                    skirt_top_z,
+                    waistband_bottom_z,
+                    waistband_top_z,
+                    shirt_bottom_z,
+                    shirt_waistband_front_gap_mm,
+                    shirt_waistband_back_gap_mm,
+                ),
                 "particle_distance_mm": float(scene.ParticleDistance),
                 "support_pins": {
                     "mode": str(scene.PinMode),
@@ -2760,14 +2779,14 @@ def run_acceptance() -> None:
                     "shirt": [0.10, 0.34, 0.78],
                     "skirt": [0.88, 0.34, 0.08],
                 },
-                "vertical_layer_interfaces": {
-                    "skirt_top_z_mm": float(skirt_top_z),
-                    "waistband_bottom_z_mm": float(waistband_bottom_z),
-                    "waistband_top_z_mm": float(waistband_top_z),
-                    "shirt_hem_z_mm": float(shirt_bottom_z),
-                    "shirt_hem_front_gap_mm": float(shirt_waistband_front_gap_mm),
-                    "shirt_hem_back_gap_mm": float(shirt_waistband_back_gap_mm),
-                },
+                "vertical_layer_interfaces": _vertical_layer_interface_record(
+                    skirt_top_z,
+                    waistband_bottom_z,
+                    waistband_top_z,
+                    shirt_bottom_z,
+                    shirt_waistband_front_gap_mm,
+                    shirt_waistband_back_gap_mm,
+                ),
                 "pieces": piece_scene_map,
                 "seams": checkpoints[-1]["seams"],
                 "camera_views": [
