@@ -1461,7 +1461,9 @@ def run_acceptance() -> None:
         if len(underarm_records) != 4 or any(
             "diagnostic_error" in record for record in underarm_records
         ):
-            raise RuntimeError("all four native shirt armhole endpoints must resolve in world space")
+            raise RuntimeError(
+                "all four native shirt armhole endpoints must resolve in world space"
+            )
         shirt_seams = [
             _add_seam(
                 doc,
@@ -1674,9 +1676,7 @@ def run_acceptance() -> None:
 
         shirt_shoulder_support_chains: dict[str, tuple[int, ...]] = {}
         shirt_shoulder_support_targets_by_chain: dict[str, tuple[float, float, float]] = {}
-        shirt_shoulder_support_target_z = (
-            shoulder_z - SHIRT_SHOULDER_SUPPORT_BELOW_SHOULDER_MM
-        )
+        shirt_shoulder_support_target_z = shoulder_z - SHIRT_SHOULDER_SUPPORT_BELOW_SHOULDER_MM
         for panel_side in ("front", "back"):
             panel_name = panel_name_by_piece.get(str(shirt[panel_side].Name))
             if panel_name is None:
@@ -1694,9 +1694,7 @@ def run_acceptance() -> None:
                     for index in panel_particles
                     if abs(float(initial_positions[index][0]) - target_x)
                     <= MAXIMUM_SHIRT_SHOULDER_SUPPORT_X_OFFSET_MM
-                    and abs(
-                        float(initial_positions[index][2]) - shirt_shoulder_support_target_z
-                    )
+                    and abs(float(initial_positions[index][2]) - shirt_shoulder_support_target_z)
                     <= MAXIMUM_SHIRT_SHOULDER_SUPPORT_HEIGHT_OFFSET_MM
                 )
                 if not chain:

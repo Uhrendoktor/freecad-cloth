@@ -224,6 +224,9 @@ def _valid_artifact(root: Path) -> Path:
         for panel, y in (("front", -90.0), ("back", 90.0))
         for side, x in (("left", -170.0), ("right", 170.0))
     ]
+    shared_outfit_scene_fields = {
+        **shared_outfit_scene_fields,
+    }
     scene_map = {
         "coordinate_system": {
             "units": "mm",
@@ -316,20 +319,7 @@ def _valid_artifact(root: Path) -> Path:
             "piece_ids": piece_ids,
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
-            "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
-            "shirt_armhole_endpoints": underarm_endpoints,
-            "garment_group_colors": {
-                "shirt": [0.10, 0.34, 0.78],
-                "skirt": [0.88, 0.34, 0.08],
-            },
-            "vertical_layer_interfaces": {
-                "skirt_top_z_mm": 10.0,
-                "waistband_bottom_z_mm": 10.0,
-                "waistband_top_z_mm": 110.0,
-                "shirt_hem_z_mm": 110.0,
-                "shirt_hem_front_gap_mm": 8.0,
-                "shirt_hem_back_gap_mm": 8.0,
-            },
+            **shared_outfit_scene_fields,
             "particle_distance_mm": 24.0,
             "support_pins": {
                 "mode": "Explicit",
@@ -448,15 +438,16 @@ def test_validator_rejects_missing_shirt_hem_anchors(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="ten distributed native hem support records"):
         validate_manifest(manifest_path)
 
+
 def test_validator_rejects_missing_shirt_shoulder_anchors(tmp_path: Path) -> None:
     """All four shoulder-side panel anchors must be explicitly persisted."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_shoulder_support_pins"]["particle_indices"] = [2, 3]
     manifest["outfit"]["shirt_shoulder_support_pins"]["count"] = 2
-    manifest["outfit"]["shirt_shoulder_supports"] = manifest["outfit"][
-        "shirt_shoulder_supports"
-    ][:2]
+    manifest["outfit"]["shirt_shoulder_supports"] = manifest["outfit"]["shirt_shoulder_supports"][
+        :2
+    ]
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="four unique particle indices"):
@@ -474,6 +465,7 @@ def test_validator_rejects_invalid_armhole_world_geometry(tmp_path: Path) -> Non
     with pytest.raises(ValueError, match="shirt armhole endpoint world position"):
         validate_manifest(manifest_path)
 
+
 def test_validator_rejects_underarm_surface_distance_mismatch(tmp_path: Path) -> None:
     """The reported nearest-body distance must match the saved world-space points."""
     manifest_path = _valid_artifact(tmp_path)
@@ -485,6 +477,7 @@ def test_validator_rejects_underarm_surface_distance_mismatch(tmp_path: Path) ->
     with pytest.raises(ValueError, match="nearest-surface distance disagrees"):
         validate_manifest(manifest_path)
 
+
 def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> None:
     """The reported underarm drop must be derived from saved shoulder and edge positions."""
     manifest_path = _valid_artifact(tmp_path)
@@ -495,6 +488,7 @@ def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> No
 
     with pytest.raises(ValueError, match="shoulder-relative drop disagrees"):
         validate_manifest(manifest_path)
+
 
 def test_validator_rejects_armhole_below_the_underarm_height_band(tmp_path: Path) -> None:
     """An armhole opening must not sit excessively below the mannequin shoulder line."""
@@ -509,6 +503,7 @@ def test_validator_rejects_armhole_below_the_underarm_height_band(tmp_path: Path
 
     with pytest.raises(ValueError, match="expected shoulder/underarm height band"):
         validate_manifest(manifest_path)
+
 
 def test_validator_rejects_stationary_skirt_panel(tmp_path: Path) -> None:
     """Every skirt body panel must have measurable particle motion at the final checkpoint."""
