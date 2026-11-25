@@ -933,7 +933,7 @@ def _apply_garment_group_colors(
         panel.ViewObject.Transparency = 0
         panel.ViewObject.DisplayMode = "Shaded"
         panel.ViewObject.Visibility = True
-    return panels
+    return panels, panel_groups
 
 
 def _capture_garment_group_views(
@@ -946,9 +946,7 @@ def _capture_garment_group_views(
     """Capture isolated front, rear and right views for both garment groups."""
     view.setAnimationEnabled(False)
     actions = (("front", view.viewRear), ("rear", view.viewFront), ("right", view.viewRight))
-    original_visibility = {
-        str(panel.Name): bool(panel.ViewObject.Visibility) for panel in panels
-    }
+    original_visibility = {str(panel.Name): bool(panel.ViewObject.Visibility) for panel in panels}
     records = []
     try:
         for group_id in ("shirt", "skirt"):
@@ -956,12 +954,8 @@ def _capture_garment_group_views(
                 panel.ViewObject.Visibility = panel_group_by_name[str(panel.Name)] == group_id
             _events()
             for view_name, action in actions:
-                path = directory / (
-                    "step-%03d-%s-only-%s.png" % (checkpoint, group_id, view_name)
-                )
-                records.append(
-                    _save_png(view, path, action, "%s-only-%s" % (group_id, view_name))
-                )
+                path = directory / ("step-%03d-%s-only-%s.png" % (checkpoint, group_id, view_name))
+                records.append(_save_png(view, path, action, "%s-only-%s" % (group_id, view_name)))
     finally:
         for panel in panels:
             panel.ViewObject.Visibility = original_visibility[str(panel.Name)]
@@ -1940,7 +1934,9 @@ def run_acceptance() -> None:
         for panel_name, piece_name in sorted(base.panel_piece_names.items()):
             piece = piece_by_name.get(str(piece_name))
             if piece is None:
-                raise RuntimeError("solver panel references an unknown pattern piece: " + str(piece_name))
+                raise RuntimeError(
+                    "solver panel references an unknown pattern piece: " + str(piece_name)
+                )
             group_id = garment_group_by_piece[str(piece.PieceId)]
             role = (
                 "shirt"
@@ -2071,17 +2067,11 @@ def run_acceptance() -> None:
         scene.Steps = 0
         doc.recompute()
         base = scene.Proxy._base_or_restore()
-        panel_objects = _apply_garment_group_colors(scene, base, garment_group_by_piece)
-        panel_group_by_name = {
-            str(panel.Name): garment_group_by_piece[
-                str(next(
-                    piece.PieceId
-                    for piece in scene.ClothPieces
-                    if str(piece.Name) == base.panel_piece_names[str(panel.Name)]
-                ))
-            ]
-            for panel in panel_objects
-        }
+        panel_objects, panel_group_by_name = _apply_garment_group_colors(
+            scene,
+            base,
+            garment_group_by_piece,
+        )
         view = Gui.activeDocument().activeView()
         images = []
         motion = _save_png(
@@ -2319,17 +2309,11 @@ def run_acceptance() -> None:
                 )
             checkpoint_images = []
             if step == CHECKPOINTS[-1]:
-                panel_objects = _apply_garment_group_colors(scene, base, garment_group_by_piece)
-                panel_group_by_name = {
-                    str(panel.Name): garment_group_by_piece[
-                        str(next(
-                            piece.PieceId
-                            for piece in scene.ClothPieces
-                            if str(piece.Name) == base.panel_piece_names[str(panel.Name)]
-                        ))
-                    ]
-                    for panel in panel_objects
-                }
+                panel_objects, panel_group_by_name = _apply_garment_group_colors(
+                    scene,
+                    base,
+                    garment_group_by_piece,
+                )
                 checkpoint_images = _capture_six_views(
                     view,
                     OUTPUT / "final-six-view",

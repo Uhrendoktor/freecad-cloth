@@ -406,7 +406,8 @@ def test_validator_rejects_stationary_skirt_panel(tmp_path: Path) -> None:
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     panel = next(
-        record for record in manifest["checkpoints"][-1]["panel_motion"]
+        record
+        for record in manifest["checkpoints"][-1]["panel_motion"]
         if record["role"] == "skirt_body"
     )
     panel["maximum_displacement_mm"] = 0.0

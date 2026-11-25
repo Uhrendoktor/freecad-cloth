@@ -772,8 +772,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         position = _finite_vector(support.get("position_mm"), "shirt hem support position", 3)
         deviation = math.dist(target, position)
         _require(
-            abs(_number(support, "target_deviation_mm") - deviation) <= 1e-3
-            and deviation <= 1e-3,
+            abs(_number(support, "target_deviation_mm") - deviation) <= 1e-3 and deviation <= 1e-3,
             "shirt hem support is detached from its native boundary particle",
         )
         stand_off = _number(support, "clearance_mm")
@@ -1032,7 +1031,11 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             )
             role = record.get("role")
             expected_group = (
-                "shirt" if role == "shirt" else "skirt" if role in {"skirt_body", "waistband"} else ""
+                "shirt"
+                if role == "shirt"
+                else "skirt"
+                if role in {"skirt_body", "waistband"}
+                else ""
             )
             _require(
                 record.get("garment_group") == expected_group,
