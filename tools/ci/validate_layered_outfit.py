@@ -612,32 +612,74 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         isinstance(armhole_endpoints, list) and len(armhole_endpoints) == 4,
         "shirt must expose all four native world-space armhole endpoints",
     )
+    scene_map_evidence = manifest.get("scene_map")
+    _require(isinstance(scene_map_evidence, dict), "scene map is missing")
+    avatar_evidence = scene_map_evidence.get("avatar")
+    _require(isinstance(avatar_evidence, dict), "scene map avatar landmarks are missing")
+    landmark_records = avatar_evidence.get("landmarks")
+    _require(isinstance(landmark_records, list), "scene map avatar landmark inventory is missing")
+    shoulder_landmarks: dict[str, list[float]] = {}
+    for landmark in landmark_records:
+        _require(isinstance(landmark, dict), "avatar landmark record must be an object")
+        landmark_id = landmark.get("id")
+        if landmark_id in {"shoulder_left", "shoulder_right"}:
+            _require(
+                isinstance(landmark_id, str) and landmark_id not in shoulder_landmarks,
+                "avatar shoulder landmark identities must be unique",
+            )
+            shoulder_landmarks[landmark_id] = _finite_vector(
+                landmark.get("world_mm"),
+                "avatar shoulder landmark world position",
+                3,
+            )
+    _require(
+        set(shoulder_landmarks) == {"shoulder_left", "shoulder_right"},
+        "scene map must expose both world-space shoulder landmarks",
+    )
+    shoulder_z = sum(point[2] for point in shoulder_landmarks.values()) / 2.0
     armhole_identities: set[tuple[str, str]] = set()
     for endpoint in armhole_endpoints:
         _require(isinstance(endpoint, dict), "shirt armhole endpoint record must be an object")
-        identity = (endpoint.get("panel"), endpoint.get("arm_side"))
+        panel_id = endpoint.get("panel")
+        arm_side = endpoint.get("arm_side")
         _require(
-            identity[0] in {"front", "back"}
-            and identity[1] in {"left", "right"}
-            and identity not in armhole_identities,
+            isinstance(panel_id, str)
+            and isinstance(arm_side, str)
+            and panel_id in {"front", "back"}
+            and arm_side in {"left", "right"},
+            "shirt armhole endpoint must identify a front/back panel and left/right side",
+        )
+        identity = (panel_id, arm_side)
+        _require(
+            identity not in armhole_identities,
             "shirt armhole endpoint identities must cover front/back and left/right once",
         )
         armhole_identities.add(identity)
-        _finite_vector(endpoint.get("world_mm"), "shirt armhole endpoint world position", 3)
-        _finite_vector(
+        world_point = _finite_vector(
+            endpoint.get("world_mm"), "shirt armhole endpoint world position", 3
+        )
+        nearest_point = _finite_vector(
             endpoint.get("nearest_mannequin_point_mm"),
             "shirt armhole nearest mannequin point",
             3,
         )
+        measured_surface_distance = math.dist(world_point, nearest_point)
+        recorded_surface_distance = _number(endpoint, "nearest_surface_distance_mm")
         _require(
-            _number(endpoint, "nearest_surface_distance_mm") > 0.0,
-            "shirt armhole endpoint must remain outside the mannequin surface",
+            measured_surface_distance > 0.0
+            and abs(recorded_surface_distance - measured_surface_distance) <= 1e-3,
+            "shirt armhole nearest-surface distance disagrees with its world coordinates",
+        )
+        measured_drop = shoulder_z - world_point[2]
+        _require(
+            abs(_number(endpoint, "drop_below_shoulder_mm") - measured_drop) <= 1e-3,
+            "shirt armhole shoulder-relative drop disagrees with its world coordinates",
         )
         _require(
-            0.0 <= _number(endpoint, "drop_below_shoulder_mm") <= 120.0,
+            0.0 <= measured_drop <= 120.0,
             "shirt armhole endpoint is outside the expected shoulder/underarm height band",
         )
-    scene_armholes = manifest.get("scene_map", {}).get("shirt_armhole_endpoints")
+    scene_armholes = scene_map_evidence.get("shirt_armhole_endpoints")
     _require(
         scene_armholes == armhole_endpoints,
         "scene map armhole positions disagree with the outfit pattern evidence",

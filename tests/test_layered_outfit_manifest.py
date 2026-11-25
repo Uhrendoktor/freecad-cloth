@@ -219,7 +219,7 @@ def _valid_artifact(root: Path) -> Path:
             "world_mm": [x, y, 130.0],
             "nearest_mannequin_point_mm": [x, y - 14.0, 130.0],
             "nearest_surface_distance_mm": 14.0,
-            "drop_below_shoulder_mm": 37.5,
+            "drop_below_shoulder_mm": 20.0,
         }
         for panel, y in (("front", -90.0), ("back", 90.0))
         for side, x in (("left", -170.0), ("right", 170.0))
@@ -475,6 +475,33 @@ def test_validator_rejects_invalid_armhole_world_geometry(tmp_path: Path) -> Non
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
     with pytest.raises(ValueError, match="shirt armhole endpoint world position"):
+        validate_manifest(manifest_path)
+
+
+
+
+
+def test_validator_rejects_underarm_surface_distance_mismatch(tmp_path: Path) -> None:
+    """The reported nearest-body distance must match the saved world-space points."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for record in (manifest["outfit"], manifest["scene_map"]):
+        record["shirt_armhole_endpoints"][0]["nearest_surface_distance_mm"] = 20.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="nearest-surface distance disagrees"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> None:
+    """The reported underarm drop must be derived from saved shoulder and edge positions."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for record in (manifest["outfit"], manifest["scene_map"]):
+        record["shirt_armhole_endpoints"][0]["drop_below_shoulder_mm"] = 50.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shoulder-relative drop disagrees"):
         validate_manifest(manifest_path)
 
 
