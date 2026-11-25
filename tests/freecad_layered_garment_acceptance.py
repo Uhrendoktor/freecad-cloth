@@ -1688,7 +1688,7 @@ def run_acceptance() -> None:
             for shoulder_side, direction in (("left", -1.0), ("right", 1.0)):
                 target_x = float(center_x) + direction * 0.42 * float(shoulder_width)
                 support_name = "shirt-%s-%s-shoulder" % (panel_side, shoulder_side)
-                target = (target_x, float(target_y), float(shirt_shoulder_support_target_z))
+                shoulder_target_position = (target_x, float(target_y), float(shirt_shoulder_support_target_z))
                 chain = tuple(
                     index
                     for index in panel_particles
@@ -1703,7 +1703,7 @@ def run_acceptance() -> None:
                         % (panel_side, shoulder_side)
                     )
                 shirt_shoulder_support_chains[support_name] = chain
-                shirt_shoulder_support_targets_by_chain[support_name] = target
+                shirt_shoulder_support_targets_by_chain[support_name] = shoulder_target_position
 
         shirt_hem_support_chains: dict[str, tuple[int, ...]] = {}
         for side in ("front", "back"):
