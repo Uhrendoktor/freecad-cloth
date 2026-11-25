@@ -885,6 +885,25 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     scene_seam_ids = {str(seam["seam_id"]) for seam in scene_map["seams"] if isinstance(seam, dict)}
     _require(len(scene_seam_ids) == EXPECTED_SEAMS, "scene map has duplicate seam identities")
 
+    group_colors = outfit.get("garment_group_colors")
+    _require(
+        isinstance(group_colors, dict) and set(group_colors) == set(EXPECTED_GROUPS),
+        "outfit garment colour legend must define shirt and skirt",
+    )
+    normalized_colors = {
+        group_id: _finite_vector(group_colors.get(group_id), "%s garment color" % group_id, 3)
+        for group_id in sorted(EXPECTED_GROUPS)
+    }
+    _require(
+        normalized_colors["shirt"] != normalized_colors["skirt"],
+        "shirt and skirt must use contrasting display colours",
+    )
+    scene_map_colors = scene_map.get("garment_group_colors")
+    _require(
+        isinstance(scene_map_colors, dict) and scene_map_colors == group_colors,
+        "scene map garment colours disagree with the outfit display legend",
+    )
+
     contact_observed_so_far = False
     for step, checkpoint in checkpoint_map.items():
         _require(checkpoint.get("finite") is True, "non-finite solver state at step %d" % step)
@@ -1047,6 +1066,14 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         _require(
             set(panel_motion_by_piece) == set(piece_ids),
             "panel motion evidence is missing one or more pattern pieces",
+        )
+        role_counts = {
+            role: sum(record.get("role") == role for record in panel_motion_by_piece.values())
+            for role in ("shirt", "skirt_body", "waistband")
+        }
+        _require(
+            role_counts == {"shirt": 2, "skirt_body": 4, "waistband": 4},
+            "panel motion inventory must cover two shirt, four skirt and four waistband panels",
         )
         if step == EXPECTED_CHECKPOINTS[-1]:
             stationary_skirt = [

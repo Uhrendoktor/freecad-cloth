@@ -32,7 +32,7 @@ def _valid_artifact(root: Path) -> Path:
     image_inventory = (
         ("step-000-axonometric.png", "initial shaped layered outfit"),
         ("step-001-axonometric.png", "layered outfit motion at step 1"),
-        ("step-015-axonometric.png", "layered outfit motion at step 30"),
+        ("step-015-axonometric.png", "layered outfit motion at step 15"),
         *(
             ("final-six-view/step-060-%s.png" % side, side)
             for side in ("front", "rear", "right", "left", "top", "bottom")
@@ -378,13 +378,15 @@ def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile
     assert "if index == 2:" in panel
     assert "if index == 4:" in panel
     assert "if index == 6:" in panel
-    assert "0.76 * panel_width, armhole_mid_z" in panel
-    assert "0.24 * panel_width, armhole_mid_z" in panel
+    assert "0.84 * panel_width, armhole_mid_z" in panel
+    assert "0.16 * panel_width, armhole_mid_z" in panel
     assert "for index in (1, 7)" in panel
     assert 'type(geometry[index]).__name__.lower() != "linesegment"' in panel
     assert "shirt side seams must remain stable native Sketcher lines" in panel
     assert "0.741 * panel_width" not in panel
     assert "0.259 * panel_width" not in panel
+    assert "armhole_z = 0.80 * garment_height" in panel
+    assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in panel
 
 
 def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:

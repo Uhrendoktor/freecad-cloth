@@ -204,7 +204,7 @@ def _make_tunic_piece(
 
     neck_z = (1.0 - neck_drop) * garment_height
     x_offset = 0.5 * (hem_width - panel_width)
-    armhole_z = 0.76 * garment_height
+    armhole_z = 0.80 * garment_height
     shoulder_z = 0.94 * garment_height
     scoop_depth = 0.12 * garment_height
     scoop_z = neck_z - scoop_depth
@@ -212,12 +212,12 @@ def _make_tunic_piece(
     points = (
         (0.0, 0.0),
         (hem_width, 0.0),
-        (x_offset + 0.80 * panel_width, armhole_z),
+        (x_offset + 0.82 * panel_width, armhole_z),
         (x_offset + 0.94 * panel_width, shoulder_z),
         (x_offset + neck_ratio * panel_width, neck_z),
         (x_offset + (1.0 - neck_ratio) * panel_width, neck_z),
         (x_offset + 0.06 * panel_width, shoulder_z),
-        (x_offset + 0.20 * panel_width, armhole_z),
+        (x_offset + 0.18 * panel_width, armhole_z),
     )
     sketch = doc.addObject("Sketcher::SketchObject", name + "Source")
     geometry = []
@@ -226,11 +226,11 @@ def _make_tunic_piece(
         end_vector = App.Vector(end[0], end[1], 0.0)
         midpoint = None
         if index == 2:
-            midpoint = App.Vector(x_offset + 0.82 * panel_width, armhole_mid_z, 0.0)
+            midpoint = App.Vector(x_offset + 0.84 * panel_width, armhole_mid_z, 0.0)
         elif index == 4:
             midpoint = App.Vector(0.5 * (start[0] + end[0]), scoop_z, 0.0)
         elif index == 6:
-            midpoint = App.Vector(x_offset + 0.18 * panel_width, armhole_mid_z, 0.0)
+            midpoint = App.Vector(x_offset + 0.16 * panel_width, armhole_mid_z, 0.0)
         if midpoint is None:
             geometry.append(Part.LineSegment(start_vector, end_vector))
         else:
