@@ -697,7 +697,7 @@ def test_layered_outfit_acceptance_reports_manifest_fit_review_and_persistence(
     (output / "layered-outfit.FCStd").write_bytes(b"saved-freecad-document")
     manifest = {
         "schema": "freecad-cloth.layered-outfit",
-        "schema_version": 2,
+        "schema_version": 3,
         "provenance": {"commit_sha": "c" * 40},
         "outfit": {
             "piece_count": 10,
@@ -731,6 +731,7 @@ def test_layered_outfit_acceptance_reports_manifest_fit_review_and_persistence(
             "body_clearance_by_group_preserved": True,
             "support_pins_preserved": True,
             "shirt_supports_preserved_after_reload": True,
+            "shirt_hem_supports_preserved_after_reload": True,
             "waistband_support_pins_preserved": True,
             "native_backend_rebuilt": True,
             "contact_rebuilt_after_reload": True,

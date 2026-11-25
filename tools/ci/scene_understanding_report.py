@@ -1129,12 +1129,13 @@ def _layered_outfit_fit_metrics(
         return None, None
     minimum_values = cast("list[float]", minimum)
     maximum_values = cast("list[float]", maximum)
+    # _fit_assessment consumes [xmin, xmax, ymin, ymax, zmin, zmax].
     panel_bounds = [
         minimum_values[0],
-        minimum_values[1],
-        minimum_values[2],
         maximum_values[0],
+        minimum_values[1],
         maximum_values[1],
+        minimum_values[2],
         maximum_values[2],
     ]
     return (
@@ -1186,6 +1187,7 @@ def _layered_save_reload_validated(
         "body_clearance_by_group_preserved",
         "support_pins_preserved",
         "shirt_supports_preserved_after_reload",
+        "shirt_hem_supports_preserved_after_reload",
         "waistband_support_pins_preserved",
         "native_backend_rebuilt",
         "contact_rebuilt_after_reload",
