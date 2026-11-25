@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 EXPECTED_PIECES = 10
 EXPECTED_SEAMS = 16
 EXPECTED_GROUPS = frozenset({"shirt", "skirt"})
-EXPECTED_CHECKPOINTS = (1, 15, 60)
+EXPECTED_CHECKPOINTS = (5, 15, 60)
 EXPECTED_VIEWS = frozenset({"front", "rear", "right", "left", "top", "bottom"})
 EXPECTED_IMAGE_WIDTH = 960
 EXPECTED_IMAGE_HEIGHT = 720
@@ -36,6 +36,8 @@ EXPECTED_GROUP_VIEWS = frozenset(
 MAXIMUM_SHIRT_TOP_DROP_MM = 25.0
 MAXIMUM_SHIRT_HEM_DRIFT_MM = 25.0
 SHIRT_HEM_SUPPORT_ANCHOR_ROLE = "tucked-hem-stabilizer"
+SHIRT_SHOULDER_SUPPORT_ANCHOR_ROLE = "shoulder-side-stabilizer"
+MAXIMUM_SHIRT_SHOULDER_SUPPORT_TARGET_DEVIATION_MM = 55.0
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MAXIMUM_SEAM_GAP_MM = 12.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
@@ -523,7 +525,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(isinstance(manifest, dict), "layered outfit manifest root must be an object")
     _require(
         manifest.get("schema") == "freecad-cloth.layered-outfit"
-        and manifest.get("schema_version") == 3,
+        and manifest.get("schema_version") == 4,
         "unsupported layered outfit manifest schema",
     )
 
@@ -604,6 +606,41 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         outfit.get("vertical_layer_interfaces"),
         clearance,
         "manifest outfit",
+    )
+    armhole_endpoints = outfit.get("shirt_armhole_endpoints")
+    _require(
+        isinstance(armhole_endpoints, list) and len(armhole_endpoints) == 4,
+        "shirt must expose all four native world-space armhole endpoints",
+    )
+    armhole_identities: set[tuple[str, str]] = set()
+    for endpoint in armhole_endpoints:
+        _require(isinstance(endpoint, dict), "shirt armhole endpoint record must be an object")
+        identity = (endpoint.get("panel"), endpoint.get("arm_side"))
+        _require(
+            identity[0] in {"front", "back"}
+            and identity[1] in {"left", "right"}
+            and identity not in armhole_identities,
+            "shirt armhole endpoint identities must cover front/back and left/right once",
+        )
+        armhole_identities.add(identity)
+        _finite_vector(endpoint.get("world_mm"), "shirt armhole endpoint world position", 3)
+        _finite_vector(
+            endpoint.get("nearest_mannequin_point_mm"),
+            "shirt armhole nearest mannequin point",
+            3,
+        )
+        _require(
+            _number(endpoint, "nearest_surface_distance_mm") > 0.0,
+            "shirt armhole endpoint must remain outside the mannequin surface",
+        )
+        _require(
+            0.0 <= _number(endpoint, "drop_below_shoulder_mm") <= 120.0,
+            "shirt armhole endpoint is outside the expected shoulder/underarm height band",
+        )
+    scene_armholes = manifest.get("scene_map", {}).get("shirt_armhole_endpoints")
+    _require(
+        scene_armholes == armhole_endpoints,
+        "scene map armhole positions disagree with the outfit pattern evidence",
     )
     support_pins = outfit.get("support_pins")
     _require(isinstance(support_pins, dict), "shirt torso support-pin record is missing")
@@ -705,6 +742,89 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         shirt_support_particles == set(support_pin_indices),
         "shirt support geometry does not match its pinned particle inventory",
     )
+    shirt_shoulder_support_pins = outfit.get("shirt_shoulder_support_pins")
+    _require(
+        isinstance(shirt_shoulder_support_pins, dict),
+        "shirt shoulder support-pin record is missing",
+    )
+    _require(
+        shirt_shoulder_support_pins.get("mode") == "Explicit",
+        "shirt shoulder-side supports must use Explicit pin mode",
+    )
+    shirt_shoulder_pin_indices = shirt_shoulder_support_pins.get("particle_indices")
+    _require(
+        isinstance(shirt_shoulder_pin_indices, list)
+        and len(shirt_shoulder_pin_indices) == 4
+        and all(
+            isinstance(index, int) and not isinstance(index, bool) and index >= 0
+            for index in shirt_shoulder_pin_indices
+        )
+        and len(set(shirt_shoulder_pin_indices)) == 4,
+        "shirt shoulder support-pin inventory must contain four unique particle indices",
+    )
+    _require(
+        shirt_shoulder_support_pins.get("count") == len(shirt_shoulder_pin_indices),
+        "shirt shoulder support-pin count disagrees with its index inventory",
+    )
+    _require(
+        set(support_pin_indices).isdisjoint(shirt_shoulder_pin_indices),
+        "torso-centerline and shoulder-side support pins must be disjoint",
+    )
+    shirt_shoulder_supports = outfit.get("shirt_shoulder_supports")
+    _require(
+        isinstance(shirt_shoulder_supports, list) and len(shirt_shoulder_supports) == 4,
+        "shirt must expose four front/back shoulder-side support records",
+    )
+    shoulder_support_particles: set[int] = set()
+    shoulder_support_ids: set[str] = set()
+    shoulder_support_panels: set[str] = set()
+    for support in shirt_shoulder_supports:
+        _require(isinstance(support, dict), "shirt shoulder support record must be an object")
+        panel_id = support.get("panel_id")
+        support_id = support.get("support_id")
+        particle_index = support.get("particle_index")
+        _require(
+            isinstance(panel_id, str) and panel_id and panel_id not in shoulder_support_panels,
+            "shirt shoulder support panel identities must be unique",
+        )
+        _require(
+            isinstance(support_id, str) and support_id and support_id not in shoulder_support_ids,
+            "shirt shoulder support identifiers must be unique",
+        )
+        _require(
+            isinstance(particle_index, int)
+            and not isinstance(particle_index, bool)
+            and particle_index >= 0
+            and particle_index not in shoulder_support_particles,
+            "shirt shoulder support particles must be four unique indices",
+        )
+        shoulder_support_panels.add(panel_id)
+        shoulder_support_ids.add(support_id)
+        shoulder_support_particles.add(particle_index)
+        _require(
+            support.get("anchor_role") == SHIRT_SHOULDER_SUPPORT_ANCHOR_ROLE,
+            "shirt shoulder support role must identify a shoulder-side stabilizer",
+        )
+        target = _finite_vector(support.get("target_mm"), "shirt shoulder support target", 3)
+        position = _finite_vector(support.get("position_mm"), "shirt shoulder support position", 3)
+        deviation = math.dist(target, position)
+        _require(
+            abs(_number(support, "target_deviation_mm") - deviation) <= 1e-3,
+            "shirt shoulder support target deviation disagrees with its persisted coordinates",
+        )
+        _require(
+            deviation <= MAXIMUM_SHIRT_SHOULDER_SUPPORT_TARGET_DEVIATION_MM,
+            "shirt shoulder-side support is detached from its anatomical target",
+        )
+        stand_off = _number(support, "clearance_mm")
+        _require(
+            MINIMUM_BODY_CLEARANCE_MM <= stand_off <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM,
+            "shirt shoulder support stand-off is outside the anatomical support range",
+        )
+    _require(
+        shoulder_support_particles == set(shirt_shoulder_pin_indices),
+        "shirt shoulder support geometry does not match its pinned particle inventory",
+    )
     shirt_hem_support_pins = outfit.get("shirt_hem_support_pins")
     _require(
         isinstance(shirt_hem_support_pins, dict),
@@ -717,26 +837,27 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     shirt_hem_pin_indices = shirt_hem_support_pins.get("particle_indices")
     _require(
         isinstance(shirt_hem_pin_indices, list)
-        and len(shirt_hem_pin_indices) == 6
+        and len(shirt_hem_pin_indices) == 10
         and all(
             isinstance(index, int) and not isinstance(index, bool) and index >= 0
             for index in shirt_hem_pin_indices
         )
-        and len(set(shirt_hem_pin_indices)) == 6,
-        "shirt hem support-pin inventory must contain six unique particle indices",
+        and len(set(shirt_hem_pin_indices)) == 10,
+        "shirt hem support-pin inventory must contain ten unique particle indices",
     )
     _require(
         shirt_hem_support_pins.get("count") == len(shirt_hem_pin_indices),
         "shirt hem support-pin count disagrees with its index inventory",
     )
     _require(
-        set(support_pin_indices).isdisjoint(shirt_hem_pin_indices),
-        "torso and shirt hem support-pin inventories must be disjoint",
+        set(support_pin_indices).isdisjoint(shirt_hem_pin_indices)
+        and set(shirt_shoulder_pin_indices).isdisjoint(shirt_hem_pin_indices),
+        "torso, shoulder and shirt hem support-pin inventories must be disjoint",
     )
     shirt_hem_supports = outfit.get("shirt_hem_supports")
     _require(
-        isinstance(shirt_hem_supports, list) and len(shirt_hem_supports) == 6,
-        "shirt must expose six distributed native hem support records",
+        isinstance(shirt_hem_supports, list) and len(shirt_hem_supports) == 10,
+        "shirt must expose ten distributed native hem support records",
     )
     hem_support_particles: set[int] = set()
     hem_support_ids: set[str] = set()
@@ -759,7 +880,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             and not isinstance(particle_index, bool)
             and particle_index >= 0
             and particle_index not in hem_support_particles,
-            "shirt hem support particles must be six unique indices",
+            "shirt hem support particles must be ten unique indices",
         )
         hem_support_ids.add(support_id)
         hem_support_particles.add(particle_index)
@@ -785,8 +906,8 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         "shirt hem support geometry does not match its pinned particle inventory",
     )
     _require(
-        len(hem_support_counts) == 2 and set(hem_support_counts.values()) == {3},
-        "shirt hem supports must be distributed three per front/back panel",
+        len(hem_support_counts) == 2 and set(hem_support_counts.values()) == {5},
+        "shirt hem supports must be distributed five per front/back panel",
     )
     waistband_support_pins = outfit.get("waistband_support_pins")
     _require(
@@ -814,6 +935,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     )
     _require(
         set(support_pin_indices).isdisjoint(waistband_pin_indices)
+        and set(shirt_shoulder_pin_indices).isdisjoint(waistband_pin_indices)
         and set(shirt_hem_pin_indices).isdisjoint(waistband_pin_indices),
         "shirt and waistband support-pin inventories must be disjoint",
     )
@@ -853,7 +975,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         "waistband support geometry does not match its pinned particle inventory",
     )
     total_support_pin_count = (
-        len(support_pin_indices) + len(shirt_hem_pin_indices) + len(waistband_pin_indices)
+        len(support_pin_indices)
+        + len(shirt_shoulder_pin_indices)
+        + len(shirt_hem_pin_indices)
+        + len(waistband_pin_indices)
     )
     scene_map_counts = _validate_scene_map(
         manifest.get("scene_map"),
@@ -877,7 +1002,7 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         checkpoint_map[step] = raw_checkpoint
     _require(
         tuple(sorted(checkpoint_map)) == EXPECTED_CHECKPOINTS,
-        "required garment checkpoints are steps 1, 30 and 120",
+        "required garment checkpoints are steps 5, 15 and 60",
     )
 
     scene_map = manifest["scene_map"]
@@ -932,8 +1057,12 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             "checkpoint must retain both shirt torso-centerline stabilizers at step %d" % step,
         )
         _require(
+            checkpoint.get("shirt_shoulder_support_pin_count") == len(shirt_shoulder_pin_indices),
+            "checkpoint must retain all four shoulder-side shirt supports at step %d" % step,
+        )
+        _require(
             checkpoint.get("shirt_hem_support_pin_count") == len(shirt_hem_pin_indices),
-            "checkpoint must retain all six shirt hem supports at step %d" % step,
+            "checkpoint must retain all ten shirt hem supports at step %d" % step,
         )
         _require(
             checkpoint.get("waistband_support_pin_count") == len(waistband_pin_indices),
@@ -946,6 +1075,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
         _require(
             _number(checkpoint, "maximum_shirt_support_pin_drift_mm") <= 1e-6,
             "shirt support pin drift exceeds tolerance at step %d" % step,
+        )
+        _require(
+            _number(checkpoint, "maximum_shirt_shoulder_support_pin_drift_mm") <= 1e-6,
+            "shirt shoulder support pin drift exceeds tolerance at step %d" % step,
         )
         _require(
             _number(checkpoint, "maximum_shirt_hem_support_pin_drift_mm") <= 1e-6,
@@ -1182,6 +1315,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     _require(
         persistence.get("shirt_supports_preserved_after_reload") is True,
         "shirt torso-centerline supports were not preserved after save/reload",
+    )
+    _require(
+        persistence.get("shirt_shoulder_supports_preserved_after_reload") is True,
+        "shirt shoulder-side supports were not preserved after save/reload",
     )
     _require(
         persistence.get("shirt_hem_supports_preserved_after_reload") is True,
