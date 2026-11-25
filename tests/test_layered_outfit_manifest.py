@@ -505,6 +505,21 @@ def test_validator_rejects_underarm_shoulder_drop_mismatch(tmp_path: Path) -> No
         validate_manifest(manifest_path)
 
 
+def test_validator_rejects_armhole_below_the_underarm_height_band(tmp_path: Path) -> None:
+    """An armhole opening must not sit excessively below the mannequin shoulder line."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for record in (manifest["outfit"], manifest["scene_map"]):
+        endpoint = record["shirt_armhole_endpoints"][0]
+        endpoint["world_mm"][2] = 50.0
+        endpoint["nearest_mannequin_point_mm"][2] = 50.0
+        endpoint["drop_below_shoulder_mm"] = 100.0
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected shoulder/underarm height band"):
+        validate_manifest(manifest_path)
+
+
 def test_validator_rejects_stationary_skirt_panel(tmp_path: Path) -> None:
     """Every skirt body panel must have measurable particle motion at the final checkpoint."""
     manifest_path = _valid_artifact(tmp_path)

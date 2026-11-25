@@ -38,6 +38,8 @@ MAXIMUM_SHIRT_HEM_DRIFT_MM = 25.0
 SHIRT_HEM_SUPPORT_ANCHOR_ROLE = "tucked-hem-stabilizer"
 SHIRT_SHOULDER_SUPPORT_ANCHOR_ROLE = "shoulder-side-stabilizer"
 MAXIMUM_SHIRT_SHOULDER_SUPPORT_TARGET_DEVIATION_MM = 55.0
+MINIMUM_ARMHOLE_DROP_BELOW_SHOULDER_MM = 10.0
+MAXIMUM_ARMHOLE_DROP_BELOW_SHOULDER_MM = 85.0
 MAXIMUM_RESIDUAL_PENETRATION_MM = 0.5
 MAXIMUM_SEAM_GAP_MM = 12.0
 MAXIMUM_EARLY_SEAM_GAP_MM = 100.0
@@ -622,7 +624,10 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
     for landmark in landmark_records:
         _require(isinstance(landmark, dict), "avatar landmark record must be an object")
         landmark_id = landmark.get("id")
-        if landmark_id in {"shoulder_left", "shoulder_right"}:
+        if isinstance(landmark_id, str) and landmark_id in {
+            "shoulder_left",
+            "shoulder_right",
+        }:
             _require(
                 isinstance(landmark_id, str) and landmark_id not in shoulder_landmarks,
                 "avatar shoulder landmark identities must be unique",
@@ -676,7 +681,9 @@ def validate_manifest(manifest_path: Path | str, expected_commit: str | None = N
             "shirt armhole shoulder-relative drop disagrees with its world coordinates",
         )
         _require(
-            0.0 <= measured_drop <= 120.0,
+            MINIMUM_ARMHOLE_DROP_BELOW_SHOULDER_MM
+            <= measured_drop
+            <= MAXIMUM_ARMHOLE_DROP_BELOW_SHOULDER_MM,
             "shirt armhole endpoint is outside the expected shoulder/underarm height band",
         )
     scene_armholes = scene_map_evidence.get("shirt_armhole_endpoints")

@@ -2782,7 +2782,7 @@ def run_acceptance() -> None:
             != shirt_all_support_pin_indices
         ):
             raise RuntimeError(
-                "shirt torso and hem support anchors were not preserved after save/reload"
+                "shirt torso, shoulder and hem support anchors were not preserved after save/reload"
             )
         reloaded_positions = reloaded_backend.positions()
         reloaded_pin_drift = max(
