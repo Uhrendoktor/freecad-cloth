@@ -150,6 +150,25 @@ def test_support_selection_skips_interior_and_too_close_particles() -> None:
     }
 
 
+def test_support_selection_can_distribute_five_tucked_hem_anchors() -> None:
+    """A wide shirt hem needs five safe anchors per panel rather than three."""
+    chain = {"front": tuple(range(11))}
+    exterior = dict.fromkeys(range(11), True)
+    clearances = dict.fromkeys(range(11), 14.0)
+
+    selected = select_top_boundary_supports(
+        chain,
+        exterior,
+        clearances,
+        minimum_clearance_mm=5.0,
+        samples_per_chain=5,
+    )
+
+    assert len(selected["front"]) == 5
+    assert len(set(selected["front"])) == 5
+    assert selected["front"] == (0, 2, 5, 8, 10)
+
+
 def test_support_selection_rejects_top_edge_without_enough_safe_particles() -> None:
     """Do not silently pin an intersecting or under-clearance shoulder edge."""
     with pytest.raises(ValueError, match="only 1 exterior particle"):

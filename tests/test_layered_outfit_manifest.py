@@ -31,7 +31,7 @@ def _valid_artifact(root: Path) -> Path:
     image_records = []
     image_inventory = (
         ("step-000-axonometric.png", "initial shaped layered outfit"),
-        ("step-001-axonometric.png", "layered outfit motion at step 1"),
+        ("step-005-axonometric.png", "layered outfit motion at step 5"),
         ("step-015-axonometric.png", "layered outfit motion at step 15"),
         *(
             ("final-six-view/step-060-%s.png" % side, side)
@@ -135,12 +135,14 @@ def _valid_artifact(root: Path) -> Path:
             "contact_count": 0 if step == 60 else 24,
             "corrected_particle_count": 0 if step == 60 else 32,
             "contact_observed_so_far": True,
-            "support_pin_count": 12,
+            "support_pin_count": 20,
             "shirt_support_pin_count": 2,
-            "shirt_hem_support_pin_count": 6,
+            "shirt_shoulder_support_pin_count": 4,
+            "shirt_hem_support_pin_count": 10,
             "waistband_support_pin_count": 4,
             "maximum_support_pin_drift_mm": 0.0,
             "maximum_shirt_support_pin_drift_mm": 0.0,
+            "maximum_shirt_shoulder_support_pin_drift_mm": 0.0,
             "maximum_shirt_hem_support_pin_drift_mm": 0.0,
             "maximum_waistband_support_pin_drift_mm": 0.0,
             "remaining_contact_count": 0,
@@ -166,7 +168,7 @@ def _valid_artifact(root: Path) -> Path:
             "seams": seams,
             "images": [],
         }
-        for step in (1, 15, 60)
+        for step in (5, 15, 60)
     ]
     pieces_scene = []
     for index, piece_id in enumerate(piece_ids):
@@ -210,6 +212,18 @@ def _valid_artifact(root: Path) -> Path:
                 "solver_mesh": {"particle_count": 50, "triangle_count": 80},
             }
         )
+    underarm_endpoints = [
+        {
+            "panel": panel,
+            "arm_side": side,
+            "world_mm": [x, y, 130.0],
+            "nearest_mannequin_point_mm": [x, y - 14.0, 130.0],
+            "nearest_surface_distance_mm": 14.0,
+            "drop_below_shoulder_mm": 37.5,
+        }
+        for panel, y in (("front", -90.0), ("back", 90.0))
+        for side, x in (("left", -170.0), ("right", 170.0))
+    ]
     scene_map = {
         "coordinate_system": {
             "units": "mm",
@@ -250,6 +264,7 @@ def _valid_artifact(root: Path) -> Path:
             {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
         "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+        "shirt_armhole_endpoints": underarm_endpoints,
         "garment_group_colors": {
             "shirt": [0.10, 0.34, 0.78],
             "skirt": [0.88, 0.34, 0.08],
@@ -282,7 +297,7 @@ def _valid_artifact(root: Path) -> Path:
     }
     manifest = {
         "schema": "freecad-cloth.layered-outfit",
-        "schema_version": 3,
+        "schema_version": 4,
         "provenance": {
             "commit_sha": "a" * 40,
             "document": "layered-outfit.FCStd",
@@ -302,6 +317,7 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
             "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+            "shirt_armhole_endpoints": underarm_endpoints,
             "garment_group_colors": {
                 "shirt": [0.10, 0.34, 0.78],
                 "skirt": [0.88, 0.34, 0.08],
@@ -340,9 +356,32 @@ def _valid_artifact(root: Path) -> Path:
             ],
             "shirt_hem_support_pins": {
                 "mode": "Explicit",
-                "particle_indices": list(range(2, 8)),
-                "count": 6,
+                "particle_indices": list(range(6, 16)),
+                "count": 10,
             },
+            "shirt_shoulder_support_pins": {
+                "mode": "Explicit",
+                "particle_indices": list(range(2, 6)),
+                "count": 4,
+            },
+            "shirt_shoulder_supports": [
+                {
+                    "panel_id": panel_id,
+                    "anchor_role": "shoulder-side-stabilizer",
+                    "support_id": panel_id,
+                    "particle_index": particle_index,
+                    "target_mm": [x, y, 135.0],
+                    "position_mm": [x, y, 135.0],
+                    "target_deviation_mm": 0.0,
+                    "clearance_mm": 25.0,
+                }
+                for particle_index, panel_id, x, y in (
+                    (2, "shirt-front-left-shoulder", -80.0, -95.0),
+                    (3, "shirt-front-right-shoulder", 80.0, -95.0),
+                    (4, "shirt-back-left-shoulder", -80.0, 95.0),
+                    (5, "shirt-back-right-shoulder", 80.0, 95.0),
+                )
+            ],
             "shirt_hem_supports": [
                 {
                     "panel_id": "shirt-hem-" + side,
@@ -354,18 +393,18 @@ def _valid_artifact(root: Path) -> Path:
                     "target_deviation_mm": 0.0,
                     "clearance_mm": 20.0,
                 }
-                for side, start in (("front", 2), ("back", 5))
-                for ordinal, particle_index in enumerate(range(start, start + 3))
+                for side, start in (("front", 6), ("back", 11))
+                for ordinal, particle_index in enumerate(range(start, start + 5))
             ],
             "waistband_support_pins": {
                 "mode": "Explicit",
-                "particle_indices": list(range(8, 12)),
+                "particle_indices": list(range(16, 20)),
                 "count": 4,
             },
             "waistband_supports": [
                 {
                     "panel_id": "waistband-" + side,
-                    "particle_index": index + 8,
+                    "particle_index": index + 16,
                     "target_mm": [float(index), 0.0, 100.0],
                     "position_mm": [float(index), 25.0, 100.0],
                     "clearance_mm": 25.0,
@@ -384,6 +423,7 @@ def _valid_artifact(root: Path) -> Path:
             "contact_rebuilt_after_reload": True,
             "support_pins_preserved": True,
             "shirt_supports_preserved_after_reload": True,
+            "shirt_shoulder_supports_preserved_after_reload": True,
             "shirt_hem_supports_preserved_after_reload": True,
             "waistband_support_pins_preserved": True,
             "saved_step_count": 60,
@@ -399,13 +439,42 @@ def _valid_artifact(root: Path) -> Path:
 
 
 def test_validator_rejects_missing_shirt_hem_anchors(tmp_path: Path) -> None:
-    """Six native hem anchors are required independently of the two torso anchors."""
+    """Ten native hem anchors are required independently of torso/shoulder anchors."""
     manifest_path = _valid_artifact(tmp_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["outfit"]["shirt_hem_supports"] = []
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(ValueError, match="six distributed native hem support records"):
+    with pytest.raises(ValueError, match="ten distributed native hem support records"):
+        validate_manifest(manifest_path)
+
+
+
+
+def test_validator_rejects_missing_shirt_shoulder_anchors(tmp_path: Path) -> None:
+    """All four shoulder-side panel anchors must be explicitly persisted."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["shirt_shoulder_support_pins"]["particle_indices"] = [2, 3]
+    manifest["outfit"]["shirt_shoulder_support_pins"]["count"] = 2
+    manifest["outfit"]["shirt_shoulder_supports"] = manifest["outfit"][
+        "shirt_shoulder_supports"
+    ][:2]
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="four unique particle indices"):
+        validate_manifest(manifest_path)
+
+
+def test_validator_rejects_invalid_armhole_world_geometry(tmp_path: Path) -> None:
+    """All four underarm endpoints must have finite world-space evidence."""
+    manifest_path = _valid_artifact(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["outfit"]["shirt_armhole_endpoints"][0]["world_mm"][2] = float("nan")
+    manifest["scene_map"]["shirt_armhole_endpoints"][0]["world_mm"][2] = float("nan")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="shirt armhole endpoint world position"):
         validate_manifest(manifest_path)
 
 
@@ -511,6 +580,9 @@ def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile
     assert "armhole_z = 0.62 * garment_height" not in panel
     assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in source
     assert "shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM" in source
+    assert "shirt_panel_width = max(420.0, shoulder_width + 40.0)" in source
+    assert "shirt_hem_width = max(480.0, shirt_panel_width + 10.0)" in source
+    assert 'evaluator = getattr(curve, "valueAt", None)' in source
 
 
 def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:
