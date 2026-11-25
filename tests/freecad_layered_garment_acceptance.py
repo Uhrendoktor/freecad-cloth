@@ -929,7 +929,6 @@ def _apply_garment_group_colors(
         group_id = panel_groups[str(panel.Name)]
         panel.ViewObject.ShapeColor = palette[group_id]
         panel.ViewObject.LineColor = (0.12, 0.12, 0.12)
-        panel.ViewObject.PointColor = palette[group_id]
         panel.ViewObject.Transparency = 0
         panel.ViewObject.DisplayMode = "Shaded"
         panel.ViewObject.Visibility = True

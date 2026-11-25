@@ -250,6 +250,10 @@ def _valid_artifact(root: Path) -> Path:
             {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
         "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+        "garment_group_colors": {
+            "shirt": [0.10, 0.34, 0.78],
+            "skirt": [0.88, 0.34, 0.08],
+        },
         "vertical_layer_interfaces": {
             "skirt_top_z_mm": 10.0,
             "waistband_bottom_z_mm": 10.0,
@@ -298,6 +302,10 @@ def _valid_artifact(root: Path) -> Path:
             "garment_groups": assignments,
             "inter_cloth_clearance_mm": 8.0,
             "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+            "garment_group_colors": {
+                "shirt": [0.10, 0.34, 0.78],
+                "skirt": [0.88, 0.34, 0.08],
+            },
             "vertical_layer_interfaces": {
                 "skirt_top_z_mm": 10.0,
                 "waistband_bottom_z_mm": 10.0,
@@ -496,11 +504,12 @@ def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile
     assert "for index in (1, 7)" in panel
     assert 'type(geometry[index]).__name__.lower() != "linesegment"' in panel
     assert "shirt side seams must remain stable native Sketcher lines" in panel
+    assert "panel.ViewObject.PointColor" not in source
     assert "0.741 * panel_width" not in panel
     assert "0.259 * panel_width" not in panel
     assert "armhole_z = 0.80 * garment_height" in panel
-    assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in panel
-    assert "armhole_z = 0.76 * garment_height" in panel
+    assert "armhole_z = 0.62 * garment_height" not in panel
+    assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in source
     assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in panel
 
 
