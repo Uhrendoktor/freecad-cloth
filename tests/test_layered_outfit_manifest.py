@@ -510,7 +510,7 @@ def test_multi_garment_shirt_uses_stable_side_lines_and_a_simple_armhole_profile
     assert "armhole_z = 0.80 * garment_height" in panel
     assert "armhole_z = 0.62 * garment_height" not in panel
     assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in source
-    assert "SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM = 30.0" in panel
+    assert "shirt_support_target_z = shoulder_z - SHIRT_SUPPORT_TARGET_BELOW_SHOULDER_MM" in source
 
 
 def test_validator_rejects_vertical_layer_scene_map_mismatch(tmp_path: Path) -> None:
