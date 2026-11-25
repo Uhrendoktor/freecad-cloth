@@ -225,7 +225,20 @@ def _valid_artifact(root: Path) -> Path:
         for side, x in (("left", -170.0), ("right", 170.0))
     ]
     shared_outfit_scene_fields = {
-        **shared_outfit_scene_fields,
+        "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
+        "shirt_armhole_endpoints": underarm_endpoints,
+        "garment_group_colors": {
+            "shirt": [0.10, 0.34, 0.78],
+            "skirt": [0.88, 0.34, 0.08],
+        },
+        "vertical_layer_interfaces": {
+            "skirt_top_z_mm": 10.0,
+            "waistband_bottom_z_mm": 10.0,
+            "waistband_top_z_mm": 110.0,
+            "shirt_hem_z_mm": 110.0,
+            "shirt_hem_front_gap_mm": 8.0,
+            "shirt_hem_back_gap_mm": 8.0,
+        },
     }
     scene_map = {
         "coordinate_system": {
@@ -266,20 +279,7 @@ def _valid_artifact(root: Path) -> Path:
             {"id": "shirt", "piece_ids": piece_ids[:2], "independent_of": ["skirt"]},
             {"id": "skirt", "piece_ids": piece_ids[2:], "independent_of": ["shirt"]},
         ],
-        "body_clearance_by_group_mm": {"shirt": 14.0, "skirt": 6.0},
-        "shirt_armhole_endpoints": underarm_endpoints,
-        "garment_group_colors": {
-            "shirt": [0.10, 0.34, 0.78],
-            "skirt": [0.88, 0.34, 0.08],
-        },
-        "vertical_layer_interfaces": {
-            "skirt_top_z_mm": 10.0,
-            "waistband_bottom_z_mm": 10.0,
-            "waistband_top_z_mm": 110.0,
-            "shirt_hem_z_mm": 110.0,
-            "shirt_hem_front_gap_mm": 8.0,
-            "shirt_hem_back_gap_mm": 8.0,
-        },
+        **shared_outfit_scene_fields,
         "pieces": pieces_scene,
         "seams": seams,
         "camera_views": [
