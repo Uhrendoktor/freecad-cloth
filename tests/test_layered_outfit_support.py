@@ -150,23 +150,25 @@ def test_support_selection_skips_interior_and_too_close_particles() -> None:
     }
 
 
-def test_support_selection_can_distribute_five_tucked_hem_anchors() -> None:
-    """A wide shirt hem needs five safe anchors per panel rather than three."""
+def test_support_selection_can_distribute_five_tucked_hem_anchors_at_group_clearance() -> None:
+    """A shirt hem keeps five distributed anchors outside its 14 mm body standoff."""
     chain = {"front": tuple(range(11))}
     exterior = dict.fromkeys(range(11), True)
     clearances = dict.fromkeys(range(11), 14.0)
+    clearances[5] = 9.525
 
     selected = select_top_boundary_supports(
         chain,
         exterior,
         clearances,
-        minimum_clearance_mm=5.0,
+        minimum_clearance_mm=14.0,
         samples_per_chain=5,
     )
 
     assert len(selected["front"]) == 5
     assert len(set(selected["front"])) == 5
-    assert selected["front"] == (0, 2, 5, 8, 10)
+    assert 5 not in selected["front"]
+    assert selected["front"] == (0, 2, 6, 8, 10)
 
 
 def test_support_selection_rejects_top_edge_without_enough_safe_particles() -> None:
