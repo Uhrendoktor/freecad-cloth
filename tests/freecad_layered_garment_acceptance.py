@@ -1791,11 +1791,13 @@ def run_acceptance() -> None:
             clearance_by_particle[index] = float(
                 np.linalg.norm(initial_positions[index] - nearest_point)
             )
+        # Hem supports are fixed solver anchors. They must satisfy the shirt
+        # group's full body standoff, not merely the fixture-wide minimum.
         hem_clearance_by_particle = {
             index: (
                 clearance
                 if exterior_by_particle.get(index) is True
-                and MINIMUM_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
+                and SHIRT_BODY_CLEARANCE_MM <= clearance <= MAXIMUM_SHIRT_SUPPORT_STANDOFF_MM
                 else 0.0
             )
             for index, clearance in clearance_by_particle.items()
@@ -1813,7 +1815,7 @@ def run_acceptance() -> None:
             shirt_hem_support_chains,
             exterior_by_particle,
             hem_clearance_by_particle,
-            minimum_clearance_mm=MINIMUM_BODY_CLEARANCE_MM,
+            minimum_clearance_mm=SHIRT_BODY_CLEARANCE_MM,
             samples_per_chain=SHIRT_HEM_SUPPORTS_PER_PANEL,
         )
         # Filter CAD-derived panel mesh vertices by the authored torso support
