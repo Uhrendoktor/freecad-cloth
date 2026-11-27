@@ -974,7 +974,7 @@ class UiGifRecorder:
         QtTest.QTest.qWait(max(0, int(milliseconds)))
         self.capture()
 
-    def stop(self, *, max_colors: int = 96) -> Path:
+    def stop(self, *, max_colors: int = 64) -> Path:
         """Stop recording and persist the animated GIF to its requested path.
 
         Args:

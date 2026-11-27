@@ -101,6 +101,14 @@ class ProgressEvidence:
         failure_lines: Explicit failure markers captured from the progress log.
         has_scenario_pass: Whether a successful terminal marker was observed.
         has_simulation_start: Whether simulation startup was observed.
+        has_layered_outfit_checkpoint: Whether a layered-outfit simulation checkpoint was recorded.
+        has_layered_outfit_pose: Whether the authored outfit mannequin pose was recorded.
+        has_layered_outfit_landmarks: Whether named mannequin landmarks were resolved.
+        has_layered_outfit_pattern: Whether the 10-piece native outfit was constructed.
+        has_layered_outfit_seams: Whether semantic seam metrics were emitted.
+        has_layered_outfit_placement: Whether the shirt/waistband interface was measured.
+        has_layered_outfit_save_reload: Whether FCStd save/reload checks passed.
+        has_layered_outfit_acceptance: Whether the native outfit acceptance completed.
     """
 
     topology_by_piece: dict[str, JsonObject] = field(default_factory=dict)
@@ -112,6 +120,15 @@ class ProgressEvidence:
     failure_lines: list[str] = field(default_factory=list)
     has_scenario_pass: bool = False
     has_simulation_start: bool = False
+    has_layered_outfit_checkpoint: bool = False
+    has_layered_outfit_pose: bool = False
+    has_layered_outfit_landmarks: bool = False
+    has_layered_outfit_pattern: bool = False
+    has_layered_outfit_seams: bool = False
+    has_layered_outfit_placement: bool = False
+    has_layered_outfit_save_reload: bool = False
+    has_layered_outfit_acceptance: bool = False
+    layered_outfit_source_geometry: JsonObject | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -432,15 +449,20 @@ def _fit_findings(deviations: dict[str, float], review_threshold_mm: float) -> l
     return findings
 
 
-def _fit_assessment(metrics_payload: JsonValue) -> JsonObject:
+def _fit_assessment(
+    metrics_payload: JsonValue,
+    *,
+    shoulder_reference_source: str | None = None,
+) -> JsonObject:
     """Screen garment vertical coverage separately from execution/contact success.
 
-    The shoulder reference currently comes from the audit's avatar-bounds heuristic,
-    not an authoritative anatomical landmark. Findings are therefore warnings for
-    review, never a proof of fit failure or a reason to tune the solver.
+    By default, the shoulder reference comes from the avatar-bounds heuristic. A
+    layered-outfit caller may supply the provenance of named CAD shoulder landmarks.
+    Findings are warnings for review, not proof of fit failure or a reason to tune the solver.
 
     Args:
         metrics_payload: Decoded visual metrics emitted by the drape audit.
+        shoulder_reference_source: Optional provenance for a supplied shoulder level.
 
     Returns:
         Assessment state, measurement summary, and any garment-coverage findings.
@@ -508,14 +530,13 @@ def _fit_assessment(metrics_payload: JsonValue) -> JsonObject:
         "state": state,
         "method": (
             "final panel world-space Z bounds compared with declared hem and "
-            "bounding-box-derived shoulder reference"
+            + (shoulder_reference_source or "bounding-box-derived shoulder reference")
         ),
         "reference_levels_mm": {
             "hem_z": hem_z,
             "shoulder_z": shoulder_z,
-            "shoulder_reference_source": (
-                "avatar bounding-box heuristic, not an anatomical landmark"
-            ),
+            "shoulder_reference_source": shoulder_reference_source
+            or "avatar bounding-box heuristic, not an anatomical landmark",
         },
         "observed_final_panel_z_mm": {
             "minimum": round(observed_min_z, 3),
@@ -585,7 +606,12 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
     Returns:
         Parsed topology, placement, pose, screenshot, and simulation observations.
     """
-    parsed = ProgressEvidence(has_simulation_start="tunic-simulation-start" in progress_text)
+    parsed = ProgressEvidence(
+        has_simulation_start=(
+            "tunic-simulation-start" in progress_text
+            or "layered-outfit-step-start=" in progress_text
+        )
+    )
     for line in progress_text.splitlines():
         topology = _parse_topology(line)
         if topology is not None:
@@ -595,6 +621,30 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
             parsed.armholes_by_index[_int_value(armhole["edge_index"])] = armhole
         _record_pose(line, parsed)
         _record_placement(line, parsed)
+        if line.startswith("checkpoint="):
+            parsed.has_layered_outfit_checkpoint = True
+        if line.startswith("layered-outfit-avatar-pose="):
+            parsed.has_layered_outfit_pose = True
+        if line == "mannequin-landmarks-resolved":
+            parsed.has_layered_outfit_landmarks = True
+        if line.startswith("layered-outfit-source-geometry "):
+            try:
+                source_geometry = json.loads(line.removeprefix("layered-outfit-source-geometry "))
+            except json.JSONDecodeError:
+                source_geometry = None
+            if isinstance(source_geometry, dict):
+                parsed.layered_outfit_source_geometry = cast("JsonObject", source_geometry)
+                parsed.has_layered_outfit_landmarks = True
+        if line.startswith("shirt-waistband-layer-alignment "):
+            parsed.has_layered_outfit_placement = True
+        if line.startswith("pattern-pieces="):
+            parsed.has_layered_outfit_pattern = True
+        if line.startswith("seam-metrics-step="):
+            parsed.has_layered_outfit_seams = True
+        if line.startswith("save-reload=passed"):
+            parsed.has_layered_outfit_save_reload = True
+        if line.strip() == "layered-outfit-acceptance=passed":
+            parsed.has_layered_outfit_acceptance = True
         screenshot = _SCREENSHOT_RE.search(line)
         if screenshot:
             raw_path = screenshot.group(1).strip()
@@ -611,9 +661,17 @@ def _parse_progress_text(progress_text: str) -> ProgressEvidence:
                 parsed_metrics = None
             if isinstance(parsed_metrics, dict):
                 parsed.drape_records.append(cast("JsonObject", parsed_metrics))
-        if "scenario-pass" in line or "tunic-audit-process-exit=success" in line:
+        if (
+            "scenario-pass" in line
+            or "tunic-audit-process-exit=success" in line
+            or line.strip() == "layered-outfit-acceptance=passed"
+        ):
             parsed.has_scenario_pass = True
-        if "scenario-fail" in line or line.startswith("SCENARIO FAILURE:"):
+        if (
+            "scenario-fail" in line
+            or line.startswith("SCENARIO FAILURE:")
+            or line.startswith("layered-outfit-acceptance=failed")
+        ):
             parsed.failure_lines.append(line.strip())
 
     return parsed
@@ -658,7 +716,13 @@ def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
     elif parsed.has_scenario_pass and not parsed.failure_lines:
         result = "passed"
         failed_stage = None
-        last_completed_stage = "drape" if parsed.drape_records else "simulation"
+        last_completed_stage = (
+            "save_reload"
+            if parsed.has_layered_outfit_acceptance and parsed.has_layered_outfit_save_reload
+            else "drape"
+            if parsed.drape_records or parsed.has_layered_outfit_checkpoint
+            else "simulation"
+        )
         next_action = (
             "Review final multi-view fit and keep the same strict geometry and collision gates."
         )
@@ -668,7 +732,11 @@ def _classify_workflow_progress(parsed: ProgressEvidence) -> WorkflowAssessment:
             "unknown_from_available_markers" if failure_unknown else "simulation_or_later"
         )
         last_completed_stage = (
-            "simulation_started" if parsed.has_simulation_start else "last_observed_stage"
+            "drape"
+            if parsed.drape_records or parsed.has_layered_outfit_checkpoint
+            else "simulation_started"
+            if parsed.has_simulation_start
+            else "last_observed_stage"
         )
         next_action = (
             "Use the failure log and the last completed stage to localize the first failing "
@@ -761,17 +829,38 @@ def _derive_stage_states(
     else:
         drape_state = "started_but_final_evidence_missing"
 
+    if parsed.has_layered_outfit_pose:
+        pose_state = "measured"
+    pattern_construction = (
+        "captured"
+        if assessment.topology_records or screenshots.pattern or parsed.has_layered_outfit_pattern
+        else "not_observed"
+    )
+    if parsed.has_layered_outfit_pattern and not assessment.topology_records:
+        pattern_state = "not_separately_audited"
+        derived_state = "not_separately_audited"
+    if parsed.has_layered_outfit_seams:
+        sewing_state = "measured"
+    initial_placement_state = (
+        "measured"
+        if parsed.has_layered_outfit_placement
+        or parsed.layered_outfit_source_geometry is not None
+        or parsed.placements_by_side
+        else "not_observed"
+    )
     return {
         "mannequin_pose": pose_state,
-        "pattern_construction": (
-            "captured" if assessment.topology_records or screenshots.pattern else "not_observed"
-        ),
+        "pattern_construction": pattern_construction,
         "pattern_topology": pattern_state,
         "derived_pattern_representation": derived_state,
         "sewing_preview": sewing_state,
-        "initial_placement": "measured" if parsed.placements_by_side else "not_observed",
+        "initial_placement": initial_placement_state,
         "simulation": simulation_state,
         "drape": drape_state,
+        "save_reload": ("passed" if parsed.has_layered_outfit_save_reload else "not_observed"),
+        "layered_outfit_acceptance": (
+            "passed" if parsed.has_layered_outfit_acceptance else "not_observed"
+        ),
     }
 
 
@@ -857,6 +946,255 @@ def _crossing_summary(
     ]
 
 
+def _layered_garment_scene(output_root: Path) -> JsonObject | None:
+    """Load the exact CAD scene map emitted by a layered garment acceptance run.
+
+    The report embeds authored Sketcher piece identities/transforms and measured
+    checkpoint relations verbatim. It does not infer geometry or garment contact
+    from screenshots. A malformed manifest is surfaced as unavailable evidence.
+    """
+    manifest_path = output_root / "layered-outfit-manifest.json"
+    if not manifest_path.is_file():
+        return None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {
+            "state": "unavailable",
+            "reason": "layered-outfit-manifest.json is not valid JSON",
+        }
+    if not isinstance(manifest, dict):
+        return {
+            "state": "unavailable",
+            "reason": "layered outfit manifest root is not an object",
+        }
+    scene_map = manifest.get("scene_map")
+    outfit = manifest.get("outfit")
+    checkpoints = manifest.get("checkpoints")
+    if (
+        not isinstance(scene_map, dict)
+        or not isinstance(outfit, dict)
+        or not isinstance(checkpoints, list)
+    ):
+        return {
+            "state": "unavailable",
+            "reason": "layered outfit manifest is missing its CAD scene map or checkpoint inventory",
+        }
+    return {
+        "state": "available",
+        "manifest_path": "layered-outfit-manifest.json",
+        "provenance": manifest.get("provenance"),
+        "outfit": outfit,
+        "scene_map": scene_map,
+        "checkpoints": checkpoints,
+        "images": manifest.get("images", []),
+        "persistence": manifest.get("persistence"),
+        "interpretation_limit": (
+            "The coordinate map and semantic relationships are authored CAD evidence. "
+            "Images provide human visual review; they are not the authority for piece identity, "
+            "world transforms, or collision measurements."
+        ),
+    }
+
+
+def _layered_outfit_final_views_present(
+    output_root: Path,
+    layered_scene: JsonObject | None,
+) -> bool:
+    """Require all six manifest-backed final views before reporting drape images.
+
+    Args:
+        output_root: Directory containing the layered-outfit evidence files.
+        layered_scene: Parsed layered garment scene section, or None if unavailable.
+
+    Returns:
+        Whether all six declared step-60 orthographic images exist on disk.
+    """
+    if layered_scene is None or layered_scene.get("state") != "available":
+        return False
+    raw_images = layered_scene.get("images")
+    if not isinstance(raw_images, list):
+        return False
+    expected_paths = {
+        f"final-six-view/step-060-{side}.png"
+        for side in ("front", "rear", "left", "right", "top", "bottom")
+    }
+    existing_paths: set[str] = set()
+    for record in raw_images:
+        if not isinstance(record, dict):
+            continue
+        raw_path = record.get("file")
+        if (
+            isinstance(raw_path, str)
+            and raw_path in expected_paths
+            and (output_root / raw_path).is_file()
+        ):
+            existing_paths.add(raw_path)
+    return existing_paths == expected_paths
+
+
+def _layered_outfit_fit_metrics(
+    layered_scene: JsonObject | None,
+    parsed: ProgressEvidence,
+) -> tuple[JsonValue, str | None]:
+    """Derive a vertical fit-review payload from authored landmarks and final shirt bounds.
+
+    Args:
+        layered_scene: Exact CAD scene map and checkpoint inventory from the manifest.
+        parsed: Progress measurements including the mannequin collision-surface bounds.
+
+    Returns:
+        Fit-screen metrics and shoulder-reference provenance, or (None, None) if the
+        authored fit references or final shirt bounds are unavailable.
+    """
+    if layered_scene is None or layered_scene.get("state") != "available":
+        return None, None
+    outfit = layered_scene.get("outfit")
+    scene_map = layered_scene.get("scene_map")
+    checkpoints = layered_scene.get("checkpoints")
+    if (
+        not isinstance(outfit, dict)
+        or not isinstance(scene_map, dict)
+        or not isinstance(checkpoints, list)
+    ):
+        return None, None
+    interfaces = outfit.get("vertical_layer_interfaces")
+    avatar = scene_map.get("avatar")
+    landmarks = avatar.get("landmarks") if isinstance(avatar, dict) else None
+    if not isinstance(interfaces, dict) or not isinstance(landmarks, list):
+        return None, None
+    hem_z = _finite_metric_number(interfaces.get("shirt_hem_z_mm"))
+    shoulder_levels: list[float] = []
+    landmark_levels: list[float] = []
+    for landmark in landmarks:
+        if not isinstance(landmark, dict):
+            continue
+        world = landmark.get("world_mm")
+        if not isinstance(world, list) or len(world) != 3:
+            continue
+        z_value = _finite_metric_number(world[2])
+        if z_value is None:
+            continue
+        landmark_levels.append(z_value)
+        if str(landmark.get("id", "")) in {"shoulder_left", "shoulder_right"}:
+            shoulder_levels.append(z_value)
+    if hem_z is None or len(shoulder_levels) != 2:
+        return None, None
+    shoulder_z = sum(shoulder_levels) / len(shoulder_levels)
+
+    collision_bounds = None
+    if parsed.layered_outfit_source_geometry is not None:
+        collision_bounds = parsed.layered_outfit_source_geometry.get("collision_surface_bounds_mm")
+    target_height = None
+    if isinstance(collision_bounds, list) and len(collision_bounds) == 3:
+        z_bounds = collision_bounds[2]
+        if isinstance(z_bounds, list) and len(z_bounds) == 2:
+            z_min = _finite_metric_number(z_bounds[0])
+            z_max = _finite_metric_number(z_bounds[1])
+            if z_min is not None and z_max is not None and z_max > z_min:
+                target_height = z_max - z_min
+    if target_height is None and landmark_levels:
+        target_height = max(landmark_levels) - min(landmark_levels)
+    if target_height is None or target_height <= 0.0:
+        return None, None
+
+    final_checkpoint = max(
+        (
+            item
+            for item in checkpoints
+            if isinstance(item, dict)
+            and isinstance(item.get("step"), int)
+            and not isinstance(item.get("step"), bool)
+        ),
+        key=lambda item: int(item["step"]),
+        default=None,
+    )
+    if final_checkpoint is None:
+        return None, None
+    shirt_fit = final_checkpoint.get("shirt_fit")
+    if not isinstance(shirt_fit, dict):
+        return None, None
+    bounds_min = shirt_fit.get("bounds_min_mm")
+    bounds_max = shirt_fit.get("bounds_max_mm")
+    if (
+        not isinstance(bounds_min, list)
+        or len(bounds_min) != 3
+        or not isinstance(bounds_max, list)
+        or len(bounds_max) != 3
+    ):
+        return None, None
+    minimum = [_finite_metric_number(value) for value in bounds_min]
+    maximum = [_finite_metric_number(value) for value in bounds_max]
+    if any(value is None for value in (*minimum, *maximum)):
+        return None, None
+    minimum_values = cast("list[float]", minimum)
+    maximum_values = cast("list[float]", maximum)
+    # _fit_assessment consumes [xmin, xmax, ymin, ymax, zmin, zmax].
+    panel_bounds = [
+        minimum_values[0],
+        maximum_values[0],
+        minimum_values[1],
+        maximum_values[1],
+        minimum_values[2],
+        maximum_values[2],
+    ]
+    return (
+        {
+            "hem_z": hem_z,
+            "shoulder_z": shoulder_z,
+            "target_height": target_height,
+            "panels": [
+                {
+                    "panel": "layered-outfit-shirt-final",
+                    "bounds": panel_bounds,
+                    "diagnostics": [],
+                    "penetrating_vertices": 0,
+                }
+            ],
+        },
+        "named shoulder_left/shoulder_right CAD landmarks",
+    )
+
+
+def _layered_save_reload_validated(
+    output_root: Path,
+    layered_scene: JsonObject | None,
+) -> bool:
+    """Require a saved FCStd file and all persisted native restore checks.
+
+    Args:
+        output_root: Directory containing the layered outfit's manifest and saved document.
+        layered_scene: Parsed scene-map manifest, or None if it is unavailable.
+
+    Returns:
+        True only when the FCStd file exists and every persisted restore flag is true.
+    """
+    if layered_scene is None or layered_scene.get("state") != "available":
+        return False
+    persistence = layered_scene.get("persistence")
+    if not isinstance(persistence, dict):
+        return False
+    raw_fcstd = persistence.get("fcstd")
+    if not isinstance(raw_fcstd, str):
+        return False
+    relative = Path(raw_fcstd)
+    if relative.is_absolute() or ".." in relative.parts:
+        return False
+    saved_document = (output_root / relative).is_file()
+    required_flags = (
+        "piece_links_preserved",
+        "garment_groups_preserved",
+        "body_clearance_by_group_preserved",
+        "support_pins_preserved",
+        "shirt_supports_preserved_after_reload",
+        "shirt_hem_supports_preserved_after_reload",
+        "waistband_support_pins_preserved",
+        "native_backend_rebuilt",
+        "contact_rebuilt_after_reload",
+    )
+    return saved_document and all(persistence.get(flag) is True for flag in required_flags)
+
+
 def build_report(progress_path: Path, output_root: Path, workspace: Path) -> JsonObject:
     """Build a machine-readable diagnosis using only the completed workflow files.
 
@@ -875,6 +1213,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
     )
     parsed = _parse_progress_text(progress_text)
     assessment = _classify_workflow_progress(parsed)
+    layered_scene = _layered_garment_scene(output_root)
     screenshots = _ScreenshotPresence(
         avatar=(
             "cloth-mannequin-near-t-pose.png" in parsed.screenshot_states
@@ -888,7 +1227,10 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "cloth-sewing.png" in parsed.screenshot_states
             and (output_root / "cloth-sewing.png").is_file()
         ),
-        drape=any(name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states),
+        drape=(
+            any(name.startswith("cloth-simulation-draped") for name in parsed.screenshot_states)
+            or _layered_outfit_final_views_present(output_root, layered_scene)
+        ),
     )
     stage_states = _derive_stage_states(parsed, assessment, screenshots)
     issues = _build_issues(assessment.invalid_geometry)
@@ -902,7 +1244,16 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             metrics_payload = {"parse_error": "drape-visual-metrics.json is not valid JSON"}
     result = assessment.result
     next_action = assessment.next_action
-    fit_assessment = _fit_assessment(metrics_payload)
+    fit_reference_source: str | None = None
+    if metrics_payload is None and layered_scene is not None:
+        metrics_payload, fit_reference_source = _layered_outfit_fit_metrics(
+            layered_scene,
+            parsed,
+        )
+    fit_assessment = _fit_assessment(
+        metrics_payload,
+        shoulder_reference_source=fit_reference_source,
+    )
     # A successful FreeCAD script is execution evidence, not proof of fit. Keep
     # the execution stages intact while surfacing a separate fit-review outcome.
     if result == "passed" and fit_assessment.get("state") == "review_required":
@@ -910,6 +1261,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
         next_action = str(fit_assessment.get("next_action", next_action))
 
     crossings = _crossing_summary(assessment.invalid_geometry)
+    save_reload_validated = _layered_save_reload_validated(output_root, layered_scene)
 
     return {
         "schema": SCHEMA,
@@ -924,7 +1276,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "workflow_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
             "test_script": os.environ.get("OBSERVATION_TEST_SCRIPT"),
             "container_image": os.environ.get("OBSERVATION_IMAGE"),
-            "artifact_name": "tunic-visual-audit",
+            "artifact_name": os.environ.get("OBSERVATION_ARTIFACT_NAME") or "tunic-visual-audit",
         },
         "status": {
             "result": result,
@@ -962,6 +1314,7 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
             "drape_metrics_json": metrics_payload,
         },
         "fit_assessment": fit_assessment,
+        "layered_garment_scene": layered_scene,
         "issues": issues,
         "next_action": next_action,
         "evidence": {
@@ -972,7 +1325,32 @@ def build_report(progress_path: Path, output_root: Path, workspace: Path) -> Jso
                 "pattern_design": "present" if screenshots.pattern else "missing",
                 "sewing_preview": "present" if screenshots.sewing else "missing",
                 "post_drape_views": "present" if screenshots.drape else "missing",
-                "drape_metrics": "present" if metrics_path.is_file() else "missing",
+                "drape_metrics": (
+                    "present"
+                    if metrics_path.is_file()
+                    else "derived_from_layered_manifest"
+                    if metrics_payload is not None and layered_scene is not None
+                    else "missing"
+                ),
+                "layered_outfit_manifest": ("present" if layered_scene is not None else "missing"),
+                "final_orthographic_views": (
+                    "present"
+                    if _layered_outfit_final_views_present(output_root, layered_scene)
+                    else "missing"
+                    if layered_scene is not None
+                    else "not_applicable"
+                ),
+                "saved_fcstd": (
+                    "present"
+                    if layered_scene is not None
+                    and isinstance(layered_scene.get("persistence"), dict)
+                    and isinstance(layered_scene["persistence"].get("fcstd"), str)
+                    and (output_root / str(layered_scene["persistence"]["fcstd"])).is_file()
+                    else "missing"
+                    if layered_scene is not None
+                    else "not_applicable"
+                ),
+                "save_reload": ("passed" if save_reload_validated else "not_fully_validated"),
             },
         },
         "report_files": {
@@ -1480,6 +1858,81 @@ def _render_evidence_section(lines: list[str], report: JsonObject) -> None:
             )
 
 
+def _render_layered_garment_section(lines: list[str], report: JsonObject) -> None:
+    """Render measured multi-garment scene relations without inferring them from pixels."""
+    layered = _as_dict(report.get("layered_garment_scene"))
+    if not layered:
+        return
+    lines.extend(["", "## Layered garment spatial map", ""])
+    state = str(layered.get("state", "unavailable"))
+    lines.append("**Scene-map state:** " + state.upper())
+    if state != "available":
+        lines.append(str(layered.get("reason", "CAD scene map was not produced.")))
+        return
+    outfit = _as_dict(layered.get("outfit"))
+    scene_map = _as_dict(layered.get("scene_map"))
+    coordinate = _as_dict(scene_map.get("coordinate_system"))
+    lines.append(
+        "- Coordinate frame: millimetres; origin = "
+        + str(coordinate.get("origin", "not declared"))
+        + "; front = "
+        + str(coordinate.get("front_direction", "not declared"))
+        + "."
+    )
+    lines.append(
+        "- Authored panels: %s; semantic seams: %s; independent garment groups: %s."
+        % (
+            outfit.get("piece_count", "unknown"),
+            outfit.get("seam_count", "unknown"),
+            outfit.get("garment_group_count", "unknown"),
+        )
+    )
+    for raw_group in _as_list(scene_map.get("garment_groups")):
+        if not isinstance(raw_group, dict):
+            continue
+        group = cast("JsonObject", raw_group)
+        piece_ids = _as_list(group.get("piece_ids"))
+        lines.append(
+            "- **%s:** %d source pieces; independent of %s."
+            % (
+                group.get("id", "unknown"),
+                len(piece_ids),
+                ", ".join(str(value) for value in _as_list(group.get("independent_of"))),
+            )
+        )
+    relation = _as_dict(scene_map.get("inter_garment_relation"))
+    if relation:
+        lines.append(
+            "- Measured contact relation: %s ↔ %s; requested clearance = %s mm; method = %s."
+            % (
+                relation.get("garment_group_a", "unknown"),
+                relation.get("garment_group_b", "unknown"),
+                relation.get("minimum_requested_clearance_mm", "unknown"),
+                relation.get("measurement_method", "not declared"),
+            )
+        )
+    for raw_checkpoint in _as_list(layered.get("checkpoints")):
+        if not isinstance(raw_checkpoint, dict):
+            continue
+        checkpoint = cast("JsonObject", raw_checkpoint)
+        lines.append(
+            "- Step %s: contacts=%s; corrected particles=%s; residual penetration=%s mm; "
+            "maximum seam gap=%s mm."
+            % (
+                checkpoint.get("step", "unknown"),
+                checkpoint.get("contact_count", "not measured"),
+                checkpoint.get("corrected_particle_count", "not measured"),
+                checkpoint.get("residual_penetration_mm", "not measured"),
+                checkpoint.get("max_seam_gap_mm", "not measured"),
+            )
+        )
+    lines.append(
+        "The CAD scene map contains exact local/world panel geometry, semantic edge IDs, "
+        "mannequin landmarks and seam-to-piece references. Use those records for spatial "
+        "reasoning; do not reconstruct the 3D state from a single screenshot."
+    )
+
+
 def render_markdown(report: JsonObject) -> str:
     """Generate a readable summary that leads with the blocker, not solver metrics.
 
@@ -1520,6 +1973,8 @@ def render_markdown(report: JsonObject) -> str:
     _render_geometry_issues(lines, report)
 
     _render_placement_section(lines, report)
+
+    _render_layered_garment_section(lines, report)
 
     _render_evidence_section(lines, report)
 

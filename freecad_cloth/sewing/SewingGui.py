@@ -294,6 +294,9 @@ class SewingTaskPanel:
         )
 
         configure_form_layout(layout, QtWidgets)
+        status_title = QtWidgets.QLabel("Status")
+        status_title.setObjectName("ClothSewingOperationStatusTitle")
+        root.addWidget(status_title)
         root.addWidget(self.status)
         root.addWidget(self.action_feedback)
         root.addWidget(make_scroll_area(content, QtWidgets), 1)

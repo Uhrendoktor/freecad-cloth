@@ -1,6 +1,7 @@
 # Copyright (C) 2026 FreeCAD Cloth contributors
 """Contract tests for provenance-backed semantic seam-edge references."""
 
+import math
 from typing import TypedDict, cast
 
 import pytest
@@ -10,7 +11,9 @@ from freecad_cloth.pattern.SeamReference import (
     EdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
+    capture_edge_reference_v2,
     edge_signature,
+    edge_signature_v2,
     resolve_edge_reference,
     resolve_edge_reference_status,
     semantic_edge_id,
@@ -73,6 +76,90 @@ def test_signature_is_deterministic_and_order_sensitive() -> None:
     assert signature == edge_signature(points, _provenance(points))
     reversed_points = tuple(reversed(points))
     assert signature != edge_signature(reversed_points, _provenance(reversed_points))
+
+
+def test_native_v2_fingerprint_ignores_parameter_origin_and_direction() -> None:
+    """Equivalent Sketcher curve loci must hash identically after serialization."""
+    samples = tuple(
+        (10.0 + 4.0 * math.sin(math.pi * index / 63.0), 20.0 * index / 63.0, 0.0)
+        for index in range(64)
+    )
+    forward = ("PatternIR", "Sketcher", "arc", (0.0, math.pi), samples)
+    shifted_reverse = (
+        "PatternIR",
+        "Sketcher",
+        "arc",
+        (2.0 * math.pi, 3.0 * math.pi),
+        tuple(reversed(samples)),
+    )
+    first = capture_edge_reference_v2(
+        "front",
+        "front:edge:1",
+        ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1])),
+        forward,
+    )
+    second = capture_edge_reference_v2(
+        "front",
+        "front:edge:1",
+        ((samples[-1][0], samples[-1][1]), (samples[0][0], samples[0][1])),
+        shifted_reverse,
+    )
+
+    assert first.signature.startswith("native-v2:")
+    assert first.signature == second.signature
+    assert edge_signature_v2(
+        ((0.0, 0.0), (10.0, 0.0)),
+        ("PatternIR", "Sketcher", "line", (0.0, 1.0), ((0.0, 0.0), (10.0, 0.0))),
+    ).startswith("native-v2:")
+
+
+def test_native_v2_fingerprint_rejects_real_geometry_edits() -> None:
+    """A real curve change remains visible after geometry canonicalization."""
+    samples = tuple(
+        (10.0 + 4.0 * math.sin(math.pi * index / 63.0), 20.0 * index / 63.0, 0.0)
+        for index in range(64)
+    )
+    provenance = ("PatternIR", "Sketcher", "arc", (0.0, math.pi), samples)
+    reference = capture_edge_reference_v2(
+        "front",
+        "front:edge:1",
+        ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1])),
+        provenance,
+    )
+    changed_samples = list(samples)
+    changed_samples[31] = (changed_samples[31][0] + 0.05, changed_samples[31][1], 0.0)
+    changed_provenance = (
+        "PatternIR",
+        "Sketcher",
+        "arc",
+        (0.0, math.pi),
+        tuple(changed_samples),
+    )
+    changed_edge = {
+        "piece_id": "front",
+        "id": "front:edge:1",
+        "points": ((samples[0][0], samples[0][1]), (samples[-1][0], samples[-1][1])),
+        "ordinal": 1,
+        "provenance": changed_provenance,
+    }
+
+    with pytest.raises(ChangedEdgeReference):
+        resolve_edge_reference(reference, (changed_edge,))
+
+
+def test_native_v2_reference_resolves_and_reports_valid_status() -> None:
+    """The generic edge resolver must recognize newly persisted native-v2 signatures."""
+    points = ((0.0, 0.0), (5.0, 2.0), (10.0, 0.0))
+    provenance = _provenance(points)
+    reference = EdgeReference(
+        "front",
+        "front:edge:2",
+        edge_signature_v2(points, provenance),
+    )
+    current = _edge(points=points)
+
+    assert resolve_edge_reference(reference, (current,)) is current
+    assert resolve_edge_reference_status(reference, (current,)) == (True, "valid")
 
 
 def test_reference_round_trips_as_document_data() -> None:

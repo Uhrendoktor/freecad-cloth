@@ -87,6 +87,7 @@ PYRIGHT_EXPECTED_INCLUDE = (
     "freecad_cloth/simulation/ClothSolver.py",
     "freecad_cloth/simulation/DrapeFailureClassifier.py",
     "freecad_cloth/simulation/DrapeTarget.py",
+    "freecad_cloth/simulation/InterClothContact.py",
     "freecad_cloth/simulation/MeshBoundary.py",
     "freecad_cloth/simulation/MeshCollisionProjector.py",
     "freecad_cloth/simulation/PositionBasedDynamicsBackend.py",

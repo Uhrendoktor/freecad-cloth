@@ -28,9 +28,12 @@ def test_interactive_arrange_gifs_use_a_bounded_palette_for_pr_evidence() -> Non
     )
     recorder = (ROOT / "tests" / "support" / "freecad_input.py").read_text(encoding="utf-8")
 
-    assert source.count("stop(max_colors=80)") == 2
-    assert "max_colors: int = 96" in recorder
+    assert source.count("stop(max_colors=48)") == 2
+    assert source.count("scale=0.5") == 2
+    assert "max_colors: int = 64" in recorder
     assert "write_gif(self.frames, self.path, fps=self.fps, max_colors=max_colors)" in recorder
+    pose = (ROOT / "tests" / "freecad_avatar_pose_ui_acceptance.py").read_text(encoding="utf-8")
+    assert "recorder.stop(max_colors=48)" in pose
 
 
 def test_turntable_still_uses_persistent_drape_target():
@@ -335,6 +338,7 @@ def test_ci_workflow_entry_points_keep_triggers_and_configuration_centralized() 
     assert "Required validation gate" in shared
     assert "runs-on: ${{ fromJSON(inputs.runner_target) }}" in shared
     assert "default: '\"ubuntu-latest\"'" in shared
+    assert "runs-on: ubuntu-latest" in shared
     assert "self-hosted" not in shared
     assert "runner_watchdog" not in shared
     assert "needs: [local_runner_readiness]" in shared

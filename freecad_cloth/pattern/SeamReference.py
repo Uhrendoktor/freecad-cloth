@@ -12,6 +12,7 @@ headless tests without importing the GUI runtime.
 
 import hashlib
 import json
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Self
 
@@ -25,6 +26,9 @@ type _EdgeRecord = Mapping[str, _EdgeRecordValue]
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 
 NATIVE_SIGNATURE_PREFIX = "native-v1:"
+NATIVE_SIGNATURE_PREFIX_V2 = "native-v2:"
+V2_COORDINATE_PRECISION = 6
+V2_SAMPLE_COUNT = 64
 
 
 def _normalize_provenance(value: _ProvenanceValue, precision: int = 9) -> JsonValue:
@@ -69,7 +73,9 @@ class EdgeReference:
         if not str(self.edge_id).strip():
             msg = "edge_id must not be empty"
             raise ValueError(msg)
-        if not str(self.signature).startswith(NATIVE_SIGNATURE_PREFIX):
+        if not str(self.signature).startswith(
+            (NATIVE_SIGNATURE_PREFIX, NATIVE_SIGNATURE_PREFIX_V2)
+        ):
             msg = "signature must contain native Sketcher provenance"
             raise ValueError(msg)
 
@@ -173,6 +179,177 @@ def edge_signature(
     return NATIVE_SIGNATURE_PREFIX + hashlib.sha256(encoded.encode("ascii")).hexdigest()
 
 
+def _resample_edge_points(
+    samples: Sequence[Sequence[float]],
+    sample_count: int = V2_SAMPLE_COUNT,
+) -> tuple[tuple[float, float, float], ...]:
+    """Resample one sampled native curve at equal arc-length intervals.
+
+    Args:
+        samples: Ordered XYZ samples from the current PatternIR boundary.
+        sample_count: Number of points retained in the canonical fingerprint.
+
+    Returns:
+        Equal-arc-length samples in the source edge's current direction.
+
+    Raises:
+        ValueError: If samples are malformed, non-finite, or degenerate.
+    """
+    if len(samples) < 2 or sample_count < 2:
+        msg = "native edge fingerprint needs at least two samples"
+        raise ValueError(msg)
+    points: list[tuple[float, float, float]] = []
+    for point in samples:
+        if len(point) < 2:
+            msg = "native edge fingerprint samples need at least two coordinates"
+            raise ValueError(msg)
+        x = float(point[0])
+        y = float(point[1])
+        z = float(point[2]) if len(point) > 2 else 0.0
+        if not all(math.isfinite(value) for value in (x, y, z)):
+            msg = "native edge fingerprint samples must be finite"
+            raise ValueError(msg)
+        points.append((x, y, z))
+    segment_lengths = tuple(
+        math.dist(start, end) for start, end in zip(points, points[1:], strict=False)
+    )
+    total_length = sum(segment_lengths)
+    if total_length <= 1e-12:
+        msg = "native edge fingerprint samples must have positive length"
+        raise ValueError(msg)
+    cumulative = [0.0]
+    for length in segment_lengths:
+        cumulative.append(cumulative[-1] + length)
+    result: list[tuple[float, float, float]] = []
+    segment_index = 0
+    for sample_index in range(sample_count):
+        target = total_length * sample_index / (sample_count - 1)
+        while segment_index < len(segment_lengths) - 1 and cumulative[segment_index + 1] < target:
+            segment_index += 1
+        start, end = points[segment_index], points[segment_index + 1]
+        length = segment_lengths[segment_index]
+        fraction = (target - cumulative[segment_index]) / length if length > 1e-12 else 0.0
+        result.append(
+            (
+                start[0] + (end[0] - start[0]) * fraction,
+                start[1] + (end[1] - start[1]) * fraction,
+                start[2] + (end[2] - start[2]) * fraction,
+            )
+        )
+    return tuple(result)
+
+
+def edge_signature_v2(
+    points: Sequence[Point],
+    provenance: _ProvenanceValue,
+    precision: int = V2_COORDINATE_PRECISION,
+) -> str:
+    """Hash semantic curve geometry independently of native parameterization.
+
+    Version 2 fingerprints equal-arc-length XYZ samples with a canonical
+    direction. It intentionally excludes the native parameter interval:
+    Sketcher may serialize the same shallow curve with a shifted parameter
+    origin or reversed traversal while its geometric boundary remains intact.
+
+    Args:
+        points: Ordered 2D edge endpoints in the current native record.
+        provenance: PatternIR/Sketcher curve kind, parameter range and XYZ samples.
+        precision: Decimal millimetres retained in the canonical sample fingerprint.
+
+    Returns:
+        Native-v2 SHA-256 signature for the semantic edge.
+
+    Raises:
+        ValueError: If the native PatternIR provenance is missing or malformed.
+    """
+    if len(points) < 2:
+        msg = "an edge needs at least two points"
+        raise ValueError(msg)
+    if provenance is None:
+        msg = "native Sketcher edge provenance is required"
+        raise ValueError(msg)
+    normalized = _normalize_provenance(provenance, precision)
+    if (
+        not isinstance(normalized, list)
+        or len(normalized) != 5
+        or normalized[0] != "PatternIR"
+        or normalized[1] != "Sketcher"
+        or not isinstance(normalized[2], str)
+        or not isinstance(normalized[4], list)
+    ):
+        msg = "native-v2 fingerprints require PatternIR Sketcher curve provenance"
+        raise ValueError(msg)
+    samples: list[tuple[float, float, float]] = []
+    for point in normalized[4]:
+        if not isinstance(point, list) or len(point) < 2:
+            msg = "native-v2 PatternIR samples must contain XYZ coordinates"
+            raise ValueError(msg)
+        raw_x = point[0]
+        raw_y = point[1]
+        raw_z = point[2] if len(point) > 2 else 0.0
+        if (
+            not isinstance(raw_x, (int, float))
+            or isinstance(raw_x, bool)
+            or not isinstance(raw_y, (int, float))
+            or isinstance(raw_y, bool)
+            or not isinstance(raw_z, (int, float))
+            or isinstance(raw_z, bool)
+        ):
+            msg = "native-v2 PatternIR samples must contain numeric XYZ coordinates"
+            raise ValueError(msg)
+        coordinates = (float(raw_x), float(raw_y), float(raw_z))
+        if not all(math.isfinite(value) for value in coordinates):
+            msg = "native-v2 PatternIR samples must be finite"
+            raise ValueError(msg)
+        samples.append((coordinates[0], coordinates[1], coordinates[2]))
+    sampled = _resample_edge_points(samples)
+    forward = tuple(tuple(round(value, precision) for value in point) for point in sampled)
+    canonical_samples = min(forward, tuple(reversed(forward)))
+    canonical_endpoints = (
+        (canonical_samples[0][0], canonical_samples[0][1]),
+        (canonical_samples[-1][0], canonical_samples[-1][1]),
+    )
+    payload = {
+        "schema": 2,
+        "source": "PatternIR/Sketcher",
+        "curve_kind": normalized[2],
+        "points": canonical_endpoints,
+        "samples_xyz_mm": canonical_samples,
+        "coordinate_precision_mm": 10.0**-precision,
+    }
+    encoded = json.dumps(
+        payload,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        sort_keys=True,
+    )
+    return NATIVE_SIGNATURE_PREFIX_V2 + hashlib.sha256(encoded.encode("ascii")).hexdigest()
+
+
+def capture_edge_reference_v2(
+    piece_id: str,
+    edge_id: str,
+    points: Sequence[Point],
+    provenance: _ProvenanceValue,
+) -> EdgeReference:
+    """Capture a serialization-stable native-v2 semantic edge reference.
+
+    Args:
+        piece_id: Persistent identity of the PatternPiece that owns this edge.
+        edge_id: Persistent semantic ID assigned to the original Sketcher geometry.
+        points: Ordered 2D endpoints of the current native edge record.
+        provenance: PatternIR source, curve kind, parameter interval and XYZ samples.
+
+    Returns:
+        Immutable semantic edge reference containing a native-v2 geometric fingerprint.
+    """
+    return EdgeReference(
+        str(piece_id),
+        str(edge_id),
+        edge_signature_v2(points, provenance),
+    )
+
+
 def capture_edge_reference(
     piece_id: str,
     edge_id: str,
@@ -234,10 +411,16 @@ def resolve_edge_reference(
         msg = f"semantic edge reference {reference.edge_id} has no current geometry"
         raise ChangedEdgeReference(msg)
     provenance = match.get("provenance")
-    if provenance is None or not str(reference.signature).startswith(NATIVE_SIGNATURE_PREFIX):
+    if provenance is None or not str(reference.signature).startswith(
+        (NATIVE_SIGNATURE_PREFIX, NATIVE_SIGNATURE_PREFIX_V2)
+    ):
         msg = f"semantic edge reference {reference.edge_id} lacks native Sketcher provenance"
         raise ChangedEdgeReference(msg)
-    current = edge_signature(points, provenance=provenance)
+    current = (
+        edge_signature_v2(points, provenance=provenance)
+        if reference.signature.startswith(NATIVE_SIGNATURE_PREFIX_V2)
+        else edge_signature(points, provenance=provenance)
+    )
     if current != reference.signature:
         msg = f"semantic edge reference {reference.edge_id} geometry/provenance changed"
         raise ChangedEdgeReference(msg)

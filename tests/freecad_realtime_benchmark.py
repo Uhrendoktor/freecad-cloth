@@ -40,20 +40,8 @@ TIMEOUT_MS = int(os.environ.get("CLOTH_REALTIME_TIMEOUT_MS", "20000"))
 
 
 type _ProjectionResult = tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]
-type _MeshProjectCallable = Callable[
-    [MeshCollisionProjector, npt.NDArray[np.float64]],
-    _ProjectionResult,
-]
-type _StitchedPairsCallable = Callable[
-    [
-        MeshCollisionProjector,
-        npt.NDArray[np.float64],
-        npt.NDArray[np.float64],
-        Sequence[tuple[int, int]],
-        Sequence[int],
-    ],
-    _ProjectionResult,
-]
+type _MeshProjectCallable = Callable[..., _ProjectionResult]
+type _StitchedPairsCallable = Callable[..., _ProjectionResult]
 
 
 def _add_tunic_preview_fixture(doc: object, scene: object) -> None:
@@ -373,21 +361,23 @@ def main() -> None:
             finally:
                 record_stage("solver_step", started_at)
 
-        def timed_collision_projection() -> None:
+        def timed_collision_projection(*, stage: str = "unspecified") -> None:
             started_at = time.perf_counter()
             try:
-                original_collision_projection()
+                original_collision_projection(stage=stage)
             finally:
                 record_stage("collision_projection_total", started_at)
 
         def timed_mesh_project(
             projector: MeshCollisionProjector,
             points_mm: npt.NDArray[np.float64],
+            *,
+            clearance_mm: float | npt.ArrayLike | None = None,
         ) -> _ProjectionResult:
             started_at = time.perf_counter()
             try:
                 original = cast("_MeshProjectCallable", original_mesh_project)
-                return original(projector, points_mm)
+                return original(projector, points_mm, clearance_mm=clearance_mm)
             finally:
                 if not inside_stitched_reconciliation[0]:
                     record_stage("mesh_collision_projector", started_at)
@@ -398,6 +388,8 @@ def main() -> None:
             contact_normals: npt.NDArray[np.float64],
             stitches: Sequence[tuple[int, int]],
             pinned_indices: Sequence[int] = (),
+            *,
+            clearance_mm: float | npt.ArrayLike | None = None,
         ) -> _ProjectionResult:
             started_at = time.perf_counter()
             inside_stitched_reconciliation[0] = True
@@ -409,6 +401,7 @@ def main() -> None:
                     contact_normals,
                     stitches,
                     pinned_indices,
+                    clearance_mm=clearance_mm,
                 )
             finally:
                 inside_stitched_reconciliation[0] = False

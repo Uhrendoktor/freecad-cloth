@@ -15,6 +15,7 @@ from freecad_cloth.sewing.SeamOverlay import (
 from freecad_cloth.sewing.SewingCommands import show_sewing_2d
 from freecad_cloth.sewing.SewingCreationGui import viewport_edge_candidate
 from freecad_cloth.sewing.SewingView import (
+    _seam_tangent_frame,
     apply_seam_colors,
     pattern_pieces_for_2d,
     seam_color_map,
@@ -133,6 +134,45 @@ def test_show_2d_does_not_select_seams_over_their_colors():
     assert Selection.added == []
     assert view.top == 1
     assert view.fit == 1
+
+
+def test_seam_tangent_frame_supports_world_vertical_and_oblique_segments() -> None:
+    horizontal = _seam_tangent_frame((0.0, 0.0, 0.0), (10.0, 0.0, 0.0))
+    assert horizontal is not None
+    tangent, side, length = horizontal
+    assert tangent == (1.0, 0.0, 0.0)
+    assert side == (0.0, 1.0, 0.0)
+    assert length == 10.0
+
+    vertical = _seam_tangent_frame(
+        (4.0, 2.0, 0.0),
+        (4.0, 2.0, 12.0),
+        (0.0, -1.0, 0.0),
+    )
+    assert vertical is not None
+    tangent, side, length = vertical
+    assert tangent == (0.0, 0.0, 1.0)
+    assert side == (-1.0, 0.0, 0.0)
+    assert length == 12.0
+
+    oblique = _seam_tangent_frame(
+        (0.0, 0.0, 0.0),
+        (2.0, 3.0, 6.0),
+        (0.0, 0.0, 1.0),
+    )
+    assert oblique is not None
+    tangent, side, length = oblique
+    assert abs(sum(value * value for value in tangent) - 1.0) < 1e-12
+    assert abs(sum(value * value for value in side) - 1.0) < 1e-12
+    assert abs(sum(tangent[index] * side[index] for index in range(3))) < 1e-12
+    assert abs(side[2]) < 1e-12
+    assert length == 7.0
+
+
+def test_seam_tangent_frame_skips_degenerate_or_non_finite_segments() -> None:
+    assert _seam_tangent_frame((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)) is None
+    assert _seam_tangent_frame((0.0, 0.0, 0.0), (float("nan"), 0.0, 0.0)) is None
+    assert _seam_tangent_frame((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 0.0, 0.0)) is None
 
 
 def test_seam_visual_markers_are_deterministic_and_directional():

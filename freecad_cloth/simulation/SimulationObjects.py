@@ -3,10 +3,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
 from itertools import starmap
-from typing import TYPE_CHECKING, Protocol, Self, cast
+from math import isfinite
+from typing import TYPE_CHECKING, Protocol, Self, TypedDict, cast
 
 from freecad_cloth.common.garment_document import FreeCADDocumentObjectProtocol
 from freecad_cloth.simulation.MeshBoundary import semantic_boundary_chains
@@ -14,6 +15,7 @@ from freecad_cloth.simulation.simulation_protocols import SimulationDocument, Si
 
 if TYPE_CHECKING:
     from freecad_cloth.simulation.DrapeTarget import _DrapeTargetFeature
+    from freecad_cloth.simulation.PatternSimulationAdapter import _NativePlacement
     from freecad_cloth.simulation.PositionBasedDynamicsBackend import PositionBasedDynamicsBackend
 
 
@@ -75,6 +77,22 @@ class _PatternPieceDocumentObject(FreeCADDocumentObjectProtocol, Protocol):
 
     PatternType: str
     PieceId: str
+    GeometryAuthority: str
+    Sketch: FreeCADDocumentObjectProtocol | None
+    SeamAllowance: float
+    GrainlineAngle: float
+    Placement: _NativePlacement | None
+
+
+class _PanelSimulationData(TypedDict):
+    """Global mesh topology retained for one authored PatternPiece."""
+
+    offset: int
+    vertex_count: int
+    boundary_edges: tuple[tuple[int, ...], ...]
+    positions: tuple[tuple[float, float, float], ...]
+    triangles: tuple[tuple[int, int, int], ...]
+    piece: _PatternPieceDocumentObject
 
 
 class _NativeMeshVector(Protocol):
@@ -148,6 +166,14 @@ class _SimulationFeature(_MeshObjectKey, Protocol):
     PinMode: str | list[str]
     PinSelection: list[str]
     SeamSelection: list[str]
+    GarmentGroups: list[str]
+    GarmentBodyClearanceByGroup: list[str]
+    InterClothClearance: float
+    InterClothContactCount: int
+    InterClothRemainingContactCount: int
+    InterClothCorrectedParticleCount: int
+    InterClothMaxPenetration: float
+    InterClothResidualPenetration: float
     SimulatedTime: float
     ParticleCount: int
     FiniteState: bool
@@ -427,12 +453,157 @@ def _simulation_source_signature(obj, pieces):
         pin_mode,
         _parse_int_list(getattr(obj, "PinSelection", ())) if pin_mode != "None" else (),
     )
+    inter_cloth_signature = (
+        tuple(sorted(str(value) for value in getattr(obj, "GarmentGroups", ()) or ())),
+        float(getattr(obj, "InterClothClearance", 1.0)),
+        tuple(
+            sorted(str(value) for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ())
+        ),
+    )
     return (
         pattern_signature,
         target_signature,
         int(getattr(obj, "StitchSamples", 8)),
         pin_signature,
+        inter_cloth_signature,
     )
+
+
+def _resolve_inter_cloth_groups(
+    obj: _SimulationFeature,
+    panel_data: Mapping[str, _PanelSimulationData],
+) -> dict[str, tuple[tuple[int, int, int], ...]]:
+    """Resolve persistent garment-group assignments to exact global triangle indices.
+
+    Args:
+        obj: Simulation feature containing the saved piece-to-garment assignments.
+        panel_data: Per-piece global particle and triangle data from the current build.
+
+    Returns:
+        Mapping of independent garment IDs to their combined global triangle lists.
+        An empty mapping means inter-cloth contact is not enabled for this scene.
+
+    Raises:
+        ValueError: If assignments are malformed, duplicated, incomplete, or reference
+            a pattern piece outside the current simulation scene.
+    """
+    entries = tuple(str(value) for value in getattr(obj, "GarmentGroups", ()) or ())
+    if not entries:
+        return {}
+
+    triangles_by_group: dict[str, list[tuple[int, int, int]]] = {}
+    assigned_piece_ids: set[str] = set()
+    for entry in entries:
+        group_id, separator, piece_id = entry.partition("|")
+        group_id = group_id.strip()
+        piece_id = piece_id.strip()
+        if not separator or not group_id or not piece_id:
+            msg = "GarmentGroups entries must use 'group-id|piece-id'"
+            raise ValueError(msg)
+        if piece_id in assigned_piece_ids:
+            msg = f"pattern piece {piece_id!r} is assigned to more than one garment group"
+            raise ValueError(msg)
+        data = panel_data.get(piece_id)
+        if data is None:
+            msg = f"garment group {group_id!r} references a missing simulation piece {piece_id!r}"
+            raise ValueError(msg)
+        assigned_piece_ids.add(piece_id)
+        triangles_by_group.setdefault(group_id, []).extend(
+            (int(triangle[0]), int(triangle[1]), int(triangle[2])) for triangle in data["triangles"]
+        )
+
+    expected_piece_ids = set(panel_data)
+    if assigned_piece_ids != expected_piece_ids:
+        missing = sorted(expected_piece_ids - assigned_piece_ids)
+        extra = sorted(assigned_piece_ids - expected_piece_ids)
+        msg = f"GarmentGroups must classify every simulated piece exactly once; missing={missing!r} extra={extra!r}"
+        raise ValueError(msg)
+    if len(triangles_by_group) < 2:
+        msg = "GarmentGroups must identify at least two independent garments"
+        raise ValueError(msg)
+    return {
+        group_id: tuple(triangles) for group_id, triangles in sorted(triangles_by_group.items())
+    }
+
+
+def _resolve_garment_body_clearance_by_particle(
+    obj: _SimulationFeature,
+    inter_cloth_groups: Mapping[str, Sequence[tuple[int, int, int]]],
+    particle_count: int,
+) -> tuple[float, ...] | None:
+    """Resolve optional garment standoffs to the combined solver-particle order.
+
+    Args:
+        obj: Simulation feature containing persistent garment-clearance entries.
+        inter_cloth_groups: Validated garment groups mapped to global triangle indices.
+        particle_count: Total number of particles in the combined simulation mesh.
+
+    Returns:
+        One mannequin standoff per particle, or None when no per-garment values were set.
+
+    Raises:
+        ValueError: If group entries are malformed, incomplete, non-finite, or invalid.
+    """
+    entries = tuple(str(value) for value in getattr(obj, "GarmentBodyClearanceByGroup", ()) or ())
+    if not entries:
+        return None
+    if not inter_cloth_groups:
+        msg = "GarmentBodyClearanceByGroup requires independent GarmentGroups"
+        raise ValueError(msg)
+
+    clearance_by_group: dict[str, float] = {}
+    for entry in entries:
+        group_id, separator, value_text = entry.partition("|")
+        group_id = group_id.strip()
+        value_text = value_text.strip()
+        if not separator or not group_id or not value_text:
+            msg = "GarmentBodyClearanceByGroup entries must use 'group-id|millimetres'"
+            raise ValueError(msg)
+        if group_id in clearance_by_group:
+            msg = f"duplicate mannequin body clearance for garment group {group_id!r}"
+            raise ValueError(msg)
+        try:
+            clearance = float(value_text)
+        except ValueError as exc:
+            msg = f"invalid mannequin body clearance for garment group {group_id!r}"
+            raise ValueError(msg) from exc
+        if not isfinite(clearance) or clearance <= 0.0:
+            msg = f"mannequin body clearance for garment group {group_id!r} must be positive and finite"
+            raise ValueError(msg)
+        clearance_by_group[group_id] = clearance
+
+    expected_groups = set(inter_cloth_groups)
+    configured_groups = set(clearance_by_group)
+    if configured_groups != expected_groups:
+        missing = sorted(expected_groups - configured_groups)
+        extra = sorted(configured_groups - expected_groups)
+        msg = (
+            "GarmentBodyClearanceByGroup must classify every garment group exactly once; "
+            f"missing={missing!r} extra={extra!r}"
+        )
+        raise ValueError(msg)
+
+    particle_clearances: list[float | None] = [None] * int(particle_count)
+    for group_id, group_triangles in inter_cloth_groups.items():
+        particle_indices = sorted(
+            {int(index) for triangle in group_triangles for index in triangle}
+        )
+        for particle_index in particle_indices:
+            if not 0 <= particle_index < particle_count:
+                msg = f"garment group {group_id!r} contains an invalid particle index"
+                raise ValueError(msg)
+            if particle_clearances[particle_index] is not None:
+                msg = f"particle {particle_index} is assigned to multiple garment groups"
+                raise ValueError(msg)
+            particle_clearances[particle_index] = clearance_by_group[group_id]
+
+    if any(value is None for value in particle_clearances):
+        missing_indices = [
+            index for index, value in enumerate(particle_clearances) if value is None
+        ]
+        msg = f"GarmentBodyClearanceByGroup leaves particles unassigned: {missing_indices[:8]!r}"
+        raise ValueError(msg)
+    return tuple(float(value) for value in particle_clearances if value is not None)
 
 
 def _piece_mesh(piece, start_height, piece_ir=None):
@@ -737,7 +908,13 @@ class SimulationProxy:
         else:
             self._build_demo(obj)
 
-    def _build_pattern_scene(self, obj, pieces, signature, piece_mesh=None):
+    def _build_pattern_scene(
+        self,
+        obj,
+        pieces: Sequence[_PatternPieceDocumentObject],
+        signature=None,
+        piece_mesh=None,
+    ):
         """Build the particle system and visualization panels from native PatternIR.
 
         Args:
@@ -760,7 +937,7 @@ class SimulationProxy:
         mesh_builder = piece_mesh or _piece_mesh
         positions = []
         triangles_global = []
-        panel_data = {}
+        panel_data: dict[str, _PanelSimulationData] = {}
         panels = list(obj.DrapePanels)
         for index, piece in enumerate(pieces):
             piece_ir = resolved.piece(str(piece.PieceId))
@@ -771,7 +948,14 @@ class SimulationProxy:
             )
             offset = len(positions)
             positions.extend(vertices)
-            triangles = tuple(tuple(a + offset for a in tri) for tri in triangles)
+            triangles: tuple[tuple[int, int, int], ...] = tuple(
+                (
+                    int(triangle[0]) + offset,
+                    int(triangle[1]) + offset,
+                    int(triangle[2]) + offset,
+                )
+                for triangle in triangles
+            )
             triangles_global.extend(triangles)
             edges = tuple(
                 tuple(int(vertex_index) + offset for vertex_index in edge) for edge in boundary
@@ -780,7 +964,10 @@ class SimulationProxy:
                 "offset": offset,
                 "vertex_count": len(vertices),
                 "boundary_edges": edges,
-                "positions": tuple(positions),
+                "positions": cast(
+                    "tuple[tuple[float, float, float], ...]",
+                    tuple(positions),
+                ),
                 "triangles": triangles,
                 "piece": piece,
             }
@@ -801,6 +988,13 @@ class SimulationProxy:
             resolved.pattern,
             panel_data,
             int(getattr(obj, "StitchSamples", 8)),
+        )
+        inter_cloth_groups = _resolve_inter_cloth_groups(obj, panel_data)
+        inter_cloth_clearance = float(getattr(obj, "InterClothClearance", 1.0))
+        body_clearance_by_particle = _resolve_garment_body_clearance_by_particle(
+            obj,
+            inter_cloth_groups,
+            len(positions),
         )
         system.add_stitches(seam_pairs)
         first = panel_data[str(pieces[0].PieceId)] if pieces else None
@@ -823,6 +1017,9 @@ class SimulationProxy:
             pins=pins,
             stitches=seam_pairs,
             collision_surface=collision_surface,
+            inter_cloth_groups=inter_cloth_groups,
+            inter_cloth_clearance_mm=inter_cloth_clearance,
+            body_clearance_by_particle_mm=body_clearance_by_particle,
         )
         self.panel_indices = {}
         self.panel_triangles = {}
@@ -988,6 +1185,28 @@ def create_simulation_scene(
     scene.PinMode = "Automatic"
     scene.addProperty("App::PropertyStringList", "PinSelection", "Selection").PinSelection = []
     scene.addProperty("App::PropertyStringList", "SeamSelection", "Selection").SeamSelection = []
+    scene.addProperty("App::PropertyStringList", "GarmentGroups", "Simulation").GarmentGroups = []
+    scene.addProperty(
+        "App::PropertyStringList", "GarmentBodyClearanceByGroup", "Simulation"
+    ).GarmentBodyClearanceByGroup = []
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothClearance", "Simulation"
+    ).InterClothClearance = 1.0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothContactCount", "Simulation"
+    ).InterClothContactCount = 0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothRemainingContactCount", "Simulation"
+    ).InterClothRemainingContactCount = 0
+    scene.addProperty(
+        "App::PropertyInteger", "InterClothCorrectedParticleCount", "Simulation"
+    ).InterClothCorrectedParticleCount = 0
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothMaxPenetration", "Simulation"
+    ).InterClothMaxPenetration = 0.0
+    scene.addProperty(
+        "App::PropertyFloat", "InterClothResidualPenetration", "Simulation"
+    ).InterClothResidualPenetration = 0.0
     scene.addProperty("App::PropertyFloat", "SimulatedTime", "State").SimulatedTime = 0.0
     scene.addProperty("App::PropertyInteger", "ParticleCount", "State").ParticleCount = 0
     scene.addProperty("App::PropertyBool", "FiniteState", "State").FiniteState = True

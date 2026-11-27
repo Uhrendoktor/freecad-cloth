@@ -866,7 +866,7 @@ def run():
             raise RuntimeError(msg)
     finally:
         if recorder._started:
-            recorder.stop()
+            recorder.stop(max_colors=48)
 
     before = _bounds(avatar.Mesh)
     panel._stage_joint_rotation(

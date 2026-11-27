@@ -18,9 +18,11 @@ from freecad_cloth.pattern.PatternIR import BoundaryIR, PatternIR, PieceIR, Seam
 from freecad_cloth.pattern.PatternModel import PatternPiece, Seam
 from freecad_cloth.pattern.SeamReference import (
     NATIVE_SIGNATURE_PREFIX,
+    NATIVE_SIGNATURE_PREFIX_V2,
     ChangedEdgeReference,
     MissingEdgeReference,
     capture_edge_reference,
+    edge_signature_v2,
 )
 from freecad_cloth.sewing.SeamGraph import SeamGraph
 
@@ -413,7 +415,7 @@ def _validate_edge_signature(
         ChangedEdgeReference: If the stored native provenance is missing or changed.
     """
     stored = str(getattr(seam_obj, signature_attribute, "")).strip()
-    if not stored.startswith(NATIVE_SIGNATURE_PREFIX):
+    if not stored.startswith((NATIVE_SIGNATURE_PREFIX, NATIVE_SIGNATURE_PREFIX_V2)):
         msg = (
             f"native Sketcher seam {getattr(seam_obj, 'SeamId', '')} lacks "
             f"authoritative geometry provenance for {edge_id}"
@@ -435,12 +437,16 @@ def _validate_edge_signature(
         tuple(float(value) for value in boundary.parameter_range),
         samples,
     )
-    current = capture_edge_reference(
-        str(getattr(piece, "PieceId", "")),
-        edge_id,
-        points,
-        provenance,
-    ).signature
+    current = (
+        edge_signature_v2(points, provenance)
+        if stored.startswith(NATIVE_SIGNATURE_PREFIX_V2)
+        else capture_edge_reference(
+            str(getattr(piece, "PieceId", "")),
+            edge_id,
+            points,
+            provenance,
+        ).signature
+    )
     if current != stored:
         msg = f"semantic edge reference {edge_id} geometry/provenance changed"
         raise ChangedEdgeReference(msg)

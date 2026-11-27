@@ -2,7 +2,7 @@
 """Shared fixtures for semantic PatternIR edge-reference tests."""
 
 from freecad_cloth.pattern.PatternIR import BoundaryIR
-from freecad_cloth.pattern.SeamReference import capture_edge_reference
+from freecad_cloth.pattern.SeamReference import capture_edge_reference_v2
 
 
 def edge_reference_signature(piece_id: str, boundary: BoundaryIR) -> str:
@@ -24,4 +24,4 @@ def edge_reference_signature(piece_id: str, boundary: BoundaryIR) -> str:
         tuple(float(value) for value in boundary.parameter_range),
         samples,
     )
-    return capture_edge_reference(piece_id, boundary.id, points, provenance).signature
+    return capture_edge_reference_v2(piece_id, boundary.id, points, provenance).signature

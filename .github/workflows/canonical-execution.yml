@@ -268,6 +268,7 @@ jobs:
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
           checkout: "false"
+          timeout-seconds: "180"
           test-script: tests/freecad_pbd_avatar_ladder.py
           log-file: artifacts/simulation-ladder/avatar-ladder-run.log
           validate-command: python3 tools/ci/validate_manifests.py simulation
@@ -329,7 +330,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 8
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -337,9 +338,10 @@ jobs:
           - {case: sewing, script: tests/freecad_sewing_creation_smoke.py, log: artifacts/sewing-creation-smoke.log, artifact: sewing-creation-smoke, stage: "true", clean: "false", env: "CLOTH_SEWING_SMOKE_LOG=/workspace/artifacts/sewing-creation-smoke.log", pre: "python3 tests/freecad_tunic_audit.py --syntax-check", validate: ""}
           - {case: avatar-pose, script: tests/freecad_avatar_pose_ui_acceptance.py, log: artifacts/avatar-pose-ui.log, artifact: avatar-pose-ui, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py avatar-pose"}
           - {case: avatar-provider-lifecycle, script: tests/freecad_avatar_acceptance.py, log: artifacts/avatar-provider-lifecycle-run.log, artifact: avatar-provider-lifecycle, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-provider-lifecycle"}
-          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor"}
+          - {case: avatar-shape-editor, script: tests/freecad_avatar_shape_editor_acceptance.py, log: artifacts/avatar-shape-editor.log, artifact: avatar-shape-editor, stage: "true", clean: "false", env: "FREECAD_CLOTH_ANNY_FIT_STEPS=18", validate: "python3 tools/ci/validate_acceptance.py avatar-shape-editor", timeout: "180"}
           - {case: fitting, script: tests/freecad_interactive_arrange_acceptance.py, log: artifacts/interactive-arrange.log, artifact: interactive-arrange, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py fitting"}
           - {case: simulation-quality, script: tests/freecad_simulation_quality_acceptance.py, log: artifacts/simulation-quality-acceptance.log, artifact: simulation-quality-acceptance, stage: "true", clean: "false", env: "CLOTH_SIMULATION_QUALITY_ARTIFACT_DIR=/workspace/artifacts", pre: "", validate: "python3 tools/ci/validate_acceptance.py simulation-quality", timeout: "360"}
+          - {case: layered-outfit, script: tests/freecad_layered_garment_acceptance.py, log: artifacts/layered-outfit/layered-outfit-run.log, artifact: layered-outfit-acceptance, stage: "true", clean: "true", env: "CLOTH_LAYERED_OUTFIT_DIR=/workspace/artifacts/layered-outfit\nCLOTH_HEAD_SHA=${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", pre: "", validate: "python3 tools/ci/validate_layered_outfit.py artifacts/layered-outfit/layered-outfit-manifest.json", scene-report-command: "python3 tools/ci/scene_understanding_report.py --progress artifacts/layered-outfit/layered-outfit-progress.log --output-root artifacts/layered-outfit", timeout: "600"}
           - {case: sketcher, script: tests/freecad_sketcher_acceptance.py, log: artifacts/sketcher-acceptance.log, artifact: sketcher-acceptance, stage: "true", clean: "true", env: "SKETCHER_STAGE_FILE=/workspace/artifacts/sketcher-stage.log", validate: ""}
           - {case: pattern-export, script: tests/freecad_pattern_export_smoke.py, log: artifacts/pattern-production-export.log, artifact: pattern-production-export, stage: "true", clean: "false", env: "CLOTH_PATTERN_EXPORT_LOG=/workspace/artifacts/pattern-production-export.log", validate: ""}
           - {case: surface-pen, script: tests/freecad_surface_pen_smoke.py, log: artifacts/surface-pen.log, artifact: surface-pen, stage: "true", clean: "false", env: "", validate: "python3 tools/ci/validate_acceptance.py surface-pen"}
@@ -357,6 +359,7 @@ jobs:
           pre-command: ${{ matrix.pre }}
           log-file: ${{ matrix.log }}
           validate-command: ${{ matrix.validate }}
+          scene-report-command: ${{ matrix.scene-report-command }}
           artifact-name: ${{ matrix.artifact }}
           artifact-path: artifacts
           stage-workbench: ${{ matrix.stage }}
@@ -367,7 +370,7 @@ jobs:
     if: ${{ inputs.execution_mode == 'full' }}
     needs: [agent-quality, local_runner_readiness, pbd_validation_image]
     runs-on: ${{ fromJSON(inputs.runner_target) }}
-    timeout-minutes: 30
+    timeout-minutes: 50
     env:
       FREECAD_PBD_IMAGE: ${{ needs.pbd_validation_image.outputs.image }}
     steps:
@@ -377,19 +380,30 @@ jobs:
         continue-on-error: true
         with:
           image: ${{ env.FREECAD_PBD_IMAGE }}
+      # Every full run executes the 90-step physical/visual baseline audit.
+      # The matched OpenMP A/B comparison is scoped to the PR that changes it.
       - uses: ./.github/actions/pbd-tunic-audit
         id: baseline_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-1}
+        with:
+          image: ${{ env.FREECAD_PBD_IMAGE }}
+          mode: "0"
+          profile-name: baseline-1
+          timeout-seconds: "600"
+          collect-evidence: ${{ github.event_name != 'pull_request' || !contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: candidate_1_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-1, timeout-seconds: "600"}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: baseline_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "0", profile-name: baseline-2, timeout-seconds: "600"}
       - uses: ./.github/actions/pbd-tunic-audit
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: candidate_2_audit
-        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, collect-evidence: "true"}
+        with: {image: "${{ env.FREECAD_PBD_IMAGE }}", mode: "1", profile-name: candidate-2, timeout-seconds: "600", collect-evidence: "true"}
       - name: Compare matched native production profiles
+        if: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         id: compare_paired_profiles
         shell: bash
         run: |
@@ -400,13 +414,13 @@ jobs:
             --candidate-2 artifacts/pbd-openmp-team-reuse/candidate-2.json \
             --output artifacts/pbd-openmp-team-reuse/comparison.json
       - name: Upload matched PBD experiment profiles
-        if: always()
+        if: ${{ always() && github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: pbd-openmp-team-reuse-comparison
           path: artifacts/pbd-openmp-team-reuse/**
           if-no-files-found: error
-      - name: Report paired native production audit outcome
+      - name: Report production tunic audit outcome
         if: always()
         env:
           BASELINE_1_OUTCOME: ${{ steps.baseline_1_audit.outcome }}
@@ -414,16 +428,26 @@ jobs:
           BASELINE_2_OUTCOME: ${{ steps.baseline_2_audit.outcome }}
           CANDIDATE_2_OUTCOME: ${{ steps.candidate_2_audit.outcome }}
           COMPARISON_OUTCOME: ${{ steps.compare_paired_profiles.outcome }}
+          OPENMP_EXPERIMENT: ${{ github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[openmp-team-reuse]') }}
         shell: bash
         run: |
           set -euo pipefail
-          for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
-            if [[ "$outcome" != "success" ]]; then
-              echo "::error title=Paired production audit failed::All four complete 90-step audits and the matched timing comparison are blocking."
+          if [[ "$OPENMP_EXPERIMENT" == "true" ]]; then
+            for outcome in "$BASELINE_1_OUTCOME" "$CANDIDATE_1_OUTCOME" "$BASELINE_2_OUTCOME" "$CANDIDATE_2_OUTCOME" "$COMPARISON_OUTCOME"; do
+              if [[ "$outcome" != "success" ]]; then
+                echo "::error title=Paired production audit failed::All four complete 90-step audits and the matched timing comparison are blocking for the OpenMP experiment."
+                exit 1
+              fi
+            done
+            echo "::notice title=OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+          else
+            if [[ "$BASELINE_1_OUTCOME" != "success" ]]; then
+              echo "::error title=Production tunic audit failed::The 90-step baseline physical/visual audit must pass."
               exit 1
             fi
-          done
-          echo "::notice title=Native OpenMP team-reuse experiment::All four production audits passed; matched profile comparison satisfied the 5% projection and non-regressing wall-time gates."
+            echo "native-production-tunic-audit=passed"
+          fi
+
   gui-turntables:
     name: README turntable evidence
     if: ${{ inputs.execution_mode == 'full' }}
@@ -484,17 +508,17 @@ jobs:
           environment: CLOTH_SCREENSHOT_DIR=/workspace/docs/images/generated
   publish-pr-simulation-evidence:
     name: Publish PR simulation evidence
-    needs: [agent-quality, gui-tunic-visual]
-    if: ${{ needs.gui-tunic-visual.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
+    needs: [agent-quality, gui-simple]
+    if: ${{ needs.gui-simple.result == 'success' && inputs.execution_mode == 'full' && ((github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]') || (github.event_name == 'workflow_dispatch' && inputs.pr_number != '')) }}
     runs-on: ${{ fromJSON(inputs.runner_target) }}
     timeout-minutes: 5
-    permissions:
-      contents: write
-      pull-requests: write
+    permissions: {actions: read, contents: write, pull-requests: write}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: Uhrendoktor/freecad-cloth/.github/actions/publish-visual-evidence@3bd8306b79b4274695176829edd7b750a0d8390d
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with: {ref: "${{ github.event.pull_request.head.sha || github.sha }}", persist-credentials: false}
+      - uses: ./.github/actions/publish-visual-evidence
         with:
           mode: pr
           source-sha: ${{ github.event.pull_request.head.sha || github.sha }}

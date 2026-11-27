@@ -7,7 +7,7 @@ proxy. It is the only quality runtime implementation.
 
 import weakref
 from collections.abc import Hashable, Sequence
-from math import ceil
+from math import ceil, isfinite
 from typing import Protocol, Self, cast
 
 from freecad_cloth.simulation.SimulationObjects import (
@@ -34,6 +34,14 @@ class _QualityScene(Protocol):
     SolverIterations: int
     SolverSubsteps: int
     PinMode: str
+    GarmentGroups: Sequence[str]
+    GarmentBodyClearanceByGroup: Sequence[str]
+    InterClothClearance: float
+    InterClothContactCount: int
+    InterClothRemainingContactCount: int
+    InterClothCorrectedParticleCount: int
+    InterClothMaxPenetration: float
+    InterClothResidualPenetration: float
     FabricDensity: float
     FabricThickness: float
     FabricStretch: float
@@ -78,6 +86,14 @@ def ensure_quality_properties(scene: _QualityScene) -> _QualityScene:
         ("SolverIterations", "App::PropertyInteger", "Quality", None, 8),
         ("SolverSubsteps", "App::PropertyInteger", "Quality", None, 1),
         ("PinMode", "App::PropertyEnumeration", "Quality", list(PIN_MODE_NAMES), "Automatic"),
+        ("GarmentGroups", "App::PropertyStringList", "Simulation", None, []),
+        ("GarmentBodyClearanceByGroup", "App::PropertyStringList", "Simulation", None, []),
+        ("InterClothClearance", "App::PropertyFloat", "Simulation", None, 1.0),
+        ("InterClothContactCount", "App::PropertyInteger", "Simulation", None, 0),
+        ("InterClothRemainingContactCount", "App::PropertyInteger", "Simulation", None, 0),
+        ("InterClothCorrectedParticleCount", "App::PropertyInteger", "Simulation", None, 0),
+        ("InterClothMaxPenetration", "App::PropertyFloat", "Simulation", None, 0.0),
+        ("InterClothResidualPenetration", "App::PropertyFloat", "Simulation", None, 0.0),
         ("FabricDensity", "App::PropertyFloat", "Fabric", None, 150.0),
         ("FabricThickness", "App::PropertyFloat", "Fabric", None, 0.5),
         ("FabricStretch", "App::PropertyFloat", "Fabric", None, 0.02),
@@ -111,6 +127,15 @@ def _validate_properties(scene: _QualityScene) -> None:
     scene.SolverSubsteps = max(1, int(scene.SolverSubsteps))
     scene.FabricDensity = max(1e-9, float(scene.FabricDensity))
     scene.FabricThickness = max(1e-9, float(scene.FabricThickness))
+    clearance = float(scene.InterClothClearance)
+    scene.InterClothClearance = max(0.01, clearance) if isfinite(clearance) else 1.0
+    scene.GarmentGroups = [str(value) for value in scene.GarmentGroups]
+    scene.GarmentBodyClearanceByGroup = [str(value) for value in scene.GarmentBodyClearanceByGroup]
+    scene.InterClothContactCount = max(0, int(scene.InterClothContactCount))
+    scene.InterClothRemainingContactCount = max(0, int(scene.InterClothRemainingContactCount))
+    scene.InterClothCorrectedParticleCount = max(0, int(scene.InterClothCorrectedParticleCount))
+    scene.InterClothMaxPenetration = max(0.0, float(scene.InterClothMaxPenetration))
+    scene.InterClothResidualPenetration = max(0.0, float(scene.InterClothResidualPenetration))
     for name in (
         "FabricStretch",
         "FabricShear",
@@ -280,6 +305,8 @@ class QualitySimulationProxy:
             float(obj.ParticleDistance),
             int(obj.SolverIterations),
             int(obj.SolverSubsteps),
+            tuple(str(value) for value in getattr(obj, "GarmentGroups", ())),
+            float(getattr(obj, "InterClothClearance", 1.0)),
             float(obj.FabricDensity),
             float(obj.FabricThickness),
             float(obj.FabricStretch),
@@ -304,6 +331,19 @@ class QualitySimulationProxy:
                     gravity,
                     base.collision_surface,
                 )
+                metrics = getattr(base.backend, "inter_cloth_metrics", None)
+                if metrics is not None:
+                    obj.InterClothContactCount = int(metrics.contact_count)
+                    obj.InterClothRemainingContactCount = int(metrics.remaining_contact_count)
+                    obj.InterClothCorrectedParticleCount = int(metrics.corrected_particle_count)
+                    obj.InterClothMaxPenetration = float(metrics.max_penetration_before_mm)
+                    obj.InterClothResidualPenetration = float(metrics.max_penetration_after_mm)
+                else:
+                    obj.InterClothContactCount = 0
+                    obj.InterClothRemainingContactCount = 0
+                    obj.InterClothCorrectedParticleCount = 0
+                    obj.InterClothMaxPenetration = 0.0
+                    obj.InterClothResidualPenetration = 0.0
             base.last_steps += 1
 
     def _publish_state(self, obj, base):
